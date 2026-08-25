@@ -96,6 +96,33 @@ test("Work Sync publishes a successful mutation only after the project projectio
   assert.equal(state.store.platform.task_sync.projects["1"].trusted, true);
 });
 
+test("Work Sync submits combined field and state edits once and publishes only the confirmed response", async () => {
+  const state = createState(preloadedStore({ state: "pending", content: "before" }));
+  const calls = [];
+  let remoteTask = { ...state.store.platform.task_sync.projects["1"].tasks[0] };
+  const platformSource = {
+    async listProjectTasks() { return [remoteTask]; },
+    async listProjectTags() { return []; },
+    async updateTask(taskId, input) {
+      calls.push([taskId, input]);
+      remoteTask = { ...remoteTask, ...input };
+      return remoteTask;
+    }
+  };
+  const coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource([{ id: "1", current_user_id: "7" }], platformSource),
+    platformSource
+  });
+
+  const updated = await coordinator.updateTask("T-1", { content: "after", state: "completed" }, { expectedState: "pending" });
+
+  assert.deepEqual(calls, [["T-1", { content: "after", state: "completed" }]]);
+  assert.equal(updated.content, "after");
+  assert.equal(updated.state, "completed");
+  assert.equal(state.store.platform.task_sync.projects["1"].tasks[0].state, "completed");
+});
+
 test("a successful Work refresh clears the previous project degradation", async () => {
   const input = preloadedStore({ state: "pending" });
   input.platform.task_sync.source_status = "degraded";

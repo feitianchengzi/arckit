@@ -226,11 +226,11 @@ Preload 新增以下产品动作：
 - `previewImage(input)` / `openImageViewer(input)`：只接受 `work-task`、`feedback-file` 或 `feedback-v2` 来源及其领域身份。main 进程重新验证记录归属、受信 URL、响应类型和大小；前者返回受限 data URL，后者创建或聚焦 Work 与 Feedback 共用的独立图片窗口。Renderer 不能提交 data URL、任意下载 URL 或本地路径作为图片来源。
 - 图片窗口使用独立静态 Renderer 和最小 preload，启用 context isolation、sandbox、禁用 Node integration 与任意导航。缩放、适合窗口、实际大小、旋转、平移和重置只改变窗口内视图状态；另存为通过仅对受管图片窗口开放的 main-process 保存动作写入用户明确选择的位置。
 
-当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
+当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。Task create 与 update 接受显式七状态；Platform Coordinator 校验枚举并转交 Work Sync，不查询 Automation snapshot 来授权或拒绝。正文与状态的同次编辑形成一个受控 `updateTask` mutation，并携带本地预期状态用于冲突检测。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
-Automation IPC 保持执行控制语义，但任务状态命令在 main process 转交 Work Sync。平台 shell 和 Automation 提交的状态动作都受当前 executor、本地预期状态和 Work Sync mutation 结果约束；普通项目管理待办更新与 Automation 生命周期动作共用 Work Sync 的服务端写入和本地投影提交边界，不伪装成彼此的产品命令。
+Automation IPC 保持执行控制语义，但任务状态命令在 main process 转交 Work Sync。Work 新建、编辑和 Inspector 的状态输入，以及 Automation 发起的生命周期动作，共用 Work Sync 的服务端写入和本地投影提交边界；两者都受本地预期状态、Workshop 权限、版本冲突和确认结果约束。Automation 只消费已发布状态，不是 Work mutation 的授权源，也不能通过活动 execution 或验收问题隐藏、拒绝 Work 状态输入。
 
 ## 权限
 

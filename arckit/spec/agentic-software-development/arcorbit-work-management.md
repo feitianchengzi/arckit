@@ -52,11 +52,12 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 
 ### 创建、编辑与状态处置
 
-- 创建待办要求内容和产品，支持执行人、父任务、优先级和标签；默认进入 `pending_review`，除非用户通过明确且受支持的状态动作选择其他状态。
+- 创建待办要求内容和产品，支持执行人、父任务、优先级和标签；表单提供完整七状态选择并默认 `pending_review`，用户可以在提交前改为任一受支持状态。
 - 编辑固定任务所属产品，候选成员、父任务和标签不得跨产品混用。
+- 编辑表单和同屏 Inspector 都提供完整七状态选择。Automation 是否可见、是否正在消费或是否存在验收问题，不隐藏状态字段，也不成为 Work 状态 mutation 的客户端许可条件。
 - 优先级使用“最高、高、中、低、无优先级”语义档位，对应 Workshop `0、1、2、3、null`。
 - 标签属于单个 Project；表单支持选择、创建、重命名、调整颜色和确认删除，并在标签操作后保持仍有效的任务草稿。
-- 普通字段更新走受限 Platform Adapter；涉及 Automation 生命周期的确认可处理、打开运行、恢复、取消、完成验收和验收问题继续使用受控动作，不由通用状态下拉绕过 Runtime 或人工 Gate。
+- 创建、编辑和 Inspector 状态更新都通过受限 Platform Coordinator 交给 Work Sync；正文与状态同次编辑使用一次 Workshop mutation，避免先后写入产生部分成功。确认可处理、打开运行、恢复、取消和验收等上下文动作仍可作为快捷入口，但不是允许修改状态的唯一入口。
 - `in_progress` 任务的修改只向 executor、project admin 或 owner 开放；其余状态遵守 Workshop 当前成员规则。Renderer 只做保守提示，服务端响应是最终事实。
 
 ## 同步、冲突与恢复
@@ -74,8 +75,9 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 
 - Work 显示有权查看的完整项目任务；Automation 不拥有 Task Source，只消费 Work Sync 从同一本地投影发布的当前用户候选状态。
 - Automation 的领取、阻塞、完成、取消和验收动作提交给 Work Sync。Work Sync 负责服务器同步；Automation 只在观察到 Work 发布的目标本地状态后推进执行生命周期。
+- 用户在 Work 修改活动待办状态时不需要 Automation 预先授权。Work Sync 发布服务器确认状态后，Automation 将其作为外部事实消费：重新计算候选与终态；若活动 Runtime 与新状态冲突，则安全停止对应 execution 并进入可恢复的外部变化状态，且不把该变化解释为人工 Gate 回复。
 - Work 可以展示 Automation 资格、当前 Run、恢复入口和 completed 任务的验收问题，但不创建第二套任务状态。
-- 提出验收问题保持来源任务 `completed`，问题进入 ArcOrbit 独立队列并复用来源 thread；存在未解决问题时不能标记 `accepted`。
+- 提出验收问题保持来源任务 `completed`，问题进入 ArcOrbit 独立队列并复用来源 thread；上下文“验收通过”快捷动作可要求问题先解决，但 Work 的通用状态编辑仍由 Workshop 权限、版本冲突和服务端确认决定，Automation 负责消费结果并对账问题执行。
 - Workshop 普通用户反馈仍由 Feedback 页面处理；Feedback 转成的 Task 在 Work 中按普通任务继续管理。
 
 ## 明确不作为核心阻塞项
@@ -91,10 +93,10 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 2. 筛选结果以单行、无操作按钮的可展开任务树呈现；每个任务标题把换行与连续空白折叠为空格，并在 64 个 Unicode grapheme clusters 内以 `…` 结束超长文本；用户从 Inspector 创建子任务、调整父任务且不能形成循环。
 3. 用户可在同屏详情中只阅读一次保留原始换行的完整内容和关键元数据，不在其上方重复展示同源标题；评论图片默认加载并可在独立窗口完成缩放、适配、实际大小、旋转、平移、重置和另存为，图片失败不阻塞其余时间线。
 4. 用户可完成评论/附件的新增及有权限的维护。
-5. 用户可完成任务 CRUD、执行人、优先级、标签和受控状态操作，所有成功结果均来自 Workshop 确认。
-6. Work 与 Automation 共享 Work Sync 发布的本地任务事实但不共享职责：Work 独占远端同步，Automation 只依赖本地状态；筛选不授权执行，通用编辑不释放人工 Gate，验收问题不改写来源任务终态。
+5. 用户可在新建、编辑和 Inspector 详情三个入口选择或修改完整七状态；Automation 可见性、活动 execution 和验收问题不隐藏或拒绝该输入，所有成功结果均来自 Workshop 确认。
+6. Work 与 Automation 共享 Work Sync 发布的本地任务事实但不共享职责：Work 独占远端 mutation 与同步，Automation 只消费确认后的本地状态并对活动 execution、队列、Gate、验收问题和终态进行对账；筛选不授权执行，状态变化不释放人工 Gate。
 7. 权限变化、冲突、对象消失和网络失败均保留可恢复状态，不以本地乐观结果覆盖服务器事实。
-8. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、标题在 63/64/65 grapheme 边界的省略行为、换行与 Unicode 组合字符、详情去重、任务树、父子循环防护、评论权限、图片默认加载与操作、跨产品隔离、状态边界和失败恢复。
+8. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖三入口七状态编辑、组合字段/状态单次 mutation、冲突不乐观覆盖、Automation 外部状态变化安全停止与恢复、本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、标题边界、详情去重、任务树、评论与图片操作及跨产品隔离。
 
 ## Source Basis
 

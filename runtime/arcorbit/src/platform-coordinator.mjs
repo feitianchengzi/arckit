@@ -416,13 +416,13 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       "project.join": () => platformSource.joinProject(input),
       "project.member.update": () => platformSource.updateProjectMember(input.project_id, input),
       "project.member.delete": () => platformSource.deleteProjectMember(input.project_id, input),
-      "task.create": () => createPendingReviewTask(input),
+      "task.create": () => createWorkTask(input),
       "task.subtask.create": async () => {
         const projectId = requiredText(input.project_id, "Project id", 120);
         const parentId = requiredText(input.father_id, "Parent task id", 120);
         const tasks = (await workSync.getSnapshot()).tasks.filter((task) => String(task.project_id) === projectId);
         if (!(tasks || []).some((task) => String(task.id) === parentId)) throw new Error("父待办不属于当前产品。");
-        return createPendingReviewTask({ ...input, project_id: projectId, father_id: parentId });
+        return createWorkTask({ ...input, project_id: projectId, father_id: parentId });
       },
       "task.reparent": async () => {
         const projectId = requiredText(input.project_id, "Project id", 120);
@@ -433,17 +433,11 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
         return workSync.updateTask(taskId, { father_id: parentId || null });
       },
       "task.update": async () => {
-        if (input.state !== undefined) {
-          const automation = await automationCoordinator.getSnapshot({});
-          const task = (automation.tasks || []).find((item) => String(item.id) === String(input.task_id));
-          if (task) {
-            throw new Error("Automation 管理中的待办状态只能通过受控 Automation 动作变更。");
-          }
+        const { task_id: taskId, expected_state: expectedState = "", ...changes } = input;
+        if (changes.state !== undefined && !TASK_STATES.includes(changes.state)) {
+          throw new TypeError(`Unsupported task state: ${changes.state}`);
         }
-        if (input.state !== undefined) {
-          return workSync.updateTaskState({ taskId: input.task_id, state: input.state, expectedState: input.expected_state || "" });
-        }
-        return workSync.updateTask(input.task_id, input);
+        return workSync.updateTask(taskId, changes, { expectedState });
       },
       "task.delete": () => workSync.deleteTask(input.task_id),
       "task.attachments.list": () => platformSource.listTaskAttachments(input.task_id),
@@ -517,9 +511,11 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     return handler();
   }
 
-  async function createPendingReviewTask(input = {}) {
+  async function createWorkTask(input = {}) {
     const projectId = requiredText(input.project_id, "Project id", 120);
-    return workSync.createTask({ ...input, project_id: projectId, state: "pending_review" });
+    const state = input.state || "pending_review";
+    if (!TASK_STATES.includes(state)) throw new TypeError(`Unsupported task state: ${state}`);
+    return workSync.createTask({ ...input, project_id: projectId, state });
   }
 
   async function getFeedbackV2Messages(input = {}) {

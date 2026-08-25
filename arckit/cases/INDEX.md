@@ -136,3 +136,4 @@
 | [CASE-20260825-002](closed/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md) | closed | Enable concurrent ArcOrbit automation across projects | 2026-08-25T08:22:01.846Z |
 | [CASE-20260825-003](closed/CASE-20260825-003-work.md) | closed | 修复 Work 待办详情刷新导致输入草稿丢失 | 2026-08-25T10:42:42.557Z |
 | [CASE-20260825-004](closed/CASE-20260825-004-chat.md) | closed | 诊断并修复 Chat 流式回答时消息列表底部抖动 | 2026-08-25T10:58:21.371Z |
+| [CASE-20260825-005](closed/CASE-20260825-005-work-automation.md) | closed | 解除 Work 待办状态的 Automation 修改限制 | 2026-08-25T11:24:37.416Z |

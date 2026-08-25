@@ -302,7 +302,7 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   const platformSource = new Proxy({
     listProjects: async () => [{ id: "11", name: "Alpha" }],
     updateProjectMember: async (projectId, input) => { calls.push(["member.update", projectId, input]); return { ok: true }; },
-    createTask: async (input) => { calls.push(["task.create", input]); return { id: 42, state: "pending_review" }; },
+    createTask: async (input) => { calls.push(["task.create", input]); return { id: 42, ...input }; },
     updateTask: async (taskId, input) => { calls.push(["task.update", taskId, input]); return { id: taskId, ...input }; },
     listProjectTasks: async () => [{ id: "42", father_id: "" }, { id: "43", father_id: "42" }, { id: "44", father_id: "43" }],
     updateFeedbackV1: async (feedbackId, input) => { calls.push(["feedback.update", feedbackId, input]); return { id: feedbackId }; }
@@ -336,15 +336,16 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   );
   assert.equal(Number.isNaN(Date.parse(calls[2][2].data.converted_at)), false);
   const created = await coordinator.executeAction("task.create", { project_id: "11", content: "Local pending review", executor_id: 7, state: "accepted" });
-  assert.equal(created.state, "pending_review");
-  assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", content: "Local pending review", executor_id: 7, state: "pending_review" }]);
+  assert.equal(created.state, "accepted");
+  assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", content: "Local pending review", executor_id: 7, state: "accepted" }]);
   assert.deepEqual(automationRefreshes, []);
-  await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /只能通过受控 Automation 动作/);
+  await coordinator.executeAction("task.update", { task_id: "42", content: "Updated", state: "accepted", expected_state: "pending_review" });
+  assert.deepEqual(calls.at(-1), ["task.update", "42", { content: "Updated", state: "accepted" }]);
   acceptanceIssues[0].status = "resolved";
-  await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /只能通过受控 Automation 动作/);
   await coordinator.executeAction("task.subtask.create", { project_id: "11", father_id: "42", content: "Child", state: "accepted" });
-  assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", father_id: "42", content: "Child", state: "pending_review" }]);
+  assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", father_id: "42", content: "Child", state: "accepted" }]);
   assert.deepEqual(automationRefreshes, []);
+  await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "unknown" }), /Unsupported task state/);
   await coordinator.executeAction("task.reparent", { project_id: "11", task_id: "44", father_id: "42" });
   assert.deepEqual(calls.at(-1), ["task.update", "44", { father_id: "42" }]);
   await assert.rejects(coordinator.executeAction("task.reparent", { project_id: "11", task_id: "42", father_id: "44" }), /不能形成循环/);

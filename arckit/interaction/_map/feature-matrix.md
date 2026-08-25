@@ -12,4 +12,4 @@
 | `engineering-profile/` | ✅ | 选择、编辑、比较和应用由 State Model、Capability Mapping 与 Lifecycle Mapping 组成的 Domain Profile | Profile Library、草稿编辑、跨行业比较、兼容性检查、Apply 确认、稳定 Loop Kernel |
 | `product-feedback-center/` | ✅ | 在 ArcOrbit 内向固定 Project 107 提交反馈、查看当前账户反馈并感知未读变化 | 未读角标、SDK 加载、提交反馈、我的反馈、需要登录、SDK 失败恢复 |
 | `automation-workspace/` | ✅ | 登录后只消费 Work 发布的本地待办状态，以本地 workspace lane 串行仲裁普通待办与验收问题，并在最多 3 条独立 lane 间并行；人工 Gate 与恢复按 execution 隔离 | Work 同步健康摘要、双队列总览、活动执行选择、槽位容量、lane 串行、跨 workspace 并行、问题等待/运行/待人工/阻塞、项目范围切换、CLI 接管、人工介入、完成续接、Work 动作失败、领取冲突与用量诊断 |
-| `task-browser/` | ✅ | 在 Work 的单行控制轨中组合状态、搜索与本地多维筛选，并用 Work-owned 同步和占满剩余高度的任务树/Inspector 完成详情、评论附件、产品限定维护、验收与受控状态操作 | 本地查询、Work Sync、单行控制轨与窄窗口收敛、多维筛选、任务树、完整详情、评论附件、创建/编辑 Sheet、标签生命周期、待评审确认、运行/验收、阻塞恢复、取消确认、空态与冲突 |
+| `task-browser/` | ✅ | 在 Work 的单行控制轨中组合本地查询，并用 Work-owned 同步和任务树/Inspector 完成详情、评论附件、产品限定维护及新建/编辑/详情三入口七状态修改；Automation 只消费确认结果 | 本地查询、Work Sync、单行控制轨与窄窗口收敛、多维筛选、任务树、完整详情、评论附件、三入口七状态 Picker、标签生命周期、运行/验收快捷动作、外部状态恢复、空态与冲突 |

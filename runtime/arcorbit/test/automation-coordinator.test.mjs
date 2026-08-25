@@ -188,6 +188,28 @@ test("a completed task cannot be accepted while an acceptance issue remains open
   coordinator.dispose();
 });
 
+test("Automation consumes a Work-confirmed external state change and safely stops the active Runtime", async () => {
+  const store = recoveryStore({ phase: "running" });
+  const controls = [];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, [], {
+      isRunActive(runId) { return runId === "RUN-OLD"; },
+      async controlRun(runId, input) { controls.push({ runId, input }); }
+    })
+  });
+  store.automation.snapshot.tasks[0].state = "cancelled";
+
+  await coordinator.handleTaskProjectionChanged({ reason: "work-confirmed-user-state", dispatch: false });
+
+  assert.deepEqual(controls, [{ runId: "RUN-OLD", input: { type: "interrupt" } }]);
+  const recovery = store.automation.recovery_items.find((item) => item.type === "external_state_change");
+  assert.equal(recovery.task_id, "t");
+  assert.deepEqual(recovery.actions, ["retry_sync", "accept_server_state"]);
+  assert.equal(store.automation.active_executions.local.phase, "recovery");
+  assert.equal(store.automation.snapshot.tasks[0].state, "cancelled");
+  coordinator.dispose();
+});
+
 test("a queued acceptance feedback item keeps automation health ready when the todo queue is empty", async () => {
   const store = recoveryStore();
   store.automation.snapshot.source_status = "healthy";

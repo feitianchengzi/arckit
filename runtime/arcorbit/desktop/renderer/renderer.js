@@ -1406,9 +1406,12 @@ function renderPlatformWorkInspector(task) {
   const automationTask = state.snapshot.tasks.find((item) => String(item.id) === String(task.id)) || null;
   const feedbackItems = automationTask?.acceptance_feedback_items || [];
   const canManage = canManagePlatformTask(task);
-  const automationActions = automationTask ? taskActions(automationTask) : [];
+  const automationActions = automationTask ? taskActions(automationTask).filter((action) => action.id === "review") : [];
+  const statusEditor = canManage
+    ? `<div class="work-task-status-editor"><label><span>状态</span><select data-work-inspector-state>${taskStateOptions().map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === task.state ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label><button class="secondary-button" data-work-inspector-state-save="${escapeHtml(task.id)}" type="button">更新状态</button><small>由 Work Sync 提交并等待服务器确认；Automation 只消费确认后的状态。</small></div>`
+    : "";
   const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${factRows([
+  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${statusEditor}${factRows([
     ["待办标识", task.id],
     ["所属产品", task.project_name],
     ["创建人", taskCreatorName(task)],
@@ -1428,6 +1431,7 @@ function renderPlatformWorkInspector(task) {
     return;
   }
   els.platformWorkInspector.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
+  els.platformWorkInspector.querySelector("[data-work-inspector-state-save]")?.addEventListener("click", () => runAction(() => updateTaskStateFromInspector(task)));
   els.platformWorkInspector.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
   els.platformWorkInspector.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
   els.platformWorkInspector.querySelector("[data-work-inspector-subtask]")?.addEventListener("click", () => runAction(() => createSubtask(task.id)));
@@ -2134,6 +2138,7 @@ async function createTask() {
     fields: [
       platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
+      platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions(), help: "可直接选择任一待办状态；Automation 只消费创建成功后的状态。" }),
       taskProjectFields(defaultProjectId),
       platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions(), help: "最高优先处理；无优先级表示创建时不设置该字段。" })
     ]
@@ -2146,14 +2151,13 @@ async function createTask() {
 
 async function editTask(taskId) {
   const task = findPlatformTask(taskId);
-  const automationTask = state.snapshot.tasks.find((item) => String(item.id) === String(task.id));
   const action = openPlatformAction({
     title: `编辑待办 ${task.id}`,
     lead: `所属产品：${task.project_name}。执行人、父待办和标签只使用该产品当前可用的数据。`,
     confirmLabel: "保存",
     fields: [
       platformField("content", "待办内容", { type: "textarea", required: true, value: task.content ?? "" }),
-      ...(automationTask ? [] : [platformField("state", "状态", { type: "select", value: task.state, options: taskStateOptions(), help: "Automation 管理中的状态只可通过受控动作变更。" })]),
+      platformField("state", "状态", { type: "select", value: task.state, options: taskStateOptions(), help: "Automation 归属不限制 Work 修改状态；保存后由 Work Sync 等待服务器确认。" }),
       taskProjectFields(task.project_id, { executorId: task.executor_id, excludedTaskId: task.id, tags: task.tags, includeFather: false }),
       platformField("priority", "优先级", { type: "select", value: workshopTaskPriority(task), options: taskPriorityOptions(), help: "最高优先处理；无优先级保留服务端未设置语义。" })
     ]
@@ -2161,10 +2165,7 @@ async function editTask(taskId) {
   bindTaskTagManager(task.project_id);
   const values = normalizeTaskFormValues(await action, { emptyPriority: "null" });
   if (!values) return;
-  if (values.state === "accepted" && (automationTask?.acceptance_feedback_items || []).some((item) => !["resolved", "cancelled"].includes(item.status))) {
-    throw new Error("仍有未解决的验收问题，不能标记为已验收。");
-  }
-  await executeManagedAction("task.update", { task_id: task.id, ...values }, "待办已更新");
+  await executeManagedAction("task.update", { task_id: task.id, expected_state: task.state, ...values }, "待办已更新");
 }
 
 async function createSubtask(taskId) {
@@ -2175,12 +2176,26 @@ async function createSubtask(taskId) {
     confirmLabel: "创建子待办",
     fields: [
       platformField("content", "待办内容", { type: "textarea", required: true }),
+      platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions(), help: "子待办也可直接选择任一待办状态。" }),
       taskProjectFields(parent.project_id, { includeFather: false }),
       platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions() })
     ]
   }));
   if (!values) return;
   await executeManagedAction("task.subtask.create", { ...values, project_id: parent.project_id, father_id: parent.id }, "子待办已创建");
+}
+
+async function updateTaskStateFromInspector(task) {
+  const nextState = els.platformWorkInspector.querySelector("[data-work-inspector-state]")?.value || "";
+  if (!nextState || nextState === task.state) {
+    showToast("待办状态没有变化。");
+    return;
+  }
+  await executeManagedAction("task.update", {
+    task_id: task.id,
+    state: nextState,
+    expected_state: task.state
+  }, `待办状态已更新为${STATE_LABELS[nextState] || nextState}`);
 }
 
 async function reparentTask(taskId) {

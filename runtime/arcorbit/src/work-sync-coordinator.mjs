@@ -184,29 +184,11 @@ export function createWorkSyncCoordinator({
 
   async function updateTaskState({ taskId, state, expectedState = "" }) {
     if (!TASK_STATES.includes(state)) throw new TypeError(`Unsupported task state: ${state}`);
-    const store = await runManager.readDesktopStore();
-    const task = findLocalTask(store, taskId, { trustedOnly: true });
-    if (!task) throw new TaskSourceError(`Unknown local task: ${taskId}`, { code: "not_found" });
-    if (expectedState && task.state !== expectedState) {
-      throw new TaskSourceError(`Task ${task.id} is ${task.state}, expected ${expectedState}.`, { code: "conflict" });
-    }
-    let updated;
-    try {
-      const response = await platformSource.updateTask(task.id, { state });
-      updated = normalizeTask(response?.task ?? response, task.project_id);
-      if (updated?.id === task.id && updated.state === state) {
-        await commitTaskResponse(updated, { reason: "task-state-response" });
-      }
-      await refreshProject(task.project_id, { reason: "task-state-confirmed" });
-    } catch (error) {
-      await recordMutationFailure(task.project_id, error);
-      throw error;
-    }
-    const confirmed = findLocalTask(await runManager.readDesktopStore(), task.id, { trustedOnly: true });
-    if (!confirmed || confirmed.state !== state) {
-      throw new TaskSourceError(`Work Sync did not observe task ${task.id} in ${state}.`, { code: "conflict" });
-    }
-    return confirmed;
+    return mutateTask(taskId, { state }, {
+      expectedState,
+      responseReason: "task-state-response",
+      refreshReason: "task-state-confirmed"
+    });
   }
 
   async function createTask(input = {}) {
@@ -223,13 +205,40 @@ export function createWorkSyncCoordinator({
     return findLocalTask(await runManager.readDesktopStore(), created?.id ?? created?.task_id) || created;
   }
 
-  async function updateTask(taskId, input = {}) {
+  async function updateTask(taskId, input = {}, { expectedState = "" } = {}) {
+    if (input.state !== undefined && !TASK_STATES.includes(input.state)) {
+      throw new TypeError(`Unsupported task state: ${input.state}`);
+    }
+    return mutateTask(taskId, input, {
+      expectedState,
+      responseReason: "task-updated-response",
+      refreshReason: "task-updated"
+    });
+  }
+
+  async function mutateTask(taskId, input, { expectedState = "", responseReason, refreshReason }) {
     const store = await runManager.readDesktopStore();
-    const task = findLocalTask(store, taskId);
+    const stateMutation = input.state !== undefined;
+    const task = findLocalTask(store, taskId, { trustedOnly: stateMutation || Boolean(expectedState) });
     if (!task) throw new TaskSourceError(`Unknown local task: ${taskId}`, { code: "not_found" });
-    const response = await platformSource.updateTask(task.id, input);
-    await refreshProject(task.project_id, { reason: "task-updated" });
-    return findLocalTask(await runManager.readDesktopStore(), task.id) || response;
+    if (expectedState && task.state !== expectedState) {
+      throw new TaskSourceError(`Task ${task.id} is ${task.state}, expected ${expectedState}.`, { code: "conflict" });
+    }
+    let response;
+    try {
+      response = await platformSource.updateTask(task.id, input);
+      const normalized = normalizeTask(response?.task ?? response, task.project_id);
+      if (normalized?.id === task.id) await commitTaskResponse(normalized, { reason: responseReason });
+      await refreshProject(task.project_id, { reason: refreshReason });
+    } catch (error) {
+      await recordMutationFailure(task.project_id, error);
+      throw error;
+    }
+    const confirmed = findLocalTask(await runManager.readDesktopStore(), task.id, { trustedOnly: stateMutation });
+    if (stateMutation && (!confirmed || confirmed.state !== input.state)) {
+      throw new TaskSourceError(`Work Sync did not observe task ${task.id} in ${input.state}.`, { code: "conflict" });
+    }
+    return confirmed || response;
   }
 
   async function deleteTask(taskId) {

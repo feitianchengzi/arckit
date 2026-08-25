@@ -93,6 +93,8 @@ Work 页面所有状态、搜索、成员、标签、优先级、日期和分页
 
 WebSocket 事件、补取事件和本地成功 mutation 只向 Work Sync 提交项目或实体失效。Work Sync 在 300 毫秒窗口内合并同项目失效，读取必要的 Workshop 当前态并原子替换本地项目投影。事件 payload 只用于身份、诊断和失效范围，不直接写入 Task Projection Store。
 
+Work 新建、编辑和 Inspector 状态更新都调用同一个 Work Sync mutation 边界。新建默认 `pending_review` 但可显式提交任一七状态；编辑正文与状态时使用一次 `updateTask` 请求，并以本地投影中的原状态作为冲突前提。Work Sync 校验状态枚举、Workshop 响应和随后项目对账，只发布服务器确认结果。Automation 可见性、活动 execution 和验收问题不参与 mutation 许可。
+
 Task Projection Store 可以保留 UI 最近成功数据并标记 stale，但只把已经完成当前登录代际初始对账、且未被权限撤销的任务发布到 Automation 消费投影。登录退出、账户切换、项目权限撤销和项目删除会关闭连接并清除对应 Automation 可见的本地任务状态；UI 缓存不得越过身份代际继续显示为可信状态。
 
 ## Automation Coordinator
@@ -102,6 +104,8 @@ Automation Coordinator 不拥有 Workshop Task Source、Realtime Adapter、REST 
 Automation 的领取、阻塞、完成、取消和验收状态动作都提交给 Work Sync。Work Sync 调用受控 Workshop mutation，并只在服务端成功响应及必要对账完成后提交新的本地任务状态。服务端拒绝、冲突、权限变化或传输失败保持原本地任务状态，同时向 Automation 发布结构化失败或 recovery；Automation 不直接调用 `getTask()`、`listTasks()` 或 `updateTask()`，也不以远端响应作为自己的控制输入。
 
 Automation 只有在观察到 Work Sync 已发布的目标本地状态后才创建、继续或收束 Runtime。例如领取请求成功后，Work Sync 发布 `pending -> in_progress`，Automation 才启动任务；完成请求失败时，本地状态不进入 `completed`，Automation 保持 recovery。该边界使所有远端一致性责任集中在 Work，而 Automation 的决定可由单一本地状态流复现。
+
+同一消费规则适用于用户从 Work 自由修改状态：队列按确认后的状态重算；活动普通任务不再是 `in_progress`，或验收问题来源不再是 `completed` 时，Automation 创建 lane-scoped `external_state_change` recovery，并尝试安全 interrupt 对应 Runtime。该恢复不否定 Work 已确认 mutation、不自动改回旧状态、不释放 `awaiting_human`，也不冻结其他健康 lane。
 
 全局目录与项目任务对账固定由 Work Sync 每十五分钟执行；应用启动、系统唤醒、网络恢复和 `legacy` 重连立即请求 Work Sync 对账。订阅断开时只自动重连，不创建一分钟或其他分钟级降级计时器。显式“立即同步”动作调用受控 `work-sync` 边界；Automation 页面可以展示或触发这一动作，但不能拥有其网络实现。
 
@@ -141,7 +145,8 @@ Work Sync snapshot 暴露聚合连接健康、聚合订阅模式、各项目连�
 - ArcOrbit 测试覆盖 Workset 与 Automation 本地需求并集的订阅调整、退避、token 代际、项目去抖刷新、现代 cursor checkpoint、未来 cursor 重置、旧握手识别、歧义握手关闭、无 ID 通知刷新以及旧模式不读写 cursor。
 - Work 测试证明七状态和多维筛选只读取本地 Task Projection Store，切换查询不调用 Workshop；WebSocket 失效、显式刷新和周期对账才触发受控远端读取。
 - Desktop main 与 Renderer 验证不存在一分钟同步计时器，Work-owned 十五分钟对账、生命周期同步和显式“立即同步”入口可用。
-- Automation 测试证明 Coordinator 没有 Workshop Task Source 或 Realtime Adapter 依赖，只响应 Work 发布的本地状态变化，并把状态动作提交给 Work。
+- Automation 测试证明 Coordinator 没有 Workshop Task Source 或 Realtime Adapter 依赖，只响应 Work 发布的本地状态变化，并把状态动作提交给 Work；用户修改活动任务或验收问题来源状态时会安全停止对应 Runtime 并生成外部变化恢复。
+- Work 测试证明新建、编辑和 Inspector 提供完整七状态，Automation 可见任务不被隐藏或拒绝，组合字段与状态只提交一次远端 mutation，权限或版本冲突时本地投影不乐观推进。
 - Automation 测试证明本地状态变化、重连、全量对账和启动恢复都不能解除目标 lane 的 `awaiting_human`，只有指向同一 `execution_id` 的显式 intervention 能继续任务，其他 workspace lane 可以继续运行。
 - 真实链路验收至少包含一次 Workshop mutation、WebSocket 通知、Work Sync 本地投影提交、Automation 候选变化和失败不推进本地状态，并保留可诊断事件证据。
 - 部署验证覆盖迁移失败不停止旧容器、候选容器 unhealthy 自动恢复旧镜像、无 Docker health 元数据的旧镜像通过公开 HTTP health 确认恢复，以及 OSS 资源上传失败不替换入口、成功时入口严格最后上传。

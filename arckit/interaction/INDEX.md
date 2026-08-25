@@ -46,7 +46,7 @@
   - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户说明续跑、安全停止、lane 局部外部状态变化与 Work Sync 异常。✅ (137行)
   - interaction.md 自动化指挥中心交互：Work 本地状态消费、统一待办标题、双队列、workspace lane 串行与跨项目并行、定向 Gate 与 Runtime/CLI 接力。✅ (407行)
 - task-browser/ Work 同屏任务浏览：以本地 Task Projection、单行控制轨和剩余高度列表/Inspector 创建、检查、验收并同步待办。✅
-  - default.html Work 任务浏览线框：顶部产品范围、面板内七状态、同屏 Inspector、待评审确认、运行/验收、恢复与冲突。✅ (217行)
-  - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、剩余高度任务树/Inspector 与图片浏览。✅ (78行)
+  - default.html Work 任务浏览线框：顶部产品范围、Inspector 七状态编辑、Automation 消费提示、运行/验收、恢复与冲突。✅ (217行)
+  - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、带七状态 Picker 的任务树/Inspector 与图片浏览。✅ (78行)
   - task-form.html 待办表单子视图：产品联动成员/父待办/标签、语义优先级和标签生命周期管理。✅ (45行)
-  - interaction.md 任务浏览交互：本地查询、Work-owned 同步、单行控制轨、双栏、弹出筛选、图片浏览与受控状态操作。✅ (268行)
+  - interaction.md 任务浏览交互：本地查询、Work-owned 同步、三入口七状态编辑、单行控制轨、双栏、弹出筛选与图片浏览。✅ (272行)

@@ -770,6 +770,10 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .platform-work-management { padding-bottom: 14px; border-bottom: 1px solid var(--ink-150); }
 .platform-work-automation { margin-top: 10px; }
 .platform-work-management .danger-action { color: var(--red-700, #a53b3b); }
+.work-task-status-editor { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: end; margin-top: 12px; padding: 10px; border: 1px solid var(--ink-150); border-radius: 8px; background: var(--ink-50); }
+.work-task-status-editor label { display: grid; gap: 5px; color: var(--ink-600); font-size: var(--type-caption); font-weight: 750; }
+.work-task-status-editor select { width: 100%; height: 34px; padding: 0 9px; border: 1px solid var(--ink-200); border-radius: 7px; color: var(--ink-800); background: #fff; font: inherit; }
+.work-task-status-editor small { grid-column: 1 / -1; color: var(--ink-500); font-size: var(--type-micro); line-height: 1.4; }
 .task-markdown-detail { margin: 10px 0; padding: 10px; border: 1px solid var(--ink-150); border-radius: 7px; color: var(--ink-700); background: var(--ink-50); font-size: var(--type-label); line-height: 1.55; overflow-wrap: anywhere; }
 .task-markdown-detail > :first-child { margin-top: 0; }
 .task-markdown-detail > :last-child { margin-bottom: 0; }

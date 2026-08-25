@@ -744,9 +744,13 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   const editTaskHandler = source.slice(source.indexOf("async function editTask"), source.indexOf("async function deleteTask"));
   assert.match(createTaskHandler, /taskProjectFields\(defaultProjectId\)/);
   assert.match(createTaskHandler, /bindTaskFormProjectScope\(defaultProjectId\)/);
+  assert.match(createTaskHandler, /platformField\("state", "状态", \{ type: "select", value: "pending_review", options: taskStateOptions\(\)/);
   assert.match(createTaskHandler, /platformField\("priority", "优先级", \{ type: "select"/);
   assert.doesNotMatch(createTaskHandler, /服务优先级|type: "number"/);
   assert.match(editTaskHandler, /taskProjectFields\(task\.project_id/);
+  assert.match(editTaskHandler, /platformField\("state", "状态", \{ type: "select", value: task\.state, options: taskStateOptions\(\)/);
+  assert.match(editTaskHandler, /expected_state: task\.state/);
+  assert.doesNotMatch(editTaskHandler, /acceptance_feedback_items|Automation 管理中的状态只可/);
   assert.match(editTaskHandler, /platformField\("priority", "优先级", \{ type: "select"/);
   assert.match(editTaskHandler, /normalizeTaskFormValues\(await action, \{ emptyPriority: "null" \}\)/);
   assert.doesNotMatch(editTaskHandler, /服务优先级|type: "number"/);
@@ -1190,7 +1194,10 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /resolveWorkTaskReference\(reference, platform\)/);
   assert.match(source, /task_filters: \{ tree: false, states: TASK_STATES \}/);
   assert.match(source, /Object\.assign\(state, workTaskReferenceSelection\(target\)\)/);
-  assert.match(source, /Automation 管理中的状态只可通过受控动作变更/);
+  assert.match(source, /data-work-inspector-state-save/);
+  assert.match(source, /async function updateTaskStateFromInspector/);
+  assert.match(source, /Work Sync 提交并等待服务器确认；Automation 只消费确认后的状态/);
+  assert.match(styles, /\.work-task-status-editor/);
   assert.match(styles, /\.work-filter-groups/);
   assert.match(html, /id="workFilterSummary"/);
   assert.match(html, /id="workStateSelect"/);
