@@ -451,6 +451,27 @@ test("infrastructure rejection enters Runtime recovery without Agent repair", ()
   assert.deepEqual(decision, { continue: false, madeProgress: false, reason: "infrastructure_recovery" });
 });
 
+test("invalid semantic Case creation enters same-thread Agent repair instead of Runtime recovery", () => {
+  const decision = decideSessionContinuation({
+    runtimeResult: { round_result: "continue", ledger_stage: { writeback_required: true } },
+    ledgerWriteResult: {
+      written: false,
+      rejection: {
+        kind: "claim_invalid",
+        recoverable: true,
+        responsibility: "agent",
+        reason: "case_control_handoff.initial_facts[0]: must use local:fact:<handle>",
+        recovery_action: "repair_rejected_claim",
+        counts_toward_agent_repair: true
+      }
+    },
+    handoff: agentHandoff(),
+    agentRepairAttempts: 0,
+    maxAgentRepairAttempts: 2
+  });
+  assert.deepEqual(decision, { continue: true, madeProgress: false, reason: "agent_repair" });
+});
+
 test("repeated stale snapshots remain bounded by the no-progress guard", () => {
   const decision = decideSessionContinuation({
     runtimeResult: { round_result: "continue", ledger_stage: { writeback_required: true } },

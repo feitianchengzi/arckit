@@ -143,3 +143,4 @@
 | [CASE-20260825-009](closed/CASE-20260825-009-arcorbit.md) | closed | 修复 ArcOrbit 重复标题栏和窗口控制 | 2026-08-25T15:34:08.946Z |
 | [CASE-20260825-011](closed/CASE-20260825-011-automation-case.md) | closed | 补齐 Automation 已关闭 Case 复用绑定与无绑定终态门禁 | 2026-08-25T16:21:38.350Z |
 | [CASE-20260825-012](closed/CASE-20260825-012-automation-codex-output-schema-oneof.md) | closed | 修复 Automation Codex output schema oneOf 回归 | 2026-08-25T16:44:16.483Z |
+| [CASE-20260825-013](closed/CASE-20260825-013-arcorbit-case.md) | closed | 修复 ArcOrbit Case 创建身份物化边界 | 2026-08-25T18:11:13.392Z |

@@ -159,7 +159,7 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
         forbidden_agent_bookkeeping: ["new canonical ids", "fact or decision revisions", "Case updated_at", "selected Gap copies", "decision gap_refs reverse indexes", "arckit-case-transition/v8"]
       },
       case_control_contract: {
-        create_case: "Use only when the todo needs a new bounded Case.",
+        create_case: "Use only when the todo needs a new bounded Case. Submit semantic initial_facts, initial_gaps, and optional initial_impacts with command-local refs (local:fact:<handle>, local:gap:<handle>, local:impact:<handle>) and typed relations. Do not submit canonical ids, revisions, statuses, resolutions, or target revisions; the trusted Ledger allocates and materializes them.",
         bind_closed_case: "Use only when one exact canonical Case is already closed and resolved and fully covers the current todo. Supply its current updated_at, SHA-256 source digest, a semantic coverage reason, and evidence refs. Natural-language mentions are never authoritative bindings.",
         forbidden: ["reporting completion without a trusted binding receipt", "creating a duplicate Case when exact closed Case coverage is proven", "inferring a binding from assistant prose"]
       },

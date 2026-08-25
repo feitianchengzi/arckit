@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -14,6 +14,81 @@ import {
 import { createLoopFrame } from "../src/agent-orchestrator.mjs";
 import { createCaseControlRuntimeResult } from "../src/kernel/runtime-result-builder.mjs";
 import { validateRuntimeResult } from "../src/validator.mjs";
+
+test("trusted Case creation materializes semantic handles into canonical identities and references", async () => {
+  const fixture = await createCaseFixture();
+  try {
+    const result = await applyRuntimeCaseControl(fixture.input);
+    assert.equal(result.written, true);
+    assert.equal(result.case_control_result.action, "create_case");
+    const caseKey = result.case_control_result.case_id.replace(/^CASE-/, "");
+    assert.deepEqual(result.case_control_result.canonical_id_mapping, {
+      "local:fact:reported-defect": `FACT-${caseKey}-001`,
+      "local:gap:repair-defect": `GAP-${caseKey}-001`,
+      "local:impact:realization-threat": `IMPACT-${caseKey}-001`
+    });
+
+    const [caseName] = await readdir(join(fixture.root, "arckit/cases/active"));
+    const record = parseCaseMarkdown(await readFile(join(fixture.root, "arckit/cases/active", caseName), "utf8"));
+    assert.equal(record.facts[0].id, `FACT-${caseKey}-001`);
+    assert.equal(record.facts[0].revision, 1);
+    assert.equal(record.facts[0].status, "accepted");
+    assert.equal(record.gaps[0].id, `GAP-${caseKey}-001`);
+    assert.deepEqual(record.gaps[0].derived_from, [`FACT-${caseKey}-001`]);
+    assert.equal(record.state_impacts[0].id, `IMPACT-${caseKey}-001`);
+    assert.equal(record.state_impacts[0].fact_id, `FACT-${caseKey}-001`);
+    assert.deepEqual(record.state_impacts[0].gap_ids, [`GAP-${caseKey}-001`]);
+    assert.equal(record.state_impacts[0].target.ref, "accepted-facts-are-realized");
+    assert.equal(record.state_impacts[0].target.revision, null);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("empty canonical-shaped Case creation claim is rejected for same-thread Agent repair before write", async () => {
+  const fixture = await createCaseFixture();
+  try {
+    const invalid = {
+      ...fixture.input.runtimeResult.case_control_handoff,
+      initial_facts: [
+        { id: "", revision: 1, status: "accepted", statement: "Requirement", basis: "Operator input", evidence: ["system:current_operator_input"] },
+        { id: "", revision: 1, status: "accepted", statement: "Current behavior", basis: "Code", evidence: ["src/example.mjs"] }
+      ],
+      initial_impacts: [],
+      initial_gaps: [{ id: "", status: "open", goal: "Repair", reason: "Broken", derived_from: ["system:current_operator_input"], blocked_by: [], priority_basis: { blocking: "high" }, responsibility: "agent", evidence_required: [], resolution: null }]
+    };
+    const result = await applyRuntimeCaseControl({ ...fixture.input, runtimeResult: { case_control_handoff: invalid } });
+    assert.equal(result.written, false);
+    assert.equal(result.rejection.kind, "claim_invalid");
+    assert.equal(result.rejection.responsibility, "agent");
+    assert.equal(result.rejection.recovery_action, "repair_rejected_claim");
+    assert.equal(result.rejection.counts_toward_agent_repair, true);
+    assert.match(result.rejection.reason, /local:fact:<handle>/);
+    assert.deepEqual(await readdir(join(fixture.root, "arckit/cases/active")), []);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("duplicate handles and unknown initial references fail closed without canonical mutation", async () => {
+  const fixture = await createCaseFixture();
+  try {
+    const base = fixture.input.runtimeResult.case_control_handoff;
+    const duplicate = { ...base, initial_facts: [...base.initial_facts, structuredClone(base.initial_facts[0])] };
+    const duplicateResult = await applyRuntimeCaseControl({ ...fixture.input, runtimeResult: { case_control_handoff: duplicate } });
+    assert.equal(duplicateResult.rejection.kind, "claim_invalid");
+    assert.match(duplicateResult.rejection.reason, /must appear only once/);
+
+    const unknown = structuredClone(base);
+    unknown.initial_gaps[0].derived_from = ["local:fact:unknown"];
+    const unknownResult = await applyRuntimeCaseControl({ ...fixture.input, runtimeResult: { case_control_handoff: unknown } });
+    assert.equal(unknownResult.rejection.kind, "claim_invalid");
+    assert.match(unknownResult.rejection.reason, /unknown local fact/);
+    assert.deepEqual(await readdir(join(fixture.root, "arckit/cases/active")), []);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
 
 test("trusted closed Case reuse is exact, idempotent, and does not mutate canonical files", async () => {
   const fixture = await closedCaseFixture();
@@ -122,6 +197,62 @@ test("Runtime projects closed Case reuse as a terminal writeback-gated result", 
   assert.deepEqual(validateRuntimeResult(result).issues, []);
 });
 
+async function createCaseFixture() {
+  const root = await mkdtemp(join(tmpdir(), "arckit-create-case-"));
+  await mkdir(join(root, "arckit/project"), { recursive: true });
+  await mkdir(join(root, "arckit/cases/active"), { recursive: true });
+  await mkdir(join(root, "arckit/cases/closed"), { recursive: true });
+  const project = createProjectStateRecord({ name: "Fixture", intent: "Validate semantic Case creation." });
+  await writeFile(join(root, "arckit/project/state.record.json"), `${JSON.stringify(project, null, 2)}\n`);
+  const handoff = {
+    schema_version: "arckit-case-control-handoff/v1",
+    action: "create_case",
+    expected_project_revision: project.project.revision,
+    case_id: "",
+    title: "Repair semantic Case creation",
+    intent: "Let the Ledger own canonical identity.",
+    expected_outcome: "Semantic handles are materialized atomically.",
+    artifact_type: "code",
+    selection_reason: "No active Case covers the defect.",
+    initial_facts: [{
+      ref: "local:fact:reported-defect",
+      statement: "Case creation currently has an identity ownership defect.",
+      basis: "Runtime trace and code inspection.",
+      evidence: ["runtime:test-trace"]
+    }],
+    initial_impacts: [{
+      ref: "local:impact:realization-threat",
+      fact_ref: "local:fact:reported-defect",
+      target_ref: "project:invariant:accepted-facts-are-realized",
+      effect: "threatened",
+      reason: "The Runtime cannot persist the accepted fact.",
+      gap_refs: ["local:gap:repair-defect"],
+      evidence: []
+    }],
+    initial_gaps: [{
+      ref: "local:gap:repair-defect",
+      goal: "Materialize Case identities.",
+      reason: "Canonical persistence is blocked.",
+      derived_from: ["local:fact:reported-defect"],
+      blocked_by: [],
+      priority_basis: { blocking: "high", risk: "high" },
+      responsibility: "agent",
+      evidence_required: ["runtime/arcorbit/test/runtime-case-control.test.mjs"]
+    }],
+    review_policy: { max_autonomous_cycles: 3, source: "test-policy" }
+  };
+  return {
+    root,
+    input: {
+      projectRoot: root,
+      runtimeResult: { case_control_handoff: handoff },
+      snapshot: null,
+      gate: { allowed: true },
+      dryRun: false
+    }
+  };
+}
+
 async function closedCaseFixture() {
   const root = await mkdtemp(join(tmpdir(), "arckit-closed-case-reuse-"));
   const caseId = "CASE-20260825-007";
@@ -167,4 +298,8 @@ async function closedCaseFixture() {
 
 function caseMarkdown(record) {
   return `# ${record.title}\n\nStatus: ${record.status}\nArtifact Type: ${record.artifact_type}\nSelected Gap: none\nUpdated: ${record.updated_at}\n\n## Structured Record\n\n\`\`\`json\n${JSON.stringify(record, null, 2)}\n\`\`\`\n`;
+}
+
+function parseCaseMarkdown(text) {
+  return JSON.parse(text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/)[1]);
 }

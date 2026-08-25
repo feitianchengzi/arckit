@@ -160,6 +160,7 @@ function validateCaseControlHandoff(handoff, issues) {
     if (!handoff.title || !handoff.intent || !handoff.expected_outcome || !handoff.selection_reason || handoff.initial_facts?.length === 0 || handoff.initial_gaps?.length === 0) {
       issues.push({ path: "case_control_handoff", message: "create_case requires intent, outcome, semantic facts, and at least one gap." });
     }
+    validateSemanticCreateCaseControl(handoff, issues);
   }
   if (handoff.action === "bind_closed_case") {
     requireString(handoff.expected_case_updated_at, "case_control_handoff.expected_case_updated_at", issues);
@@ -170,6 +171,77 @@ function validateCaseControlHandoff(handoff, issues) {
       issues.push({ path: "case_control_handoff", message: "bind_closed_case requires an exact Case identity, fresh updated_at, SHA-256 digest, reason, and evidence." });
     }
   }
+}
+
+function validateSemanticCreateCaseControl(handoff, issues) {
+  const arrays = [
+    ["initial_facts", true],
+    ["initial_impacts", false],
+    ["initial_gaps", true]
+  ];
+  for (const [field, required] of arrays) {
+    if (!Array.isArray(handoff[field])) issues.push({ path: `case_control_handoff.${field}`, message: "Expected array." });
+    else if (required && handoff[field].length === 0) issues.push({ path: `case_control_handoff.${field}`, message: "Expected at least one item." });
+  }
+  if (!arrays.every(([field]) => Array.isArray(handoff[field]))) return;
+  const factRefs = new Set();
+  const gapRefs = new Set();
+  const impactRefs = new Set();
+  for (const [index, fact] of handoff.initial_facts.entries()) {
+    const path = `case_control_handoff.initial_facts[${index}]`;
+    if (!semanticObject(fact) || !onlyKeys(fact, ["ref", "statement", "basis", "evidence"]) || !localRef(fact.ref, "fact") || !nonEmptyString(fact.statement) || !nonEmptyString(fact.basis) || !nonEmptyStrings(fact.evidence)) {
+      issues.push({ path, message: "Expected semantic fact with local:fact:<handle>, statement, basis, and evidence." });
+      continue;
+    }
+    requireUniqueRef(fact.ref, factRefs, path, issues);
+  }
+  for (const [index, gap] of handoff.initial_gaps.entries()) {
+    const path = `case_control_handoff.initial_gaps[${index}]`;
+    if (!semanticObject(gap) || !onlyKeys(gap, ["ref", "goal", "reason", "derived_from", "blocked_by", "priority_basis", "responsibility", "evidence_required"]) || !localRef(gap.ref, "gap") || !nonEmptyString(gap.goal) || !nonEmptyString(gap.reason)
+      || !nonEmptyStrings(gap.derived_from) || !Array.isArray(gap.blocked_by) || !semanticObject(gap.priority_basis)
+      || !["agent", "human", "external"].includes(gap.responsibility) || !Array.isArray(gap.evidence_required)) {
+      issues.push({ path, message: "Expected semantic gap with local:gap:<handle> and complete gap meaning." });
+      continue;
+    }
+    requireUniqueRef(gap.ref, gapRefs, path, issues);
+  }
+  for (const [index, impact] of handoff.initial_impacts.entries()) {
+    const path = `case_control_handoff.initial_impacts[${index}]`;
+    if (!semanticObject(impact) || !onlyKeys(impact, ["ref", "fact_ref", "target_ref", "effect", "reason", "gap_refs", "evidence"]) || !localRef(impact.ref, "impact") || !localRef(impact.fact_ref, "fact")
+      || !/^project:(decision|invariant):.+$/.test(impact.target_ref || "")
+      || !["upheld", "threatened", "undetermined"].includes(impact.effect) || !nonEmptyString(impact.reason)
+      || !Array.isArray(impact.gap_refs) || !Array.isArray(impact.evidence)) {
+      issues.push({ path, message: "Expected semantic impact with typed local and Project refs." });
+      continue;
+    }
+    requireUniqueRef(impact.ref, impactRefs, path, issues);
+    if (impact.effect === "upheld" && !nonEmptyStrings(impact.evidence)) issues.push({ path: `${path}.evidence`, message: "upheld requires evidence." });
+    if (["threatened", "undetermined"].includes(impact.effect) && impact.gap_refs.length === 0) issues.push({ path: `${path}.gap_refs`, message: `${impact.effect} requires at least one gap ref.` });
+  }
+  for (const [index, gap] of handoff.initial_gaps.entries()) {
+    if (!semanticObject(gap)) continue;
+    for (const [refIndex, ref] of (gap.derived_from || []).entries()) {
+      if (!/^system:.+$/.test(ref) && !factRefs.has(ref) && !gapRefs.has(ref)) issues.push({ path: `case_control_handoff.initial_gaps[${index}].derived_from[${refIndex}]`, message: "References an unknown local fact/gap or system source." });
+    }
+    for (const [refIndex, ref] of (gap.blocked_by || []).entries()) {
+      if (!gapRefs.has(ref) || ref === gap.ref) issues.push({ path: `case_control_handoff.initial_gaps[${index}].blocked_by[${refIndex}]`, message: "References an unknown or self local gap." });
+    }
+  }
+  for (const [index, impact] of handoff.initial_impacts.entries()) {
+    if (!semanticObject(impact)) continue;
+    if (!factRefs.has(impact.fact_ref)) issues.push({ path: `case_control_handoff.initial_impacts[${index}].fact_ref`, message: "References an unknown local fact." });
+    for (const [refIndex, ref] of (impact.gap_refs || []).entries()) if (!gapRefs.has(ref)) issues.push({ path: `case_control_handoff.initial_impacts[${index}].gap_refs[${refIndex}]`, message: "References an unknown local gap." });
+  }
+}
+
+function semanticObject(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
+function onlyKeys(value, allowed) { return Object.keys(value).every((key) => allowed.includes(key)); }
+function nonEmptyString(value) { return typeof value === "string" && value.trim().length > 0; }
+function nonEmptyStrings(value) { return Array.isArray(value) && value.length > 0 && value.every(nonEmptyString); }
+function localRef(value, type) { return new RegExp(`^local:${type}:.+$`).test(value || ""); }
+function requireUniqueRef(ref, refs, path, issues) {
+  if (refs.has(ref)) issues.push({ path, message: `Duplicate local ref ${ref}.` });
+  refs.add(ref);
 }
 
 function requireObject(value, path, issues) {

@@ -3,9 +3,16 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
 import { readLedgerSnapshot } from './loop-snapshot.mjs';
+import { createDefaultCaseRecord } from './development-case.mjs';
+import {
+  CaseControlClaimError,
+  materializeSemanticCreateCaseHandoff,
+  validateSemanticCreateCaseHandoff,
+} from './semantic-case-control.mjs';
 import {
   auditProjectState,
   createDevelopmentCase,
+  nextDevelopmentCaseId,
   registerProjectCase,
   writeDevelopmentCaseIndex,
 } from './trusted-ledger-operations.mjs';
@@ -33,6 +40,7 @@ export function validateCaseControlHandoff(handoff, field = 'case_control_handof
     if (!handoff.title?.trim() || !handoff.intent?.trim() || !handoff.expected_outcome?.trim() || !handoff.selection_reason?.trim()) issues.push(`${field} create_case requires title, intent, expected_outcome, and selection_reason.`);
     if (handoff.initial_facts?.length === 0 || handoff.initial_gaps?.length === 0) issues.push(`${field} create_case requires semantic initial_facts and at least one initial_gap.`);
     if (handoff.case_id) issues.push(`${field}.case_id must be empty when action=create_case; the ledger allocates the id.`);
+    issues.push(...validateSemanticCreateCaseHandoff(handoff, field).map((issue) => `${issue.path}: ${issue.message}`));
   }
   if (handoff.action === 'bind_closed_case') {
     for (const key of ['case_id', 'expected_case_updated_at', 'case_source_digest', 'coverage_reason']) {
@@ -51,7 +59,7 @@ export async function applyRuntimeCaseControl({ projectRoot, runtimeResult, snap
   if (!gate?.allowed) return emptyResult(gate, dryRun);
   const handoff = runtimeResult.case_control_handoff;
   const issues = validateCaseControlHandoff(handoff);
-  if (issues.length) throw new Error(issues.join('\n'));
+  if (issues.length) return rejectionResult({ gate, dryRun, handoff, kind: 'claim_invalid', issues: issues.map(issueRecord) });
   if (dryRun) return applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, runtimeRecordRef });
   return withProjectCommitLock(root, () => applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun: false, runtimeRecordRef }));
 }
@@ -60,40 +68,53 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
   const statePath = path.join(root, 'arckit/project/state.record.json');
   const projectState = JSON.parse(fs.readFileSync(statePath, 'utf8'));
   if (projectState.project?.revision !== handoff.expected_project_revision) {
-    throw new Error(`Case control handoff is stale: expected Project revision ${projectState.project?.revision ?? '<missing>'}, received ${handoff.expected_project_revision ?? '<missing>'}.`);
+    const message = `Case control handoff is stale: expected Project revision ${projectState.project?.revision ?? '<missing>'}, received ${handoff.expected_project_revision ?? '<missing>'}.`;
+    return rejectionResult({ gate, dryRun, handoff, kind: 'snapshot_stale', issues: [{ path: 'case_control_handoff.expected_project_revision', message }] });
   }
   if (handoff.action === 'bind_closed_case') {
     return bindClosedCase({ root, handoff, gate, dryRun, runtimeRecordRef });
   }
 
-  const decisionRevisions = new Map((projectState.software_definition?.decision_areas || []).map((area) => [area.id, area.decision.revision]));
-  const invariants = new Set((projectState.software_invariants || []).map((item) => item.id));
-  for (const impact of handoff.initial_impacts) {
-    if (impact.target?.kind === 'software_decision' && decisionRevisions.get(impact.target.ref) !== impact.target.revision) throw new Error(`Unknown or stale Project software decision: ${impact.target?.ref}`);
-    if (impact.target?.kind === 'software_invariant' && !invariants.has(impact.target.ref)) throw new Error(`Unknown Project software invariant: ${impact.target?.ref}`);
+  const caseId = nextDevelopmentCaseId(root);
+  let materialized;
+  try {
+    materialized = materializeSemanticCreateCaseHandoff({ handoff, projectState, caseId });
+  } catch (error) {
+    if (error instanceof CaseControlClaimError) return rejectionResult({ gate, dryRun, handoff, kind: error.kind, issues: error.issues });
+    throw error;
   }
 
   let selectedCaseRef = '';
 
   const plan = [
+    { action: 'materialize_case_control_identities', path: caseId },
     { action: 'create_case', path: 'arckit/cases/active/' },
     { action: 'register_case', path: 'ledger_allocated_case_ref' },
     { action: 'render_case_index', path: 'arckit/cases/INDEX.md' },
   ];
-  if (dryRun) return { schema_version: 'arckit-ledger-write/v2', written: false, dry_run: true, gate, runtime_result_ref: runtimeRecordRef, plan, changed_files: [] };
+  if (dryRun) {
+    createDefaultCaseRecord({
+      id: caseId, title: handoff.title, artifactType: handoff.artifact_type, intent: handoff.intent,
+      expectedOutcome: handoff.expected_outcome, initialFacts: materialized.facts,
+      initialImpacts: materialized.impacts, initialGaps: materialized.gaps,
+      maxReviewCycles: handoff.review_policy.max_autonomous_cycles, reviewPolicySource: handoff.review_policy.source,
+    });
+    return { schema_version: 'arckit-ledger-write/v2', written: false, dry_run: true, gate, runtime_result_ref: runtimeRecordRef, plan, changed_files: [] };
+  }
 
   const snapshots = snapshotMutableFiles(root, projectState.advancement.active_iteration_ref || '');
   const activeDir = path.join(root, 'arckit/cases/active');
   const initialActiveFiles = new Set(fs.existsSync(activeDir) ? fs.readdirSync(activeDir) : []);
   try {
     const created = { stdout: createDevelopmentCase(root, {
+      'case-id': caseId,
       title: handoff.title,
       'artifact-type': handoff.artifact_type,
       intent: handoff.intent,
       'expected-outcome': handoff.expected_outcome,
-      'initial-facts': JSON.stringify(handoff.initial_facts),
-      'initial-impacts': JSON.stringify(handoff.initial_impacts),
-      'initial-gaps': JSON.stringify(handoff.initial_gaps),
+      'initial-facts': JSON.stringify(materialized.facts),
+      'initial-impacts': JSON.stringify(materialized.impacts),
+      'initial-gaps': JSON.stringify(materialized.gaps),
       'max-review-cycles': String(handoff.review_policy.max_autonomous_cycles),
       'review-policy-source': handoff.review_policy.source,
     }) };
@@ -126,6 +147,7 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
       registered_case_ref: selectedCaseRef,
       case_id: selectedCase.id,
       case_updated_at: selectedCase.updated_at,
+      canonical_id_mapping: materialized.canonical_id_mapping,
       candidate_gaps: selectedCase.case_resolution?.candidate_gaps || [],
     },
     post_commit_snapshot_token: postCommitSnapshot.snapshot_token,
@@ -246,4 +268,32 @@ function readCaseRecord(file, sourceText = null) {
 
 function emptyResult(gate, dryRun) {
   return { schema_version: 'arckit-ledger-write/v2', written: false, dry_run: dryRun, gate, plan: [], changed_files: [] };
+}
+
+function rejectionResult({ gate, dryRun, handoff, kind, issues }) {
+  const stale = kind === 'snapshot_stale';
+  return {
+    schema_version: 'arckit-ledger-write/v2',
+    written: false,
+    dry_run: dryRun,
+    gate,
+    rejection: {
+      kind,
+      recoverable: true,
+      responsibility: 'agent',
+      reason: issues.map((issue) => `${issue.path}: ${issue.message}`).join('\n'),
+      issues,
+      case_id: handoff?.case_id || '',
+      selected_gap_id: '',
+      recovery_action: stale ? 'replan_from_fresh_state' : 'repair_rejected_claim',
+      counts_toward_agent_repair: !stale,
+    },
+    plan: [],
+    changed_files: [],
+  };
+}
+
+function issueRecord(value) {
+  const match = String(value || '').match(/^([^:]+(?:\.[^:]+)*):\s*(.*)$/);
+  return match ? { path: match[1], message: match[2] } : { path: 'case_control_handoff', message: String(value || 'Invalid Case control handoff.') };
 }

@@ -57,6 +57,11 @@ test("Case control schema uses supported mutually exclusive anyOf branches", asy
   ]);
   assert.equal(schema.$defs.create_case_control.properties.action.const, "create_case");
   assert.equal(schema.$defs.bind_closed_case_control.properties.action.const, "bind_closed_case");
+  assert.equal(schema.$defs.create_case_control.properties.initial_facts.items.$ref, "#/$defs/semantic_fact");
+  assert.equal(schema.$defs.create_case_control.properties.initial_impacts.items.$ref, "#/$defs/initial_semantic_impact");
+  assert.equal(schema.$defs.create_case_control.properties.initial_gaps.items.$ref, "#/$defs/semantic_gap");
+  assert.equal(schema.$defs.semantic_fact.properties.ref.pattern, "^local:fact:.+$");
+  assert.equal(schema.$defs.semantic_gap.properties.ref.pattern, "^local:gap:.+$");
   assert.equal(Object.hasOwn(schema.$defs.case_control, "oneOf"), false);
 });
 

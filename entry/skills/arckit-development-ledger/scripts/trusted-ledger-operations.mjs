@@ -92,8 +92,10 @@ export function renderProjectStateProjection(projectRoot, input = "") {
 
 export function createDevelopmentCase(projectRoot, options) {
   const artifactType = options["artifact-type"] || "unknown";
+  const caseId = options["case-id"] || nextDevelopmentCaseId(projectRoot);
+  if (!/^CASE-\d{8}-\d{3}$/.test(caseId)) throw new Error("development Case requires a canonical Case id");
   const record = createDefaultCaseRecord({
-    id: nextCaseId(projectRoot),
+    id: caseId,
     title: options.title,
     artifactType,
     intent: options.intent || "",
@@ -106,7 +108,10 @@ export function createDevelopmentCase(projectRoot, options) {
   });
   const activeDir = path.join(projectRoot, "arckit/cases/active");
   fs.mkdirSync(activeDir, { recursive: true });
-  fs.mkdirSync(path.join(projectRoot, "arckit/cases/closed"), { recursive: true });
+  const closedDir = path.join(projectRoot, "arckit/cases/closed");
+  fs.mkdirSync(closedDir, { recursive: true });
+  const collision = [activeDir, closedDir].some((dir) => fs.readdirSync(dir).some((name) => name.startsWith(`${record.id}-`)));
+  if (collision) throw new Error(`development Case ${record.id} already exists`);
   const file = path.join(activeDir, `${record.id}-${slugify(record.title)}.md`);
   fs.writeFileSync(file, renderNewCase(record));
   return `${file}\n`;
@@ -201,7 +206,7 @@ function byCaseFile(left, right) { return left.file.localeCompare(right.file); }
 function tableEscape(value) { return String(value || "").replace(/\|/g, "\\|").replace(/\n/g, " "); }
 function slugify(value) { return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64) || "development-case"; }
 
-function nextCaseId(projectRoot) {
+export function nextDevelopmentCaseId(projectRoot) {
   const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
   const casesRoot = path.join(projectRoot, "arckit/cases");
   const files = ["active", "closed"].flatMap((name) => {

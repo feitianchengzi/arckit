@@ -89,7 +89,14 @@ test('Case control binds numeric Project revision and requires semantic initial 
   const valid = {
     schema_version: 'arckit-case-control-handoff/v1', action: 'create_case', expected_project_revision: 2, case_id: '',
     title: 'Diagnose restore bug', intent: 'Fix restore bug', expected_outcome: 'Restore keeps newest data', artifact_type: 'code',
-    selection_reason: 'No active Case covers the bug.', initial_facts: bugCase().facts, initial_impacts: [], initial_gaps: bugCase().gaps,
+    selection_reason: 'No active Case covers the bug.',
+    initial_facts: [{ ref: 'local:fact:restore-bug', statement: 'Restore loses the newest data.', basis: 'Trace evidence.', evidence: ['debug/root-cause.md'] }],
+    initial_impacts: [],
+    initial_gaps: [{
+      ref: 'local:gap:fix-restore', goal: 'Restore keeps the newest data.', reason: 'The current restore path loses it.',
+      derived_from: ['local:fact:restore-bug'], blocked_by: [], priority_basis: { blocking: 'high' },
+      responsibility: 'agent', evidence_required: ['test/state-condition-case.test.mjs'],
+    }],
     review_policy: { max_autonomous_cycles: 3, source: 'test-policy' },
   };
   assert.deepEqual(validateCaseControlHandoff(valid), []);
