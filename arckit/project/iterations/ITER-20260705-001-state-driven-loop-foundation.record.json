@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-25T10:42:42.557Z",
+  "updated_at": "2026-08-25T10:58:21.371Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -2435,16 +2435,16 @@
     "arckit/cases/closed/CASE-20260824-011-work-owned-task-synchronization.md",
     "arckit/cases/closed/CASE-20260825-001-restore-arcorbit-automation-after-abrupt-process-loss.md",
     "arckit/cases/closed/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md",
-    "arckit/cases/closed/CASE-20260825-003-work.md"
+    "arckit/cases/closed/CASE-20260825-003-work.md",
+    "arckit/cases/closed/CASE-20260825-004-chat.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260825-003-work.md",
+    "case_ref": "arckit/cases/closed/CASE-20260825-004-chat.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260825-003-work.md",
-      "Project revision 237 remains semantically unchanged; Completion Review found no Project-level correction or new obligation."
+      "arckit/cases/closed/CASE-20260825-004-chat.md"
     ],
-    "updated_at": "2026-08-25T10:42:42.557Z"
+    "updated_at": "2026-08-25T10:58:21.371Z"
   }
 }

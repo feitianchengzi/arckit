@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 238
-Updated: 2026-08-25T10:42:42.557Z
+Revision: 240
+Updated: 2026-08-25T10:58:21.371Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-定位并修复 ArcOrbit Work 页面后台刷新触发待办详情重新渲染、导致评论或验收问题输入内容丢失的问题。
+从可复现的滚动时序和单一滚动所有权出发，消除 ArcOrbit Chat 在 Agent 流式回答期间靠近底部区域的高频往返跳动。
 
 ## Active Work
 

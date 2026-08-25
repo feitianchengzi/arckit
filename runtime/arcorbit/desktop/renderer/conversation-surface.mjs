@@ -18,21 +18,56 @@ export function createConversationSurface({
 } = {}) {
   if (!element || !jumpButton) throw new Error("Conversation Surface requires an element and jump button.");
   let followingLatest = true;
+  let explicitSmoothScroll = false;
+  let renderFrameScheduled = false;
+  let pendingRenderScroll = null;
 
   const isNearBottom = () => element.scrollHeight - element.scrollTop - element.clientHeight < 72;
   const updateJumpButton = () => jumpButton.classList.toggle("hidden", followingLatest || isNearBottom());
-  const scrollToLatest = ({ behavior = "auto" } = {}) => {
+  const scrollToLatest = ({ behavior = "instant" } = {}) => {
     followingLatest = true;
+    explicitSmoothScroll = behavior === "smooth";
     element.scrollTo({ top: element.scrollHeight, behavior });
     updateJumpButton();
   };
   const handleScroll = () => {
+    if (!explicitSmoothScroll) followingLatest = isNearBottom();
+    updateJumpButton();
+  };
+  const handleUserScrollIntent = () => { explicitSmoothScroll = false; };
+  const handleScrollEnd = () => {
+    explicitSmoothScroll = false;
     followingLatest = isNearBottom();
     updateJumpButton();
   };
+  const flushRenderScroll = () => {
+    renderFrameScheduled = false;
+    const pending = pendingRenderScroll;
+    pendingRenderScroll = null;
+    if (!pending) return;
+    if (pending.shouldFollow) scrollToLatest();
+    else {
+      followingLatest = false;
+      element.scrollTop = pending.previousScrollTop;
+      updateJumpButton();
+    }
+  };
+  const scheduleRenderScroll = (pending) => {
+    if (!pendingRenderScroll) pendingRenderScroll = pending;
+    if (renderFrameScheduled) return;
+    renderFrameScheduled = true;
+    requestFrame(flushRenderScroll);
+  };
 
   element.addEventListener("scroll", handleScroll, { passive: true });
-  jumpButton.addEventListener("click", () => scrollToLatest({ behavior: "smooth" }));
+  element.addEventListener("scrollend", handleScrollEnd, { passive: true });
+  for (const eventName of ["wheel", "touchstart", "pointerdown", "keydown"]) {
+    element.addEventListener(eventName, handleUserScrollIntent, { passive: true });
+  }
+  jumpButton.addEventListener("click", () => {
+    pendingRenderScroll = null;
+    scrollToLatest({ behavior: "smooth" });
+  });
 
   function bindActions(messages) {
     element.querySelectorAll("[data-conversation-approval]").forEach((button) => button.addEventListener("click", () => {
@@ -55,13 +90,7 @@ export function createConversationSurface({
       ? visibleMessages.map((message) => renderConversationSurfaceMessage(message, { formatTime, approvalEnabled: Boolean(onApproval) })).join("")
       : emptyHtml;
     bindActions(visibleMessages);
-    requestFrame(() => {
-      if (shouldFollow) scrollToLatest();
-      else {
-        element.scrollTop = previousScrollTop;
-        updateJumpButton();
-      }
-    });
+    scheduleRenderScroll({ shouldFollow, previousScrollTop });
   }
 
   return {

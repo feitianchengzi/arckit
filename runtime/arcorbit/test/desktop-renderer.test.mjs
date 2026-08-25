@@ -13,7 +13,7 @@ import {
   summarizeToolActivity,
   transcriptMessageType
 } from "../src/desktop/transcript-presentation.mjs";
-import { copyConversationCode, renderConversationSurfaceMessage } from "../desktop/renderer/conversation-surface.mjs";
+import { copyConversationCode, createConversationSurface, renderConversationSurfaceMessage } from "../desktop/renderer/conversation-surface.mjs";
 import { checkDesktopSetupReadiness, desktopSetupCheckInput } from "../src/desktop-setup-readiness-context.mjs";
 import feedbackV2Ipc from "../desktop/feedback-v2-ipc.cjs";
 import { createChatStateCoordinator } from "../desktop/renderer/chat-state-coordinator.mjs";
@@ -70,6 +70,46 @@ function createCoordinator(api, options = {}) {
   });
 }
 
+function createConversationSurfaceHarness({ scrollHeight = 1000, scrollTop = 900, clientHeight = 100 } = {}) {
+  const elementListeners = new Map();
+  const buttonListeners = new Map();
+  const frames = [];
+  const scrollCalls = [];
+  const hiddenClasses = new Set(["hidden"]);
+  const element = {
+    scrollHeight,
+    scrollTop,
+    clientHeight,
+    innerHTML: "",
+    addEventListener(type, listener) { elementListeners.set(type, listener); },
+    querySelectorAll() { return []; },
+    scrollTo(options) { scrollCalls.push(options); },
+  };
+  const jumpButton = {
+    classList: {
+      toggle(name, enabled) {
+        if (enabled) hiddenClasses.add(name);
+        else hiddenClasses.delete(name);
+      }
+    },
+    addEventListener(type, listener) { buttonListeners.set(type, listener); }
+  };
+  const surface = createConversationSurface({
+    element,
+    jumpButton,
+    requestFrame(callback) { frames.push(callback); }
+  });
+  return {
+    element,
+    surface,
+    frames,
+    scrollCalls,
+    jumpHidden: () => hiddenClasses.has("hidden"),
+    dispatchElement: (type) => elementListeners.get(type)?.({ type }),
+    dispatchButton: (type) => buttonListeners.get(type)?.({ type })
+  };
+}
+
 test("Chat state coordinator captures draft ownership and flushes before selection changes", async () => {
   const calls = [];
   const timers = [];
@@ -117,6 +157,44 @@ test("Chat and Automation common messages use the same Conversation Surface pres
   assert.equal(isConversationSurfaceMessageVisible({ role: "assistant", kind: "structured", structured_data: { schema_version: "arckit-round-closeout/v2", value: { schema_version: "arckit-round-closeout/v2" } } }), false);
   assert.equal(isConversationSurfaceMessageVisible({ role: "tool", kind: "command", content: "npm test" }), true);
   assert.equal(isConversationSurfaceMessageVisible({ role: "assistant", kind: "reasoning", content: "Inspecting" }), true);
+});
+
+test("Conversation Surface coalesces live follow into one instant scroll per frame", () => {
+  const harness = createConversationSurfaceHarness();
+  const message = { role: "assistant", kind: "text", content: "delta", status: "running" };
+
+  harness.surface.render({ messages: [message] });
+  harness.surface.render({ messages: [{ ...message, content: "delta delta" }] });
+
+  assert.equal(harness.frames.length, 1);
+  harness.frames.shift()();
+  assert.deepEqual(harness.scrollCalls, [{ top: 1000, behavior: "instant" }]);
+  assert.equal(harness.surface.isFollowingLatest(), true);
+});
+
+test("Conversation Surface preserves user reading position across repeated renders", () => {
+  const harness = createConversationSurfaceHarness({ scrollTop: 420 });
+  harness.dispatchElement("scroll");
+  assert.equal(harness.surface.isFollowingLatest(), false);
+
+  harness.surface.render({ messages: [{ role: "assistant", kind: "text", content: "first" }] });
+  harness.surface.render({ messages: [{ role: "assistant", kind: "text", content: "second" }] });
+  harness.element.scrollTop = 0;
+  harness.frames.shift()();
+
+  assert.equal(harness.element.scrollTop, 420);
+  assert.deepEqual(harness.scrollCalls, []);
+  assert.equal(harness.jumpHidden(), false);
+});
+
+test("Conversation Surface reserves smooth scrolling for an explicit latest jump", () => {
+  const harness = createConversationSurfaceHarness({ scrollTop: 420 });
+  harness.dispatchElement("scroll");
+  harness.dispatchButton("click");
+
+  assert.deepEqual(harness.scrollCalls, [{ top: 1000, behavior: "smooth" }]);
+  harness.dispatchElement("scroll");
+  assert.equal(harness.surface.isFollowingLatest(), true);
 });
 
 test("Conversation Surface code copy exposes rejection to the shared action boundary", async () => {
@@ -1245,6 +1323,7 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(styles, /\.workbench-layout[^}]+height: 100%[^}]+overflow: hidden/);
   assert.match(styles, /\.workbench-context, \.workbench-evidence[^}]+overflow-y: auto/);
   assert.match(styles, /\.conversation-surface[^}]+overflow-y: auto/);
+  assert.doesNotMatch(styles, /\.conversation-surface[^}]+scroll-behavior:\s*smooth/);
   assert.match(source, /完整执行总览/);
   assert.match(source, /gap_round_count/);
   assert.match(source, /renderAutomationPanelActivity/);
