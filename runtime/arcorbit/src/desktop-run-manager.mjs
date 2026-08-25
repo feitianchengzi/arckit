@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
@@ -618,7 +618,7 @@ export function createDesktopRunManager({
     if (initialization.initialized || initialization.repaired) {
       emit("project.initialized", { project, initialization });
     }
-    const runId = `RUN-${new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}`;
+    const runId = `RUN-${new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}-${randomUUID().slice(0, 8)}`;
     const runDir = join(runsDir, runId);
     await mkdir(runDir, { recursive: true });
 

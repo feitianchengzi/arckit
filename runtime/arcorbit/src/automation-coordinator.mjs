@@ -18,7 +18,510 @@ const CASE_ID_PATTERN = /^CASE-\d{8}-\d{3}$/;
 const AUTHORITATIVE_CASE_BINDING_SOURCE = "runtime_ledger";
 const TASK_STATES = Object.freeze(["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"]);
 
-export function createAutomationCoordinator({
+export function createAutomationCoordinator(options) {
+  const { runManager, now = () => new Date().toISOString() } = options;
+  const sharedWorkSync = options.workSync || createStoreBackedTaskStateBoundary(runManager);
+  const emitter = new EventEmitter();
+  const laneCoordinators = new Map();
+  let overviewCoordinator = null;
+  let syncPromise = null;
+  let dispatchPromise = null;
+  let disposed = false;
+  const unsubscribeRunManager = runManager.onEvent((event) => {
+    ensureKnownLanes()
+      .then(() => Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.handleRunEvent(event))))
+      .catch((error) => emit("automation.error", { reason: "run-event", message: error.message }));
+  });
+
+  function emit(type, payload = {}) {
+    emitter.emit("event", { type, at: now(), ...payload });
+  }
+
+  function ensureOverview() {
+    if (overviewCoordinator) return overviewCoordinator;
+    overviewCoordinator = createLaneAutomationCoordinator({
+      ...options,
+      workSync: createLaneTaskStateBoundary(sharedWorkSync, runManager, "*"),
+      runManager: createLaneRunManager(runManager, "*", { subscribe: false })
+    });
+    return overviewCoordinator;
+  }
+
+  function ensureLane(workspaceKey) {
+    const key = String(workspaceKey || "").trim();
+    if (!key || key === "*") return null;
+    if (laneCoordinators.has(key)) return laneCoordinators.get(key);
+    const coordinator = createLaneAutomationCoordinator({
+      ...options,
+      workSync: createLaneTaskStateBoundary(sharedWorkSync, runManager, key),
+      runManager: createLaneRunManager(runManager, key, { subscribe: false })
+    });
+    coordinator.onEvent((event) => {
+      emit(event.type, { ...event, workspace_key: key });
+      if (event.type === "automation.changed") scheduleDispatch("lane-changed");
+    });
+    laneCoordinators.set(key, coordinator);
+    return coordinator;
+  }
+
+  async function ensureKnownLanes() {
+    const store = await runManager.readDesktopStore();
+    const automation = ensureExecutionCollections(store.automation || {});
+    const keys = new Set([
+      ...Object.keys(automation.active_executions),
+      ...Object.values(automation.project_bindings || {}).map(String).filter(Boolean),
+      ...(automation.acceptance_feedback_items || []).map((item) => String(item.local_project_id || "")).filter(Boolean)
+    ]);
+    for (const key of keys) ensureLane(key);
+    return { store, automation, keys: [...keys] };
+  }
+
+  async function getSnapshot(filter = {}) {
+    await ensureKnownLanes();
+    const [store, laneSnapshots] = await Promise.all([
+      runManager.readDesktopStore(),
+      Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.getSnapshot(filter)))
+    ]);
+    const automation = ensureExecutionCollections(store.automation || {});
+    const boundLaneKeys = new Set(Object.values(automation.project_bindings || {}).map(String).filter(Boolean));
+    const base = laneSnapshots.length === 1 && boundLaneKeys.size <= 1
+      ? laneSnapshots[0]
+      : await ensureOverview().getSnapshot(filter);
+    const executions = laneSnapshots
+      .filter((snapshot) => snapshot.active_task)
+      .map((snapshot) => ({ ...snapshot.active_task, active_run: snapshot.active_run || null }))
+      .sort((left, right) => String(left.started_at || left.claimed_at || "").localeCompare(String(right.started_at || right.claimed_at || "")));
+    const selectedExecutionId = executions.some((item) => item.execution_id === automation.selected_execution_id)
+      ? automation.selected_execution_id
+      : executions[0]?.execution_id || "";
+    const selected = executions.find((item) => item.execution_id === selectedExecutionId) || null;
+    return {
+      ...base,
+      active_executions: executions,
+      active_execution: selected,
+      active_task: selected,
+      active_run: selected?.active_run || null,
+      selected_execution_id: selectedExecutionId,
+      concurrency: {
+        limit: automation.concurrency_limit || 3,
+        active: executions.length,
+        available: Math.max(0, (automation.concurrency_limit || 3) - executions.length)
+      },
+      health: deriveSupervisorHealth(base.health, automation, executions)
+    };
+  }
+
+  async function sync({ dispatch = true, resumeRecoverable = false } = {}) {
+    if (syncPromise) return syncPromise;
+    syncPromise = (async () => {
+      await sharedWorkSync.reconcile({ dispatch: false, reason: "automation-request" });
+      await ensureKnownLanes();
+      await Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.sync({ dispatch: false, resumeRecoverable })));
+      if (dispatch) await maybeStartNext();
+      emit("automation.changed", { reason: "sync" });
+      return getSnapshot();
+    })();
+    try {
+      return await syncPromise;
+    } finally {
+      syncPromise = null;
+    }
+  }
+
+  async function handleTaskProjectionChanged(input = {}) {
+    await ensureKnownLanes();
+    await Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.handleTaskProjectionChanged({ ...input, dispatch: false })));
+    if (input.dispatch !== false) await maybeStartNext();
+    emit("automation.changed", { reason: input.reason || "local-task-state" });
+    return getSnapshot();
+  }
+
+  async function maybeStartNext() {
+    if (dispatchPromise) return dispatchPromise;
+    dispatchPromise = (async () => {
+      const { automation } = await ensureKnownLanes();
+      const globalRecovery = (automation.recovery_items || []).some((item) => item.freeze_scope === "global");
+      if (!automation.enabled || automation.queue_paused || globalRecovery) return null;
+      const activeKeys = new Set(Object.keys(automation.active_executions));
+      let available = Math.max(0, (automation.concurrency_limit || 3) - activeKeys.size);
+      if (available === 0) return null;
+      const candidates = [];
+      for (const [key, coordinator] of laneCoordinators) {
+        if (activeKeys.has(key)) continue;
+        const snapshot = await coordinator.getSnapshot();
+        const next = selectNextExecution(snapshot.todo_queue, snapshot.acceptance_feedback_queue);
+        if (next) candidates.push({ key, coordinator, next });
+      }
+      candidates.sort((left, right) => compareSupervisorCandidates(left.next, right.next) || left.key.localeCompare(right.key));
+      const started = [];
+      for (const candidate of candidates) {
+        if (available <= 0) break;
+        const run = await candidate.coordinator.maybeStartNext();
+        if (run) {
+          started.push(run);
+          available -= 1;
+        }
+      }
+      return started;
+    })();
+    try {
+      return await dispatchPromise;
+    } finally {
+      dispatchPromise = null;
+    }
+  }
+
+  function scheduleDispatch(reason) {
+    if (disposed) return;
+    setTimeout(() => maybeStartNext().catch((error) => emit("automation.error", { reason, message: error.message })), 0);
+  }
+
+  async function updateAutomation(mutator) {
+    return runManager.updateDesktopStore((store) => {
+      const automation = ensureExecutionCollections(store.automation || (store.automation = {}));
+      mutator(automation, store);
+      return store;
+    });
+  }
+
+  async function setEnabled(enabled) {
+    await updateAutomation((automation) => {
+      automation.enabled = Boolean(enabled);
+      if (enabled) automation.queue_paused = false;
+    });
+    if (enabled) await sync();
+    emit("automation.changed", { reason: enabled ? "enabled" : "disabled" });
+    return getSnapshot();
+  }
+
+  async function setQueuePaused(paused) {
+    await updateAutomation((automation) => { automation.queue_paused = Boolean(paused); });
+    if (!paused) await maybeStartNext();
+    emit("automation.changed", { reason: paused ? "queue-paused" : "queue-resumed" });
+    return getSnapshot();
+  }
+
+  async function selectExecution(executionId) {
+    const id = requiredId(executionId, "Execution");
+    await updateAutomation((automation) => {
+      if (!Object.values(automation.active_executions).some((item) => item.execution_id === id)) throw new Error(`Unknown active execution: ${id}`);
+      automation.selected_execution_id = id;
+    });
+    emit("automation.changed", { reason: "execution-selected", executionId: id });
+    return getSnapshot();
+  }
+
+  async function bindProject(remoteProjectId, localProjectId) {
+    const remoteId = requiredId(remoteProjectId, "Remote project");
+    const localId = String(localProjectId || "").trim();
+    const localProjects = await runManager.listProjects();
+    if (localId && !localProjects.some((project) => String(project.id) === localId)) throw new Error(`Unknown local project: ${localId}`);
+    await updateAutomation((automation) => {
+      if (localId) automation.project_bindings[remoteId] = localId;
+      else delete automation.project_bindings[remoteId];
+    });
+    if (localId) ensureLane(localId);
+    await maybeStartNext();
+    emit("automation.changed", { reason: "project-binding", projectId: remoteId });
+    return getSnapshot({ project_id: remoteId });
+  }
+
+  async function setProjectParticipation(remoteProjectId, participating) {
+    const remoteId = requiredId(remoteProjectId, "Remote project");
+    await updateAutomation((automation) => { automation.project_participation[remoteId] = Boolean(participating); });
+    await maybeStartNext();
+    emit("automation.changed", { reason: "project-participation", projectId: remoteId });
+    return getSnapshot({ project_id: remoteId });
+  }
+
+  async function clearRemoteSession() {
+    await updateAutomation((automation) => {
+      automation.enabled = false;
+      automation.queue_paused = false;
+      for (const execution of Object.values(automation.active_executions)) {
+        if (execution.execution_kind !== "acceptance_feedback") continue;
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === execution.feedback_id);
+        if (item) {
+          item.status = "queued";
+          item.progress = "Workshop 退出后保留，等待重新登录";
+          item.ready_at ||= now();
+          item.updated_at = now();
+        }
+      }
+      automation.active_executions = {};
+      automation.selected_execution_id = "";
+      automation.attention_items = [];
+      automation.recovery_items = [];
+      if (Object.hasOwn(automation, "active_task")) automation.active_task = null;
+    });
+    emit("automation.changed", { reason: "remote-session-cleared" });
+    return getSnapshot();
+  }
+
+  async function refreshProject(projectId, { dispatch = true } = {}) {
+    const remoteId = requiredId(projectId, "Remote project");
+    await sharedWorkSync.refreshProject(remoteId, { reason: "automation-request" });
+    return handleTaskProjectionChanged({ reason: "project-refresh", projectId: remoteId, dispatch });
+  }
+
+  async function routeByExecution(method, executionId, ...args) {
+    const { automation } = await ensureKnownLanes();
+    const id = String(executionId || automation.selected_execution_id || "");
+    const entry = Object.entries(automation.active_executions).find(([, execution]) => execution.execution_id === id);
+    if (!entry) throw new Error(id ? `Unknown active execution: ${id}` : "No active Automation execution is selected.");
+    const coordinator = ensureLane(entry[0]);
+    return coordinator[method](...args);
+  }
+
+  async function stopAll() {
+    const { automation } = await ensureKnownLanes();
+    const executions = Object.values(automation.active_executions);
+    const outcomes = [];
+    for (const execution of executions) {
+      outcomes.push(await routeByExecution("stopCurrent", execution.execution_id));
+    }
+    return outcomes;
+  }
+
+  async function submitAcceptanceFeedback(input) {
+    const store = sharedWorkSync.attachLocalProjection(await runManager.readDesktopStore());
+    const sourceTaskId = String(input?.taskId || input?.task_id || input?.source_task_id || "");
+    const sourceTask = store.automation.snapshot?.tasks?.find((item) => String(item.id) === sourceTaskId);
+    const projectId = String(input?.source_project_id || input?.project_id || sourceTask?.project_id || "");
+    const laneKey = String(store.automation.project_bindings?.[projectId] || input?.local_project_id || "");
+    if (!laneKey) throw new Error("The acceptance feedback source project has no local workspace binding.");
+    const result = await ensureLane(laneKey).submitAcceptanceFeedback(input);
+    await maybeStartNext();
+    return result;
+  }
+
+  async function updateTaskState(input) {
+    const store = sharedWorkSync.attachLocalProjection(await runManager.readDesktopStore());
+    const task = store.automation.snapshot?.tasks?.find((item) => String(item.id) === String(input?.taskId || input?.task_id));
+    const laneKey = String(store.automation.project_bindings?.[String(task?.project_id || "")] || "");
+    return laneKey ? ensureLane(laneKey).updateTaskState(input) : sharedWorkSync.updateTaskState(input);
+  }
+
+  async function resolveRecovery(input = {}) {
+    const { automation } = await ensureKnownLanes();
+    const recovery = automation.recovery_items.find((item) => item.id === input.recoveryId);
+    if (!recovery) throw new Error(`Unknown recovery item: ${input.recoveryId}`);
+    const laneKey = recovery.workspace_key || recovery.local_project_id || Object.entries(automation.active_executions).find(([, execution]) => String(execution.task_id) === String(recovery.task_id))?.[0];
+    if (!laneKey) throw new Error("The recovery item is not bound to a workspace lane.");
+    return ensureLane(laneKey).resolveRecovery(input);
+  }
+
+  return {
+    onEvent(listener) { emitter.on("event", listener); return () => emitter.off("event", listener); },
+    dispose() {
+      disposed = true;
+      unsubscribeRunManager?.();
+      overviewCoordinator?.dispose();
+      for (const coordinator of laneCoordinators.values()) coordinator.dispose();
+    },
+    getSnapshot,
+    sync,
+    refreshProject,
+    handleTaskProjectionChanged,
+    setEnabled,
+    setQueuePaused,
+    clearRemoteSession,
+    bindProject,
+    setProjectParticipation,
+    updateTaskState,
+    submitAcceptanceFeedback,
+    selectExecution,
+    submitIntervention(input = {}) { return routeByExecution("submitIntervention", input.execution_id, input); },
+    stopCurrent(input = "") { return routeByExecution("stopCurrent", typeof input === "object" ? input.execution_id : input); },
+    stopAll,
+    handoffToCodexCli(input = "") { return routeByExecution("handoffToCodexCli", typeof input === "object" ? input.execution_id : input); },
+    reopenCodexCli(input = "") { return routeByExecution("reopenCodexCli", typeof input === "object" ? input.execution_id : input); },
+    resumeRuntimeFromCodexCli(input = "") { return routeByExecution("resumeRuntimeFromCodexCli", typeof input === "object" ? input.execution_id : input); },
+    resolveRecovery,
+    maybeStartNext
+  };
+}
+
+function createLaneRunManager(runManager, workspaceKey, { subscribe = true } = {}) {
+  return new Proxy(runManager, {
+    get(target, property) {
+      if (property === "readDesktopStore") {
+        return async () => projectLaneStore(await target.readDesktopStore(), workspaceKey);
+      }
+      if (property === "updateDesktopStore") {
+        return async (updater) => target.updateDesktopStore((store) => {
+          const laneStore = projectLaneStore(store, workspaceKey);
+          const before = structuredClone(laneStore);
+          const updated = updater(laneStore);
+          if (updated && typeof updated.then === "function") {
+            return updated.then((resolved) => {
+              mergeLaneStore(store, before, resolved || laneStore, workspaceKey);
+              return store;
+            });
+          }
+          mergeLaneStore(store, before, updated || laneStore, workspaceKey);
+          return store;
+        });
+      }
+      if (property === "onEvent" && !subscribe) return () => () => {};
+      const value = target[property];
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
+
+function createLaneTaskStateBoundary(sharedWorkSync, runManager, workspaceKey) {
+  function attachLocalProjection(store) {
+    const projected = sharedWorkSync.attachLocalProjection(store);
+    filterLaneProjection(projected, workspaceKey);
+    return projected;
+  }
+  async function localSnapshot() {
+    return attachLocalProjection(projectLaneStore(await runManager.readDesktopStore(), workspaceKey)).automation.snapshot;
+  }
+  return {
+    attachLocalProjection,
+    reconcile: localSnapshot,
+    refreshProject: localSnapshot,
+    updateTaskState(input) { return sharedWorkSync.updateTaskState(input); }
+  };
+}
+
+function ensureExecutionCollections(automation) {
+  automation.active_executions ||= {};
+  automation.concurrency_limit = Math.min(8, Math.max(1, Number.parseInt(automation.concurrency_limit, 10) || 3));
+  if (automation.active_task) {
+    const key = executionWorkspaceKey(automation.active_task);
+    if (key && !automation.active_executions[key]) automation.active_executions[key] = decorateExecution(automation.active_task, key);
+  }
+  for (const [key, execution] of Object.entries(automation.active_executions)) {
+    automation.active_executions[key] = decorateExecution(execution, key);
+  }
+  const executions = Object.values(automation.active_executions);
+  if (!executions.some((item) => item.execution_id === automation.selected_execution_id)) {
+    automation.selected_execution_id = executions[0]?.execution_id || "";
+  }
+  return automation;
+}
+
+function decorateExecution(execution, workspaceKey) {
+  const key = String(workspaceKey || executionWorkspaceKey(execution));
+  return {
+    ...execution,
+    execution_id: String(execution?.execution_id || `EXEC-${randomUUID()}`),
+    workspace_key: key,
+    local_project_id: String(execution?.local_project_id || key)
+  };
+}
+
+function executionWorkspaceKey(execution) {
+  return String(execution?.workspace_key || execution?.local_project_id || execution?.local_project_path || execution?.project_id || "").trim();
+}
+
+function projectLaneStore(store, workspaceKey) {
+  const projected = structuredClone(store);
+  const automation = ensureExecutionCollections(projected.automation || (projected.automation = {}));
+  const executions = automation.active_executions;
+  const active = workspaceKey === "*"
+    ? Object.values(executions).find((execution) => execution.execution_id === automation.selected_execution_id) || Object.values(executions)[0] || null
+    : executions[workspaceKey] || null;
+  automation.active_task = active;
+  if (workspaceKey === "*") return projected;
+  const remoteIds = new Set(Object.entries(automation.project_bindings || {})
+    .filter(([, localId]) => String(localId) === workspaceKey)
+    .map(([remoteId]) => String(remoteId)));
+  automation.project_bindings = Object.fromEntries(Object.entries(automation.project_bindings || {}).filter(([remoteId]) => remoteIds.has(String(remoteId))));
+  automation.project_participation = Object.fromEntries(Object.entries(automation.project_participation || {}).filter(([remoteId]) => remoteIds.has(String(remoteId))));
+  automation.acceptance_feedback_items = (automation.acceptance_feedback_items || []).filter((item) => (
+    String(item.local_project_id || "") === workspaceKey || remoteIds.has(String(item.source_project_id || ""))
+  ));
+  automation.attention_items = (automation.attention_items || []).filter((item) => item.freeze_scope === "global" || itemBelongsToLane(item, workspaceKey, active));
+  automation.recovery_items = (automation.recovery_items || []).filter((item) => item.freeze_scope === "global" || itemBelongsToLane(item, workspaceKey, active));
+  automation.recent_completions = (automation.recent_completions || []).filter((item) => String(item.local_project_id || "") === workspaceKey || remoteIds.has(String(item.project_id || "")));
+  filterLaneProjection(projected, workspaceKey, remoteIds);
+  return projected;
+}
+
+function filterLaneProjection(store, workspaceKey, knownRemoteIds = null) {
+  if (workspaceKey === "*") return store;
+  const automation = store.automation || {};
+  const remoteIds = knownRemoteIds || new Set(Object.entries(automation.project_bindings || {})
+    .filter(([, localId]) => String(localId) === workspaceKey)
+    .map(([remoteId]) => String(remoteId)));
+  const snapshot = automation.snapshot;
+  if (snapshot) {
+    snapshot.projects = (snapshot.projects || []).filter((project) => remoteIds.has(String(project.id)));
+    snapshot.tasks = (snapshot.tasks || []).filter((task) => remoteIds.has(String(task.project_id)));
+    snapshot.errors = (snapshot.errors || []).filter((error) => !error.project_id || remoteIds.has(String(error.project_id)));
+  }
+  if (automation.realtime?.projects) {
+    automation.realtime.projects = Object.fromEntries(Object.entries(automation.realtime.projects).filter(([remoteId]) => remoteIds.has(String(remoteId))));
+  }
+  return store;
+}
+
+function itemBelongsToLane(item, workspaceKey, active) {
+  if (String(item.execution_id || "") && String(item.execution_id) === String(active?.execution_id || "")) return true;
+  if (String(item.workspace_key || item.local_project_id || "") === workspaceKey) return true;
+  return Boolean(active && String(item.task_id || "") === String(active.task_id || ""));
+}
+
+function mergeLaneStore(store, before, after, workspaceKey) {
+  const automation = ensureExecutionCollections(store.automation || (store.automation = {}));
+  const beforeAutomation = before.automation || {};
+  const nextAutomation = after.automation || {};
+  automation.enabled = Boolean(nextAutomation.enabled);
+  automation.queue_paused = Boolean(nextAutomation.queue_paused);
+  const nextActive = nextAutomation.active_task ? decorateExecution(nextAutomation.active_task, workspaceKey) : null;
+  if (nextActive) {
+    automation.active_executions[workspaceKey] = nextActive;
+    if (!Object.values(automation.active_executions).some((item) => item.execution_id === automation.selected_execution_id)) {
+      automation.selected_execution_id = nextActive.execution_id;
+    }
+  } else {
+    delete automation.active_executions[workspaceKey];
+    if (automation.selected_execution_id === beforeAutomation.active_task?.execution_id) {
+      automation.selected_execution_id = Object.values(automation.active_executions)[0]?.execution_id || "";
+    }
+  }
+  automation.acceptance_feedback_items = mergeProjectedCollection(automation.acceptance_feedback_items, beforeAutomation.acceptance_feedback_items, nextAutomation.acceptance_feedback_items, (item) => `feedback:${item.feedback_id}`);
+  const laneItem = (item) => item.freeze_scope === "global" ? item : {
+    ...item,
+    workspace_key: String(item.workspace_key || workspaceKey),
+    local_project_id: String(item.local_project_id || workspaceKey),
+    execution_id: String(item.execution_id || nextActive?.execution_id || beforeAutomation.active_task?.execution_id || "")
+  };
+  automation.attention_items = mergeProjectedCollection(automation.attention_items, beforeAutomation.attention_items, nextAutomation.attention_items.map(laneItem), automationItemIdentity);
+  automation.recovery_items = mergeProjectedCollection(automation.recovery_items, beforeAutomation.recovery_items, nextAutomation.recovery_items.map(laneItem), automationItemIdentity);
+  automation.recent_completions = mergeProjectedCollection(automation.recent_completions, beforeAutomation.recent_completions, nextAutomation.recent_completions, (item) => `completion:${item.run_id || ""}:${item.task_id || ""}:${item.completed_at || ""}`);
+  if (Object.hasOwn(automation, "active_task")) {
+    automation.active_task = Object.values(automation.active_executions).find((item) => item.execution_id === automation.selected_execution_id) || null;
+  }
+}
+
+function mergeProjectedCollection(current = [], before = [], after = [], identity) {
+  const removed = new Set((before || []).map(identity));
+  const additions = new Map((after || []).map((item) => [identity(item), item]));
+  const preserved = (current || []).filter((item) => !removed.has(identity(item)));
+  return [...preserved, ...additions.values()];
+}
+
+function automationItemIdentity(item = {}) {
+  return String(item.id || `${item.type || "item"}:${item.execution_id || ""}:${item.feedback_id || ""}:${item.task_id || ""}`);
+}
+
+function deriveSupervisorHealth(baseHealth, automation, executions) {
+  if ((automation.recovery_items || []).some((item) => item.freeze_scope === "global")) return { state: "recovery", label: "全局恢复", tone: "danger" };
+  if (executions.some((item) => item.phase === "awaiting_human")) return { state: "running_attention", label: "并行执行 · 部分待人工", tone: "warning" };
+  if (executions.length > 0) return { state: "running", label: `自动执行中 ${executions.length}/${automation.concurrency_limit || 3}`, tone: "accent" };
+  return baseHealth;
+}
+
+function compareSupervisorCandidates(left, right) {
+  return timestamp(left?.item?.ready_at || left?.item?.created_at) - timestamp(right?.item?.ready_at || right?.item?.created_at);
+}
+
+function createLaneAutomationCoordinator({
   runManager,
   workSync,
   now = () => new Date().toISOString(),
@@ -1690,7 +2193,7 @@ export function createAutomationCoordinator({
     });
   }
 
-  async function addRecovery({ type, task, message, actions, freezeScope = "global", replaceRecoveryIds = [] }) {
+  async function addRecovery({ type, task, message, actions, freezeScope = "lane", replaceRecoveryIds = [] }) {
     await patchAutomation((automation) => {
       const taskId = task?.task_id || task?.id || "unknown";
       const active = automation.active_task;
@@ -1939,6 +2442,7 @@ export function createAutomationCoordinator({
     reopenCodexCli,
     resumeRuntimeFromCodexCli,
     resolveRecovery,
+    handleRunEvent,
     maybeStartNext
   };
 }

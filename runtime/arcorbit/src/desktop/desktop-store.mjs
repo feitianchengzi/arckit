@@ -13,7 +13,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 13,
+        version: 14,
         projects: [],
         runs: [],
         sessions: {},
@@ -61,7 +61,7 @@ export function normalizeStore(store) {
   const hasPersistedChatSelection = Boolean(store.chat)
     && Object.prototype.hasOwnProperty.call(store.chat, "selected_session_id");
   const normalized = {
-    version: 13,
+    version: 14,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
@@ -406,9 +406,11 @@ export function defaultAutomationState() {
   return {
     enabled: false,
     queue_paused: false,
+    concurrency_limit: 3,
     project_bindings: {},
     project_participation: {},
-    active_task: null,
+    active_executions: {},
+    selected_execution_id: "",
     acceptance_feedback_items: [],
     attention_items: [],
     recovery_items: [],
@@ -417,12 +419,27 @@ export function defaultAutomationState() {
 }
 
 export function normalizeAutomationState(value = {}) {
-  const activeTask = normalizeActiveTask(value.active_task);
+  const activeExecutionsInput = value.active_executions && typeof value.active_executions === "object" && !Array.isArray(value.active_executions)
+    ? value.active_executions
+    : {};
+  const activeExecutions = Object.fromEntries(Object.entries(activeExecutionsInput)
+    .map(([laneKey, execution]) => {
+      const normalized = normalizeActiveTask(execution, laneKey);
+      return normalized ? [normalized.workspace_key, normalized] : null;
+    })
+    .filter(Boolean));
+  const legacyActiveTask = normalizeActiveTask(value.active_task);
+  if (legacyActiveTask && !activeExecutions[legacyActiveTask.workspace_key]) {
+    activeExecutions[legacyActiveTask.workspace_key] = legacyActiveTask;
+  }
+  const activeFeedbackIds = new Set(Object.values(activeExecutions)
+    .filter((execution) => execution.execution_kind === "acceptance_feedback")
+    .map((execution) => execution.feedback_id));
   const feedbackItems = Array.isArray(value.acceptance_feedback_items)
     ? value.acceptance_feedback_items.map(normalizeAcceptanceFeedbackItem).filter(Boolean)
     : [];
   for (const item of feedbackItems) {
-    if (item.status === "running" && (activeTask?.execution_kind !== "acceptance_feedback" || activeTask.feedback_id !== item.feedback_id)) {
+    if (item.status === "running" && !activeFeedbackIds.has(item.feedback_id)) {
       item.status = "queued";
       item.progress = "Runtime 重启后已重新排队";
       item.ready_at ||= item.updated_at || item.created_at;
@@ -431,9 +448,11 @@ export function normalizeAutomationState(value = {}) {
   return {
     enabled: Boolean(value.enabled),
     queue_paused: Boolean(value.queue_paused),
+    concurrency_limit: Math.min(8, Math.max(1, Number.parseInt(value.concurrency_limit, 10) || 3)),
     project_bindings: stringMap(value.project_bindings),
     project_participation: booleanMap(value.project_participation),
-    active_task: activeTask,
+    active_executions: activeExecutions,
+    selected_execution_id: selectExecutionId(value.selected_execution_id, activeExecutions),
     acceptance_feedback_items: feedbackItems,
     attention_items: Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [],
     recovery_items: Array.isArray(value.recovery_items)
@@ -460,14 +479,19 @@ function normalizeStoredTask(value) {
   };
 }
 
-function normalizeActiveTask(value) {
+function normalizeActiveTask(value, persistedLaneKey = "") {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const caseStatuses = new Set(["unbound", "unknown", "active", "resolved"]);
   const closeoutStatuses = new Set(["pending", "running", "completed", "failed"]);
   const remoteCompletionStatuses = new Set(["pending", "writing", "failed"]);
   const caseId = String(value.case_id || "");
+  const workspaceKey = String(value.workspace_key || value.local_project_id || value.local_project_path || persistedLaneKey || value.project_id || "").trim();
+  if (!workspaceKey) return null;
+  const executionId = String(value.execution_id || legacyExecutionId(value, workspaceKey));
   return {
     ...value,
+    execution_id: executionId,
+    workspace_key: workspaceKey,
     task_title: taskDisplayTitle(value.task_title, value.task_id),
     execution_kind: value.execution_kind === "acceptance_feedback" ? "acceptance_feedback" : "todo",
     feedback_id: String(value.feedback_id || ""),
@@ -488,6 +512,18 @@ function normalizeActiveTask(value) {
       ? value.remote_completion_status
       : "pending"
   };
+}
+
+function legacyExecutionId(value, workspaceKey) {
+  const identity = [workspaceKey, value.execution_kind || "todo", value.feedback_id || "", value.task_id || "", value.claimed_at || value.started_at || "legacy"].join("\0");
+  return `EXEC-${createHash("sha256").update(identity).digest("hex").slice(0, 20)}`;
+}
+
+function selectExecutionId(selectedExecutionId, activeExecutions) {
+  const requested = String(selectedExecutionId || "");
+  const executions = Object.values(activeExecutions);
+  if (executions.some((execution) => execution.execution_id === requested)) return requested;
+  return executions.sort((left, right) => String(right.started_at || right.claimed_at || "").localeCompare(String(left.started_at || left.claimed_at || "")))[0]?.execution_id || "";
 }
 
 export function normalizeAcceptanceFeedbackItem(value) {

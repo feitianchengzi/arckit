@@ -68,15 +68,19 @@ Chat 消息采用与 Run message 相同的稳定角色、actor、kind、content�
 
 ### Acceptance Feedback Record 与独立队列
 
-Desktop Store 持久化 `acceptance_feedback_items`，它与远端任务 snapshot、普通 pending queue 和 `active_task` 分离。每条记录至少包含稳定 `feedback_id`、原始反馈、创建/更新时间、状态、来源 project/task/completion/run/case、local project、task session、Codex thread、ready 时间、当前 run、新 Case、最近进展、证据摘要、阻塞原因和幂等提交键。状态只允许 `queued`、`running`、`awaiting_human`、`blocked`、`resolved` 和 `cancelled`。
+Desktop Store 持久化 `acceptance_feedback_items`，它与远端任务 snapshot、普通 pending queue 和 `active_executions` 分离。每条记录至少包含稳定 `feedback_id`、原始反馈、创建/更新时间、状态、来源 project/task/completion/run/case、local project、task session、Codex thread、ready 时间、当前 run、新 Case、最近进展、证据摘要、阻塞原因和幂等提交键。状态只允许 `queued`、`running`、`awaiting_human`、`blocked`、`resolved` 和 `cancelled`。
 
 创建流程先以幂等键原子写入反馈记录，再向来源 task session 追加带 `feedback_id` 的 user message。任一步重试都按同一键返回现有记录，不重复消息或 Run。来源任务必须是 completed 或 accepted，并且项目、工作区、session 与 thread 引用完整；创建反馈不调用任务源状态更新。
 
 反馈执行复用来源待办的 task session 和持久 Codex thread，但启动新的 Run。该 Run 的 Runtime context 携带 `kind=acceptance_feedback`、`feedback_id`、source task/run/case/completion refs；fresh `$using-arckit` turn 从反馈原文创建新的 Case，并把新 Case id 回写反馈记录。旧 closed Case 只作为证据引用，不重开、不变更。反馈 Case resolved、Git closeout 完成后，反馈记录进入 resolved；它不触发来源待办的完成写回。
 
-普通待办队列与验收反馈队列各自派生 ready 队首。Coordinator 的 execution arbiter 只在没有活动执行时比较两个队首的 `ready_at`，再以 lane 和稳定 id 打破平局；选中反馈时获取 local project/workspace 与 task thread lease，并把记录原子推进为 running。租约冲突只保留 queued/blocked 进展。当前执行不被抢占，两条队列也不互相改写排序字段。
+普通待办队列与验收反馈队列各自派生 ready 项，并按规范化本地项目身份分入 workspace lane。每个 lane 的 execution arbiter 只在该 lane 没有活动执行时比较两个队首的 `ready_at`，再以来源 lane 和稳定 id 打破平局；选中反馈时获取 workspace 与 task thread lease，并把记录原子推进为 running。租约冲突只保留 queued/blocked 进展。当前执行不被抢占，两条队列也不互相改写排序字段。
 
-Automation Snapshot 分别投影 `todo_queue`、`acceptance_feedback_queue`、各自计数和一个统一 `active_execution`。completed/accepted 任务投影 `acceptance_feedback_items` 摘要，Renderer 只消费这些结构化字段，不从 transcript 或 Case 文本反推反馈状态。应用重启从 Store 恢复未终结反馈记录，对 running 记录核对 Run、thread lease 和 Case 后恢复、阻塞或重排队，不能丢弃用户原文。
+Automation Supervisor 以稳定 `lane_id=local_project_id` 管理 workspace lane，并最多允许三个 lane 同时拥有活动 Runtime/CLI owner。多个远端项目映射到同一 `local_project_id` 时共享一个 lane；本地项目身份来自规范化项目根，不能由 Renderer 提供任意路径。全局 dispatch mutex 只负责从空闲 lane 的候选队首中确定性建立租约和填满并发名额，不把不同 lane 的 Runtime 生命周期串行化。
+
+Automation Store 使用 `active_executions` 映射保存每个 lane 的唯一活动执行。每项包含随机生成的稳定 `execution_id`、lane/local/remote project 与 task 组合身份、执行来源、session/thread/Run、Case binding、phase、恢复与三个完成检查点。Store schema 从旧版单 `active_task` 升级时，把该对象无损迁移到其 `local_project_id` 对应 lane；无法恢复 lane 身份时保留为 global recovery，不猜测工作区。首次持久化新 schema 后不再写回 `active_task`。
+
+Automation Snapshot 分别投影 `todo_queue`、`acceptance_feedback_queue`、各自计数、`active_executions` 数组、每 lane 队首和全局并发占用。completed/accepted 任务投影 `acceptance_feedback_items` 摘要，Renderer 只消费这些结构化字段，不从 transcript 或 Case 文本反推反馈状态。停止、介入、恢复、CLI 接力和审批类 mutation 必须携带 `execution_id`；main process 再校验 task、lane、session、thread 与 Run 归属，页面选择或裸 task id 不能充当执行授权。应用重启从 Store 恢复未终结反馈和活动执行，对 running 记录核对 Run、workspace/thread lease 和 Case 后按 lane 恢复、阻塞或重排队，不能丢弃用户原文。
 
 ### 统一消息投影
 
@@ -115,16 +119,16 @@ Run 查询采用 summary/detail 分层，raw evidence 与控制面读模型不�
 
 - `RunSummaryProjection` 随 Run 创建、完成和 ledger command result 更新，持久化状态、起止时间、消息数量、Token 汇总及模型/命令耗时；它不包含 messages、timeline、controller frame、结构化结果、命令输出或完整 activity。
 - Automation Control Snapshot、最近完成项关联与 usage baseline 只读取 Run metadata 和 `RunSummaryProjection`。该查询不打开历史 `activity.json` 或 `messages.jsonl`，成本只随有界 summary 数量增长。
-- 活动执行按稳定 `run_id` 单独读取 `ActiveRunProjection`。正常流式运行直接返回内存 activity；重启恢复至多读取该一个 Run 的持久 activity/detail，不扫描其他 Run。
+- 每个活动执行按稳定 `run_id` 单独读取自己的 `ActiveRunProjection`。正常流式运行直接返回内存 activity；重启恢复对每个 lane 至多读取一个 Run 的持久 activity/detail，不扫描历史 Run。
 - Automation Coordinator 的人工介入、验收反馈来源绑定、CLI handoff、recovery feedback、detached completion、canonical Case 对账和 same-thread closeout 都通过稳定 `run_id` 读取单个 Run detail。项目级 hydrated `listRuns` 不属于控制路径；它只保留为旧 adapter 的兼容 fallback 和 Renderer 显式历史 transcript 查询。
 - Workbench 历史审查和 task session transcript 是显式 detail 查询，按目标 run/session 加载 activity 与消息；打开一个历史对象不能隐式水合所有 Run。
 - 旧 Store 中没有 summary 的已完成 Runtime Run 在窗口创建前执行一次有界 warmup。warmup 最多读取最近 20 个 `activity.json`，逐项让出事件循环，不读取 `messages.jsonl`，并一次写回 summary index；单个损坏旧 activity 只缺失该样本，不阻止 Desktop 启动或 detail 恢复。
 
-`RunSummaryProjection` 是可重建的查询投影，不是 Runtime Kernel 状态或 canonical ledger。summary 缺失、warmup 失败或 UI 未读取 detail 都不能改变 task/thread lease、单 active execution、Gap Loop、trusted ledger、fresh-read、human Gate、恢复、same-thread closeout 或远端完成判定。Kernel 控制路径继续使用权威 Store、Run detail、Runtime result 与 Project/Case State；查询优化不得从 summary 推断 Case、handoff 或完成状态。
+`RunSummaryProjection` 是可重建的查询投影，不是 Runtime Kernel 状态或 canonical ledger。summary 缺失、warmup 失败或 UI 未读取 detail 都不能改变 workspace/task/thread lease、每 lane 单 active execution、全局并发上限、Gap Loop、trusted ledger、fresh-read、human Gate、恢复、same-thread closeout 或远端完成判定。Kernel 控制路径继续使用权威 Store、Run detail、Runtime result 与 Project/Case State；查询优化不得从 summary 推断 Case、handoff 或完成状态。
 
 ## Codex Thread 边界
 
-Automation Store 以本地项目身份和远端任务 ID 为键保存唯一 `thread_id`、绑定状态、最后 turn、最后压缩检查点与更新时间。首次 `thread/start` 使用非 ephemeral 模式；Desktop 必须在首个 `turn/start` 前持久化返回的 id。Run Manager 为活动任务持有单 owner lease，阻止 Runtime、CLI 或重复恢复并发使用同一 thread。
+Automation Store 以本地项目身份和远端项目/任务组合身份为键保存唯一 `thread_id`、绑定状态、最后 turn、最后压缩检查点与更新时间。首次 `thread/start` 使用非 ephemeral 模式；Desktop 必须在首个 `turn/start` 前持久化返回的 id。Run Manager 为每个活动执行持有 workspace lease 与 task thread 单 owner lease，阻止同一工作树或 thread 被 Runtime、CLI、重复恢复并发使用；不同 workspace lease 可以同时存在。
 
 进程重启时，Run Manager 把已持久化 `thread_id` 传给 Runtime；Codex adapter initialize 后先执行 `thread/resume`，再 fresh-read Project/Case State 发起下一 turn。瞬时 resume 失败保持原绑定进入 recovery；只有 Codex 明确确认 thread 永久不存在时，才记录可审计的 `thread_recovery_fallback` 并从 canonical state 创建新的持久 thread。canonical facts 不足时暂停并要求人工介入。
 
@@ -172,7 +176,7 @@ Runtime 保存可解释、非阻断的 `usage_warnings`。首批检测包括：
 
 ## Desktop IPC 与 Renderer
 
-Preload 只暴露 Automation 与 Chat 各自的类型化查询和动作。Automation Snapshot 的活动任务和最近完成项携带 `session_id`；Run activity 携带 `token_usage` 与 `usage_warnings`。Chat IPC 只包含 `snapshot/create/select/rename/delete/send/interrupt/approvalDecision`；`select` 只持久化已验证 Chat session 的 `selected_session_id`，不改变草稿、thread 或 session `updated_at`，使最后选择可在重启后恢复。每个 mutation 都要求明确 `session_id` 和适用的 request id；Renderer 不能传入 cwd、thread id、Codex executable、任意 method 或 shell command。main process 从已验证 Product Workspace 解析项目根和权限边界。Renderer 不自行解析 raw JSONL、Codex JSON-RPC 或本地 Store，也不估算 Token。
+Preload 只暴露 Automation 与 Chat 各自的类型化查询和动作。Automation Snapshot 的活动执行和最近完成项携带 `session_id`；Run activity 携带 `token_usage` 与 `usage_warnings`。Automation 执行控制 mutation 要求稳定 `execution_id`，Chat mutation 要求明确 `session_id` 和适用的 request id；Renderer 不能传入 cwd、thread id、Codex executable、任意 method 或 shell command。Chat IPC 的 `select` 只持久化已验证 Chat session 的 `selected_session_id`，不改变草稿、thread 或 session `updated_at`。main process 从已验证 Product Workspace 解析项目根和权限边界。Renderer 不自行解析 raw JSONL、Codex JSON-RPC 或本地 Store，也不估算 Token。
 
 `chat.snapshot` 只返回 `kind=chat` 的 session、可见消息、草稿、活动状态和脱敏诊断摘要。`chat.changed` 是失效通知而不是状态真相；Renderer 收到后重新读取 snapshot。Chat 与 Automation 使用不同 IPC namespace 和 ownership checks，Chat 的 session id 不能传给 Automation control，Automation task session 也不能传给 Chat mutation。
 
@@ -205,7 +209,7 @@ Renderer 在刷新前记录 transcript 是否位于底部阈值内。位于阈�
 
 ## 交互式 Codex CLI 执行权接力
 
-Automation Coordinator 为当前活动任务持久化可选 `case_id`、`case_binding_source=runtime_ledger`、`case_binding_run_id`、`case_bound_at` 和本地 `phase=cli_handoff`。只有当前任务 Run 已成功写入 trusted ledger，并由该写入结果返回唯一 `case_id`，才能建立任务到 canonical Case 的权威绑定。绑定只表达任务身份，不把 Run、Desktop phase 或 CLI 会话写入 Case State。Run 是可丢弃的执行实例，Case 是 Runtime、CLI 和重启恢复共享的语义事实。
+Automation Coordinator 为每个活动执行持久化可选 `case_id`、`case_binding_source=runtime_ledger`、`case_binding_run_id`、`case_bound_at` 和本地 `phase=cli_handoff`。只有目标任务 Run 已成功写入 trusted ledger，并由该写入结果返回唯一 `case_id`，才能建立任务到 canonical Case 的权威绑定。绑定只表达任务身份，不把 Run、Desktop phase 或 CLI 会话写入 Case State。Run 是可丢弃的执行实例，Case 是 Runtime、CLI 和重启恢复共享的语义事实。
 
 `run.case_id`、activity 或 Controller frame 中的缓存字段、未经 ledger 接受的 Agent result、仓库里“唯一/最新/唯一可读”的 Case，以及 CLI 前后 Case 集合差都不是绑定证据。旧 Store 中只有裸 `case_id` 而没有绑定来源的记录按未绑定处理，并在对账时清除。一个任务 Run 若出现多个互相冲突的 trusted ledger Case ID，Coordinator 进入 `case_binding_conflict` recovery，不自行挑选其中任何一个。
 
@@ -215,7 +219,7 @@ Automation Coordinator 为当前活动任务持久化可选 `case_id`、`case_bi
 
 CLI resume 后追加一条自然 `$using-arckit` 指令，包含已知 `case_id` 和“从 fresh Project/Case State 自动推进，仅在需要人工介入时暂停”的要求。它不重复待办全文，不包含 raw event、隐藏 transcript 或未写回 claim；Agent 从同一 thread 与 fresh canonical state 继续。
 
-CLI 启动成功后，活动任务进入 `cli_handoff`，远端任务保持 `in_progress`，下一队列继续冻结。Desktop 不读取终端 transcript，也不把终端关闭视为执行结果；“重新打开终端”只重复同一有界启动动作。
+CLI 启动成功后，目标活动执行进入 `cli_handoff`，远端任务保持 `in_progress`，对应 workspace lane 的下一项继续冻结，其他 lane 不受影响。Desktop 不读取终端 transcript，也不把终端关闭视为执行结果；“重新打开终端”只重复同一有界启动动作。
 
 Case Reader 只在权威绑定已经存在时根据 `case_id` 匹配 Project `advancement.active_case_refs`，或在 `arckit/cases/closed/` 中查找同一 Case，并返回完整 `development-case-record/v5`。不匹配当前协议的记录不进入自动恢复。Coordinator 在同步和“恢复自动执行”时使用该 fresh record 对账：
 
@@ -229,7 +233,7 @@ Case Reader 只在权威绑定已经存在时根据 `case_id` 匹配 Project `ad
 
 ### 本地优先恢复与收尾检查点
 
-Automation Store 把活动任务收尾拆成 `case_status/case_resolved_at`、`closeout_status/closeout_completed_at` 和 `remote_completion_status` 三个持久检查点，并始终保留 `thread_id`。`phase` 只投影当前控制动作，不承担全部完成事实。Coordinator 只能从当前任务 Run 的 trusted ledger write 恢复 `case_id` 及绑定来源；closeout checkpoint 只接受同一 thread 的结构化 success/no-op 结果。
+Automation Store 把每个活动执行收尾拆成 `case_status/case_resolved_at`、`closeout_status/closeout_completed_at` 和 `remote_completion_status` 三个持久检查点，并始终保留 `thread_id`。`phase` 只投影当前控制动作，不承担全部完成事实。Coordinator 只能从目标执行 Run 的 trusted ledger write 恢复 `case_id` 及绑定来源；closeout checkpoint 只接受同一 thread 的结构化 success/no-op 结果。
 
 ### Agent 语义命令与 Ledger 确定性物化
 
@@ -255,7 +259,7 @@ Automation Coordinator 从 task session 的 append-only accepted ledger receipts
 
 启动同步先执行 detached Run、持久 thread binding、权威 Case binding 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：已绑定的 active Case resume 同一 thread 继续 loop；已绑定的 closed/resolved Case 若未 closeout 则 resume 同一 thread 执行收尾，已完成 closeout 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。未绑定任务不能因仓库碰巧只有一个可读 Case 而进入收尾；`retry_start` 会清除陈旧的 closeout phase/checkpoint 并启动正常 Runtime，让新的 trusted ledger write 建立绑定。
 
-认证和 Work Sync 本地 Task Projection 就绪后，Coordinator 再执行允许任务状态动作的对账。完成要求任务已有权威 Case binding，并 fresh-read 到该 Case 的 canonical `closed/resolved` 状态；仅有 `closeout_status=completed`、裸 `case_id` 或 Agent 完成声明都不足以向 Work Sync 提交 `in_progress -> completed`。Work Sync 发布本地 `completed` 后清理活动任务。closeout 状态先持久化再提交 Work Sync，因此应用退出、401 或网络失败后不会重复 Git 操作。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
+认证和 Work Sync 本地 Task Projection 就绪后，Coordinator 再执行允许任务状态动作的对账。完成要求任务已有权威 Case binding，并 fresh-read 到该 Case 的 canonical `closed/resolved` 状态；仅有 `closeout_status=completed`、裸 `case_id` 或 Agent 完成声明都不足以向 Work Sync 提交 `in_progress -> completed`。Work Sync 发布本地 `completed` 后清理对应 lane 的活动执行并立即允许该 lane 重新仲裁。closeout 状态先持久化再提交 Work Sync，因此应用退出、401 或网络失败后不会重复 Git 操作。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误，也不占用 Runtime 并发进程名额，但在远端完成确认前继续持有 workspace lane 的串行租约。
 
 ## 恢复
 
@@ -263,7 +267,7 @@ Chat session 或 thread 创建成功但首个 turn 启动失败时保留本地�
 
 session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_start` 必须复用它。任务完成后 session、thread id 与消息留作审查；删除项目时沿用项目级清理规则。退出登录只清除远端身份与快照，不删除本地 task session、thread binding、Run activity 或用量历史。
 
-Automation 启动恢复以持久 `active_task`、Work Sync 本地任务状态、Run Manager 的实时 ownership、task thread binding 和 canonical Case checkpoint 的组合为权威事实。`phase` 与 `recovery_items` 是可重建的控制投影，不能单独决定任务是否可恢复。活动任务仍为 `in_progress`、没有存活 Run、没有 attention 或其他要求人工处理的恢复项，并且 phase 表明执行在 `starting`、`running`、`continuing` 或 `recovery` 中被中断时，Coordinator 确定性重建 `runtime_process_missing`，再以原 task session 和持久 thread 启动替代 Run。
+Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状态、Run Manager 的实时 ownership、workspace/task thread binding 和 canonical Case checkpoint 的组合为权威事实。`phase`、attention 与 `recovery_items` 是可重建的控制投影，不能单独决定任务是否可恢复。Coordinator 按 lane 独立对账：活动任务仍为 `in_progress`、没有存活 Run、没有该 lane 的 attention 或其他要求人工处理的恢复项，并且 phase 表明执行在 `starting`、`running`、`continuing` 或 `recovery` 中被中断时，确定性重建 `runtime_process_missing`，再以原 task session 和持久 thread 启动替代 Run。不同 lane 的恢复并行成立；同一 lane 发现多个进行中任务时只产生 lane-scoped conflict。
 
 恢复标记是启动事务的持久意图：Coordinator 在替代 Run 的 `run_id`、`thread_id` 和运行 phase 写入 Automation Store 前不移除它；替代 Run 绑定成功时在同一次 Store mutation 中消费标记。启动失败时，同一次失败收束把临时标记替换成唯一可操作的 `start_failed`，保留同 thread 重试与人工反馈入口。应用在上述任意检查点再次退出后，下一次启动仍能从持久状态重建或继续同一恢复动作。
 
@@ -286,7 +290,7 @@ Automation 启动恢复以持久 `active_task`、Work Sync 本地任务状态、
 - 两个连续远端待办在同一项目中获得不同 `session_id`，Workbench transcript 不交叉。
 - 同一待办的 intervention、continuation、普通 Gap、Completion Review、finding 修复和 Git-only closeout 保持同一 Desktop session 与 Codex thread。
 - 已绑定持久 thread 的 Runtime 失败项可接收非空用户反馈；反馈启动同 thread 的新 Run、保留来源 refs，并在同一 Workbench transcript 中显示，失败时不提前移除恢复项。
-- 电脑断电或 Desktop 进程异常退出后，仍为 `in_progress` 且没有存活 Run 的活动任务会从持久事实重建恢复项，并以原 task session 和 thread 启动替代 Run；缺失 `recovery_items` 不会让任务永久停滞。
+- 电脑断电或 Desktop 进程异常退出后，每个 lane 中仍为 `in_progress` 且没有存活 Run 的活动任务会从持久事实重建恢复项，并以原 task session 和 thread 启动替代 Run；缺失 `recovery_items` 不会让任务永久停滞。
 - 恢复标记只在替代 Run 绑定成功的同一次 Store mutation 中消费；启动失败保留唯一可操作恢复项，存活 Run 或需要人工处理的恢复决策都不会被自动恢复绕过。
 - thread id 在首个 turn 前持久化；进程重启和 Runtime Run 切换都 resume 同一 thread。
 - 不同待办不共享 Codex thread；同一待办不会创建 Controller、Worker、Review 或 commit thread。
@@ -298,12 +302,15 @@ Automation 启动恢复以持久 `active_task`、Work Sync 本地任务状态、
 - Chat 与 Automation Workbench 由同一个 Conversation Surface 渲染 Agent、用户、reasoning、tool、approval 和 error 消息，并共用 Markdown、代码复制、事件绑定、流式更新与滚动控制；源码中不存在第二套 Automation message renderer。
 - Renderer 将 Agent 正式输出作为共享消息主要信息，把非空可折叠 reasoning 和每个 tool/approval item 的原位单行活动作为次级信息；Loop、Gap、ledger 与结构化结果进入 Automation 左右面板。空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入侧栏查看器并继续保留在上游上下文或诊断证据中。
 - Workbench 从同一 task session 全部 Runtime runs 的结构化 `gap_rounds` 生成完整执行时间、准确 gap 总数和逐 gap 目标/工作/结果；进行中时持续计时，终态后固定，不解析消息文案猜测历史。
-- Automation Control Snapshot 不读取历史 Run 的 `activity.json` 或 `messages.jsonl`；活动执行至多水合一个 Run，usage baseline 从 `RunSummaryProjection` 读取最近 20 个有效样本。
+- Automation Control Snapshot 不读取历史 Run 的 `activity.json` 或 `messages.jsonl`；每个活动执行至多水合自己的一个 Run，usage baseline 从 `RunSummaryProjection` 读取最近 20 个有效样本。
 - 旧 Run summary warmup 有明确 20 项上限且不读取 transcript；warmup 前后 task/thread、Gap、ledger、Gate、恢复与 closeout 结果一致。
 - `run.activity_changed` 在隐藏页面或非目标 Run 上不发起查询；可见命中只读取 Automation Snapshot 并重绘 Command Center 或 Workbench，不调用 Platform、认证、Chat、Work query 或全局 render。
 - Automation 的介入、恢复、CLI 接力、Case 对账、detached completion 与 closeout 按 `run_id` 水合至多一个 detail，不通过项目级历史列表寻找目标 Run。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
-- 当前 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动任务的执行权。
+- 目标 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动执行的 workspace/thread lease，其他 workspace lane 可以继续运行。
+- 不同规范化本地工作区最多三个 lane 并行运行；同一本地工作区即使绑定多个远端项目也始终只有一个活动执行。
+- attention、claim/start/closeout recovery 和 CLI handoff 只冻结目标 lane；认证、Store、Runtime host 与应用退出边界才冻结全局。
+- Automation Store 从单 `active_task` 无损迁移到 `active_executions`，并在重启后分别恢复各 lane 的 task/session/thread/Run/Case 与收尾检查点。
 - 首次 Runtime 不预选 Case；Agent 语义选择现有 Case 或通过 trusted ledger 创建新 Case，未形成权威绑定时 CLI handoff 不会中断 Runtime。
 - CLI 与 Runtime 通过同一持久 thread 和 canonical Case State 接力；关闭终端不推断完成，恢复自动执行前读取 fresh active/closed Case。
 - 任务到 Case 的绑定只接受当前任务 Run 已成功写入的 trusted ledger 结果；缓存字段、Agent 声明、仓库 Case 数量与 CLI 集合差均不能建立绑定，可信结果冲突时进入 recovery。

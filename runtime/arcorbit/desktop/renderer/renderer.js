@@ -550,7 +550,7 @@ function wireEvents() {
         const key = globalThis.crypto?.randomUUID?.() || `${sourceTask.id}-${Date.now()}`;
         await api.submitAcceptanceFeedback({ taskId: sourceTask.id, message: els.interventionInput.value, idempotencyKey: key });
       } else {
-        await api.submitIntervention({ taskId: active.task_id, message: els.interventionInput.value });
+        await api.submitIntervention({ execution_id: state.snapshot.selected_execution_id, taskId: active.task_id, message: els.interventionInput.value });
       }
       els.interventionInput.value = "";
       await refreshSnapshot();
@@ -1142,7 +1142,7 @@ function renderNavigation() {
   els.attentionNavCount.textContent = String(snapshot.attention_items.filter(scopedTaskFilter).length + snapshot.recovery_items.length);
   els.organizationNavCount.textContent = String((state.platform.organization_scopes || []).length);
   els.workNavCount.textContent = String(state.platform.tasks.filter((task) => !task.terminal && platformItemMatchesSelectedProject(task)).length);
-  els.automationNavCount.textContent = String(snapshot.queue.filter(scopedTaskFilter).length + (activeExecutionMatchesSelectedProject(snapshot.active_task) ? 1 : 0));
+  els.automationNavCount.textContent = String(snapshot.queue.filter(scopedTaskFilter).length + (snapshot.active_executions || []).length);
   els.feedbackQueueNavCount.textContent = String((state.platform.feedback_v1 || []).filter(platformItemMatchesSelectedProject).length);
   const accountName = currentWorkshopUserName();
   els.accountName.textContent = accountName;
@@ -2643,7 +2643,7 @@ function renderCommandCenter() {
   els.ordinaryQueueCard.classList.toggle("hidden", state.acceptanceFeedbackOnly);
   els.recentCompletionsCard.classList.toggle("hidden", state.acceptanceFeedbackOnly);
 
-  const runningCount = activeExecutionMatchesSelectedProject(snapshot.active_task) ? 1 : 0;
+  const runningCount = (snapshot.active_executions || []).length;
   const humanAttentionCount = snapshot.attention_items.filter(scopedTaskFilter).length;
   const recoveryCount = snapshot.recovery_items.length;
   const attentionCount = humanAttentionCount + recoveryCount;
@@ -2654,7 +2654,7 @@ function renderCommandCenter() {
       : recoveryCount
         ? `${recoveryCount} 项需要恢复自动化`
         : "没有待处理事项", attentionCount ? "attention" : ""),
-    metric("运行中", runningCount, snapshot.active_task?.phase || "没有活动任务", runningCount ? "running" : ""),
+    metric("运行中", runningCount, runningCount ? `${snapshot.concurrency?.available ?? 0} 个并行槽位可用` : "没有活动任务", runningCount ? "running" : ""),
     ...(!state.acceptanceFeedbackOnly ? [metric("普通待办队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : scopedBlockedPending.length ? `${scopedBlockedPending.length} 项尚未启用` : "没有可执行任务", scopedBlockedPending.length ? "attention" : "")] : []),
     metric("验收问题队列", scopedFeedback.length, scopedFeedback.length ? `${snapshot.acceptance_feedback_counts?.queued || 0} queued · ${snapshot.acceptance_feedback_counts?.blocked || 0} blocked` : "没有待处理验收问题", scopedFeedback.length ? "running" : "")
   ];
@@ -2719,6 +2719,7 @@ function renderAttention(blockedPendingTasks = []) {
 }
 
 function renderCurrentRun(blockedPendingTasks = []) {
+  const executions = state.snapshot.active_executions || [];
   const active = state.snapshot.active_task;
   const run = state.snapshot.active_run;
   if (!activeExecutionMatchesSelectedProject(active)) {
@@ -2728,7 +2729,14 @@ function renderCurrentRun(blockedPendingTasks = []) {
   }
   const phases = runtimeStages(active.phase, run);
   const executionRef = active.case_id || active.run_id || "等待 Runtime 启动";
-  els.currentRunPanel.innerHTML = `<div class="run-heading"><div><h3>${escapeHtml(taskDisplayTitle(active.task_title, active.task_id))}</h3><p>${escapeHtml(active.project_id)} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
+  const executionSelector = executions.length > 1
+    ? `<div class="execution-lane-list" aria-label="活动项目执行">${executions.map((execution) => `<button class="execution-lane ${execution.execution_id === state.snapshot.selected_execution_id ? "is-active" : ""}" data-automation-execution="${escapeHtml(execution.execution_id)}" type="button"><span><strong>${escapeHtml(projectName(execution.project_id))}</strong><small>${escapeHtml(taskDisplayTitle(execution.task_title, execution.task_id))}</small></span><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(execution.phase))}</span></button>`).join("")}</div>`
+    : "";
+  els.currentRunPanel.innerHTML = `${executionSelector}<div class="run-heading"><div><h3>${escapeHtml(taskDisplayTitle(active.task_title, active.task_id))}</h3><p>${escapeHtml(projectName(active.project_id))} · ${escapeHtml(active.workspace_key || active.local_project_id || "未绑定工作区")} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
+  els.currentRunPanel.querySelectorAll("[data-automation-execution]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+    state.snapshot = await api.selectAutomationExecution(button.dataset.automationExecution);
+    renderCommandCenter();
+  })));
   if (active.phase === "cli_handoff") {
     els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="reopenCliButton" class="text-button" type="button">重新打开终端</button><button id="resumeRuntimeButton" class="primary-button" type="button">恢复自动执行</button>`;
   } else if (active.phase === "switching_to_cli") {
@@ -2740,20 +2748,20 @@ function renderCurrentRun(blockedPendingTasks = []) {
   }
   document.getElementById("reviewRunButton").addEventListener("click", () => openWorkbench("review"));
   document.getElementById("handoffCliButton")?.addEventListener("click", () => runAction(async () => {
-    await api.handoffAutomationToCli();
+    await api.handoffAutomationToCli({ execution_id: state.snapshot.selected_execution_id });
     await refreshSnapshot();
   }));
   document.getElementById("reopenCliButton")?.addEventListener("click", () => runAction(async () => {
-    await api.reopenAutomationCli();
+    await api.reopenAutomationCli({ execution_id: state.snapshot.selected_execution_id });
     await refreshSnapshot();
   }));
   document.getElementById("resumeRuntimeButton")?.addEventListener("click", () => runAction(async () => {
-    await api.resumeAutomationRuntime();
+    await api.resumeAutomationRuntime({ execution_id: state.snapshot.selected_execution_id });
     await refreshSnapshot();
   }));
   document.getElementById("stopRunButton")?.addEventListener("click", () => runAction(async () => {
     if (!window.confirm("停止请求会在安全停止点中断 Runtime，远端任务仍保持进行中。继续吗？")) return;
-    await api.stopAutomationRun();
+    await api.stopAutomationRun({ execution_id: state.snapshot.selected_execution_id });
     await refreshSnapshot();
     showPage("recovery");
   }));
@@ -2792,7 +2800,8 @@ function renderCommandInspector(projects) {
   ]);
   els.executionBoundary.innerHTML = factRows([
     ["自动领取总闸", snapshot.enabled ? snapshot.queue_paused ? "已开启 · 暂停领取" : "已开启" : "已关闭"],
-    ["活动任务", snapshot.active_task?.task_id || "无"],
+    ["活动执行", String(snapshot.active_executions?.length || 0)],
+    ["当前选择", snapshot.active_task?.task_id || "无"],
     ["当前责任方", snapshot.attention_items.length
       ? "Human"
       : snapshot.active_task?.phase === "cli_handoff"
@@ -2800,7 +2809,7 @@ function renderCommandInspector(projects) {
         : snapshot.active_task?.phase === "remote_completion_pending"
           ? "Automation Coordinator / 任务源"
           : snapshot.active_task ? "Runtime" : "Automation Coordinator"],
-    ["并发边界", "单活动任务"]
+    ["并发边界", `${snapshot.concurrency?.active || 0} / ${snapshot.concurrency?.limit || 3} 工作区槽位；同工作区串行`]
   ]);
   els.projectBindingList.innerHTML = projects.length ? projects.map((project) => {
     const options = [
@@ -3354,7 +3363,8 @@ async function logout() {
     let result = await api.logoutAuth({ confirm_active_task: false });
     if (result.requires_confirmation) {
       const taskName = taskDisplayTitle(result.active_task?.task_title, result.active_task?.task_id || "当前任务");
-      if (!window.confirm(`退出会安全停止“${taskName}”并清空远端项目快照，继续吗？`)) return;
+      const executionCount = result.active_executions?.length || 1;
+      if (!window.confirm(`退出会安全停止 ${executionCount} 条活动执行（当前选择“${taskName}”）并清空远端项目快照，继续吗？`)) return;
       result = await api.logoutAuth({ confirm_active_task: true });
     }
     state.authentication = normalizeAuthentication(result.authentication);
@@ -3846,9 +3856,12 @@ function emptySnapshot() {
     blocked_pending_tasks: [],
     acceptance_feedback_queue: [],
     acceptance_feedback_counts: { queued: 0, running: 0, awaiting_human: 0, blocked: 0, resolved: 0, cancelled: 0, open: 0 },
+    active_executions: [],
     active_execution: null,
     active_task: null,
     active_run: null,
+    selected_execution_id: "",
+    concurrency: { limit: 3, active: 0, available: 3 },
     attention_items: [],
     recovery_items: [],
     recent_completions: [],

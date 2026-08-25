@@ -11,13 +11,11 @@ Runtime 不替代 Agent 或 Arckit skills。Skills 继续承载方法、事实�
 ```text
 User Input
   -> Automation Supervisor
-      -> Readiness Preflight
-      -> Task Claim / Workspace Binding
-      -> Fresh Canonical State
-      -> Coherent Codex Agent Turn ($using-arckit)
-      -> Structural / Authorization Gate
-      -> Trusted Ledger Writeback
-      -> Fresh State / Next Turn / Handoff
+      -> Bounded Workspace Arbiter
+          -> Workspace Lane A (serial tasks)
+          -> Workspace Lane B (serial tasks)
+          -> Workspace Lane C (serial tasks)
+      -> Per-lane Readiness / Claim / Runtime / Ledger / Closeout
   -> Desktop UI
 ```
 
@@ -43,7 +41,7 @@ Runtime Kernel 当前由以下确定性阶段组成：
 - Ledger Stage：当 Agent result 携带可写 Case control/transition 时做 deterministic gate；gate 允许则自动写 ledger，拒绝则从 fresh state 重规划或形成明确 handoff。
 - Task Thread Registry：为每个待办持久化唯一 Codex thread id、所有权租约、最后 turn 与压缩检查点，支持进程重启后恢复同一对话。
 - Acceptance Feedback Lane：把已完成或已验收待办上的人工问题持久化为独立反馈项和队列，复用来源 task thread/session，以新 Run 和新 Case 推进而不改写来源待办或旧 Case。
-- Execution Arbiter：分别读取普通待办与验收反馈的 ready 队首，在单一工作区/thread 执行租约下确定性选择下一项；队列身份、计数和排序保持独立。
+- Execution Arbiter：按规范化本地工作区建立 lane，每个 lane 分别读取普通待办与验收反馈的 ready 队首并持有单一 workspace/thread 执行租约；全局最多填充三个空闲 lane，队列身份、计数和排序保持独立。
 - Context Governor：在一次 gap ledger 写回后读取最新请求的上下文占用；达到 80% 时先压缩同一 thread，再继续下一 gap。
 - Same-thread Closeout：Case resolved 后由同一 Agent thread 完成验证补漏、必要修复和 Git commit/no-op 收尾，成功后才允许远端完成写回。
 
@@ -84,7 +82,7 @@ Electron main 进程创建单个长生命周期 Workshop Authenticated Service�
 
 默认连接配置是正式 Workshop 服务根地址、`workshop` 业务服务和 `nebula` 认证模式。旧 store 的手填 bearer/debug headers 配置继续可被高级连接设置读取，但普通登录成功后切换为 `nebula`。
 
-退出登录先停止新的远端请求并清除 access token、refresh token、过期时间和远端用户字段。Work Sync 随后关闭项目连接并清除当前身份的本地 Task Projection；Automation 清除 attention/recovery 中的身份依赖项和自动领取资格。本地项目、工作区绑定、run history、transcript 与 Codex proxy 设置不受影响。存在活动任务时，main 进程要求显式确认并先请求安全停止，避免退出后失去任务状态写回能力。
+退出登录先停止新的远端请求并清除 access token、refresh token、过期时间和远端用户字段。Work Sync 随后关闭项目连接并清除当前身份的本地 Task Projection；Automation 清除 attention/recovery 中的身份依赖项和自动领取资格。本地项目、工作区绑定、run history、transcript 与 Codex proxy 设置不受影响。存在活动执行时，main 进程要求显式确认并安全停止全部 Runtime owner，避免退出后失去任务状态写回能力。
 
 ### Task Source Adapter
 
@@ -122,11 +120,11 @@ Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的�
 - start failed：重试同一启动意图，或由用户显式标记阻塞。
 - completion writeback failed：重试完成写回，不领取下一任务。
 - external terminal change：请求当前 run 安全停止，再以服务器事实收束。
-- multiple active tasks：冻结队列，由用户选择唯一恢复目标。
+- multiple active tasks in one workspace：冻结受影响 lane，由用户选择该工作区的唯一恢复目标；不同 workspace 各有一个活动任务属于正常状态。
 - project or task source invalid：排除受影响范围并重新同步。
 - authentication expired：清除可执行资格，重新认证后完整同步。
 
-Coordinator 启动时先对齐本地活动关联、Desktop Run Manager 的活动 run 与服务器进行中任务。三者一致时恢复观察或执行；无法确定唯一活动任务时进入 multiple active tasks recovery。
+Coordinator 启动时按 workspace lane 对齐本地活动关联、Desktop Run Manager 的活动 run 与服务器进行中任务。每个 lane 三者一致时独立恢复观察或执行；同一 lane 无法确定唯一活动任务时进入 lane-scoped multiple active tasks recovery，其他 lane 继续。
 
 Coordinator 只消费 Work Sync 从本地 Task Projection Store 发布的当前执行人任务。项目级同步失败、身份无法解析或权限撤销时，Work Sync 停止向 Automation 发布受影响项目候选并保留可诊断状态。领取、人工状态变更和完成写回都作为本地意图提交 Work Sync；任务已改派、状态冲突或服务端拒绝时，Work Sync 保持原本地任务状态并发布恢复结果，Coordinator 不自行重读远端。
 
@@ -426,7 +424,7 @@ Desktop Client 不重新实现 Runtime。它通过 Electron main 进程调用同
 - Runtime 进程在每轮到达 `ledger_gate_ready` 后执行 trusted ledger writeback，并把每轮 gate/write 事件投影给 Desktop；Desktop 不重复写 ledger。
 - 将项目注册表、run history、result 和 events 存在 Electron userData。
 
-Desktop Client 的验收覆盖任务源 mock、确定性队列、单活动任务、状态写回门禁、人工 Gate、恢复状态、project status、run manager、Renderer 状态投影和 Electron 启动。真实服务验收还需要有效 Workshop 会话和可操作任务。
+Desktop Client 的验收覆盖任务源 mock、确定性队列、每 workspace 单活动执行、跨 workspace 最多三个并行执行、状态写回门禁、lane-scoped 人工 Gate/恢复、全局故障、project status、run manager、Renderer 状态投影和 Electron 启动。真实服务验收还需要有效 Workshop 会话和可操作任务。
 
 ### M4：可替换 agent adapter
 

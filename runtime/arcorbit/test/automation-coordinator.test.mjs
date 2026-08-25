@@ -1518,6 +1518,124 @@ test("a local pending candidate reaches readiness and submits one state action t
   coordinator.dispose();
 });
 
+test("multi-project automation starts distinct workspace lanes concurrently up to the global cap", async () => {
+  const store = multiProjectStore(4);
+  const starts = [];
+  const runManager = fakeRunManager(store, starts, {
+    async listSessions() { return []; },
+    async createSession(projectId, input) { return { id: `SESSION-${projectId}-${input.task_id}` }; },
+    async startRun(input) {
+      starts.push(input);
+      return { id: `RUN-${input.projectId}`, thread_id: `THREAD-${input.projectId}`, project_id: input.projectId, session_id: input.sessionId };
+    }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    setupReadinessPreflight: async () => {}
+  });
+
+  const started = await coordinator.maybeStartNext();
+  const snapshot = await coordinator.getSnapshot();
+
+  assert.equal(started.length, 3);
+  assert.deepEqual(starts.map((item) => item.projectId).sort(), ["local-1", "local-2", "local-3"]);
+  assert.equal(Object.keys(store.automation.active_executions).length, 3);
+  assert.equal(snapshot.active_executions.length, 3);
+  assert.deepEqual(snapshot.concurrency, { limit: 3, active: 3, available: 0 });
+  assert.equal(store.automation.snapshot.tasks.find((item) => item.id === "task-4").state, "pending");
+  coordinator.dispose();
+});
+
+test("remote projects bound to one local workspace remain serial within that workspace lane", async () => {
+  const store = multiProjectStore(2);
+  store.projects = [{ id: "shared", path: "/workspace/shared", name: "shared" }];
+  store.automation.project_bindings = { "remote-1": "shared", "remote-2": "shared" };
+  const starts = [];
+  const runManager = fakeRunManager(store, starts, {
+    async listSessions() { return []; },
+    async createSession(_projectId, input) { return { id: `SESSION-${input.task_id}` }; },
+    async startRun(input) {
+      starts.push(input);
+      return { id: `RUN-${input.taskId}`, thread_id: `THREAD-${input.taskId}`, project_id: input.projectId, session_id: input.sessionId };
+    }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    setupReadinessPreflight: async () => {}
+  });
+
+  await coordinator.maybeStartNext();
+  const snapshot = await coordinator.getSnapshot();
+
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].taskId, "task-1");
+  assert.equal(snapshot.active_executions.length, 1);
+  assert.equal(snapshot.active_executions[0].workspace_key, "shared");
+  assert.equal(store.automation.snapshot.tasks.find((item) => item.id === "task-2").state, "pending");
+  coordinator.dispose();
+});
+
+test("execution-targeted controls and recovery remain isolated to the selected workspace lane", async () => {
+  const store = multiProjectStore(2);
+  store.automation.snapshot.tasks.forEach((task) => { task.state = "in_progress"; });
+  store.automation.active_executions = {
+    "local-1": activeLaneExecution(1),
+    "local-2": activeLaneExecution(2)
+  };
+  store.automation.selected_execution_id = "EXEC-1";
+  const controls = [];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, [], {
+      async controlRun(runId, input) { controls.push({ runId, input }); }
+    })
+  });
+
+  await coordinator.stopCurrent({ execution_id: "EXEC-2" });
+
+  assert.deepEqual(controls, [{ runId: "RUN-2", input: { type: "interrupt" } }]);
+  assert.equal(store.automation.active_executions["local-1"].phase, "running");
+  assert.equal(store.automation.active_executions["local-2"].phase, "recovery");
+  assert.equal(store.automation.recovery_items.length, 1);
+  assert.equal(store.automation.recovery_items[0].workspace_key, "local-2");
+  assert.equal(store.automation.recovery_items[0].execution_id, "EXEC-2");
+  coordinator.dispose();
+});
+
+test("startup recovery resumes every persisted workspace lane without creating cross-lane runs", async () => {
+  const store = multiProjectStore(2);
+  store.automation.snapshot.tasks.forEach((task) => { task.state = "in_progress"; });
+  store.automation.active_executions = {
+    "local-1": activeLaneExecution(1),
+    "local-2": activeLaneExecution(2)
+  };
+  store.automation.selected_execution_id = "EXEC-1";
+  const starts = [];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, starts, {
+      async listSessions(projectId) {
+        const index = String(projectId).split("-").at(-1);
+        return [{ id: `SESSION-${index}`, task_id: `task-${index}` }];
+      },
+      async startRun(input) {
+        starts.push(input);
+        return { id: `RUN-RECOVERED-${input.taskId}`, thread_id: input.threadId, project_id: input.projectId, session_id: input.sessionId };
+      }
+    }),
+    setupReadinessPreflight: async () => {}
+  });
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.deepEqual(starts.map((item) => [item.projectId, item.taskId]).sort(), [
+    ["local-1", "task-1"],
+    ["local-2", "task-2"]
+  ]);
+  assert.equal(store.automation.active_executions["local-1"].run_id, "RUN-RECOVERED-task-1");
+  assert.equal(store.automation.active_executions["local-2"].run_id, "RUN-RECOVERED-task-2");
+  assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
 test("a persistent claim version conflict becomes one global recovery instead of repeating skills readiness", async () => {
   const store = recoveryStore();
   store.automation.active_task = null;
@@ -1576,6 +1694,66 @@ function recoveryStore(overrides = {}) {
       },
       attention_items: [], recovery_items: [], recent_completions: []
     }
+  };
+}
+
+function multiProjectStore(count) {
+  const indexes = Array.from({ length: count }, (_, index) => index + 1);
+  return {
+    projects: indexes.map((index) => ({ id: `local-${index}`, path: `/workspace/${index}`, name: `local-${index}` })),
+    settings: { task_source: {} },
+    automation: {
+      enabled: true,
+      queue_paused: false,
+      concurrency_limit: 3,
+      project_bindings: Object.fromEntries(indexes.map((index) => [`remote-${index}`, `local-${index}`])),
+      project_participation: Object.fromEntries(indexes.map((index) => [`remote-${index}`, true])),
+      snapshot: {
+        source_status: "healthy",
+        errors: [],
+        user: null,
+        projects: indexes.map((index) => ({ id: `remote-${index}` })),
+        tasks: indexes.map((index) => ({
+          id: `task-${index}`,
+          project_id: `remote-${index}`,
+          title: `todo-${index}`,
+          content: `finish-${index}`,
+          state: "pending",
+          priority: count - index,
+          version: `v${index}`,
+          confirmed_at: `2026-08-25T00:00:0${index}Z`
+        }))
+      },
+      active_executions: {},
+      selected_execution_id: "",
+      acceptance_feedback_items: [],
+      attention_items: [],
+      recovery_items: [],
+      recent_completions: []
+    }
+  };
+}
+
+function activeLaneExecution(index) {
+  return {
+    execution_id: `EXEC-${index}`,
+    workspace_key: `local-${index}`,
+    execution_kind: "todo",
+    task_id: `task-${index}`,
+    project_id: `remote-${index}`,
+    task_title: `todo-${index}`,
+    local_project_id: `local-${index}`,
+    local_project_path: `/workspace/${index}`,
+    phase: "running",
+    case_id: "",
+    case_status: "unbound",
+    closeout_status: "pending",
+    remote_completion_status: "pending",
+    run_id: `RUN-${index}`,
+    session_id: `SESSION-${index}`,
+    thread_id: `THREAD-${index}`,
+    claimed_at: `2026-08-25T00:00:0${index}Z`,
+    started_at: `2026-08-25T00:00:0${index}Z`
   };
 }
 

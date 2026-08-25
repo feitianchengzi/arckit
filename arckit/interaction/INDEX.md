@@ -39,12 +39,12 @@
 - product-feedback-center/ ArcOrbit 产品反馈中心：在受限 SDK 窗口内提交产品反馈、查看我的反馈并从未配置或加载失败中恢复。✅
   - default.html 产品反馈中心线框：SDK 加载、可用内容、账户/配置恢复和 SDK 失败恢复。✅ (54行)
   - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (88行)
-- automation-workspace/ 自动化指挥中心：消费 Work 本地待办状态，管理双队列、人工 Gate、Runtime/CLI 接力与恢复。✅
-  - default.html 指挥中心线框：顶部产品范围、Work 同步健康摘要、双队列、人工等待、Runtime/CLI 接管与恢复。✅ (313行)
+- automation-workspace/ 自动化指挥中心：消费 Work 本地待办状态，以 workspace lane 管理双队列串行、跨项目并行、人工 Gate、Runtime/CLI 接力与恢复。✅
+  - default.html 指挥中心线框：顶部产品范围、Work 同步健康摘要、双队列、活动执行选择、并发容量、人工等待、Runtime/CLI 接管与恢复。✅ (328行)
   - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复与退出。✅ (51行)
   - intervention-workbench.html 介入工作台线框：单行有界待办标题、Chat 共享消息面、固定三栏与 Composer、完整时间及逐 Gap 执行全貌。✅ (99行)
-  - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户说明续跑、安全停止、外部状态变化与 Work Sync 异常。✅ (137行)
-  - interaction.md 自动化指挥中心交互：Work 本地状态消费、统一待办标题、双队列、人工 Gate 与 Runtime/CLI 接力。✅ (402行)
+  - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户说明续跑、安全停止、lane 局部外部状态变化与 Work Sync 异常。✅ (137行)
+  - interaction.md 自动化指挥中心交互：Work 本地状态消费、统一待办标题、双队列、workspace lane 串行与跨项目并行、定向 Gate 与 Runtime/CLI 接力。✅ (407行)
 - task-browser/ Work 同屏任务浏览：以本地 Task Projection、单行控制轨和剩余高度列表/Inspector 创建、检查、验收并同步待办。✅
   - default.html Work 任务浏览线框：顶部产品范围、面板内七状态、同屏 Inspector、待评审确认、运行/验收、恢复与冲突。✅ (217行)
   - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、剩余高度任务树/Inspector 与图片浏览。✅ (78行)

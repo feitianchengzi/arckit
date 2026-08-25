@@ -380,15 +380,16 @@ function registerIpc() {
   });
   ipcMain.handle("arckit:auth-logout", async (_event, input = {}) => {
     const snapshot = await automationCoordinator.getSnapshot();
-    if (snapshot.active_task && !input.confirm_active_task) {
+    if (snapshot.active_executions?.length && !input.confirm_active_task) {
       return {
         requires_confirmation: true,
         active_task: snapshot.active_task,
+        active_executions: snapshot.active_executions,
         authentication: await workshopService.getAuthStatus()
       };
     }
-    if (snapshot.active_task) {
-      await automationCoordinator.stopCurrent();
+    if (snapshot.active_executions?.length) {
+      await automationCoordinator.stopAll();
     }
     const authentication = await workshopService.logout();
     productFeedbackService.resetSession();
@@ -397,6 +398,7 @@ function registerIpc() {
     return { requires_confirmation: false, authentication };
   });
   ipcMain.handle("arckit:automation-snapshot", async (_event, filter) => automationCoordinator.getSnapshot(filter));
+  ipcMain.handle("arckit:automation-select-execution", async (_event, executionId) => automationCoordinator.selectExecution(executionId));
   ipcMain.handle("arckit:automation-sync", async () => {
     await workSyncCoordinator.reconcile({ dispatch: false, reason: "explicit-sync" });
     await reconcileRealtimeSubscriptions();
@@ -415,10 +417,10 @@ function registerIpc() {
   ipcMain.handle("arckit:automation-task-state", async (_event, input) => automationCoordinator.updateTaskState(input));
   ipcMain.handle("arckit:automation-intervene", async (_event, input) => automationCoordinator.submitIntervention(input));
   ipcMain.handle("arckit:automation-acceptance-feedback", async (_event, input) => automationCoordinator.submitAcceptanceFeedback(input));
-  ipcMain.handle("arckit:automation-stop", async () => automationCoordinator.stopCurrent());
-  ipcMain.handle("arckit:automation-handoff-cli", async () => automationCoordinator.handoffToCodexCli());
-  ipcMain.handle("arckit:automation-reopen-cli", async () => automationCoordinator.reopenCodexCli());
-  ipcMain.handle("arckit:automation-resume-runtime", async () => automationCoordinator.resumeRuntimeFromCodexCli());
+  ipcMain.handle("arckit:automation-stop", async (_event, input) => automationCoordinator.stopCurrent(input));
+  ipcMain.handle("arckit:automation-handoff-cli", async (_event, input) => automationCoordinator.handoffToCodexCli(input));
+  ipcMain.handle("arckit:automation-reopen-cli", async (_event, input) => automationCoordinator.reopenCodexCli(input));
+  ipcMain.handle("arckit:automation-resume-runtime", async (_event, input) => automationCoordinator.resumeRuntimeFromCodexCli(input));
   ipcMain.handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
   ipcMain.handle("arckit:platform-snapshot", async (_event, input) => platformCoordinator.getSnapshot(input));
   ipcMain.handle("arckit:platform-work-query", async (_event, input) => platformCoordinator.queryWork(input));

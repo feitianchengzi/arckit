@@ -2,7 +2,7 @@
 
 ## 功能定位
 
-ArcOrbit Desktop 是以项目待办和验收问题为两条独立工作来源的自动化执行工作区。用户在主页面观察当前用户可访问的项目、项目产生的待办、跨项目待办执行队列、验收问题队列、活动 Runtime、人工事项与完成证据；任务对话只在审查执行过程、提出验收问题或 Runtime 明确需要人工输入时通过 Intervention Workbench 按需出现。Personal / Chat 的自由会话不进入本工作区。
+ArcOrbit Desktop 是以项目待办和验收问题为两条独立工作来源的自动化执行工作区。用户在主页面观察当前用户可访问的项目、项目产生的待办、跨项目待办执行队列、验收问题队列、各本地工作区的活动 Runtime、人工事项与完成证据；任务对话只在审查执行过程、提出验收问题或 Runtime 明确需要人工输入时通过 Intervention Workbench 按需出现。Personal / Chat 的自由会话不进入本工作区。
 
 该工作区承担任务服务器与本地 ArcOrbit 之间的控制面职责。任务服务器拥有项目、任务归属和任务生命周期事实；Runtime 拥有本地工作区绑定、自动化参与状态、单任务执行状态、Agent turn 生命周期、事件和 ledger 证据。
 
@@ -48,7 +48,7 @@ access token 在到期前五分钟刷新；业务请求收到未认证响应时�
 
 自动化队列由所有参与自动化且具备本地工作区绑定的项目产生。队列只包含执行人是当前用户、服务器状态为待处理且当前版本已确认的任务。
 
-队列按服务器优先级从高到低、进入待处理状态的时间从早到晚、项目标识和任务标识的稳定顺序排列。同步变化只影响下一次领取，不改变当前活动任务。
+队列按服务器优先级从高到低、进入待处理状态的时间从早到晚、项目标识和任务标识的稳定顺序排列。该全局顺序用于观察和在空闲工作区之间选择候选；同一工作区已有活动执行时，其后续任务继续排队。同步变化只影响下一次领取，不改变任何当前活动执行。
 
 ### 验收问题与验收问题队列
 
@@ -56,13 +56,15 @@ access token 在到期前五分钟刷新；业务请求收到未认证响应时�
 
 每个验收问题项独立保存 `queued`、`running`、`awaiting_human`、`blocked`、`resolved` 或 `cancelled` 状态、当前进展、当前 Run、新建 Case、证据与结果。问题项通过新 Case 保存人工发现的问题、解决方案、实现和验证；来源待办原有 Run、commit、完成记录和 closed Case 保持不可变。多个问题项可以关联同一来源待办，并按稳定标识分别展示和推进。
 
-验收问题队列与待办自动化队列分别持久化、分别计数、分别排序。验收问题队列按可执行时间、创建时间和问题标识形成稳定顺序；来源待办状态、优先级或待办队列位置不参与问题队列排序。两条队列共享一个显式执行仲裁层：当前执行不被新问题抢占；执行器空闲时，从两条队列各自的 ready 队首中按最早 ready 时间和稳定标识选择一项，并取得工作区与 thread 执行租约。等待执行只改变问题项进展，不改变来源待办状态。
+验收问题队列与待办自动化队列分别持久化、分别计数、分别排序。验收问题队列按可执行时间、创建时间和问题标识形成稳定顺序；来源待办状态、优先级或待办队列位置不参与问题队列排序。两条队列在每个本地工作区执行 lane 内共享一个显式仲裁器：当前执行不被新问题抢占；lane 空闲时，从属于该工作区的两个 ready 队首中按最早 ready 时间和稳定标识选择一项，并取得 workspace 与 thread 执行租约。等待执行只改变问题项进展，不改变来源待办状态。
 
-### 活动任务
+### 活动执行与工作区 Lane
 
-工作区在任一时刻最多拥有一个活动执行。活动执行可以来自待办队列或验收问题队列，并关联一个项目、本地工作区、持久 Codex thread、执行会话和 canonical Case；Runtime run 或交互式 Codex CLI 只是该 Case 当前的执行入口。远端状态不确定、存在多个进行中任务、执行租约冲突、人工 Gate 或完成写回失败时，系统不启动下一项。
+Automation 以规范化本地工作区身份建立执行 lane。多个远端项目绑定同一本地工作区时共享同一 lane，不能并发修改同一工作树；不同本地工作区可以并行执行。每个 lane 在任一时刻最多拥有一个活动执行，活动执行可以来自待办队列或验收问题队列，并关联远端项目、任务、本地工作区、持久 Codex thread、执行会话和 canonical Case。Runtime run 或交互式 Codex CLI 只是该 Case 当前的执行入口。
 
-活动任务分别持久化 canonical Case、git commit 和 Work 完成同步三个检查点。Case 已关闭只表示研发语义完成；commit 已完成表示本地交付完成；只有 Work Sync 发布服务器确认的 completed，远端生命周期才完成。三个检查点不得压缩成单一“正在执行”状态，也不得因应用重启或 Work Sync 暂时不可用而回退。
+Automation 全局最多同时运行三个 workspace lane。全局仲裁器只从空闲 lane 的队首中选择新执行；已占用 lane 的后续任务保持串行。lane 内的远端状态不确定、多个进行中任务、workspace/thread 租约冲突、人工 Gate 或完成写回失败只冻结该 lane，不阻止其他健康 lane 继续。认证失效、完整项目范围不可确认、Desktop Store 不可用、Runtime host 不可用或应用正在退出属于全局边界，冻结所有新领取。
+
+每个活动执行分别持久化 canonical Case、git commit 和 Work 完成同步三个检查点。Case 已关闭只表示研发语义完成；commit 已完成表示本地交付完成；只有 Work Sync 发布服务器确认的 completed，远端生命周期才完成。三个检查点不得压缩成单一“正在执行”状态，也不得因应用重启或 Work Sync 暂时不可用而回退。
 
 ### 待办执行会话
 
@@ -110,25 +112,27 @@ Runtime 只自动推进“待处理 → 进行中 → 已完成”。评审、�
 
 ## 项目与任务同步
 
-应用启动时先恢复本地活动任务、Run 和 canonical Case，再恢复 Workshop 认证与 Work Sync。认证失效或 Workshop 不可达时，本地 Case 对账仍然执行；Work Sync 的远端调用和新任务状态提交保持停止，Automation 不尝试直接访问服务器。未登录时不自动领取任务，但已关闭 Case 和本地收尾检查点仍以只读状态呈现。
+应用启动时先按 workspace lane 恢复本地活动执行、Run 和 canonical Case，再恢复 Workshop 认证与 Work Sync。认证失效或 Workshop 不可达时，本地 Case 对账仍然执行；Work Sync 的远端调用和新任务状态提交保持停止，Automation 不尝试直接访问服务器。未登录时不自动领取任务，但已关闭 Case 和本地收尾检查点仍以只读状态呈现。
 
 Work Sync 是 Workshop 待办同步的唯一所有者。它读取当前用户和可访问项目，按登录代际与项目维护完整七状态 Task Projection，并从项目成员身份派生可发布给 Automation 的当前执行人子集。无法确认执行人身份、权限被撤销或初始对账未完成时，Work Sync 不向 Automation 发布该项目候选；Work 页面仍按服务端允许范围使用同一项目投影。
 
-active Workset 项目、`automation participation=true` 项目和当前活动任务项目形成 Work Sync 的同步需求并集。Work Sync 为该并集建立实时订阅；Automation 只提供本地项目需求标识，不创建连接、不读取 REST、不处理事件游标。
+active Workset 项目、`automation participation=true` 项目和所有活动执行所属项目形成 Work Sync 的同步需求并集。Work Sync 为该并集建立实时订阅；Automation 只提供本地项目需求标识，不创建连接、不读取 REST、不处理事件游标。
 
 Workshop 为每个项目变更保存单调递增的持久事件标识。Work Sync 根据 `system.connected` 握手管理现代游标补取和 `legacy` 兼容连接；WebSocket payload 只作为项目失效信号。Work Sync 在合并窗口后执行必要的 REST 当前态对账，并在投影原子提交后推进确认游标。
 
 Work Sync 每十五分钟执行全量项目与任务对账，并在应用启动、系统唤醒、网络恢复和旧服务重连时立即对账。实时连接断开时保留已有 UI 投影并自动重连，不启动分钟级降级轮询。用户可以从同步状态入口请求“立即同步”，该动作进入 Work Sync，不把网络实现或执行仲裁所有权交给 Automation。
 
-Automation 只订阅 Work Sync 发布的本地任务状态变化。同步变化可以重算候选、冻结受影响项目或触发外部变化恢复，但不能直接启动 Runtime、清除恢复项或解除人工 Gate；执行仲裁仍要求自动化总闸、项目参与、本地绑定、执行租约和当前活动执行全部满足既有条件。`awaiting_human` 在本地任务状态变化、连接恢复和对账期间保持关闭式保护，只有用户提交显式介入输入后才允许恢复同一任务。
+Automation 只订阅 Work Sync 发布的本地任务状态变化。同步变化可以重算候选、冻结受影响 lane 或触发外部变化恢复，但不能直接启动 Runtime、清除恢复项或解除人工 Gate；执行仲裁仍要求自动化总闸、项目参与、本地绑定、全局并发名额、workspace/thread 租约和目标 lane 空闲。`awaiting_human` 在本地任务状态变化、连接恢复和对账期间保持关闭式保护，只有用户提交显式介入输入后才允许恢复同一任务；它不冻结其他 lane。
 
 Work Sync 无法确认完整项目范围时，Automation 冻结所有新任务领取；单项目投影未完成当前登录代际对账时，只排除该项目候选，其他已确认项目仍可参与队列。同步状态可以展示连接模式、游标、最近项目对账和最近全量对账，但这些字段由 Work Sync 拥有，Automation 只引用执行恢复所需摘要。
 
-活动 Runtime 期间，Work Sync 发布的本地状态若显示任务已改派、取消、阻塞、转移项目或撤销权限，Automation 请求 Runtime 在安全停止点收束并冻结队列。Automation 不在领取、运行或完成前自行重新读取远端任务。
+活动 Runtime 期间，Work Sync 发布的本地状态若显示任务已改派、取消、阻塞、转移项目或撤销权限，Automation 请求对应 Runtime 在安全停止点收束并冻结其 workspace lane。Automation 不在领取、运行或完成前自行重新读取远端任务。
 
-## 自动领取与串行执行
+## 自动领取、跨项目并行与项目内串行
 
-自动化开启、没有未收束活动执行且 Work 已发布的本地事实可用时，执行仲裁器分别读取待办队列和验收问题队列的 ready 队首，确定性选择一项。待办项向 Work Sync 提交领取动作；验收问题项不改写来源待办状态，在取得工作区与 thread 租约后直接从其持久记录启动。
+自动化开启且 Work 已发布的本地事实可用时，全局仲裁器枚举没有活动执行、没有 lane-scoped attention/recovery 且具有可执行项的 workspace lane。每个 lane 先从本 lane 的待办与验收问题 ready 队首确定一个候选；全局仲裁器再按既有稳定顺序启动候选，直到没有空闲 lane 或达到三个并发 workspace 的上限。待办项向 Work Sync 提交领取动作；验收问题项不改写来源待办状态，在取得 workspace 与 thread 租约后直接从其持久记录启动。
+
+领取与启动使用稳定 `execution_id` 定位活动执行，并以规范化本地工作区身份作为串行租约键。远端任务身份使用项目与任务的组合身份，所有停止、介入、恢复、CLI 接力和完成动作必须指向明确 execution；页面当前选择不能替代控制身份。
 
 Work Sync 使用本地投影的确认版本执行必要的服务器条件式更新，并处理重读、冲突和权限变化。Automation 不执行远端确认；只有 Work Sync 发布该任务的本地状态已经变为 `in_progress` 后，Automation 才持久化任务、项目、本地工作区和待启动 run 的关联并启动 Runtime。
 
@@ -150,19 +154,19 @@ Persisted candidate 的稳定身份由 `selected_ref`、Gap id、Case revision�
 
 Runtime 对同一工作区内仍在运行的等价命令保持单一执行实例。后续相同命令观察同一执行状态，不并发启动第二个会修改或编译同一目标的进程。长时间命令的进行中、增量输出和完成状态由执行层持续投影，等待本身不要求 Agent 反复发起模型推理或重复提交命令。
 
-Runtime 和 ledger 均成功收束、Case 已关闭后，系统继续使用当前待办的持久 Codex thread 发起 closeout turn。当前 Agent检查工作区、验证证据和变更范围并完成 Git commit；不创建独立 commit agent。只有 commit 成功或确认无需提交，系统才基于最新服务器版本提交“进行中 → 已完成”。服务器确认完成后，系统清理活动任务并继续领取下一项。
+Runtime 和 ledger 均成功收束、Case 已关闭后，系统继续使用当前待办的持久 Codex thread 发起 closeout turn。当前 Agent检查工作区、验证证据和变更范围并完成 Git commit；不创建独立 commit agent。只有 commit 成功或确认无需提交，系统才基于最新服务器版本提交“进行中 → 已完成”。服务器确认完成后，系统清理该 lane 的活动执行并继续领取该 lane 的下一项。
 
 首次执行传给 Agent 的人类输入只有待办正文；远端任务、项目、run 和队列信息作为 Runtime 元数据关联。自动化管理的 run 显式携带自动续轮策略；ledger 写回后，只要 handoff 仍由 Agent 负责、允许 Agent 继续且不需要人类或外部输入，系统就在同一活动 thread 依次投影 closeout、完成 post-commit fresh-read，并以新 snapshot 发起下一 turn。ledger 的策略中立 `manual_bridge` 不会把这种 Agent continuation 降级为人工事项。确定性 ledger 写回表示本轮取得 canonical state 进展并重置无进展恢复计数；安全计数只限制连续没有 ledger 进展的恢复尝试，不是总墙钟、生产性 Round 或长命令上限。自动续轮没有新增人类输入，不构造新的用户消息，也不把 `next_prompt` 或 closeout 中的旧选择伪装成人工输入。
 
-自动化总开关关闭时，系统继续同步和展示，但不领取新任务。暂停队列不停止当前活动任务；停止当前运行请求 Runtime 在安全停止点收束，远端任务保持进行中并进入恢复状态。
+自动化总开关关闭时，系统继续同步和展示，但不领取新任务。暂停队列不停止任何当前活动执行；停止运行必须指定目标 execution，只请求对应 Runtime 在安全停止点收束，远端任务保持进行中并进入该 lane 的恢复状态。
 
 ## 切换到交互式 Codex CLI
 
-当前活动任务提供“切换到 Codex CLI”动作。该动作先请求当前 Runtime run 在安全停止点结束；确认自动执行进程已退出后，Desktop 才在绑定的本地工作区打开用户可见、可输入的终端，并启动交互式 `codex`。切换不启动无界面的 `codex exec`，也不让 Runtime 与 CLI 同时修改同一工作区。
+每个活动执行提供“切换到 Codex CLI”动作。该动作携带目标 `execution_id`，先请求对应 Runtime run 在安全停止点结束；确认该自动执行进程已退出后，Desktop 才在绑定的本地工作区打开用户可见、可输入的终端，并启动交互式 `codex`。切换不启动无界面的 `codex exec`，也不让 Runtime 与 CLI 同时修改同一工作区。
 
 CLI 接管恢复当前待办已持久化的 Codex thread，并从 fresh Project/Case State 继续 state-driven loop；不通过拼接隐藏 transcript 或旧 run envelope 重建上下文。CLI 由用户直接观察、输入和纠正，并与普通 Codex CLI 会话具有相同交互能力。尚未创建 Case 时，CLI 在同一 task thread 中从 fresh Project State 和待办意图开始，由当前 Agent选择或创建 Case。
 
-切换成功后，远端待办继续保持进行中，串行队列继续冻结；Desktop 将本地执行入口标记为 `cli_handoff`，但不把该标记写成 Case 语义状态。CLI 关闭本身不表示工作完成，也不直接改变待办状态。
+切换成功后，远端待办继续保持进行中，对应 workspace lane 继续冻结；Desktop 将本地执行入口标记为 `cli_handoff`，但不把该标记写成 Case 语义状态。CLI 关闭本身不表示工作完成，也不直接改变待办状态，其他 workspace lane 不受影响。
 
 Runtime 重新打开、同步或由用户选择恢复自动执行时，必须重新读取 canonical Case State，而不是延续旧 Runtime run：
 
@@ -203,7 +207,7 @@ Workbench 展示的对话只属于当前待办会话。每条消息保留 task�
 
 用户提交处理说明后，输入原文作为 steer 或 fresh continuation 的唯一人类内容，并被锁定直到 Controller 接受或返回可解释错误。Runtime 不在输入前后拼接任务标识、恢复命令或 Case 工作流说明。Controller 接受后，Runtime 恢复当前任务，界面返回自动化主页面。
 
-用户未提交而离开 Workbench 时，任务保持等待人工，串行队列继续冻结。只读审查不改变 Runtime；用户必须显式选择介入当前运行后才能提交控制输入。
+用户未提交而离开 Workbench 时，任务保持等待人工，对应 workspace lane 继续冻结。只读审查不改变 Runtime；用户必须显式选择介入当前 execution 后才能提交控制输入，其他 lane 继续运行。
 
 人工等待可以保持远端任务为进行中。只有 Runtime 无法继续或恢复依赖外部条件时，用户或服务器规则才将任务更新为已阻塞。
 
@@ -219,19 +223,19 @@ Task Browser 按当前项目范围和七种任务状态展示完整任务列表�
 
 ## 恢复与一致性
 
-应用重启时优先恢复同一用户的进行中任务及关联 run。存在唯一可恢复任务时，系统继续该任务；存在多个进行中任务时，系统冻结队列并要求用户选择唯一恢复目标。
+应用重启时按 workspace lane 恢复同一用户的进行中任务及关联 run。每个 lane 存在唯一可恢复任务时继续该任务；不同 lane 各有一个进行中任务属于正常并行状态。单一 lane 存在多个进行中任务、多个任务争用同一 thread/workspace 或无法建立唯一归属时，只冻结该 lane 并要求用户选择恢复目标。旧 Store 的单个 `active_task` 确定性迁移为一个 lane 内的活动执行，不丢失 session、thread、Run、Case 或收尾检查点。
 
-Recovery Center 统一承接 Work Sync 领取冲突、Runtime 启动失败、安全停止、活动任务外部变化、多个进行中任务、任务项目归属异常、权限异常和 Work Sync 会话失效。对已建立持久 Agent thread 的 Runtime 失败，用户可直接补充说明并在同一对话继续，不必先把任务标记为阻塞。
+Recovery Center 统一承接 Work Sync 领取冲突、Runtime 启动失败、安全停止、活动执行外部变化、lane 内多个进行中任务、任务项目归属异常、权限异常和 Work Sync 会话失效。恢复项明确标记 `lane` 或 `global` 冻结范围；对已建立持久 Agent thread 的 Runtime 失败，用户可直接补充说明并在同一对话继续，不必先把任务标记为阻塞。
 
 每个恢复状态展示服务器事实、本地事实、差异、已保留证据、当前操作责任和允许动作。Recovery Center 表示 Runtime 操作或一致性恢复，不等同于 Intervention Workbench 的人工语义判断。恢复动作完成后，系统重新同步服务器并从原观察范围返回 Command Center 或 Task Browser。
 
-状态不确定时系统优先保持单任务边界和证据完整性，不通过继续领取来掩盖异常。
+状态不确定时系统优先保持每个 workspace lane 的单任务边界和证据完整性，不通过同 lane 继续领取来掩盖异常。
 
 ## 主页面职责
 
-Command Center 首屏回答当前项目范围、系统是否健康、正在执行什么、下一项是什么和是否需要用户处理。
+Command Center 首屏回答当前项目范围、系统是否健康、有哪些并行活动执行、各 lane 的下一项是什么和是否需要用户处理。
 
-主页面展示项目列表、七种任务状态入口、同步状态、Runtime 健康、自动化开关、人工事项、当前运行、普通待办队列、验收问题队列、项目源摘要和最近完成结果。两个队列拥有独立数量、ready/blocked/running 分布和队首摘要，不合并成一个“待处理”数字。
+主页面展示项目列表、七种任务状态入口、同步状态、Runtime 健康、自动化开关、人工事项、活动执行列表、普通待办队列、验收问题队列、项目源摘要和最近完成结果。两个队列拥有独立数量、ready/blocked/running 分布和队首摘要，不合并成一个“待处理”数字；活动执行按 workspace lane 分组并显示全局并发占用。
 
 七种任务状态是 Task Browser 的导航入口，用于浏览和人工处置；它们不在主页面直接替换当前运行与队列态势。项目选择只改变观察范围。
 
@@ -269,13 +273,13 @@ Renderer 与 Automation 不持有任务服务器凭证，也不直接请求任�
 - access token 临近过期时会自动刷新；业务请求首次返回未认证时最多刷新并重试一次；最近七天内存在有效登录活动时，应用启动会通过服务端轮换 refresh token 续期。临时网络或服务错误保留可恢复会话，只有连续超过七天无有效登录活动、refresh token 缺失或过期、或服务端明确拒绝/撤销凭据时，系统才停止远端写入并要求重新登录。
 - 登录用户能够看到可访问项目，以及其中执行人是当前用户的七种状态待办和对应数量；创建人是当前用户但执行人不是当前用户、未分配和分配给其他用户的待办均不出现。
 - 项目选择和任务状态筛选不会隐式改变自动化参与状态或队列顺序。
-- 系统只从符合资格的待处理任务中确定性选择下一项，并且同一时刻最多运行一项任务。
+- 系统只从符合资格的待处理任务中确定性选择下一项；同一本地工作区同一时刻最多运行一项任务，不同本地工作区最多三个并行活动执行。
 - 已完成待办能够提出非空验收问题；系统持久化独立问题项并保持来源待办为 completed，不改写旧 Run、commit、完成记录或 closed Case。已验收待办不提供问题入口。
 - 每个验收问题项具有稳定标识、独立状态、进展、Run 和新 Case，并复用来源待办的 transcript session 与持久 Agent thread；问题、解决方案和验证可从该 Case 恢复。
 - 自动化总览分别展示普通待办队列与验收问题队列；已完成任务的详情面板展示全部关联问题项及其当前进展，已验收任务显示验收通过且不显示 Composer。
-- 两条队列分别排序并通过显式执行租约确定性仲裁；等待中的验收问题不会进入待办队列或改变来源待办状态，也不会抢占当前执行。
+- 两条队列分别排序并在每个 workspace lane 内通过显式执行租约确定性仲裁；等待中的验收问题不会进入待办队列或改变来源待办状态，也不会抢占当前执行。
 - 存在 queued、running、awaiting_human 或 blocked 验收问题时，待办不能标记为已验收；全部问题 resolved 或 cancelled 后才允许进入 accepted。
-- 领取冲突不会启动重复 Runtime，完成写回未确认时不会领取下一任务。
+- 领取冲突不会启动重复 Runtime，完成写回未确认时同一 lane 不会领取下一任务，其他健康 lane 可以继续。
 - 待处理任务在服务器确认进行中后启动 Runtime，在 Runtime 与 ledger 收束且服务器确认后变为已完成。
 - Runtime 需要人工输入时，主页面给出明确提示但不自动打开 Intervention Workbench 或 Personal / Chat；用户在对应 Workbench 提交后能够恢复同一任务。
 - Command Center 队列、当前运行、Intervention Workbench 顶部、确认对话和 session/CLI 标签使用同一个 64-grapheme 展示标题投影；Workbench 顶部保持单行且不被完整正文撑高，完整正文只在任务详情或上下文正文区域展示一次并保留换行。
@@ -304,7 +308,7 @@ Renderer 与 Automation 不持有任务服务器凭证，也不直接请求任�
 - Work Sync 的旧 Workshop 兼容连接使用无 ID 通知触发项目对账；连接与重连不读写游标，重连后直接刷新当前态，不要求补历史通知。
 - Work Sync 不执行每分钟全量扫描；每十五分钟、应用启动和休眠/网络恢复时执行事实对账，旧服务重连后执行项目刷新，页面提供进入同一 Work Sync 边界的“立即同步”。
 - 实时事件、重连补取、后台对账和应用启动恢复都不能解除 `awaiting_human`；未提交人工介入输入时，同一任务持续等待且不会启动下一任务。
-- 应用重启能够恢复唯一活动任务；无法确定唯一任务时冻结队列并要求人工处置。
+- 应用重启能够分别恢复每个 workspace lane 的唯一活动任务；不同 lane 的多个进行中任务正常恢复，同一 lane 无法确定唯一任务时只冻结该 lane 并要求人工处置。
 - Work Sync 认证失效时重启 Desktop，closed/resolved Case 仍被本地识别；界面不显示 Case 或 Runtime 仍在执行。
 - Case、commit 和远端写回检查点跨重启保持单调；已完成 commit 不会因登录失效或再次同步而重复执行。
 - Renderer 与 Automation 不暴露或使用任务服务器凭证；所有远端状态变更由 Work Sync 同步，并以其发布的本地确认状态作为 Automation 输入。

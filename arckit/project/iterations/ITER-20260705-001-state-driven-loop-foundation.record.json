@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-25T02:23:19.097Z",
+  "updated_at": "2026-08-25T08:22:01.846Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -2260,6 +2260,76 @@
         "arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "Current operator input, 2026-08-25",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/tech/arcorbit/solution.md",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/tech/arcorbit/realtime-synchronization-solution.md",
+        "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "data_and_state",
+      "outcome": "settled",
+      "evidence": [
+        "Current operator input, 2026-08-25",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/tech/arcorbit/solution.md",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/tech/arcorbit/realtime-synchronization-solution.md",
+        "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "Current operator input, 2026-08-25",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/tech/arcorbit/solution.md",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/tech/arcorbit/realtime-synchronization-solution.md",
+        "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "observability_and_operation",
+      "outcome": "settled",
+      "evidence": [
+        "Current operator input, 2026-08-25",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/tech/arcorbit/solution.md",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/tech/arcorbit/realtime-synchronization-solution.md",
+        "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/interaction/automation-workspace/default.html",
+        "arckit/interaction/automation-workspace/runtime-recovery.html",
+        "arckit/interaction/_map/feature-matrix.md",
+        "arckit/interaction/_map/RELATIONS.md",
+        "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
     }
   ],
   "acceptance": {
@@ -2363,15 +2433,32 @@
     "arckit/cases/closed/CASE-20260824-009-arcorbit-automation.md",
     "arckit/cases/closed/CASE-20260824-010-work-feedback.md",
     "arckit/cases/closed/CASE-20260824-011-work-owned-task-synchronization.md",
-    "arckit/cases/closed/CASE-20260825-001-restore-arcorbit-automation-after-abrupt-process-loss.md"
+    "arckit/cases/closed/CASE-20260825-001-restore-arcorbit-automation-after-abrupt-process-loss.md",
+    "arckit/cases/closed/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260825-001-restore-arcorbit-automation-after-abrupt-process-loss.md",
+    "case_ref": "arckit/cases/closed/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260825-001-restore-arcorbit-automation-after-abrupt-process-loss.md"
+      "arckit/cases/closed/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md",
+      "runtime/arcorbit/src/automation-coordinator.mjs",
+      "runtime/arcorbit/src/desktop/desktop-store.mjs",
+      "runtime/arcorbit/src/work-sync-coordinator.mjs",
+      "runtime/arcorbit/src/desktop-run-manager.mjs",
+      "runtime/arcorbit/desktop/main.mjs",
+      "runtime/arcorbit/desktop/preload.cjs",
+      "runtime/arcorbit/desktop/renderer/renderer.js",
+      "runtime/arcorbit/desktop/renderer/styles.css",
+      "runtime/arcorbit/test/automation-coordinator.test.mjs",
+      "runtime/arcorbit/test/desktop-store.test.mjs",
+      "runtime/arcorbit/test/desktop-renderer.test.mjs",
+      "runtime/arcorbit/test/work-sync-coordinator.test.mjs",
+      "Focused Automation/Store/Renderer/Work Sync regression after restart coverage: 116 passed, 0 failed.",
+      "ArcOrbit broader test run: 396 passed, 9 environment-gated skips; the sandbox-blocked Electron fixture passed separately through the approved Electron entrypoint.",
+      "git diff --check passed.",
+      "Completion self-review found no correctness, resolution, verification, regression, or minimality finding."
     ],
-    "updated_at": "2026-08-25T02:23:19.097Z"
+    "updated_at": "2026-08-25T08:22:01.846Z"
   }
 }

@@ -67,9 +67,9 @@ Electron main 进程的 Workshop Authenticated Service 向 Work Sync 和 Realtim
 
 - 当前 active Workset 中由 Work 页面观察的全部可访问项目；
 - `automation.project_participation=true` 的项目；
-- 当前活动任务所属项目。
+- 所有当前活动执行所属项目。
 
-Workset 切换只改变第一组观察范围，不取消 Automation 已授权项目的后台同步资格。Automation participation 和 active task 只作为 Work Sync 的本地需求输入，Automation 不创建连接、不读取 REST，也不推进游标。登录代际、项目权限或需求集合变化时，Work Sync 确定性增删项目连接并清理失去资格的本地投影。
+Workset 切换只改变第一组观察范围，不取消 Automation 已授权项目的后台同步资格。Automation participation 和 active executions 只作为 Work Sync 的本地需求输入，Automation 不创建连接、不读取 REST，也不推进游标。登录代际、项目权限或需求集合变化时，Work Sync 确定性增删项目连接并清理失去资格的本地投影。
 
 每个项目保存：
 
@@ -97,7 +97,7 @@ Task Projection Store 可以保留 UI 最近成功数据并标记 stale，但只
 
 ## Automation Coordinator
 
-Automation Coordinator 不拥有 Workshop Task Source、Realtime Adapter、REST 对账、项目游标或远端任务快照。它订阅 Work Sync 发布的本地任务状态变化，从当前执行人、participation、七状态和本地执行控制中派生候选队列，再在无活动冲突、无 recovery、无人工 Gate 且自动化资格成立时调用 `maybeStartNext()`。
+Automation Coordinator 不拥有 Workshop Task Source、Realtime Adapter、REST 对账、项目游标或远端任务快照。它订阅 Work Sync 发布的本地任务状态变化，从当前执行人、participation、七状态和本地执行控制中派生候选队列，按规范化本地工作区建立 lane，并在目标 lane 空闲、没有 lane-scoped recovery/人工 Gate、全局控制健康且并发名额可用时调用调度入口。单项目投影错误只排除对应项目和 lane；身份失效或完整项目目录不可确认才冻结全部新领取。
 
 Automation 的领取、阻塞、完成、取消和验收状态动作都提交给 Work Sync。Work Sync 调用受控 Workshop mutation，并只在服务端成功响应及必要对账完成后提交新的本地任务状态。服务端拒绝、冲突、权限变化或传输失败保持原本地任务状态，同时向 Automation 发布结构化失败或 recovery；Automation 不直接调用 `getTask()`、`listTasks()` 或 `updateTask()`，也不以远端响应作为自己的控制输入。
 
@@ -107,7 +107,7 @@ Automation 只有在观察到 Work Sync 已发布的目标本地状态后才创�
 
 ## 人工 Gate 与恢复边界
 
-`awaiting_human` 是本地活动执行的关闭式控制状态。以下动作只能更新远端快照、连接健康或 recovery，不能清除该状态：
+`awaiting_human` 是目标 workspace lane 内活动执行的关闭式控制状态。以下动作只能更新远端快照、连接健康或 recovery，不能清除该状态：
 
 - Work Sync 发布的本地任务状态变化；
 - 事件补取与游标推进；
@@ -115,7 +115,7 @@ Automation 只有在观察到 Work Sync 已发布的目标本地状态后才创�
 - 应用启动恢复、休眠恢复和网络恢复；
 - Work Sync 发布的无状态变化重复确认。
 
-只有显式 intervention command 可以提交用户输入并把 `allowAgentResume` 设为真。若 Work Sync 在人工等待期间发布任务被取消、改派、阻塞或权限撤销的本地状态变化，Automation 进入外部变化 recovery 并安全停止 Runtime；它不会把该变化解释为用户确认。
+只有携带目标 `execution_id` 的显式 intervention command 可以提交用户输入并把 `allowAgentResume` 设为真。若 Work Sync 在人工等待期间发布任务被取消、改派、阻塞或权限撤销的本地状态变化，Automation 让该 lane 进入外部变化 recovery 并安全停止对应 Runtime；它不会把该变化解释为用户确认，也不冻结其他健康 lane。
 
 ## 部署与回滚
 
@@ -142,6 +142,6 @@ Work Sync snapshot 暴露聚合连接健康、聚合订阅模式、各项目连�
 - Work 测试证明七状态和多维筛选只读取本地 Task Projection Store，切换查询不调用 Workshop；WebSocket 失效、显式刷新和周期对账才触发受控远端读取。
 - Desktop main 与 Renderer 验证不存在一分钟同步计时器，Work-owned 十五分钟对账、生命周期同步和显式“立即同步”入口可用。
 - Automation 测试证明 Coordinator 没有 Workshop Task Source 或 Realtime Adapter 依赖，只响应 Work 发布的本地状态变化，并把状态动作提交给 Work。
-- Automation 测试证明本地状态变化、重连、全量对账和启动恢复都不能解除 `awaiting_human`，只有显式 intervention 能继续同一任务。
+- Automation 测试证明本地状态变化、重连、全量对账和启动恢复都不能解除目标 lane 的 `awaiting_human`，只有指向同一 `execution_id` 的显式 intervention 能继续任务，其他 workspace lane 可以继续运行。
 - 真实链路验收至少包含一次 Workshop mutation、WebSocket 通知、Work Sync 本地投影提交、Automation 候选变化和失败不推进本地状态，并保留可诊断事件证据。
 - 部署验证覆盖迁移失败不停止旧容器、候选容器 unhealthy 自动恢复旧镜像、无 Docker health 元数据的旧镜像通过公开 HTTP health 确认恢复，以及 OSS 资源上传失败不替换入口、成功时入口严格最后上传。

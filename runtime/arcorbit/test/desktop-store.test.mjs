@@ -102,7 +102,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 13);
+  assert.equal(store.version, 14);
   assert.equal("realtime" in store.automation, false);
   assert.equal("snapshot" in store.automation, false);
   assert.equal(store.platform.task_sync.source_status, "degraded");
@@ -137,7 +137,7 @@ test("desktop store bounds historical task labels without changing task content"
     },
     automation: {
       snapshot: { tasks: [{ id: "t", project_id: "p", content, title: legacyTitle }] },
-      active_task: { task_id: "t", task_title: legacyTitle },
+      active_task: { task_id: "t", task_title: legacyTitle, local_project_id: "local" },
       acceptance_feedback_items: [{ feedback_id: "AF-1", source_task_id: "t", source_task_title: legacyTitle }],
       recent_completions: [{ task_id: "t", title: legacyTitle }]
     }
@@ -145,7 +145,10 @@ test("desktop store bounds historical task labels without changing task content"
 
   assert.equal(store.platform.task_sync.projects.p.tasks[0].content, content);
   assert.equal(store.platform.task_sync.projects.p.tasks[0].title.endsWith("…"), true);
-  assert.equal(store.automation.active_task.task_title.endsWith("…"), true);
+  assert.equal(store.automation.active_executions.local.task_title.endsWith("…"), true);
+  assert.equal(store.automation.active_executions.local.workspace_key, "local");
+  assert.match(store.automation.active_executions.local.execution_id, /^EXEC-[a-f0-9]{20}$/);
+  assert.equal("active_task" in store.automation, false);
   assert.equal(store.automation.acceptance_feedback_items[0].source_task_title.endsWith("…"), true);
   assert.equal(store.automation.recent_completions[0].title.endsWith("…"), true);
   assert.equal(store.sessions.local[0].title.startsWith("待办 · legacy "), true);
@@ -186,7 +189,7 @@ test("desktop store migrates v9 bindings into a local workset without changing a
     }
   });
 
-  assert.equal(store.version, 13);
+  assert.equal(store.version, 14);
   assert.equal(store.platform.active_workset_id, "WORKSET-DEFAULT");
   assert.deepEqual(store.platform.worksets[0].project_ids, ["3", "12"]);
   assert.deepEqual(store.automation.project_participation, { "12": true, "3": false });

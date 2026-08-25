@@ -388,6 +388,9 @@ function demandedProjectIds(store, accessibleProjects) {
   for (const [projectId, participating] of Object.entries(store.automation?.project_participation || {})) {
     if (participating) ids.add(String(projectId));
   }
+  for (const execution of Object.values(store.automation?.active_executions || {})) {
+    if (execution?.project_id) ids.add(String(execution.project_id));
+  }
   if (store.automation?.active_task?.project_id) ids.add(String(store.automation.active_task.project_id));
   return [...ids].filter((projectId) => accessible.has(projectId)).sort(compareScalarIds);
 }

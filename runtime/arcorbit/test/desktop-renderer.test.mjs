@@ -1033,7 +1033,10 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(source, /<option value="all">项目集全部/);
   assert.match(source, /item\.project_id \|\| item\.source_project_id/);
   assert.match(source, /!projectId && item\.freeze_scope === "global"/);
-  assert.match(source, /activeExecutionMatchesSelectedProject\(snapshot\.active_task\)/);
+  assert.match(source, /snapshot\.active_executions \|\| \[\]/);
+  assert.match(source, /data-automation-execution/);
+  assert.match(source, /api\.selectAutomationExecution/);
+  assert.match(source, /同工作区串行/);
   assert.match(source, /const stateCounts = workStateCounts\(projection\)/);
   assert.match(source, /data-platform-task-select/);
   assert.match(source, /function renderPlatformWorkInspector\(task\)/);

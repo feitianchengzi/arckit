@@ -11,7 +11,7 @@
   - product-architecture.md 产品架构：描述单 Agent 默认 Loop、持久 task thread、跨进程串行 ledger commit，以及 Desktop/Agent/Skill 与事实系统如何组合。⚪ (238行)
   - skill-architecture.md Skill 架构：定义原生 Agent skill 使用、默认双能力 Runtime policy、natural trigger 和 trusted ledger。⚪ (95行)
   - controller-worker-loop.md Agent Loop：定义 invariant-guided 候选发现、单 claim Gap 边界、trusted closeout、post-commit fresh-read 与同 thread 自动续轮。⚪ (128行)
-  - runtime-automation-workspace.md Runtime 自动化工作区：定义 Work 本地状态驱动、双队列、同待办 thread、人工 Gate、Chat 共享消息面与逐 Gap 执行全貌。🟡 (310行)
+  - runtime-automation-workspace.md Runtime 自动化工作区：定义 Work 本地状态驱动、workspace lane 并行、项目内双队列串行、同待办 thread 与 lane-scoped Gate/恢复。🟡 (314行)
   - arcorbit-platform-capabilities.md ArcOrbit 多产品研发平台：定义 Work-owned 同步、本地 Task Projection、全局产品集、Feedback 双向会话与独立产品反馈中心。🟡 (497行)
   - arcorbit-work-management.md ArcOrbit Work 待办管理：定义本地状态查询、Work-owned 同步、单字段正文、任务树、Inspector、评论图片及 Automation 边界。🟡 (104行)
   - arcorbit-planned-workspaces.md ArcOrbit Chat 与计划工作空间：定义按项目分组的真实 Codex Chat、新会话项目归属、共享 Conversation Surface 边界及计划工作空间职责。🟡 (195行)

@@ -133,3 +133,4 @@
 | [CASE-20260824-010](closed/CASE-20260824-010-work-feedback.md) | closed | 优化 Work 与 Feedback 主工作区布局 | 2026-08-24T16:55:22.649Z |
 | [CASE-20260824-011](closed/CASE-20260824-011-work-owned-task-synchronization.md) | closed | Work-owned task synchronization | 2026-08-24T17:42:50.643Z |
 | [CASE-20260825-001](closed/CASE-20260825-001-restore-arcorbit-automation-after-abrupt-process-loss.md) | closed | Restore ArcOrbit automation after abrupt process loss | 2026-08-25T02:23:19.097Z |
+| [CASE-20260825-002](closed/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md) | closed | Enable concurrent ArcOrbit automation across projects | 2026-08-25T08:22:01.846Z |

@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-25T02:23:19.097Z
+Updated: 2026-08-25T08:22:01.846Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,16 +17,16 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260824-005-arcorbit.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260824-007-work.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260824-010-work-feedback.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md)
-- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md)
 - software_decision.external_integrations: settled (arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md)
 - software_decision.observability_and_operation: settled (arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md)
 - software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260824-011-work-owned-task-synchronization.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md)
+- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md)
+- software_decision.observability_and_operation: settled (arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md)
 
 ## Remaining Project Gaps
 
