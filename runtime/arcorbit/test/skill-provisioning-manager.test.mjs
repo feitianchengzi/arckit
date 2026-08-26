@@ -509,6 +509,48 @@ test("Setup Readiness backs up changed managed content before presenting the fre
   }
 });
 
+test("Setup Readiness preserves five blocking catalog diagnostics before drift and forwards only selected overwrite targets", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-catalog-conflicts-"));
+  const resourcesRoot = path.join(fixture, "resources");
+  const projectRoot = path.join(fixture, "project");
+  const fake = createFakeProvider();
+  fake.blockingCatalogDiagnostics = true;
+  try {
+    await createMinimalBundle(resourcesRoot);
+    const manager = createSkillProvisioningManager({
+      resourcesRoot,
+      dataRoot: path.join(fixture, "data"),
+      homeDir: path.join(fixture, "home"),
+      stateRoot: path.join(fixture, "state"),
+      providerLoader: async () => fake.provider,
+      codexProbe: async () => ({ available: true, summary: "codex fixture" })
+    });
+    const conflict = await manager.check({ projectRoot });
+    assert.equal(conflict.status, "conflict");
+    assert.equal(conflict.error, null);
+    assert.equal(conflict.write_state, "not_started");
+    assert.equal(conflict.source_upgrade.items.length, 5);
+    assert.equal(conflict.source_upgrade.items.every((item) => item.diagnostic_code === "CATALOG_VERSION_CONFLICT"), true);
+    assert.equal(conflict.source_upgrade.items.every((item) => item.kind === "catalog" && item.recovery_eligible), true);
+    assert.equal(conflict.source_upgrade.can_backup_and_overwrite_selected, true);
+    assert.match(conflict.source_upgrade.recovery_root, /recovery-backups$/);
+    assert.equal(fake.driftCalls, 0);
+
+    const selectedPaths = conflict.source_upgrade.items.slice(0, 2).map((item) => item.path);
+    const recovered = await manager.recoverSourceUpgrade({
+      assessmentDigest: conflict.source_upgrade.digest,
+      action: "backup-and-overwrite-selected",
+      selectedPaths
+    });
+    assert.deepEqual(fake.lastRecoveryInput.selectedPaths, selectedPaths);
+    assert.equal(fake.lastRecoveryInput.action, "backup-and-overwrite-selected");
+    assert.deepEqual(recovered.recovery_backup.restored_paths, selectedPaths);
+    assert.match(recovered.recovery_backup.manifest_path, /recovery\.json$/);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
 async function createUpgradeBundle(root, packageVersion, ambientContent) {
   await rm(root, { recursive: true, force: true });
   const payloadRoot = path.join(root, "provisioning", "arckit-skills");
@@ -557,7 +599,7 @@ async function createMinimalBundle(root, { includeSharedAsset = false } = {}) {
 
 function createFakeProvider() {
   const records = [];
-  const state = { failApply: false, failRecoveryAfterReplace: false, payloadDigests: new Map() };
+  const state = { failApply: false, failRecoveryAfterReplace: false, blockingCatalogDiagnostics: false, driftCalls: 0, lastRecoveryInput: null, payloadDigests: new Map() };
   const provider = {
     async inspectProvider() { return { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), loaderDigest: "c".repeat(64), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1", "project-only-provisioning/v1"] }; },
     async createProvisioningPlan(options) {
@@ -584,10 +626,15 @@ function createFakeProvider() {
           return { agentId: "codex", projectRoot, path: loaderPath, status: await sameFile(path.join(loaderPath, "SKILL.md"), "loader\n") ? "same" : loaderExists && records.length ? "managed-update" : "missing", expectedDigest: sha256("loader\n"), ...(loaderExists ? { existingDigest: sha256(await readFile(path.join(loaderPath, "SKILL.md"))) } : {}) };
         }))
         : [];
-      const plan = { sourceKey: "fixture", sourceIdentity: options.sourceRoot, profile: options.profile, destinationPolicy: "project-only", items, loaderTargets, cleanup: [], diagnostics: [], requiresConfirm: true };
+      const diagnostics = state.blockingCatalogDiagnostics
+        ? Array.from({ length: 5 }, (_, index) => ({ severity: "error", code: "CATALOG_VERSION_CONFLICT", path: `conflict-skill-${index + 1}`, message: "Differing unversioned catalog content." }))
+        : [];
+      const plan = { sourceKey: "fixture", sourceIdentity: options.sourceRoot, profile: options.profile, destinationPolicy: "project-only", items, loaderTargets, cleanup: [], diagnostics, requiresConfirm: true };
       return { apiVersion: "arcforge-embedded-provider/v1", planDigest: sha256(JSON.stringify(plan)), plan, targetEvidence: [] };
     },
     async driftProvisioningPlan(options) {
+      state.driftCalls += 1;
+      if (state.blockingCatalogDiagnostics) throw new Error("drift must not run after blocking plan diagnostics");
       const envelope = await provider.createProvisioningPlan(options);
       const relation = records.find((item) => item.sourceRoot === options.sourceRoot);
       const items = [];
@@ -625,6 +672,17 @@ function createFakeProvider() {
     },
     async listProvisioningRelations(options) { return records.filter((item) => !options.sourceRoot || item.sourceRoot === options.sourceRoot); },
     async assessProvisioningUpgrade(options) {
+      if (state.blockingCatalogDiagnostics) {
+        const items = Array.from({ length: 5 }, (_, index) => ({
+          disposition: "unmanaged-conflict", name: `conflict-skill-${index + 1}`, kind: "catalog",
+          path: path.join(options.stateRoot, "catalog", `conflict-skill-${index + 1}`),
+          sourcePath: path.join(options.sourceRoot, "code", "skills", "ambient-skill"), observedStatus: "changed",
+          diagnosticCode: "CATALOG_VERSION_CONFLICT", observedDigest: `${index + 1}`.repeat(64).slice(0, 64), incomingDigest: `${index + 6}`.repeat(64).slice(0, 64),
+          recoveryEligible: true, reason: "Differing unversioned catalog content."
+        }));
+        const base = { apiVersion: "arcforge-embedded-provider/v1", sourceRoot: options.sourceRoot, relationIds: [], items, canProceed: false, canBackupAndRestore: false, canBackupAndReinstall: true, canBackupAndOverwriteSelected: true, writeState: "not_started" };
+        return { ...base, assessmentDigest: sha256(JSON.stringify(base)) };
+      }
       const drift = await provider.driftProvisioningPlan(options);
       const relation = records.find((item) => item.sourceRoot === options.sourceRoot);
       const managed = new Set(relation?.availabilityItems?.flatMap((item) => item.destinations) || []);
@@ -646,6 +704,16 @@ function createFakeProvider() {
       return { ...base, assessmentDigest: sha256(JSON.stringify(base)) };
     },
     async recoverProvisioningUpgrade(options) {
+      state.lastRecoveryInput = structuredClone(options);
+      if (options.action === "backup-and-overwrite-selected" && state.blockingCatalogDiagnostics) {
+        const backupPath = path.join(options.backupRoot, "fixture-selected-backup");
+        const recoveryManifestPath = path.join(backupPath, "recovery.json");
+        await mkdir(backupPath, { recursive: true });
+        await writeFile(recoveryManifestPath, "{}\n");
+        const assessment = await provider.assessProvisioningUpgrade(options);
+        state.blockingCatalogDiagnostics = false;
+        return { assessment, backupPath, recoveryManifestPath, restoredPaths: [...options.selectedPaths] };
+      }
       const assessment = await provider.assessProvisioningUpgrade(options);
       if (assessment.assessmentDigest !== options.expectedAssessmentDigest) throw new Error("fixture assessment changed");
       if (options.action === "backup-and-restore" && !assessment.canBackupAndRestore) throw new Error("fixture managed recovery unavailable");
@@ -673,7 +741,7 @@ function createFakeProvider() {
         const fresh = await provider.createProvisioningPlan(options);
         await provider.applyProvisioningPlan({ ...options, expectedPlanDigest: fresh.planDigest, confirm: true });
       }
-      return { assessment, backupPath, restoredPaths };
+      return { assessment, backupPath, recoveryManifestPath: path.join(backupPath, "recovery.json"), restoredPaths };
     },
     async removeManagedProvisioning() { throw new Error("not used by fixture"); }
   };

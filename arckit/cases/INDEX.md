@@ -153,3 +153,4 @@
 | [CASE-20260826-006](closed/CASE-20260826-006-arcorbit-skill-drift.md) | closed | 修复 ArcOrbit 启动时遗漏项目 skill drift 检查 | 2026-08-26T05:49:15.211Z |
 | [CASE-20260826-007](closed/CASE-20260826-007-work.md) | closed | Work 已完成待办验收后自动切换相邻待办 | 2026-08-26T10:13:16.611Z |
 | [CASE-20260826-008](closed/CASE-20260826-008-automation.md) | closed | 补充新建待办执行人 Automation 提示 | 2026-08-26T10:33:19.260Z |
+| [CASE-20260826-009](closed/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md) | closed | Make same-name skill conflicts recoverable | 2026-08-26T12:58:55.759Z |

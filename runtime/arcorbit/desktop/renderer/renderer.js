@@ -124,6 +124,8 @@ const state = {
   setupActionError: "",
   setupCleanupPlanDigest: "",
   setupCleanupPaths: [],
+  setupRecoveryAssessmentDigest: "",
+  setupRecoveryPaths: [],
   setupReviewPlanDigest: "",
   setupReviewPlanChanged: false,
   codexAuthMethod: "",
@@ -388,17 +390,26 @@ function wireEvents() {
   }));
   els.setupRecoverButton.addEventListener("click", () => runAction(async () => {
     const upgrade = state.setup?.source_upgrade;
-    const action = upgrade?.can_backup_and_restore ? "backup-and-restore" : upgrade?.can_backup_and_reinstall ? "backup-and-reinstall" : "";
+    const action = upgrade?.can_backup_and_restore
+      ? "backup-and-restore"
+      : upgrade?.can_backup_and_overwrite_selected
+        ? "backup-and-overwrite-selected"
+        : upgrade?.can_backup_and_reinstall ? "backup-and-reinstall" : "";
     if (!action) return;
-    const confirmation = action === "backup-and-reinstall"
-      ? "将先完整备份当前冲突内容，再以当前 ArcOrbit 应用包中的内容为准重新安装，并建立新的受管理关系。是否继续？"
+    const selectedPaths = action === "backup-and-overwrite-selected" ? [...state.setupRecoveryPaths] : [];
+    if (action === "backup-and-overwrite-selected" && selectedPaths.length === 0) return;
+    const selectedItems = (upgrade?.items || []).filter((item) => selectedPaths.includes(item.path));
+    const confirmation = action === "backup-and-overwrite-selected"
+      ? `将先完整备份以下 ${selectedItems.length} 个同名 skill，再使用当前 ArcOrbit 应用包中的内容覆盖：\n\n${selectedItems.map((item) => `${item.name}\n${item.path}\n当前 ${shortDigest(item.current_digest)} → 内置 ${shortDigest(item.incoming_digest)}`).join("\n\n")}\n\n备份位置：${upgrade.recovery_root}\n评估摘要：${upgrade.digest}\n\n未选择和无关内容不会改变。是否继续？`
+      : action === "backup-and-reinstall"
+        ? "将先完整备份当前冲突内容，再以当前 ArcOrbit 应用包中的内容为准重新安装，并建立新的受管理关系。是否继续？"
       : "将先把本地修改完整备份，再恢复受管理内容。恢复完成后如有新版迁移计划，仍需再次确认。";
     if (!window.confirm(confirmation)) return;
     state.setupActionError = "";
     state.setupBusy = true;
     renderSetup();
     try {
-      state.setup = await api.recoverSetupUpgrade({ assessmentDigest: upgrade.digest, action });
+      state.setup = await api.recoverSetupUpgrade({ assessmentDigest: upgrade.digest, action, selectedPaths });
     } finally {
       state.setupBusy = false;
       renderSetup();
@@ -450,6 +461,24 @@ function wireEvents() {
     state.setupCleanupPaths = [...selected];
     renderSetupCleanup();
     renderSetupActions();
+  });
+  els.setupConflictPanel.addEventListener("change", (event) => {
+    const upgrade = state.setup?.source_upgrade;
+    const eligible = (upgrade?.items || []).filter((item) => item.recovery_eligible);
+    if (event.target.matches("[data-setup-recovery-all]")) {
+      state.setupRecoveryPaths = event.target.checked ? eligible.map((item) => item.path) : [];
+      renderSetup();
+      return;
+    }
+    const checkbox = event.target.closest("[data-setup-recovery-path]");
+    if (!checkbox) return;
+    const item = upgrade?.items?.[Number(checkbox.dataset.setupRecoveryPath)];
+    if (!item?.recovery_eligible) return;
+    const selected = new Set(state.setupRecoveryPaths);
+    if (checkbox.checked) selected.add(item.path);
+    else selected.delete(item.path);
+    state.setupRecoveryPaths = [...selected];
+    renderSetup();
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   els.newChatButton.addEventListener("click", () => runAction(async () => {
@@ -784,10 +813,17 @@ function renderSetup() {
   const writeSummary = setup.write_state === "not_started" ? "写入：未开始" : setup.write_state === "committed" ? "写入：已完成" : setup.write_state === "rolled_back" ? "写入：已回滚" : setup.write_state === "rollback_incomplete" ? "写入：回滚需人工检查" : "写入：进行中";
   els.setupErrorPanel.innerHTML = setupError ? `<strong>${escapeHtml(setupError.code)}</strong><p>${escapeHtml(setupError.message)}</p>${renderCodexOwnerBlockers(setupError)}<small>阶段：${escapeHtml(setupError.stage)} · ${writeSummary}</small>` : "";
   const upgradeItems = setup.source_upgrade?.items || [];
+  syncSetupRecoverySelection(setup.source_upgrade);
   const conflicts = setup.drift?.conflicts || [];
+  const selectableRecovery = Boolean(setup.source_upgrade?.can_backup_and_overwrite_selected && !setup.source_upgrade?.can_backup_and_restore);
+  const selectedRecovery = new Set(state.setupRecoveryPaths);
+  const eligibleRecovery = upgradeItems.filter((item) => item.recovery_eligible);
+  const recoverySelectAll = selectableRecovery && eligibleRecovery.length
+    ? `<label class="setup-cleanup-row"><input data-setup-recovery-all type="checkbox" ${selectedRecovery.size === eligibleRecovery.length ? "checked" : ""} ${state.setupBusy ? "disabled" : ""}><span><strong>全选可恢复项</strong><small>${selectedRecovery.size} / ${eligibleRecovery.length}；只选择 provider fresh assessment 证明安全的目标</small></span></label>`
+    : "";
   els.setupConflictPanel.classList.toggle("hidden", upgradeItems.length === 0 && conflicts.length === 0 && !setup.recovery_backup);
   els.setupConflictPanel.innerHTML = upgradeItems.length
-    ? `<h2>冲突与恢复分类</h2>${upgradeItems.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(upgradeDispositionLabel(item.disposition))} · ${escapeHtml(item.name)}</strong><code>${escapeHtml(item.path)}</code><small>${escapeHtml(item.reason)}</small>${item.files?.length ? `<ul>${item.files.map((file) => `<li><code>${escapeHtml(file.status)} · ${escapeHtml(file.path)}</code></li>`).join("")}</ul>` : ""}</div>`).join("")}`
+    ? `<h2>冲突与恢复分类</h2>${recoverySelectAll}${upgradeItems.map((item, index) => `<label class="setup-path-row">${selectableRecovery && item.recovery_eligible ? `<input data-setup-recovery-path="${index}" type="checkbox" ${selectedRecovery.has(item.path) ? "checked" : ""} ${state.setupBusy ? "disabled" : ""}>` : ""}<strong>${escapeHtml(item.diagnostic_code || upgradeDispositionLabel(item.disposition))} · ${escapeHtml(item.name)}</strong><code>${escapeHtml(item.path)}</code>${item.current_digest || item.incoming_digest ? `<small>当前 ${escapeHtml(shortDigest(item.current_digest))} · 内置 ${escapeHtml(shortDigest(item.incoming_digest))}</small>` : ""}<small>${escapeHtml(item.reason)}</small>${item.recovery_blocked_reason ? `<small>${escapeHtml(item.recovery_blocked_reason)}</small>` : ""}${item.files?.length ? `<ul>${item.files.map((file) => `<li><code>${escapeHtml(file.status)} · ${escapeHtml(file.path)}</code></li>`).join("")}</ul>` : ""}</label>`).join("")}`
     : conflicts.length
       ? `<h2>不会自动覆盖</h2>${conflicts.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}`
       : setup.recovery_backup
@@ -984,8 +1020,12 @@ function renderSetupActions() {
       : "请先确认上方写入目标与变更摘要；无需展开完整安装明细。";
   els.setupReviewHint.classList.toggle("is-confirmed", reviewed);
   els.setupRecoverButton.classList.toggle("hidden", !setup.can_recover);
-  els.setupRecoverButton.textContent = setup.source_upgrade?.can_backup_and_restore ? "备份修改并恢复" : "备份并按当前应用包重装";
-  els.setupRecoverButton.disabled = applying;
+  els.setupRecoverButton.textContent = setup.source_upgrade?.can_backup_and_restore
+    ? "备份修改并恢复"
+    : setup.source_upgrade?.can_backup_and_overwrite_selected
+      ? `备份并使用当前应用包覆盖所选同名 skill（${state.setupRecoveryPaths.length}）`
+      : "备份并按当前应用包重装";
+  els.setupRecoverButton.disabled = applying || Boolean(setup.source_upgrade?.can_backup_and_overwrite_selected && !setup.source_upgrade?.can_backup_and_restore && state.setupRecoveryPaths.length === 0);
   const cleanupAvailable = setup.status === "drifted" && setup.plan?.cleanup?.length > 0 && !setup.plan.cleanup_included_in_upgrade;
   els.setupCleanupButton.classList.toggle("hidden", !cleanupAvailable);
   els.setupCleanupButton.textContent = `确认并清理所选（${state.setupCleanupPaths.length}）`;
@@ -1000,7 +1040,7 @@ function renderSetupActions() {
 
 function setupRecoveryGuide(setup = {}) {
   const targets = (setup.source_upgrade?.items || setup.drift?.conflicts || [])
-    .map((item) => `${item.disposition || item.status || "conflict"}: ${item.path}${item.reason ? `\n  ${item.reason}` : ""}`)
+    .map((item) => `${item.diagnostic_code || item.disposition || item.status || "conflict"}: ${item.name || item.skill || "unknown"}\n  ${item.path}${item.current_digest || item.incoming_digest ? `\n  current=${item.current_digest || "unknown"}\n  bundled=${item.incoming_digest || "unknown"}` : ""}${item.reason ? `\n  ${item.reason}` : ""}`)
     .join("\n");
   const error = setup.error ? `${setup.error.code}: ${setup.error.message}` : "No setup error code.";
   return [
@@ -4276,6 +4316,8 @@ async function checkSetupReadinessForSelection(projectId = selectedSetupProjectI
 function resetSetupCleanupSelection() {
   state.setupCleanupPlanDigest = "";
   state.setupCleanupPaths = [];
+  state.setupRecoveryAssessmentDigest = "";
+  state.setupRecoveryPaths = [];
 }
 
 function syncSetupCleanupSelection(plan) {
@@ -4283,6 +4325,13 @@ function syncSetupCleanupSelection(plan) {
   if (state.setupCleanupPlanDigest === digest) return;
   state.setupCleanupPlanDigest = digest;
   state.setupCleanupPaths = [];
+}
+
+function syncSetupRecoverySelection(assessment) {
+  const digest = String(assessment?.digest || "");
+  if (state.setupRecoveryAssessmentDigest === digest) return;
+  state.setupRecoveryAssessmentDigest = digest;
+  state.setupRecoveryPaths = [];
 }
 
 function syncSetupReview(plan) {

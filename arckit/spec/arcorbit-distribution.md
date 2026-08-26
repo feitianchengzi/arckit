@@ -105,7 +105,7 @@ Setup Readiness 检查：
 - `needs-install`：当前关联项目尚未建立 Arckit 安装关系；
 - `needs-confirmation`：计划会写入项目目录、迁移历史受管理用户级副本或覆盖受管理副本；
 - `drifted`：目标与当前 payload 不一致；
-- `conflict`：同名目标包含未受当前关系管理的内容；
+- `conflict`：项目 target、loader、共享资源或用户按需 catalog 中存在不能安全选定来源的同名内容；若 provider 能证明当前 bundle 与目标一一对应，必须同时提供带备份的显式覆盖恢复动作；
 - `blocked`：资源损坏、权限不足、provider 失败，或 Codex 安装与认证恢复仍未成功。
 
 应用启动时，只有全局资源和全部已关联本地项目都达到 `ready` 才开放 Automation；任一项目出现 `needs-install`、`drifted`、`conflict` 或 `blocked` 都进入安装、修复或人工恢复界面。没有本地项目时，全局检查通过只允许进入普通工作区，不替任意未来项目声明 skills ready。只有当前任务对应项目达到 `ready` 才可以启动该任务。
@@ -177,7 +177,7 @@ Desktop 展示：
 - 共享 assets 只随当前项目内的消费 skills 写入项目级目标，不创建用户级共享副本；
 - 应用关系以 ArcOrbit consumer identity 保存当前来源、profile、availability、项目根、目标、managed names、assessment 和 source digest；每个项目独立 drift、修复和升级。
 
-ArcForge 用户 catalog 不属于 Codex skill 应用目标，也不使 catalog 中的内容成为用户级 ambient skill。未受当前关系管理的同名目录不会被静默覆盖。普通 extra 只显示为 `uncertain` 或 `unrelated`；只有历史关系确认管理过的旧目标可以显示为 `managed-stale`，删除仍需单独确认。
+ArcForge 用户 catalog 不属于 Codex skill 应用目标，也不使 catalog 中的内容成为用户级 ambient skill。未受当前关系管理的同名目录不会被静默覆盖；但用户明确选择目标、确认备份位置和当前 bundled source 后，可以进入同名 skill 兜底覆盖。普通 extra 只显示为 `uncertain` 或 `unrelated`；只有历史关系确认管理过的旧目标可以显示为 `managed-stale`，删除仍需单独确认。
 
 ## 项目级能力
 
@@ -192,10 +192,10 @@ Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Deskt
 安装新版本 ArcOrbit 时，Desktop 比较旧维护源、现有目标和新 payload：
 
 1. 先依据旧关系中的实际目标、最后应用摘要和旧维护源检查现有目标，不使用新 provider 重新计算的目标位置冒充旧目标事实；
-2. 把差异分类为可修复的受管理缺失、provider 管理的路径/策略/loader 迁移、已有内容变化和未受管理同名冲突；
+2. 把差异分类为可修复的受管理缺失、provider 管理的路径/策略/loader 迁移、已有内容变化、未受管理同名冲突和 catalog 同名版本冲突；
 3. 受管理缺失和能够由关系与摘要证明的 provider 迁移进入待确认 upgrade plan，不作为用户内容冲突阻断；
 4. 已有内容变化在旧 source 保持 current 时展示逐目标/文件差异，用户选择“备份本地内容并恢复受管理副本”或保留当前内容并退出；
-5. 未受管理同名内容始终保留且不进入批量覆盖，用户在外部消除冲突后重新检查；
+5. 同名冲突不进入普通 apply；provider 能证明目标位于允许边界且与当前 bundled source 一一对应时，页面提供“备份并使用当前应用包覆盖所选同名 skill”，否则用户在外部消除冲突后重新检查；
 6. 处置完成后重新生成 plan，对新 payload 执行 source switch、受管理目标 apply、关系迁移和 post-drift；
 7. 成功后保留足以回滚本次切换的上一份来源快照和本轮用户内容备份引用。
 
@@ -204,6 +204,16 @@ Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Deskt
 关系记录保存每个受管理目标最后一次成功 apply 的内容摘要、有效目标、availability/policy、provider 能力版本和 shared-loader 所有权证据。旧关系缺少完成安全分类所需的摘要时，现有内容差异进入“未验证的受管理目标”，不得静默覆盖；用户仍可查看差异并明确选择备份后恢复。检查阶段尚未发生写入时，结果显示“未写入”，不显示成 apply 回滚。
 
 “修复”只把当前锁定 payload 重新应用到已确认的项目级受管理目标。它不删除 unrelated 内容，不从远端获取新版本，也不修改维护源的 availability 推荐；ArcOrbit 的项目目标覆盖属于产品调用策略。
+
+### 同名 skill 兜底覆盖
+
+同名 skill 冲突是可恢复状态，不得只压缩为无目标、无动作的 `SETUP_FAILED`。plan 在进入 drift 前保留项目 skill、项目 loader、共享资源和 catalog entry 的 typed diagnostic；页面逐项显示稳定 code、skill 名、目标类型、绝对路径、当前与 bundled digest、阻塞原因和允许动作。
+
+只有 provider fresh assessment 同时证明目标属于允许的项目根或 ArcForge catalog、skill 名安全、目标不是文件系统根或越界路径、且存在唯一同名 bundled source 时，才允许兜底覆盖。页面默认不选择任何项，允许逐项或全选可恢复项；确认摘要列出 skill、绝对目标、当前与 bundled digest 和备份位置。
+
+该动作独立于普通安装、受管理恢复和 `managed-stale` 删除。确认携带 fresh assessment digest；执行前再次核对目标、当前内容和 bundled source。provider 必须在第一次替换前，把全部已选目标备份到仅当前用户可访问的 recovery area 并写入 manifest。catalog 版本冲突中的确认表示用户明确选择当前应用包内来源；旧内容保留在 recovery area，不删除 catalog index 中其它来源声明。
+
+任一备份、替换、catalog、loader 或关系提交失败时，整个选择集合回滚到确认前状态；回滚不完整时列出备份 manifest 与残留路径。未选择项和无关内容始终不变；仍有未处置冲突时保持非 ready。权限、只读文件系统、越界目标或 source 映射不唯一时保留逐项诊断，并给出精确外部恢复条件和“重新检查”，不得显示成只能重装应用的资源损坏。
 
 卸载桌面应用不会静默删除用户级或项目级 skills。用户需要先在 Desktop 中选择“移除受 Arckit 管理的 skills”，查看精确目录并单独确认；应用关系以外的目录不在清理范围内。
 
@@ -220,6 +230,7 @@ Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Deskt
 - 任一平台矩阵任务失败不产出该目标的可发布状态。
 - checksum、lock、payload 或 provider 校验失败时，应用不得进入 skills apply。
 - apply 失败时 provider 回滚目标目录、catalog 和关系记录；回滚不完整时显示具体残留路径并停止 Runtime task。
+- 同名兜底覆盖失败时保留 recovery manifest、备份位置和逐目标回滚结果，不把失败重新折叠成无目标的 setup 错误。
 - GitHub workflow 失败只保留构建日志和 artifacts；不会 fallback 到开发者本机出包。
 - 缺少签名 secrets、GitHub 权限或 release 授权属于人工责任；代码、配置、测试或可复现构建失败属于 Agent 可继续修复的责任。
 
@@ -234,6 +245,8 @@ Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Deskt
 - 旧版受管理用户级 targets 只在所有权、目标、备份和 disposition 可见并经确认后迁移；未知或无关用户目录保持不变。
 - 首次安装、drift、修复、升级和清理都展示目标并要求相应确认。
 - source upgrade 能区分受管理缺失、provider 管理迁移、用户内容变化和未受管理冲突；每个非 ready 状态都提供与其风险相符的可执行恢复动作或明确的外部恢复条件。
+- 当前 catalog 中同名、无有效 SemVer 且内容与 bundle 不同的 skill 显示 `CATALOG_VERSION_CONFLICT`、目标、双方 digest 和“备份并使用当前应用包覆盖所选同名 skill”，不会只显示 `SETUP_FAILED` 或 `No target paths were reported`。
+- 项目 skill、项目 loader、共享资源和 catalog entry 的同名冲突都遵守 fresh digest、默认未选、逐项确认、先完整备份再替换、失败全量回滚和未选目标不变；无法证明安全目标或唯一 bundled source 时只提供精确外部恢复条件。
 - 受管理内容变化只有在逐目标差异可见且用户明确选择备份或放弃本地内容后才能恢复；missing 和可证明的 managed migration 不得被错误标记为用户修改。
 - macOS、Linux 和 Windows 缺少 Codex 时都能从 Setup Readiness 确认运行官方 standalone installer，安装后无需重启即可发现并验证 executable。
 - standalone Codex 可以从 ArcOrbit 发起更新；活动 Codex 任务会阻止更新，外部 npm/Homebrew/自定义安装不会被静默替换或制造第二份 PATH 候选。

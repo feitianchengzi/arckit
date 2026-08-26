@@ -126,7 +126,7 @@ provider 暴露稳定的版本化入口，输入和输出只使用 JSON-compatib
 - `applyProvisioningPlan(options)`：要求 fresh plan digest 与 `confirm=true`，事务化写入目标、catalog 和关系；
 - `listProvisioningRelations(options)`：读取指定 source/consumer 的已保存关系；
 - `assessProvisioningUpgrade(options)`：按关系所有权、最后应用摘要与 fresh drift 产出 typed 冲突和允许的恢复动作；
-- `recoverProvisioningUpgrade(options)`：要求 fresh assessment digest 与显式确认，执行受管理恢复或带备份的当前 bundle 重装；
+- `recoverProvisioningUpgrade(options)`：要求 fresh assessment digest 与显式确认，执行受管理恢复或对已选同名目标的带备份覆盖；
 - `removeManagedProvisioning(options)`：只接受显式 managed paths 与 confirmation digest。
 
 所有入口显式接收：
@@ -142,6 +142,12 @@ provider 暴露稳定的版本化入口，输入和输出只使用 JSON-compatib
 provider 不依赖进程级 `ARCFORGE_HOME` 才能隔离状态。CLI 可以继续用环境变量兼容入口，但 embedded API 以显式 `stateRoot` 为准。ArcOrbit 的项目 plan 缺少 `projectTargetDirs` 时返回 `needs-project`，不能回退到 `homeDir/.codex/skills`。
 
 plan 包含稳定 digest，digest 覆盖 source identity、source policy、selected skills、shared assets、content digests、目标、历史 managed set、loader 和 project assessments。shared asset plan item 包含 source-relative identity、内容 digest 和 Core 解析出的 destinations。apply 重新扫描 source 与目标；fresh digest 不一致时拒绝写入。
+
+availability diagnostics 是 plan 的 typed 输出。SkillProvisioningManager 在调用 drift 前检查 blocking diagnostics；存在阻塞时直接建立 recovery assessment，并向 snapshot 投影 code、skill、target kind、绝对路径、current/incoming digest、bundled source mapping 与 allowed actions，不通过原始异常把它们压缩为 `SETUP_FAILED`。缺少路径的 source-level diagnostic 仍携带对应 catalog entry 或 source identity。
+
+provider 为可恢复同名冲突声明 `backup-and-overwrite-selected`。它覆盖 `catalog-entry`、`project-skill`、`project-loader` 和 `shared-asset`，包括 `CATALOG_VERSION_CONFLICT`，但只有目标位于显式允许 root、名称通过安全校验、目标不是 root 或越界 symlink、且唯一 bundled source 与双方 digest 均可确定时才允许。confirmation 绑定 assessment digest、canonical target、current/incoming digest 和 recovery root。
+
+执行前 provider 把全部已选目标 stage 到 `userData` 下 owner-only recovery area，并原子写入 `recovery.json`；任一备份失败时不开始替换。catalog 冲突确认表示显式选择当前 bundled source，旧副本进入 recovery area，其它 source claims 不被删除。目标替换、catalog、loader 和 relation 在同一事务提交；任一步失败回滚全部已选目标和元数据，并报告 recovery manifest 与残留路径。post-drift 必须证明已选项与 incoming digest 一致、未选项未改变且仍作为 diagnostic 保留。
 
 同一规范化项目根只形成一组有效 relation。多个 Workshop Project 绑定同一本地项目时共享该 relation；不同项目各自保存 target、assessment、managed set 与 drift。`consumerRoot` 始终是 ArcOrbit userData，关系状态仍写入显式 `stateRoot`，两者都不是应用目标。Renderer 只接收 provider 返回的项目 target，不拼接 `.codex/skills` fallback。
 
@@ -287,7 +293,7 @@ Manager 分为全局资源检查和项目准备。全局检查校验 bundle、pr
 2. 把 payload staging 到 source store；
 3. 校验 Product Workspace 绑定与本地项目根，向 provider 传入 `projectTargetDirs`、完整 skill selection、project assessments 和 ArcOrbit project-only invocation override；
 4. 由 ArcForge Core/provider 依据旧 relation 的已记录目标、最后应用摘要、旧 source 和 provider capability 生成 typed source-upgrade assessment；旧版用户级 managed targets 与新的项目 target 同时进入 assessment；
-5. assessment 将目标区分为 `managed-repair`、`managed-migration`、`local-content-conflict`、`unverified-managed` 和 `unmanaged-conflict`，并携带旧/新目标、摘要、文件差异、所有权依据和允许动作；
+5. assessment 将目标区分为 `managed-repair`、`managed-migration`、`local-content-conflict`、`unverified-managed`、`unmanaged-conflict` 和 catalog version conflict，并携带 diagnostic code、目标类型、旧/新目标、摘要、文件差异、所有权依据和允许动作；
 6. 生成与 assessment 一致的新项目 plan 和 drift，把纯数据结果交给 Renderer；
 7. 接收包含项目根、assessment digest、plan digest 和逐类 disposition 的用户确认；
 8. 调用 provider fresh-read，在同一事务中执行 source switch、项目目标 apply、catalog、项目 loader、关系迁移、旧用户级 managed target 处置和已确认备份；
@@ -302,7 +308,7 @@ ArcForge Core 是 upgrade classification 与迁移语义的唯一实现。Embedd
 
 旧版关系能够证明所有权的 `<user-home>/.codex/skills/<managed-name>` 和用户级 loader 进入用户目标迁移集合。项目副本写入与旧用户目标移除属于同一事务；内容变化先备份，用户选择保留时不删除，也不把项目投影为 `scope-clean ready`。没有关系所有权证据的用户级目录只报告为 `uncertain` 或 `unrelated`，永不进入移除集合。解除绑定或删除本地项目记录只把 relation 标为未关联；项目目标清理由用户查看绝对路径后独立确认。
 
-`unmanaged-conflict` 永不进入普通 apply replacement set。fresh assessment 能为全部阻塞目标证明唯一 bundled source 映射时，provider 额外允许 `backup-and-reinstall`：它先保存每个现有目标，以当前 source store 内容替换冲突目标，再通过 Core 的事务化 apply 写入 catalog、loader 与新的 consumer relation。assessment digest 变化、source 映射缺失、备份失败、目标提交失败或关系提交失败都会 fail closed；覆盖前的内容保持可恢复。Runtime 只选择并转发 provider 声明的动作，不从路径或 `changed` 计数自行提升可覆盖性。检查阶段没有写入时，snapshot 使用 `write_state: not_started`，Renderer 不把它投影为 rollback。
+`unmanaged-conflict` 与 `CATALOG_VERSION_CONFLICT` 永不进入普通 apply replacement set。fresh assessment 能为用户选择的阻塞目标证明安全边界和唯一 bundled source 映射时，provider 允许 `backup-and-overwrite-selected`；旧 `backup-and-reinstall` 名称只可作为进入同一事务的兼容别名。assessment digest 变化、source 映射缺失、备份失败、目标提交失败或关系提交失败都会 fail closed；覆盖前的内容保持可恢复。Runtime 只选择并转发 provider 声明的动作，不从路径、版本字符串或 `changed` 计数自行提升可覆盖性。检查阶段没有写入时，snapshot 使用 `write_state: not_started`，Renderer 不把它投影为 rollback。
 
 Manager 不修改现有 `preflightRun` 的 kernel 语义。Automation Coordinator 在 start 前用 task 的本地项目绑定请求对应项目 readiness，再组合 Setup Readiness 和 Runtime preflight 两个独立结果，避免 Runtime 通过文件扫描推断 Agent native skill discovery。
 
@@ -384,7 +390,7 @@ Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Ele
 升级是 source switch + governed reapply，不是目录覆盖：
 
 - 旧目标 assessment 含 `local-content-conflict`、`unverified-managed` 或 `unmanaged-conflict` 且没有有效 disposition 时不切换 source；
-- ordinary drift 或 consumer relation 缺失产生的 `unmanaged-conflict` 只有在 provider 声明 `backup-and-reinstall` 可用且用户独立确认后才使用当前 bundle 内容；
+- ordinary drift、consumer relation 缺失或 catalog version conflict 只有在 provider 声明 `backup-and-overwrite-selected` 可用且用户独立确认具体目标后才使用当前 bundle 内容；
 - `managed-repair` 与 `managed-migration` 进入可确认 plan，不被折叠成无动作的 source conflict；
 - 用户级到项目级的受管理迁移只有在至少一个明确项目 target、旧目标所有权和 disposition 同时存在时执行，不产生临时用户级 fallback；
 - 新 source staging 校验失败时删除 staging，不影响 current；
@@ -419,6 +425,8 @@ Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Ele
 - aggregate ready 同时要求 executable、version、login status、全局资源和项目 skills，旧 Setup/Chat/Automation 流程保持通过；
 - 旧用户级 managed skills/loader 到项目 target 的 typed migration、内容备份、用户保留阻断 scope-clean ready，以及 unrelated 用户目录保持不变；
 - source upgrade 对 missing managed target、provider destination/policy migration、managed loader update、local content change、legacy unverified relation 和 unmanaged conflict 的 typed classification；
+- 内容不同且双方无有效 SemVer 的 catalog 同名 skill 返回 `CATALOG_VERSION_CONFLICT` 及可恢复目标，不被 manager 压缩成无路径 `SETUP_FAILED`；
+- 四类同名目标的 eligible/ineligible assessment、默认空选择、fresh digest 拒绝、完整预备份、部分提交故障全量回滚、recovery manifest、未选目标不变和 post-drift；
 - assessment/plan freshness、逐类 disposition、内容备份、atomic source switch、repair/migration、关系摘要升级和 explicit cleanup；
 - ArcOrbit 独立的 `appData/@arckit/arcorbit` Electron userData 身份、不读取旧 Runtime 状态，以及无 relation 冲突的 stale assessment 拒绝、备份、bundle 重装、关系建立和失败回滚；
 - 检查阶段 `write_state: not_started`、apply 回滚完整/不完整和每个非 ready 状态的可执行恢复投影；

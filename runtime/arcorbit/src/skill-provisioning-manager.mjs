@@ -64,7 +64,7 @@ export function createSkillProvisioningManager(options = {}) {
         const source = await prepareSourceContext({ bundle, provider, projectRoot: normalizedProjectRoot, projectAssessments: effectiveProjectAssessments });
         if (source.recoveryOnly) {
           internalPlan = { provider, bundle, source, projectRoot: normalizedProjectRoot, projectAssessments: effectiveProjectAssessments, conflicts: source.upgradeAssessment.items, cleanup: [] };
-          return publishCheckSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }), quiet);
+          return publishCheckSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe, recoveryRoot: path.join(sourceStoreRoot, "recovery-backups") }), quiet);
         }
         const analyzed = analyzePlan(source.plan, source.drift, { allowManagedUpdate: Boolean(source.upgrade) });
         if (analyzed.status === "conflict") {
@@ -72,7 +72,7 @@ export function createSkillProvisioningManager(options = {}) {
           if (!assessment.canProceed) {
             const recoverySource = { ...source, upgradeAssessment: assessment, recoveryOnly: true };
             internalPlan = { provider, bundle, source: recoverySource, projectRoot: normalizedProjectRoot, projectAssessments: effectiveProjectAssessments, conflicts: assessment.items, cleanup: [] };
-            return publishCheckSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source: recoverySource, probe }), quiet);
+            return publishCheckSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source: recoverySource, probe, recoveryRoot: path.join(sourceStoreRoot, "recovery-backups") }), quiet);
           }
         }
         internalPlan = { provider, bundle, source, projectRoot: normalizedProjectRoot, projectAssessments: effectiveProjectAssessments, ...analyzed };
@@ -138,32 +138,46 @@ export function createSkillProvisioningManager(options = {}) {
     });
   }
 
-  async function recoverSourceUpgrade({ assessmentDigest, action } = {}) {
+  async function recoverSourceUpgrade({ assessmentDigest, action, selectedPaths = [] } = {}) {
     return runExclusive(async () => {
       const assessment = internalPlan?.source?.upgradeAssessment;
       if (!internalPlan?.source?.recoveryOnly || !assessment || assessment.assessmentDigest !== assessmentDigest) {
         throw setupError("ASSESSMENT_STALE", "升级恢复评估已变化，请重新检查。", "source-upgrade");
       }
-      if (!["backup-and-restore", "backup-and-reinstall"].includes(action)) throw setupError("RECOVERY_ACTION_INVALID", "不支持的恢复动作。", "provisioning-recovery");
+      if (!["backup-and-restore", "backup-and-reinstall", "backup-and-overwrite-selected"].includes(action)) throw setupError("RECOVERY_ACTION_INVALID", "不支持的恢复动作。", "provisioning-recovery");
       if (action === "backup-and-restore" && !assessment.canBackupAndRestore) throw setupError("RECOVERY_ACTION_UNAVAILABLE", "当前冲突不能使用 managed 内容恢复。", "provisioning-recovery");
       if (action === "backup-and-reinstall" && !assessment.canBackupAndReinstall) throw setupError("RECOVERY_ACTION_UNAVAILABLE", "当前冲突不能使用应用包内容重新安装。", "provisioning-recovery");
+      if (action === "backup-and-overwrite-selected" && !assessment.canBackupAndOverwriteSelected) throw setupError("RECOVERY_ACTION_UNAVAILABLE", "当前冲突没有可安全覆盖的同名目标。", "provisioning-recovery");
+      if (action === "backup-and-overwrite-selected" && (!Array.isArray(selectedPaths) || selectedPaths.length === 0)) throw setupError("RECOVERY_SELECTION_REQUIRED", "请至少选择一个要备份覆盖的同名 skill。", "provisioning-recovery");
       setSnapshot({ ...snapshot, status: "applying", can_recover: false, write_state: "in_progress", progress: { stage: action, completed: [] } });
       const projectRoot = internalPlan.projectRoot;
       const projectAssessments = internalPlan.projectAssessments;
+      let upgrade;
       try {
+        upgrade = await activateUpgrade(internalPlan.source.upgrade);
         const result = await internalPlan.provider.recoverProvisioningUpgrade({
           ...provisioningOptions(internalPlan.bundle, internalPlan.source.selectedSkills, internalPlan.projectRoot, internalPlan.projectAssessments),
           expectedAssessmentDigest: assessmentDigest,
           action,
+          selectedPaths,
           backupRoot: path.join(sourceStoreRoot, "recovery-backups"),
           confirm: true
         });
+        await finalizeUpgrade(upgrade);
         internalPlan = null;
         const next = await checkUnlocked(projectRoot, projectAssessments);
-        return setSnapshot({ ...next, recovery_backup: { path: result.backupPath, restored_paths: result.restoredPaths }, write_state: "committed" });
+        return setSnapshot({ ...next, recovery_backup: { path: result.backupPath, manifest_path: result.recoveryManifestPath, restored_paths: result.restoredPaths }, write_state: "committed" });
       } catch (error) {
+        let failure = error;
+        await rollbackUpgrade(upgrade).catch((rollbackError) => {
+          failure = new AggregateError([error, rollbackError], "Skill recovery failed and source rollback was incomplete.");
+        });
         internalPlan = null;
-        return setSnapshot(blockedSnapshot(error, { rollback_complete: !(error instanceof AggregateError), write_state: error instanceof AggregateError ? "rollback_incomplete" : "rolled_back" }));
+        const backupPath = failure?.details?.backupPath || error?.details?.backupPath;
+        return setSnapshot({
+          ...blockedSnapshot(failure, { rollback_complete: !(failure instanceof AggregateError), write_state: failure instanceof AggregateError ? "rollback_incomplete" : "rolled_back" }),
+          recovery_backup: backupPath ? { path: backupPath, manifest_path: failure?.details?.recoveryManifestPath || error?.details?.recoveryManifestPath || null, restored_paths: [] } : null
+        });
       }
     });
   }
@@ -184,7 +198,7 @@ export function createSkillProvisioningManager(options = {}) {
       const source = await prepareSourceContext({ bundle, provider, projectRoot: normalizedProjectRoot, projectAssessments });
       if (source.recoveryOnly) {
         internalPlan = { provider, bundle, source, projectRoot: normalizedProjectRoot, projectAssessments, conflicts: source.upgradeAssessment.items, cleanup: [] };
-        return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }));
+        return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe, recoveryRoot: path.join(sourceStoreRoot, "recovery-backups") }));
       }
       const analyzed = analyzePlan(source.plan, source.drift, { allowManagedUpdate: Boolean(source.upgrade) });
       if (analyzed.status === "conflict") {
@@ -192,7 +206,7 @@ export function createSkillProvisioningManager(options = {}) {
         if (!assessment.canProceed) {
           const recoverySource = { ...source, upgradeAssessment: assessment, recoveryOnly: true };
           internalPlan = { provider, bundle, source: recoverySource, projectRoot: normalizedProjectRoot, projectAssessments, conflicts: assessment.items, cleanup: [] };
-          return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source: recoverySource, probe }));
+          return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source: recoverySource, probe, recoveryRoot: path.join(sourceStoreRoot, "recovery-backups") }));
         }
       }
       internalPlan = { provider, bundle, source, projectRoot: normalizedProjectRoot, projectAssessments, ...analyzed };
@@ -258,13 +272,19 @@ export function createSkillProvisioningManager(options = {}) {
       await replaceDirectory(versionRoot, currentRoot);
       const skills = selectedSkills(bundle, projectAssessments);
       const generated = await generatePlan(provider, bundle, skills, projectRoot, projectAssessments);
-      return { ...generated, selectedSkills: skills, deferredSkills: deferredSkills(bundle, projectAssessments), upgrade: null };
+      const upgradeAssessment = generated.blockingDiagnostics.length
+        ? await provider.assessProvisioningUpgrade(provisioningOptions(bundle, skills, projectRoot, projectAssessments))
+        : null;
+      return { ...generated, selectedSkills: skills, deferredSkills: deferredSkills(bundle, projectAssessments), upgrade: null, upgradeAssessment, recoveryOnly: Boolean(upgradeAssessment && !upgradeAssessment.canProceed) };
     }
     await verifyPayload(currentRoot, current.manifest);
     if (current.manifest.payloadDigest === desiredDigest) {
       const skills = selectedSkills(bundle, projectAssessments);
       const generated = await generatePlan(provider, bundle, skills, projectRoot, projectAssessments);
-      return { ...generated, selectedSkills: skills, deferredSkills: deferredSkills(bundle, projectAssessments), upgrade: null };
+      const upgradeAssessment = generated.blockingDiagnostics.length
+        ? await provider.assessProvisioningUpgrade(provisioningOptions(bundle, skills, projectRoot, projectAssessments))
+        : null;
+      return { ...generated, selectedSkills: skills, deferredSkills: deferredSkills(bundle, projectAssessments), upgrade: null, upgradeAssessment, recoveryOnly: Boolean(upgradeAssessment && !upgradeAssessment.canProceed) };
     }
 
     const currentSelected = selectedSkills({ ...bundle, payloadManifest: current.manifest, sourceManifest: await readJson(path.join(currentRoot, "arcforge.skill-project.json")) }, projectAssessments);
@@ -282,11 +302,17 @@ export function createSkillProvisioningManager(options = {}) {
       }
     }
     const skills = selectedSkills(bundle, projectAssessments);
-    const preview = await previewUpgrade(versionRoot, async () => generatePlan(provider, bundle, skills, projectRoot, projectAssessments));
+    const preview = await previewUpgrade(versionRoot, async () => {
+      const generated = await generatePlan(provider, bundle, skills, projectRoot, projectAssessments);
+      const incomingAssessment = generated.blockingDiagnostics.length
+        ? await provider.assessProvisioningUpgrade(provisioningOptions(bundle, skills, projectRoot, projectAssessments))
+        : null;
+      return { ...generated, upgradeAssessment: incomingAssessment, recoveryOnly: Boolean(incomingAssessment && !incomingAssessment.canProceed) };
+    });
     return {
       ...preview, selectedSkills: skills, deferredSkills: deferredSkills(bundle, projectAssessments),
       upgrade: { versionRoot, previousDigest: current.manifest.payloadDigest, desiredDigest, assessment: upgradeAssessment },
-      upgradeAssessment
+      upgradeAssessment: preview.upgradeAssessment ?? upgradeAssessment
     };
   }
 
@@ -350,9 +376,11 @@ export function createSkillProvisioningManager(options = {}) {
   async function generatePlan(provider, bundle, skills, projectRoot, projectAssessments) {
     const options = provisioningOptions(bundle, skills, projectRoot, projectAssessments);
     const plan = await provider.createProvisioningPlan(options);
+    const blockingDiagnostics = plan.plan.diagnostics.filter((item) => item.severity === "error");
+    if (blockingDiagnostics.length) return { plan, drift: null, blockingDiagnostics };
     const drift = await provider.driftProvisioningPlan(options);
     assertDeclaredSharedAssetsTracked(bundle, plan, drift);
-    return { plan, drift };
+    return { plan, drift, blockingDiagnostics };
   }
 
   return {
@@ -534,7 +562,7 @@ function globalReadinessSnapshot({ bundle, providerInfo, probe }) {
   };
 }
 
-function sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }) {
+function sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe, recoveryRoot }) {
   const assessment = source.upgradeAssessment;
   const counts = assessment.items.reduce((result, item) => {
     result[item.disposition] = (result[item.disposition] || 0) + 1;
@@ -560,20 +588,22 @@ function sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }) 
       conflicts: assessment.items.filter((item) => ["local-content-conflict", "unverified-managed", "unmanaged-conflict"].includes(item.disposition)).map((item) => ({ skill: item.name, path: item.path, status: item.disposition })),
       extras: []
     },
-    source_upgrade: publicUpgradeAssessment(assessment),
+    source_upgrade: publicUpgradeAssessment(assessment, recoveryRoot),
     codex: probe,
-    can_recover: assessment.canBackupAndRestore || assessment.canBackupAndReinstall,
+    can_recover: assessment.canBackupAndRestore || assessment.canBackupAndReinstall || assessment.canBackupAndOverwriteSelected,
     write_state: "not_started"
   };
 }
 
-function publicUpgradeAssessment(assessment) {
+function publicUpgradeAssessment(assessment, recoveryRoot = null) {
   return {
     digest: assessment.assessmentDigest,
-    recovery_kind: assessment.canBackupAndRestore ? "managed-baseline-restore" : "current-bundle-reinstall",
+    recovery_root: recoveryRoot,
+    recovery_kind: assessment.canBackupAndRestore ? "managed-baseline-restore" : assessment.canBackupAndOverwriteSelected ? "same-name-overwrite-selected" : "current-bundle-reinstall",
     can_proceed: assessment.canProceed,
     can_backup_and_restore: assessment.canBackupAndRestore,
     can_backup_and_reinstall: assessment.canBackupAndReinstall,
+    can_backup_and_overwrite_selected: assessment.canBackupAndOverwriteSelected,
     write_state: assessment.writeState,
     items: assessment.items.map((item) => ({
       disposition: item.disposition,
@@ -581,6 +611,11 @@ function publicUpgradeAssessment(assessment) {
       kind: item.kind,
       path: item.path,
       status: item.observedStatus,
+      diagnostic_code: item.diagnosticCode || null,
+      current_digest: item.observedDigest || null,
+      incoming_digest: item.incomingDigest || item.expectedDigest || null,
+      recovery_eligible: item.recoveryEligible === true,
+      recovery_blocked_reason: item.recoveryBlockedReason || null,
       reason: item.reason,
       files: (item.files || []).map((file) => ({ path: file.path, status: file.status }))
     }))

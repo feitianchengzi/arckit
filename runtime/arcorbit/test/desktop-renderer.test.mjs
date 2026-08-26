@@ -1440,6 +1440,16 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(source, /Codex 用户级写入/);
   assert.match(source, /managed-stale \$\{Number\(counts\.managed_stale/);
   assert.match(source, /api\.recoverSetupUpgrade\(\{ assessmentDigest:/);
+  assert.match(source, /backup-and-overwrite-selected/);
+  assert.match(source, /selectedPaths/);
+  assert.match(source, /data-setup-recovery-path/);
+  assert.match(source, /data-setup-recovery-all/);
+  assert.match(source, /function syncSetupRecoverySelection\(assessment\)/);
+  assert.match(source, /备份并使用当前应用包覆盖所选同名 skill/);
+  assert.match(source, /未选择和无关内容不会改变/);
+  assert.match(source, /item\.diagnostic_code/);
+  assert.match(source, /item\.current_digest/);
+  assert.match(source, /item\.incoming_digest/);
   assert.match(source, /backup-and-reinstall/);
   assert.match(source, /备份并按当前应用包重装/);
   assert.match(source, /建立新的受管理关系/);
