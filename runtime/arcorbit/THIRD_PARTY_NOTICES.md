@@ -1,5 +1,7 @@
 # Third-Party Notices
 
+English | [简体中文](THIRD_PARTY_NOTICES.zh-CN.md)
+
 ArcOrbit distributions include third-party software governed by its own
 license terms. Those terms are not replaced by the PolyForm Perimeter License.
 

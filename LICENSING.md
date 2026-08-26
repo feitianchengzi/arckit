@@ -1,5 +1,7 @@
 # Licensing
 
+English | [简体中文](LICENSING.zh-CN.md)
+
 This repository contains components under different licenses. A license in a
 component directory takes precedence over the repository-level license.
 
@@ -12,6 +14,8 @@ supporting materials are licensed under the Apache License 2.0 in [LICENSE](LICE
 Apache-2.0 permits personal, team, and enterprise use, modification, and
 distribution subject to its notice, attribution, and other conditions. It does
 not grant rights to the Arckit or ArcOrbit names, logos, or other trademarks.
+An unofficial Simplified Chinese reference translation is available in
+[LICENSE.zh-CN.md](LICENSE.zh-CN.md); the English license text controls.
 
 ## ArcOrbit
 
@@ -24,6 +28,10 @@ purposes, including personal use, team and enterprise internal use, and
 internal customization. It does not permit providing a product or service that
 competes with ArcOrbit, even if the competing product or service is free of
 charge.
+
+An unofficial Simplified Chinese reference translation is available in
+[`runtime/arcorbit/LICENSE.zh-CN.md`](runtime/arcorbit/LICENSE.zh-CN.md); the
+English license text controls.
 
 A separate written commercial license is required to use ArcOrbit for a
 competing product or service, including an ArcOrbit substitute, hosted or

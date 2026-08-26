@@ -1,5 +1,7 @@
 # Trademark Policy
 
+English | [简体中文](TRADEMARKS.zh-CN.md)
+
 Arckit, ArcOrbit, their logos, and their distinctive product branding are
 trademarks or trade identifiers of Feitianchengzi. The repository's software
 licenses do not grant permission to use those marks except for reasonable and

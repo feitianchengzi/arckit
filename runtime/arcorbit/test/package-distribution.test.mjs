@@ -46,6 +46,7 @@ test("package exposes the ArcOrbit identity and the legacy CLI alias through one
   assert.equal(manifest.bin["arckit-runtime"], manifest.bin.arcorbit);
   assert.equal(manifest.license, "SEE LICENSE IN LICENSE");
   assert.match(await readFile(path.join(runtimeRoot, "LICENSE"), "utf8"), /PolyForm Perimeter License 1\.0\.1/);
+  assert.match(await readFile(path.join(runtimeRoot, "LICENSE.zh-CN.md"), "utf8"), /以英文原文为准/);
 });
 
 test("distribution assembly binds provider, skills, trusted capabilities, config, and external artifact attestation", async () => {
@@ -118,7 +119,9 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     assert.match(fuseHook, /\[FuseV1Options\.GrantFileProtocolExtraPrivileges, FUSE_ENABLED\]/);
     assert.match(config.artifactName, /^ArcOrbit-/);
     assert.equal(config.files.includes("LICENSE"), true);
+    assert.equal(config.files.includes("LICENSE.zh-CN.md"), true);
     assert.equal(config.files.includes("THIRD_PARTY_NOTICES.md"), true);
+    assert.equal(config.files.includes("THIRD_PARTY_NOTICES.zh-CN.md"), true);
     assert.deepEqual(config.extraResources.map((item) => item.to), ["arcorbit", "provisioning"]);
 
     const localBuildRoot = path.join(fixture, "local-dist-package");

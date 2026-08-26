@@ -2,7 +2,7 @@
 
 ## 许可与商业使用
 
-`licensing-and-commercial-use.md` 定义仓库各组件对外使用、修改、分发、竞争性产品、商业授权、商标和许可证随包交付的稳定规则。它约束 `arckit-skill-system.md` 的独立 skill 分发和 `arcorbit-distribution.md` 的安装包内容；实际许可证文本位于仓库根 `LICENSE` 与 `runtime/arcorbit/LICENSE`，公开范围摘要位于根 `LICENSING.md`。
+`licensing-and-commercial-use.md` 定义仓库各组件对外使用、修改、分发、竞争性产品、商业授权、商标和许可证随包交付的稳定规则。它约束 `arckit-skill-system.md` 的独立 skill 分发和 `arcorbit-distribution.md` 的安装包内容；具有法律约束力的英文许可证正文位于仓库根 `LICENSE` 与 `runtime/arcorbit/LICENSE`，中英文公开范围说明和简体中文参考译文与其并列维护。
 
 ## Runtime 分发与安装
 

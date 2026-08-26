@@ -6,6 +6,10 @@
 
 许可规则适用于包含对应许可文件的仓库版本。早期版本继续适用其分发时附带的条款和声明。
 
+仓库为许可范围、Apache License 2.0、PolyForm Perimeter License 1.0.1、商标规则和第三方组件声明提供简体中文参考版本。中英文文件通过相互链接保持可发现。
+
+简体中文许可证译文仅用于辅助理解，不授予、限制或变更任何权利。具有法律约束力的许可条款以对应组件目录中的英文许可证正文为准；中英文存在差异时以英文原文为准。
+
 ## Arckit 开源许可
 
 Arckit skills、协议文档、schemas、trusted entrypoints、示例及没有更具体许可证的仓库内容采用 Apache License 2.0。
@@ -57,14 +61,14 @@ Apache License 2.0 不授予 Arckit、ArcOrbit 名称、Logo 或其他商标的�
 
 ## 分发完整性
 
-仓库根包含 Apache License 2.0、NOTICE、许可范围说明和商标规则。
+仓库根包含 Apache License 2.0、NOTICE、许可范围说明和商标规则，并提供对应简体中文参考版本。
 
-ArcOrbit 源码包和应用包包含 PolyForm Perimeter License 1.0.1 与第三方组件声明。Arckit skill payload、ArcForge Embedded Provider 和第三方依赖分别保留各自许可证。
+ArcOrbit 源码包和应用包包含 PolyForm Perimeter License 1.0.1、简体中文参考译文及中英文第三方组件声明。Arckit skill payload、ArcForge Embedded Provider 和第三方依赖分别保留各自英文许可证正文。
 
 构建和分发验证确认：
 
 - ArcOrbit 包元数据指向包内许可证，而不声明 MIT 或 Apache-2.0；
-- ArcOrbit 应用文件包含 `LICENSE` 和 `THIRD_PARTY_NOTICES.md`；
+- ArcOrbit 应用文件包含英文许可证正文、简体中文参考译文及中英文第三方组件声明；
 - 每个 Arckit skill 目录包含 Apache License 2.0；
 - ArcForge Embedded Provider 保留其 MIT License；
 - 仓库 README 明确区分 Arckit 开源许可和 ArcOrbit 源码可见许可。

@@ -20,7 +20,7 @@ const config = {
   directories: { output: "release", buildResources: "build" },
   asar: true,
   afterPack: "scripts/flip-electron-fuses.cjs",
-  files: ["package.json", "bin/**/*", "adapters/**/*", "config/**/*", "desktop/**/*", "schemas/**/*", "src/**/*", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  files: ["package.json", "bin/**/*", "adapters/**/*", "config/**/*", "desktop/**/*", "schemas/**/*", "src/**/*", "README.md", "LICENSE", "LICENSE.zh-CN.md", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.zh-CN.md"],
   extraResources: [
     { from: path.join(resourcesFrom, "arcorbit"), to: "arcorbit", filter: ["**/*"] },
     { from: path.join(resourcesFrom, "provisioning"), to: "provisioning", filter: ["**/*"] }
