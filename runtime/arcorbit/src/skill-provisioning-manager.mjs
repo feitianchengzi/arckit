@@ -56,7 +56,7 @@ export function createSkillProvisioningManager(options = {}) {
         const providerInfo = await provider.inspectProvider();
         assertProviderLock(providerInfo, bundle.lock.arcforgeProvider);
         const probe = await resolveCodexProbe(codexProbe, codexProbeResult);
-        if (!effectiveProjectRoot) {
+        if (!effectiveProjectRoot || (Array.isArray(effectiveProjectRoot) && effectiveProjectRoot.length === 0)) {
           await prepareGlobalSource(bundle);
           return publishCheckSnapshot(globalReadinessSnapshot({ bundle, providerInfo, probe }), quiet);
         }

@@ -3,12 +3,12 @@ import { codexProbeFromSetupSnapshot } from "./codex-setup-manager.mjs";
 
 export function desktopSetupCheckInput(store = {}, input = {}) {
   const projectId = String(input?.projectId || "").trim();
-  if (!projectId) return undefined;
-
   const projects = Array.isArray(store.projects) ? store.projects : [];
-  const selectedProject = projects.find((project) => String(project?.id || "") === projectId);
-  if (!selectedProject?.path) {
-    throw new Error(`Unknown local Product Workspace: ${projectId}`);
+  if (projectId) {
+    const selectedProject = projects.find((project) => String(project?.id || "") === projectId);
+    if (!selectedProject?.path) {
+      throw new Error(`Unknown local Product Workspace: ${projectId}`);
+    }
   }
 
   const projectRoot = [...new Set(projects
@@ -22,11 +22,14 @@ export function desktopSetupCheckInput(store = {}, input = {}) {
 
 export async function checkDesktopSetupReadiness({ input, readDesktopStore, check }) {
   if (typeof check !== "function") throw new TypeError("A Setup Readiness check function is required.");
-  if (!input?.projectId) return check();
-  if (typeof readDesktopStore !== "function") throw new TypeError("A Desktop Store reader is required for project-scoped Setup Readiness.");
+  if (typeof readDesktopStore !== "function") throw new TypeError("A Desktop Store reader is required for Setup Readiness.");
 
   const store = await readDesktopStore();
   return check(desktopSetupCheckInput(store, input));
+}
+
+export function shouldStartAutomationAfterSetupReadiness(readiness = {}) {
+  return readiness.status === "ready" && !readiness.first_install;
 }
 
 export async function checkCoordinatedDesktopSetupReadiness({ input, readDesktopStore, checkCodex, checkSkills }) {

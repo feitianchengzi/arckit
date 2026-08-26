@@ -14,7 +14,7 @@ import {
   transcriptMessageType
 } from "../src/desktop/transcript-presentation.mjs";
 import { copyConversationCode, createConversationSurface, renderConversationSurfaceMessage } from "../desktop/renderer/conversation-surface.mjs";
-import { checkDesktopSetupReadiness, combineDesktopSetupReadiness, desktopSetupCheckInput } from "../src/desktop-setup-readiness-context.mjs";
+import { checkDesktopSetupReadiness, combineDesktopSetupReadiness, desktopSetupCheckInput, shouldStartAutomationAfterSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import feedbackV2Ipc from "../desktop/feedback-v2-ipc.cjs";
 import { createChatStateCoordinator } from "../desktop/renderer/chat-state-coordinator.mjs";
 
@@ -1505,7 +1505,7 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.doesNotMatch(preload, /providerLoader|sourceRoot|execFile|writeFile/);
 });
 
-test("Desktop resolves project-scoped Setup checks from the trusted local workspace store", () => {
+test("Desktop resolves startup and selected-project Setup checks from every trusted local workspace", () => {
   const store = {
     projects: [
       { id: "LOCAL-B", path: "./fixtures/project-b" },
@@ -1513,13 +1513,15 @@ test("Desktop resolves project-scoped Setup checks from the trusted local worksp
     ]
   };
 
-  assert.equal(desktopSetupCheckInput(store), undefined);
-  assert.deepEqual(desktopSetupCheckInput(store, { projectId: "LOCAL-A" }), {
+  const expected = {
     projectRoot: [
       resolve("./fixtures/project-a"),
       resolve("./fixtures/project-b")
     ].sort()
-  });
+  };
+  assert.deepEqual(desktopSetupCheckInput(store), expected);
+  assert.deepEqual(desktopSetupCheckInput(store, { projectId: "LOCAL-A" }), expected);
+  assert.deepEqual(desktopSetupCheckInput({ projects: [] }), { projectRoot: [] });
   store.projects[1].path = "./fixtures/project-a-moved";
   assert.deepEqual(desktopSetupCheckInput(store, { projectId: "LOCAL-A" }).projectRoot, [
     resolve("./fixtures/project-a-moved"),
@@ -1553,7 +1555,7 @@ test("Desktop Setup aggregate rejects stale divergent Codex evidence with an act
   assert.equal(combined.error.stage, "aggregate");
 });
 
-test("Desktop Setup IPC behavior preserves global checks and sends fresh associated roots for a selected project", async () => {
+test("Desktop Setup checks fresh associated roots at startup and for a selected project", async () => {
   let storeReads = 0;
   const checkedInputs = [];
   const store = { projects: [
@@ -1565,18 +1567,31 @@ test("Desktop Setup IPC behavior preserves global checks and sends fresh associa
     check: async (input) => { checkedInputs.push(input); return { status: "ready", input }; }
   };
 
-  await checkDesktopSetupReadiness(dependencies);
-  assert.equal(storeReads, 0);
-  assert.equal(checkedInputs[0], undefined);
+  const startup = await checkDesktopSetupReadiness(dependencies);
+  assert.equal(storeReads, 1);
+  assert.deepEqual(startup.input.projectRoot, [resolve("./fixtures/project-a"), resolve("./fixtures/project-b")].sort());
 
   const scoped = await checkDesktopSetupReadiness({ ...dependencies, input: { projectId: "LOCAL-A" } });
-  assert.equal(storeReads, 1);
+  assert.equal(storeReads, 2);
   assert.deepEqual(scoped.input.projectRoot, [resolve("./fixtures/project-a"), resolve("./fixtures/project-b")].sort());
 
   store.projects[0].path = "./fixtures/project-a-moved";
   const moved = await checkDesktopSetupReadiness({ ...dependencies, input: { projectId: "LOCAL-A" } });
-  assert.equal(storeReads, 2);
+  assert.equal(storeReads, 3);
   assert.deepEqual(moved.input.projectRoot, [resolve("./fixtures/project-a-moved"), resolve("./fixtures/project-b")].sort());
+
+  store.projects = [];
+  const global = await checkDesktopSetupReadiness(dependencies);
+  assert.equal(storeReads, 4);
+  assert.deepEqual(global.input.projectRoot, []);
+});
+
+test("Desktop startup Automation gate rejects project skill drift and first-install readiness", () => {
+  for (const status of ["needs-install", "drifted", "conflict", "blocked", "checking"]) {
+    assert.equal(shouldStartAutomationAfterSetupReadiness({ status, first_install: false }), false);
+  }
+  assert.equal(shouldStartAutomationAfterSetupReadiness({ status: "ready", first_install: true }), false);
+  assert.equal(shouldStartAutomationAfterSetupReadiness({ status: "ready", first_install: false }), true);
 });
 
 test("workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries", () => {

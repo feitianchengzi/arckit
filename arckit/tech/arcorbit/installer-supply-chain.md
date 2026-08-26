@@ -279,7 +279,7 @@ workflow 根据渠道选择 `internal`、`beta` 或 `appstore` GitHub Environmen
 
 Desktop 由 Electron main process 持有独立 `CodexSetupManager` 与 `SkillProvisioningManager`。前者拥有 Codex discovery、官方 installer、版本、认证与 logout 子进程；后者拥有项目 skill 文件写入。Renderer 只通过窄 IPC 请求 setup snapshot 和结构化动作；preload 不暴露任意 URL、路径、参数、shell command、process handle 或 provider module handle。
 
-Manager 分为全局资源检查和项目准备。全局检查校验 bundle、provider、source store 与 Codex executable，不生成 Agent apply plan。项目准备只接受 Automation/Product Workspace Coordinator 已解析的项目 id、规范化绝对根路径和绑定证据。
+Manager 分为全局资源检查和项目准备。全局检查校验 bundle、provider、source store 与 Codex executable，不生成 Agent apply plan。应用启动的 coordinated check 从 Desktop Store fresh-read 全部本地 Product Workspace roots，去重并规范化后一次性交给项目准备；Renderer 的当前项目筛选不参与该作用域。空 roots 以显式空集合清除既有项目 plan 并回到 global-only，不复用上一次检查的项目作用域。项目准备只接受 Automation/Product Workspace Coordinator 已解析的项目 id、规范化绝对根路径和绑定证据。
 
 项目准备顺序：
 
@@ -356,7 +356,7 @@ ChatGPT username/password、验证码、MFA 和 SSO 始终由 Codex 与系统浏
 
 `codex login status` 的退出码是认证事实的唯一来源。退出码为零投影 `authenticated`；非零且先前为 authenticated 投影 `expired`，其它非零投影 `logged-out`，spawn/timeout 等探测错误投影 `login-failed`。manager 不解析 status 输出或 credential file 来提升认证状态。任一 login 子进程结束、取消或超时后都重新运行 status；只有 status 为零才报告成功。logout 也必须在结束后以非零 status 复核，结果异常则保留可重试错误。
 
-Setup aggregate snapshot 按固定顺序组合：resource lock → executable discovery → `codex --version` → `codex login status` → project skill readiness。只有全部通过才投影 Runtime `ready`。安装/更新后的 fresh discovery 替换所有 Codex process owner 使用的 executable；登录/退出只改变 Codex authentication domain，不读写 Workshop authentication。SkillProvisioningManager 可以在 Codex 恢复期间保留已经生成的 project plan，但不能越过 aggregate gate 启动 Runtime。
+Setup aggregate snapshot 按固定顺序组合：resource lock → executable discovery → `codex --version` → `codex login status` → project skill readiness。启动检查中的 project skill readiness 覆盖 Desktop Store 中全部已关联本地项目，不受关闭前产品筛选状态影响；任一 root 的 missing、changed、stale 或 conflict 都使 aggregate 保持非 ready。只有全部通过才投影 Runtime `ready` 并允许 Automation 启动。安装/更新后的 fresh discovery 替换所有 Codex process owner 使用的 executable；登录/退出只改变 Codex authentication domain，不读写 Workshop authentication。SkillProvisioningManager 可以在 Codex 恢复期间保留已经生成的 project plan，但不能越过 aggregate gate 启动 Runtime。
 
 preload IPC 至少限定为：
 

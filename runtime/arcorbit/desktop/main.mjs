@@ -20,7 +20,7 @@ import { requireWorkExternalLinkUrl } from "../src/work-external-link.mjs";
 import { WORK_TASK_FILE_MAX_BYTES, WORK_TASK_IMAGE_MAX_BYTES, requireTrustedResourceUrl } from "../src/work-task-attachment-resource.mjs";
 import { createImageViewer } from "../src/work-task-image-viewer.mjs";
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
-import { checkCoordinatedDesktopSetupReadiness, combineDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
+import { checkCoordinatedDesktopSetupReadiness, combineDesktopSetupReadiness, shouldStartAutomationAfterSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import { registerCodexSetupIpc } from "../src/desktop/codex-setup-ipc.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
 import { createWorkSyncCoordinator } from "../src/work-sync-coordinator.mjs";
@@ -200,7 +200,7 @@ app.whenReady().then(async () => {
   }
   startProductFeedbackUnreadSync();
   const readiness = await checkCombinedSetupReadiness();
-  if (readiness.status === "ready" && !readiness.first_install) {
+  if (shouldStartAutomationAfterSetupReadiness(readiness)) {
     startAutomation();
   }
 }).catch((error) => {

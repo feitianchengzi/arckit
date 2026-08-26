@@ -93,6 +93,7 @@ test("ordinary readiness and preflight evidence use CodexSetupManager as the sin
     });
 
     const ordinary = await checkCoordinatedDesktopSetupReadiness({
+      readDesktopStore: async () => ({ projects: [] }),
       checkCodex: () => codexManager.check(),
       checkSkills: (input) => skillManager.check(input)
     });
@@ -157,6 +158,7 @@ test("ordinary readiness cannot deadlock with Codex post-operation Skill readine
     const installation = codexManager.install();
     await installerStarted;
     const ordinaryCheck = checkCoordinatedDesktopSetupReadiness({
+      readDesktopStore: async () => ({ projects: [] }),
       checkCodex: () => codexManager.check(),
       checkSkills: (input) => skillManager.check(input)
     });
@@ -282,6 +284,10 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     assert.equal(assessedApplied.status, "ready");
     assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "project-skill", "SKILL.md"), "utf8"), "project-only\n");
     assert.equal(await readFile(path.join(secondProjectRoot, ".codex", "skills", "project-skill", "SKILL.md"), "utf8"), "project-only\n");
+    const resetToGlobal = await manager.check({ projectRoot: [] });
+    assert.equal(resetToGlobal.status, "ready");
+    assert.equal(resetToGlobal.scope, "global");
+    assert.equal(resetToGlobal.plan, null);
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }

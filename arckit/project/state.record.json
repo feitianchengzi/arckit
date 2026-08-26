@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-26T05:30:07.723Z",
-    "revision": 277
+    "updated_at": "2026-08-26T05:49:15.211Z",
+    "revision": 280
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "优化 Work 页面右侧待办详情 Inspector，使其默认宽度更舒适、支持宽度拖拽与跨重启恢复，并以更紧凑清晰的分区呈现属性、评论和验收问题。",
+      "current_focus": "确保 ArcOrbit 每次应用启动都针对当前 Desktop Store 中全部已关联本地 Product Workspace 检查内置 skill payload 与项目已安装 skills 的差异，并在差异未处理前阻止 Automation 使用旧 skill 启动执行。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,16 +147,16 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback 与 Work 能力和边界。Work 是 Workshop 待办同步与本地 Task Projection 的唯一客户端所有者；新建和编辑 Sheet 提供完整七状态，编辑 Sheet 是异常纠偏兜底，Inspector 按当前状态提供有限下一步动作。Work Inspector 默认更宽，支持可访问拖拽调宽与跨应用重启恢复，并使用内容、紧凑属性、协作和验收语义分区。Work 编辑待办允许把内容复制到当前产品集内另一个可写产品，并在目标创建获 Workshop 确认后删除源 Task。目标 Task 获得新身份，仅复制正文、状态、优先级及目标产品内重新选择的关联字段，不继承评论、附件、Run、session、thread、Gate 或验收问题。Work 负责两阶段 mutation 和部分成功恢复；Automation 只消费服务器确认后的本地状态。Setup Readiness 与 trusted Case binding 的既有能力和边界保持不变。",
-          "reason": "把当前操作者明确提出的 Inspector 宽度、持久化和布局能力纳入可恢复产品能力。",
+          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback 与 Work 能力和边界。Work 是 Workshop 待办同步与本地 Task Projection 的唯一客户端所有者；新建和编辑 Sheet 提供完整七状态，编辑 Sheet 是异常纠偏兜底，Inspector 按当前状态提供有限下一步动作。Work Inspector 默认更宽，支持可访问拖拽调宽与跨应用重启恢复，并使用内容、紧凑属性、协作和验收语义分区。Work 编辑待办允许把内容复制到当前产品集内另一个可写产品，并在目标创建获 Workshop 确认后删除源 Task。目标 Task 获得新身份，仅复制正文、状态、优先级及目标产品内重新选择的关联字段，不继承评论、附件、Run、session、thread、Gate 或验收问题。Work 负责两阶段 mutation 和部分成功恢复；Automation 只消费服务器确认后的本地状态。Setup Readiness 在每次应用启动时 fresh-check Desktop Store 中全部已关联本地项目相对于内置 payload 的 skill drift，界面当前选择项目集全部或具体项目都不缩小检查范围，任一项目未 ready 时不启动 Automation。trusted Case binding 的既有能力和边界保持不变。",
+          "reason": "启动期项目 skill reconciliation 已实现并通过完整回归，消除了手动切换项目后才发现差异的缺口。",
           "evidence": [
-            "Current operator input, 2026-08-26",
-            "arckit/interaction/task-browser/interaction.md",
-            "arckit/tech/arcorbit/platform-composition-solution.md"
+            "arckit/spec/arcorbit-distribution.md",
+            "runtime/arcorbit/src/desktop-setup-readiness-context.mjs",
+            "runtime/arcorbit/test/desktop-renderer.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当 Work Inspector 宽度范围、偏好作用域、分区语义、状态动作、Workshop 确认或 Automation 消费边界改变时重审。",
-          "revision": 34
+          "resume_condition": "当启动检查项目作用域、skill drift 状态、Setup 恢复入口或 Automation gate 改变时重审。",
+          "revision": 35
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -188,18 +188,16 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 新建和编辑 Sheet 保留完整七状态，编辑 Sheet 承担异常纠偏；右侧 Inspector 按当前状态显示有限下一步动作。Work Inspector 首次使用 440px，用户可通过 12px 可访问分隔条在 360–640px 保存范围内拖拽、键盘调整或双击复位，偏好跨任务、项目、Workset 和应用重启恢复。布局为任务树保留至少 420px，窗口临时收窄只改变有效宽度且不覆盖保存值。Inspector 以单一内部滚动区组织身份动作、内容、紧凑属性、协作和按状态出现的验收分区，宽度变化不丢失选择、滚动、草稿或附件状态。跨产品替换、主窗口、Setup Readiness 和 Case 绑定恢复的既有交互保持不变。",
-          "reason": "建立右侧 Inspector 的具体宽度、操作、响应、内容层级和恢复规则。",
+          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 新建和编辑 Sheet 保留完整七状态，编辑 Sheet 承担异常纠偏；右侧 Inspector 按当前状态显示有限下一步动作。Work Inspector 首次使用 440px，用户可通过 12px 可访问分隔条在 360–640px 保存范围内拖拽、键盘调整或双击复位，偏好跨任务、项目、Workset 和应用重启恢复。布局为任务树保留至少 420px，窗口临时收窄只改变有效宽度且不覆盖保存值。Inspector 以单一内部滚动区组织身份动作、内容、紧凑属性、协作和按状态出现的验收分区，宽度变化不丢失选择、滚动、草稿或附件状态。跨产品替换、主窗口和 Case 绑定恢复的既有交互保持不变。应用启动会在进入 Automation 前检查全部关联本地项目；发现 skill drift 时直接呈现既有 Setup Readiness 安装、修复或人工恢复路径，无需用户先切换到具体项目。",
+          "reason": "启动检测时机与恢复入口现已明确并由实现兑现。",
           "evidence": [
-            "Current operator input, 2026-08-26",
-            "arckit/interaction/task-browser/interaction.md",
-            "arckit/interaction/task-browser/daily-work.html",
-            "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/desktop/renderer/styles.css"
+            "arckit/spec/arcorbit-distribution.md",
+            "runtime/arcorbit/desktop/main.mjs",
+            "runtime/arcorbit/test/desktop-renderer.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当 Work Inspector 默认值、范围、窗口保护、持久化作用域、内容分区或状态动作映射改变时重审。",
-          "revision": 51
+          "resume_condition": "当启动 Setup 展示时机、项目作用域、恢复动作或 Automation 放行条件改变时重审。",
+          "revision": 52
         },
         "gap_refs": []
       },
@@ -333,17 +331,17 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit 与 ArcOrbit 的既有 ledger、Electron、Runtime、Platform Coordinator、Work Sync、Chat、Setup Readiness 和 trusted case-control 技术边界保持不变。Work Inspector 偏好通过 Desktop Store v15 的 `platform.ui_preferences.work_inspector_width_px` 归一化与持久化；`platformSnapshot` 在首次 Work 布局前提供恢复值，preload 只新增目的限定的 `setWorkInspectorWidth(widthPx)` typed action。Renderer 在拖拽期间仅更新 grid track，在 pointerup、键盘调整结束或双击复位时持久化；当前窗口有效宽度与保存值分离，且不通过重新创建 Inspector DOM 完成调宽。",
-          "reason": "为调宽、跨重启恢复和状态保持建立明确的 main/preload/Renderer/Store 边界。",
+          "statement": "Arckit 与 ArcOrbit 的既有 ledger、Electron、Runtime、Platform Coordinator、Work Sync、Chat、Setup Readiness 和 trusted case-control 技术边界保持不变。Work Inspector 偏好通过 Desktop Store v15 的 `platform.ui_preferences.work_inspector_width_px` 归一化与持久化；`platformSnapshot` 在首次 Work 布局前提供恢复值，preload 只新增目的限定的 `setWorkInspectorWidth(widthPx)` typed action。Renderer 在拖拽期间仅更新 grid track，在 pointerup、键盘调整结束或双击复位时持久化；当前窗口有效宽度与保存值分离，且不通过重新创建 Inspector DOM 完成调宽。应用启动的 coordinated Setup Readiness 由 main process fresh-read Desktop Store 中全部本地 Product Workspace roots；显式空 roots 清除既有 project plan 并执行 global-only。aggregate 只有在全部项目 ready 且不是 first-install 时才允许启动 Automation，Renderer 项目筛选不参与该启动作用域。",
+          "reason": "启动检查已恢复项目级新鲜度与空作用域边界，同时保持 main-process 所有权。",
           "evidence": [
-            "arckit/tech/arcorbit/platform-composition-solution.md",
-            "runtime/arcorbit/src/desktop/desktop-store.mjs",
-            "runtime/arcorbit/desktop/renderer/index.html",
-            "runtime/arcorbit/desktop/renderer/renderer.js"
+            "arckit/tech/arcorbit/installer-supply-chain.md",
+            "runtime/arcorbit/src/desktop-setup-readiness-context.mjs",
+            "runtime/arcorbit/src/skill-provisioning-manager.mjs",
+            "runtime/arcorbit/desktop/main.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当 Store schema、IPC action、snapshot 初始化、布局有效值或 Renderer 状态保持方式改变时重审。",
-          "revision": 37
+          "resume_condition": "当 Desktop Store root 解析、project plan 复用、aggregate gate 或 Setup manager 所有权变化时重审。",
+          "revision": 38
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -379,15 +377,16 @@
         "evidence_expectation": "Durable validation evidence proportionate to the identified risks.",
         "decision": {
           "status": "settled",
-          "statement": "既有协议、Runtime、realtime、Work、Chat、Automation、安全、Setup 和跨平台窗口验证义务保持不变。Work Inspector 还必须以 Store、main/preload、Renderer 和 DOM/CSS focused tests 证明：440 默认；360/640 边界与非法值归一化；v14→v15 幂等迁移；pointerup、16/48px 键盘调整和双击复位持久化；应用重启恢复；任务、项目与 Workset 切换不重置；420px 列表保护和临时窗口收窄不覆盖保存值；separator ARIA；调宽不丢失选择、滚动、评论/验收草稿或附件状态；属性两列/窄宽度单列；内容、协作、completed/accepted 验收分区正确。",
-          "reason": "持久化、响应式约束与复杂详情重排需要可重复的回归证据。",
+          "statement": "既有协议、Runtime、realtime、Work、Chat、Automation、安全、Setup 和跨平台窗口验证义务保持不变。Work Inspector 还必须以 Store、main/preload、Renderer 和 DOM/CSS focused tests 证明：440 默认；360/640 边界与非法值归一化；v14→v15 幂等迁移；pointerup、16/48px 键盘调整和双击复位持久化；应用重启恢复；任务、项目与 Workset 切换不重置；420px 列表保护和临时窗口收窄不覆盖保存值；separator ARIA；调宽不丢失选择、滚动、评论/验收草稿或附件状态；属性两列/窄宽度单列；内容、协作、completed/accepted 验收分区正确。Setup Readiness 还必须证明启动与具体项目复查使用相同的全部本地 roots、空 roots 不复用旧 plan、项目筛选不改变范围，以及 needs-install、drifted、conflict、blocked、checking 和 first-install 都不会提前启动 Automation。",
+          "reason": "启动期 skill 新鲜度是高风险 gate，需保留可重复 focused 和完整回归证据。",
           "evidence": [
-            "arckit/tech/arcorbit/platform-composition-solution.md",
-            "arckit/interaction/task-browser/interaction.md"
+            "runtime/arcorbit/test/desktop-renderer.test.mjs",
+            "runtime/arcorbit/test/skill-provisioning-manager.test.mjs",
+            "Verification: full ArcOrbit suite 507 tests, 495 passed, 12 skipped, 0 failed"
           ],
           "confidence": "high",
-          "resume_condition": "当 Inspector 宽度规则、偏好迁移、输入方式、分区或状态保持语义改变时重审。",
-          "revision": 14
+          "resume_condition": "当 startup root 作用域、空项目行为、drift 状态或 Automation gate 改变时重审。",
+          "revision": 15
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation",
@@ -401,16 +400,16 @@
         "evidence_expectation": "Durable delivery evidence sufficient to recover and verify the release model.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit skills are sourced from the repository and ArcOrbit applies its locked payload only to normalized local project roots explicitly associated through Product Workspaces; it does not install bundled skills, shared assets or loaders into the Codex user-level skill directory. Source availability recommendations remain generic, while ArcOrbit uses a project-only invocation policy, per-project relations and confirmed migration of legacy managed user targets. Governed ArcOrbit installers are produced only by manually dispatched GitHub workflows against an existing tf/*, beta/* or appstore/* release-intent tag, bundle locked trusted resources, the Arckit skill payload and an exact ArcForge provider artifact, and support macOS arm64/x64, Windows x64 and Linux x64 with explicit signing and draft-release choices. A repository-local validation entrypoint may build current-host unsigned artifacts only when provider, ArcOrbit metadata, repository identity and workflow are explicitly labeled local; those artifacts carry no release authorization and are never published by governed workflows. Codex CLI is not bundled or redistributed in ArcOrbit v1: Setup Readiness downloads and executes OpenAI's current official standalone installer for macOS/Linux/Windows only after explicit user confirmation, records no installer bytes in the product, preserves external installations unless the user separately confirms migration, and revalidates the selected executable after install/update.",
-          "reason": "Codex setup is a runtime delivery orchestration boundary, not a change to ArcOrbit's governed package contents or redistribution rights.",
+          "statement": "Arckit skills are sourced from the repository and ArcOrbit applies its locked payload only to normalized local project roots explicitly associated through Product Workspaces; it does not install bundled skills, shared assets or loaders into the Codex user-level skill directory. Source availability recommendations remain generic, while ArcOrbit uses a project-only invocation policy, per-project relations and confirmed migration of legacy managed user targets. ArcOrbit 每次应用启动都会把当前安装包 locked payload 与 Desktop Store 中全部已关联本地项目的安装关系和 drift 比较；没有本地项目时保持 global-only，任一关联项目未 ready 时不启动 Automation。Governed ArcOrbit installers are produced only by manually dispatched GitHub workflows against an existing tf/*, beta/* or appstore/* release-intent tag, bundle locked trusted resources, the Arckit skill payload and an exact ArcForge provider artifact, and support macOS arm64/x64, Windows x64 and Linux x64 with explicit signing and draft-release choices. A repository-local validation entrypoint may build current-host unsigned artifacts only when provider, ArcOrbit metadata, repository identity and workflow are explicitly labeled local; those artifacts carry no release authorization and are never published by governed workflows. Codex CLI is not bundled or redistributed in ArcOrbit v1: Setup Readiness downloads and executes OpenAI's current official standalone installer for macOS/Linux/Windows only after explicit user confirmation, records no installer bytes in the product, preserves external installations unless the user separately confirms migration, and revalidates the selected executable after install/update.",
+          "reason": "明确安装包升级后的首次应用启动即检查所有已关联项目副本，而不是依赖手动项目切换。",
           "evidence": [
             "arckit/spec/arcorbit-distribution.md",
-            "arckit/tech/arcorbit/installer-supply-chain.md",
-            "https://learn.chatgpt.com/docs/codex/cli"
+            "runtime/arcorbit/README.md",
+            "runtime/arcorbit/src/desktop-setup-readiness-context.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当 ArcOrbit redistributes Codex, changes official installer ownership, adds platforms, or changes migration/rollback policy时重审。",
-          "revision": 7
+          "resume_condition": "当启动 drift 检查、payload ownership、project relation 或 Automation 放行策略改变时重审。",
+          "revision": 8
         },
         "gap_refs": []
       },
