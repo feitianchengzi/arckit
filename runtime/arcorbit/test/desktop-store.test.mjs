@@ -102,7 +102,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 14);
+  assert.equal(store.version, 15);
   assert.equal("realtime" in store.automation, false);
   assert.equal("snapshot" in store.automation, false);
   assert.equal(store.platform.task_sync.source_status, "degraded");
@@ -215,7 +215,7 @@ test("desktop store migrates v9 bindings into a local workset without changing a
     }
   });
 
-  assert.equal(store.version, 14);
+  assert.equal(store.version, 15);
   assert.equal(store.platform.active_workset_id, "WORKSET-DEFAULT");
   assert.deepEqual(store.platform.worksets[0].project_ids, ["3", "12"]);
   assert.deepEqual(store.automation.project_participation, { "12": true, "3": false });
@@ -244,6 +244,36 @@ test("desktop store migrates a missing Chat selection without replacing an expli
 
   assert.equal(migrated.chat.selected_session_id, "CHAT-B");
   assert.equal(explicitNewChat.chat.selected_session_id, "");
+});
+
+test("desktop store migrates v14 Work Inspector width into a normalized global UI preference", () => {
+  const migrated = normalizeStore({ version: 14, platform: {} });
+  const clampedLow = normalizeStore({ version: 15, platform: { ui_preferences: { work_inspector_width_px: 120 } } });
+  const clampedHigh = normalizeStore({ version: 15, platform: { ui_preferences: { work_inspector_width_px: 900 } } });
+  const invalid = normalizeStore({ version: 15, platform: { ui_preferences: { work_inspector_width_px: "invalid" } } });
+
+  assert.equal(migrated.version, 15);
+  assert.equal(migrated.platform.ui_preferences.work_inspector_width_px, 440);
+  assert.equal(clampedLow.platform.ui_preferences.work_inspector_width_px, 360);
+  assert.equal(clampedHigh.platform.ui_preferences.work_inspector_width_px, 640);
+  assert.equal(invalid.platform.ui_preferences.work_inspector_width_px, 440);
+  assert.deepEqual(normalizeStore(migrated).platform, migrated.platform);
+});
+
+test("desktop store restores the global Work Inspector width after reopening", async () => {
+  const root = await mkdtemp(join(tmpdir(), "arckit-inspector-store-"));
+  try {
+    const options = { dataDir: root, runsDir: join(root, "runs"), storePath: join(root, "desktop-store.json") };
+    const first = createDesktopStore(options);
+    await first.updateStore((draft) => {
+      draft.platform.ui_preferences.work_inspector_width_px = 528;
+      return draft;
+    });
+    const reopened = createDesktopStore(options);
+    assert.equal((await reopened.readStore()).platform.ui_preferences.work_inspector_width_px, 528);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("desktop store preserves acceptance feedback and requeues an orphaned running item", () => {

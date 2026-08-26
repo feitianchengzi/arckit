@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-26T03:01:59.155Z
+Updated: 2026-08-26T05:30:07.723Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,16 +17,16 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260825-011-automation-case.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260825-011-automation-case.md)
-- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260825-011-automation-case.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260825-011-automation-case.md)
-- software_decision.observability_and_operation: settled (arckit/cases/active/CASE-20260825-011-automation-case.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260826-002-arcorbit.md)
 - software_decision.visual_language: settled (arckit/cases/active/CASE-20260826-002-arcorbit.md)
 - software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260826-002-arcorbit.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260826-004-work-inspector.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260826-004-work-inspector.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260826-005-arcorbit-work-inspector.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260826-005-arcorbit-work-inspector.md)
+- software_decision.visual_language: settled (arckit/cases/active/CASE-20260826-005-arcorbit-work-inspector.md)
+- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260826-005-arcorbit-work-inspector.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260826-005-arcorbit-work-inspector.md)
+- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260826-005-arcorbit-work-inspector.md)
 
 ## Remaining Project Gaps
 

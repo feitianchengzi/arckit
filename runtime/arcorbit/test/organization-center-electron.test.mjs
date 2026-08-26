@@ -56,7 +56,7 @@ test("production Organization Center keeps governance independent and invitation
   assert.deepEqual(result.selectedProductTagLabels, ["Docs"]);
   assert.deepEqual(result.priorityOptionLabels, ["无优先级", "最高 · 紧急且重要", "高 · 优先处理", "中 · 正常处理", "低 · 可以延后"]);
   assert.deepEqual(result.switchedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare" }, { value: "8", label: "Lin" }, { value: "9", label: "成员姓名不可用" }]);
-  assert.deepEqual(result.switchedProductParentIds, ["", "W-11", "W-NAMELESS", "W-UNKNOWN", "W-UNASSIGNED", "W-COMPLETED", "W-ACCEPTED"]);
+  assert.deepEqual(result.switchedProductParentIds, ["", "W-RUNNING", "W-11", "W-NAMELESS", "W-UNKNOWN", "W-UNASSIGNED", "W-COMPLETED", "W-ACCEPTED"]);
   assert.deepEqual(result.switchedProductTagLabels, ["Bug", "Desktop"]);
   assert.notEqual(result.createdTaskTagId, "");
   assert.equal(result.editedTaskTagVisible, true);
@@ -66,6 +66,9 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.pendingStatusCount, "4");
   assert.equal(result.scopePersistedInWork, "11");
   assert.equal(result.workInspectorTitle, "待办 W-11");
+  assert.equal(result.workInspectorProduct, "ArcOrbit");
+  assert.equal(result.workInspectorRuntime, "未关联");
+  assert.equal(result.workInspectorHasProductProperty, false);
   assert.match(result.workInspectorText, /Verify Work state scope/);
   assert.match(result.workInspectorText, /不在当前用户 Automation 范围/);
   assert.equal(result.workInspectorExecutor, "Glare");
@@ -80,6 +83,20 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.editPriorityValue, "1");
   assert.deepEqual(result.editSelectedTagIds, ["201"]);
   assert.equal(result.completedHasAcceptanceComposer, true);
+  assert.equal(result.completedInspectorRuntime, "RUN-W-COMPLETED · 已完成");
+  assert.equal(result.runningInspectorRuntime, "RUN-W-RUNNING · 自动执行中");
+  assert.equal(result.runningInspectorAction, "打开运行");
+  assert.equal(result.runningWorkbenchActive, true);
+  assert.equal(result.runningWorkbenchRun, "RUN-W-RUNNING");
+  assert.equal(result.calls.some(([command, input]) => command === "selectAutomationExecution" && input === "EXECUTION-W-RUNNING"), true);
+  assert.equal(result.missingRuntimeAction, "进入恢复中心");
+  assert.equal(result.missingRuntimeRecoveryActive, true);
+  assert.equal(result.multipleRuntimeAction, "进入恢复中心");
+  assert.equal(result.multipleRuntimeRecoveryActive, true);
+  assert.equal(result.invalidWorkspaceAction, "进入恢复中心");
+  assert.equal(result.invalidWorkspaceRecoveryActive, true);
+  assert.equal(result.interleavedRefreshInitialAction, "打开运行");
+  assert.equal(result.interleavedRefreshFinalAction, "进入恢复中心");
   assert.match(result.completedInspectorText, /提出验收问题/);
   assert.equal(result.acceptedHasAcceptanceComposer, false);
   assert.match(result.acceptedInspectorText, /验收通过/);
@@ -138,7 +155,7 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.calls.some(([command, input]) => command === "feedback.update"
     && input.feedback_id === "F-11"
     && input.data.ignored === true), true);
-  assert.equal(result.automationNavCount, "1");
+  assert.equal(result.automationNavCount, "2");
   assert.equal(result.feedbackQueueNavCount, "2");
   assert.equal(result.attentionNavCount, "1");
   assert.equal(result.hasAddLocalOption, true);

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { normalizeWorkset } from "./desktop/desktop-store.mjs";
+import { normalizeWorkInspectorWidth } from "./desktop/work-inspector-preference.mjs";
 import { taskAttachmentHasObjectKey } from "./work-task-attachment-content.mjs";
 
 const SECTION_NAMES = new Set(["overview", "organizations", "members", "tasks", "feedback", "tags"]);
@@ -201,6 +202,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       user: automation.user,
       worksets: platform.worksets,
       active_workset: activeWorkset || null,
+      ui_preferences: platform.ui_preferences,
       projects: projectCatalog.map((project) => projectProjection(project, automationProjects.get(String(project.id)))),
       organizations: governanceRequested ? organizations : [],
       organization_scopes: governanceRequested ? organizationScopes : [],
@@ -398,6 +400,15 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       return store;
     });
     return { project_id: id };
+  }
+
+  async function setWorkInspectorWidth(widthPx) {
+    const width = normalizeWorkInspectorWidth(widthPx);
+    await runManager.updateDesktopStore((store) => {
+      store.platform.ui_preferences.work_inspector_width_px = width;
+      return store;
+    });
+    return { work_inspector_width_px: width };
   }
 
   async function executeAction(command, input = {}) {
@@ -666,6 +677,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     deleteWorkset,
     setActiveWorkset,
     setWorkspacePreference,
+    setWorkInspectorWidth,
     executeAction,
     getFeedbackV2Messages,
     sendFeedbackV2Reply,

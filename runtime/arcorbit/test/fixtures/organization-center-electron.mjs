@@ -88,6 +88,9 @@ app.whenReady().then(async () => {
       const scopePersistedInWork = document.querySelector('#productScopeSelect').value;
       const workInspectorTitle = document.querySelector('#platformWorkInspector h2').textContent;
       const workInspectorText = document.querySelector('#platformWorkInspector').textContent;
+      const workInspectorProduct = document.querySelector('#platformWorkInspector .work-inspector-identity-product').textContent;
+      const workInspectorRuntime = [...document.querySelectorAll('#platformWorkInspector .fact-row')].find((row) => row.querySelector('small')?.textContent === '关联 Runtime')?.querySelector('strong')?.textContent || '';
+      const workInspectorHasProductProperty = [...document.querySelectorAll('#platformWorkInspector .fact-row')].some((row) => row.querySelector('small')?.textContent === '所属产品');
       const workExecutorCells = [...document.querySelectorAll('#platformWorkTable tbody tr')].map((row) => ({ id: row.dataset.platformTaskSelect, label: row.lastElementChild.textContent }));
       const workInspectorExecutor = [...document.querySelectorAll('#platformWorkInspector .fact-row')].find((row) => row.querySelector('small')?.textContent === '执行人')?.querySelector('strong')?.textContent || '';
       const selectedWorkRows = document.querySelectorAll('#platformWorkTable tr.selected').length;
@@ -101,6 +104,55 @@ app.whenReady().then(async () => {
       click('[data-work-state="completed"]'); await wait();
       const completedHasAcceptanceComposer = Boolean(document.querySelector('#workAcceptanceFeedbackInput'));
       const completedInspectorText = document.querySelector('#platformWorkInspector').textContent;
+      const completedInspectorRuntime = [...document.querySelectorAll('#platformWorkInspector .fact-row')].find((row) => row.querySelector('small')?.textContent === '关联 Runtime')?.querySelector('strong')?.textContent || '';
+      click('[data-work-state="in_progress"]'); await wait();
+      const runningInspectorRuntime = [...document.querySelectorAll('#platformWorkInspector .fact-row')].find((row) => row.querySelector('small')?.textContent === '关联 Runtime')?.querySelector('strong')?.textContent || '';
+      const runningInspectorAction = document.querySelector('[data-work-task-action="review"]')?.textContent || '';
+      click('[data-work-task-action="review"]'); await wait();
+      const runningWorkbenchActive = document.querySelector('#workbenchView').classList.contains('is-active');
+      const runningWorkbenchRun = [...document.querySelectorAll('#workbenchEvidence .fact-row')].find((row) => row.querySelector('small')?.textContent === 'Run')?.querySelector('strong')?.textContent || '';
+      click('[data-page="work"]'); await wait();
+      click('[data-work-state="in_progress"]'); await wait();
+      await window.arckitDesktop.setTestActiveExecutions([]);
+      await window.arckitDesktop.emitTestAutomationEvent(); await wait(); await wait();
+      const missingRuntimeAction = document.querySelector('[data-work-task-action="review"]')?.textContent || '';
+      click('[data-work-task-action="review"]'); await wait();
+      const missingRuntimeRecoveryActive = document.querySelector('#recoveryView').classList.contains('is-active');
+      click('[data-page="work"]'); await wait();
+      click('[data-work-state="in_progress"]'); await wait();
+      await window.arckitDesktop.setTestActiveExecutions([
+        { execution_id: 'EXECUTION-W-RUNNING-A', workspace_key: 'local-11', task_id: 'W-RUNNING', project_id: '11', phase: 'running', run_id: 'RUN-W-RUNNING-A' },
+        { execution_id: 'EXECUTION-W-RUNNING-B', workspace_key: 'local-11', task_id: 'W-RUNNING', project_id: '11', phase: 'running', run_id: 'RUN-W-RUNNING-B' }
+      ]);
+      await window.arckitDesktop.emitTestAutomationEvent(); await wait(); await wait();
+      const multipleRuntimeAction = document.querySelector('[data-work-task-action="review"]')?.textContent || '';
+      click('[data-work-task-action="review"]'); await wait();
+      const multipleRuntimeRecoveryActive = document.querySelector('#recoveryView').classList.contains('is-active');
+      click('[data-page="work"]'); await wait();
+      click('[data-work-state="in_progress"]'); await wait();
+      await window.arckitDesktop.setTestActiveExecutions([
+        { execution_id: 'EXECUTION-W-RUNNING', workspace_key: 'local-11', task_id: 'W-RUNNING', project_id: '11', phase: 'running', run_id: 'RUN-W-RUNNING' }
+      ]);
+      await window.arckitDesktop.setTestWorkRuntimeWorkspaceValid(false);
+      await window.arckitDesktop.emitTestAutomationEvent(); await wait(); await wait();
+      const invalidWorkspaceAction = document.querySelector('[data-work-task-action="review"]')?.textContent || '';
+      click('[data-work-task-action="review"]'); await wait();
+      const invalidWorkspaceRecoveryActive = document.querySelector('#recoveryView').classList.contains('is-active');
+      click('[data-page="work"]'); await wait();
+      click('[data-work-state="in_progress"]'); await wait();
+      await window.arckitDesktop.setTestWorkRuntimeWorkspaceValid(true);
+      await window.arckitDesktop.setTestActiveExecutions([
+        { execution_id: 'EXECUTION-W-RUNNING', workspace_key: 'local-11', task_id: 'W-RUNNING', project_id: '11', phase: 'running', run_id: 'RUN-W-RUNNING' }
+      ]);
+      await window.arckitDesktop.emitTestAutomationEvent(); await wait(); await wait();
+      const interleavedRefreshInitialAction = document.querySelector('[data-work-task-action="review"]')?.textContent || '';
+      await window.arckitDesktop.armTestPlatformSnapshotBarrier();
+      await window.arckitDesktop.emitTestAutomationEvent();
+      await window.arckitDesktop.waitForTestPlatformSnapshotBarrier();
+      await window.arckitDesktop.setTestActiveExecutions([]);
+      await window.arckitDesktop.emitTestAutomationEvent(); await wait();
+      await window.arckitDesktop.releaseTestPlatformSnapshotBarrier(); await wait(); await wait(); await wait();
+      const interleavedRefreshFinalAction = document.querySelector('[data-work-task-action="review"]')?.textContent || '';
       click('[data-work-state="accepted"]'); await wait();
       const acceptedHasAcceptanceComposer = Boolean(document.querySelector('#workAcceptanceFeedbackInput'));
       const acceptedInspectorText = document.querySelector('#platformWorkInspector').textContent;
@@ -178,7 +230,7 @@ app.whenReady().then(async () => {
       document.querySelector('[name="kind"]').value = 'project';
       document.querySelector('[name="invite_code"]').value = 'JOIN-CODE';
       document.querySelector('#platformActionForm').requestSubmit(); await wait();
-      return { accountName, authIdentity, productScopeProjectIds, automationBindingProjectIds, automationFeedbackIds, hasGlobalRecoveryAction, currentRunText, ordinaryQueueInitiallyVisible, acceptanceOnlyPressed, ordinaryQueueHidden, feedbackQueueVisible, selectedProductTaskDefault, selectedProductExecutorOptions, selectedProductTagLabels, priorityOptionLabels, switchedProductExecutorOptions, switchedProductParentIds, switchedProductTagLabels, createdTaskTagId, editedTaskTagVisible, deletedTaskTagAbsent, allProductsTaskDefault, workStateIds, pendingStatusCount, scopePersistedInWork, workInspectorTitle, workInspectorText, workExecutorCells, workInspectorExecutor, selectedWorkRows, editExecutorOptions, editPriorityValue, editSelectedTagIds, completedHasAcceptanceComposer, completedInspectorText, acceptedHasAcceptanceComposer, acceptedInspectorText, todayProductIds, todayTaskMeta, ordinaryFeedbackIds, scopePersistedInFeedback, feedbackHasCreateButton, feedbackHasVersionText, feedbackInspectorText, feedbackImageLoaded, feedbackDetailScrollsInternally, singleFeedbackRowHeight, selectedFeedbackRows, searchedFeedbackIds, convertedFeedbackIds, linkedFeedbackHasTaskAction, oldestFeedbackIds, feedbackActionLabels, feedbackTaskContent, feedbackExecutorOptions, automationNavCount, feedbackQueueNavCount, attentionNavCount, hasAddLocalOption, initialHeading, matrixRows, memberText, memberProjectHasInvite, inviteFormTitle, inviteResultTitle, inviteResultLead, inviteResultText, editHasOrganizationMutation, editScopeIsReadonly, worksetChoices, rendererErrors, calls: await window.arckitDesktop.getTestCalls() };
+      return { accountName, authIdentity, productScopeProjectIds, automationBindingProjectIds, automationFeedbackIds, hasGlobalRecoveryAction, currentRunText, ordinaryQueueInitiallyVisible, acceptanceOnlyPressed, ordinaryQueueHidden, feedbackQueueVisible, selectedProductTaskDefault, selectedProductExecutorOptions, selectedProductTagLabels, priorityOptionLabels, switchedProductExecutorOptions, switchedProductParentIds, switchedProductTagLabels, createdTaskTagId, editedTaskTagVisible, deletedTaskTagAbsent, allProductsTaskDefault, workStateIds, pendingStatusCount, scopePersistedInWork, workInspectorTitle, workInspectorText, workInspectorProduct, workInspectorRuntime, workInspectorHasProductProperty, workExecutorCells, workInspectorExecutor, selectedWorkRows, editExecutorOptions, editPriorityValue, editSelectedTagIds, completedHasAcceptanceComposer, completedInspectorText, completedInspectorRuntime, runningInspectorRuntime, runningInspectorAction, runningWorkbenchActive, runningWorkbenchRun, missingRuntimeAction, missingRuntimeRecoveryActive, multipleRuntimeAction, multipleRuntimeRecoveryActive, invalidWorkspaceAction, invalidWorkspaceRecoveryActive, interleavedRefreshInitialAction, interleavedRefreshFinalAction, acceptedHasAcceptanceComposer, acceptedInspectorText, todayProductIds, todayTaskMeta, ordinaryFeedbackIds, scopePersistedInFeedback, feedbackHasCreateButton, feedbackHasVersionText, feedbackInspectorText, feedbackImageLoaded, feedbackDetailScrollsInternally, singleFeedbackRowHeight, selectedFeedbackRows, searchedFeedbackIds, convertedFeedbackIds, linkedFeedbackHasTaskAction, oldestFeedbackIds, feedbackActionLabels, feedbackTaskContent, feedbackExecutorOptions, automationNavCount, feedbackQueueNavCount, attentionNavCount, hasAddLocalOption, initialHeading, matrixRows, memberText, memberProjectHasInvite, inviteFormTitle, inviteResultTitle, inviteResultLead, inviteResultText, editHasOrganizationMutation, editScopeIsReadonly, worksetChoices, rendererErrors, calls: await window.arckitDesktop.getTestCalls() };
     })()`);
     process.stdout.write(`${JSON.stringify({ ...result, errors })}\n`);
   } finally {

@@ -509,6 +509,9 @@ function registerIpc() {
   ipcMain.handle("arckit:platform-workspace-preference", async (_event, projectId, input) => (
     platformCoordinator.setWorkspacePreference(projectId, input)
   ));
+  ipcMain.handle("arckit:platform-work-inspector-width", async (_event, widthPx) => (
+    platformCoordinator.setWorkInspectorWidth(widthPx)
+  ));
   ipcMain.handle("arckit:platform-action", async (_event, command, input) => platformCoordinator.executeAction(command, input));
   ipcMain.handle("arckit:feedback-v2-messages", async (event, input) => {
     assertMainRenderer(event);

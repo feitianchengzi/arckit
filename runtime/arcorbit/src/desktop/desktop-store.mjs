@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { authProjection, DEFAULT_WORKSHOP_BASE_URL, normalizeTaskSourceSettings } from "../task-source-adapter.mjs";
 import { taskDisplayTitle } from "../task-display-title.mjs";
+import { normalizeWorkInspectorWidth, WORK_INSPECTOR_DEFAULT_WIDTH } from "./work-inspector-preference.mjs";
 
 export function createDesktopStore({ dataDir, runsDir, storePath }) {
   let storeQueue = Promise.resolve();
@@ -13,7 +14,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 14,
+        version: 15,
         projects: [],
         runs: [],
         sessions: {},
@@ -61,7 +62,7 @@ export function normalizeStore(store) {
   const hasPersistedChatSelection = Boolean(store.chat)
     && Object.prototype.hasOwnProperty.call(store.chat, "selected_session_id");
   const normalized = {
-    version: 14,
+    version: 15,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
@@ -116,6 +117,9 @@ export function defaultPlatformState() {
       updated_at: ""
     }],
     workspace_preferences: {},
+    ui_preferences: {
+      work_inspector_width_px: WORK_INSPECTOR_DEFAULT_WIDTH
+    },
     task_sync: defaultTaskSyncState(),
     feedback_v2: {
       status: "unavailable",
@@ -200,6 +204,9 @@ export function normalizePlatformState(value = {}, automation = defaultAutomatio
     ? value.feedback_v2
     : {};
   const feedbackStatuses = new Set(["unavailable", "checking", "available", "degraded"]);
+  const uiPreferences = value.ui_preferences && typeof value.ui_preferences === "object" && !Array.isArray(value.ui_preferences)
+    ? value.ui_preferences
+    : {};
   return {
     active_workset_id: activeWorksetId,
     worksets,
@@ -211,6 +218,9 @@ export function normalizePlatformState(value = {}, automation = defaultAutomatio
         last_opened_at: String(item.last_opened_at || "")
       }];
     })),
+    ui_preferences: {
+      work_inspector_width_px: normalizeWorkInspectorWidth(uiPreferences.work_inspector_width_px)
+    },
     task_sync: normalizeTaskSyncState(value.task_sync, legacyAutomation),
     feedback_v2: {
       status: feedbackStatuses.has(feedbackV2.status) ? feedbackV2.status : defaults.feedback_v2.status,

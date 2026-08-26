@@ -51,9 +51,9 @@
   - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、Case 绑定待确认、用户说明续跑、安全停止、lane 局部外部变化与 Work Sync 异常。✅ (152行)
   - eligibility-guidance.html 资格引导子视图：本地目录、待评审、全局总闸和无权限责任的原位解释与直接动作。✅ (39行)
   - interaction.md 自动化指挥中心交互：Work 本地状态消费、资格原因与 Case 绑定就地恢复、统一待办标题、双队列、workspace lane 串行与跨项目并行。✅ (415行)
-- task-browser/ Work 同屏任务浏览：以本地 Task Projection、单行控制轨和剩余高度列表/Inspector 创建、检查、验收并同步待办。✅
+- task-browser/ Work 同屏任务浏览：以本地 Task Projection、单行控制轨和剩余高度列表/可持久调宽 Inspector 创建、分区检查、协作、验收并同步待办。✅
   - default.html Work 任务浏览线框：顶部产品范围、Inspector 引导动作、编辑兜底提示、Automation 消费、运行/验收、恢复与冲突。✅ (217行)
-  - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、引导式任务树/Inspector 与图片浏览。✅ (78行)
+  - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、可调宽分区 Inspector 与图片浏览。✅ (96行)
   - task-form.html 待办表单子视图：创建/编辑产品切换、跨产品复制确认、目标字段联动和分步失败恢复。✅ (45行)
   - readiness-guidance.html 执行资格子视图：待评审确认、执行人不匹配、项目连接缺口和无权限责任交接。✅ (39行)
-  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、编辑七状态兜底、Inspector 引导动作、跨产品受控替换、双栏与图片浏览。✅ (295行)
+  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、编辑七状态兜底、Inspector 引导动作、持久宽度、紧凑分区、跨产品受控替换与图片浏览。✅ (300行)

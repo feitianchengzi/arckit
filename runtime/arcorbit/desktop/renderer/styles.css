@@ -526,13 +526,35 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .control-rail-more > summary::-webkit-details-marker, .feedback-more-menu > summary::-webkit-details-marker { display: none; }
 .control-rail-more > div { position: absolute; z-index: 35; top: calc(100% + 5px); right: 0; display: grid; gap: 6px; min-width: 165px; padding: 7px; border: 1px solid var(--ink-200); border-radius: 8px; background: #fff; box-shadow: var(--shadow-lg); }
 .control-rail-more:not([open]) > div { display: none; }
-.platform-work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: stretch; min-width: 0; min-height: 0; overflow: hidden; }
+.platform-work-layout { --work-inspector-width: 440px; display: grid; grid-template-columns: minmax(420px, 1fr) 12px minmax(0, var(--work-inspector-width)); gap: 0; align-items: stretch; min-width: 0; min-height: 0; overflow: hidden; }
 .platform-work-layout > .panel-card, .platform-work-inspector { display: flex; flex-direction: column; height: 100%; min-height: 0; margin-bottom: 0; overflow: hidden; }
+.work-inspector-separator { position: relative; z-index: 2; width: 12px; min-width: 12px; touch-action: none; cursor: col-resize; outline: 0; }
+.work-inspector-separator::before { content: ""; position: absolute; inset: 0 5px; background: var(--ink-150); transition: background-color .14s ease, box-shadow .14s ease; }
+.work-inspector-separator:hover::before, .work-inspector-separator.is-resizing::before { background: var(--violet-400); }
+.work-inspector-separator:focus-visible::before { background: var(--violet-500); box-shadow: 0 0 0 3px var(--violet-100); }
+body.is-resizing-work-inspector { cursor: col-resize; user-select: none; }
 .workspace-pane-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.platform-work-inspector > .workspace-pane-scroll { padding: 15px; }
+.platform-work-inspector > .workspace-pane-scroll { padding: 12px; }
 .work-list-panel > .section-title-row, .platform-work-inspector > .section-title-row, .feedback-list-panel > .section-title-row, .feedback-inspector > .section-title-row { flex: 0 0 auto; }
 .work-list-panel .section-title-row p { max-width: min(520px, 42vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .platform-work-inspector { border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-sm); }
+.work-inspector-section { padding: 12px; border: 1px solid var(--ink-150); border-radius: 8px; background: #fff; }
+.work-inspector-section + .work-inspector-section, .work-inspector-section + .acceptance-feedback-panel { margin-top: 10px; }
+.work-inspector-identity { background: var(--ink-50); }
+.work-inspector-identity-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.work-inspector-identity-row h2, .work-inspector-section-heading h3 { margin: 0; }
+.work-inspector-identity-copy { min-width: 0; }
+.work-inspector-identity-product { margin: 3px 0 0; color: var(--ink-600); font-size: var(--type-label); }
+.work-inspector-section-heading { display: flex; align-items: center; min-height: 24px; margin-bottom: 8px; }
+.work-inspector-section-heading h3 { color: var(--ink-800); font-size: var(--type-label); letter-spacing: .01em; }
+.work-inspector-content .task-markdown-detail { margin: 0; }
+.work-inspector-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.work-inspector-facts .fact-row { min-width: 0; margin: 0; padding: 8px 9px; border: 0; border-radius: 7px; background: var(--ink-50); }
+.work-inspector-facts .fact-row.is-wide { grid-column: 1 / -1; }
+.work-inspector-facts .fact-row strong { overflow-wrap: anywhere; }
+.work-inspector-collaboration .platform-work-management { margin-top: 0; }
+.platform-work-layout.is-inspector-narrow .work-inspector-facts { grid-template-columns: 1fr; }
+.platform-work-layout.is-inspector-narrow .work-inspector-facts .fact-row.is-wide { grid-column: auto; }
 
 /* Planning workspaces reuse the production shell while keeping every non-integrated action visibly inert. */
 .planning-page { max-width: 1380px; }
@@ -887,7 +909,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .platform-work-inspector { position: static; }
 .task-inspector h2 { margin: 0 0 5px; font-size: var(--type-conversation); }
 .task-inspector > div > p { color: var(--ink-500); white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--type-label); }
-.acceptance-feedback-panel { display: grid; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ink-150); }
+.acceptance-feedback-panel { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--ink-150); border-radius: 8px; background: var(--ink-50); }
 .acceptance-feedback-list { display: grid; gap: 6px; }
 .acceptance-feedback-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; padding: 9px; text-align: left; border: 1px solid var(--ink-150); border-radius: 7px; background: #fff; }
 .acceptance-feedback-item strong, .acceptance-feedback-item small { display: block; }
@@ -1108,7 +1130,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   .organization-center { grid-template-columns: 190px minmax(0, 1fr); }
   .organization-detail-grid { grid-template-columns: 1fr; }
   .platform-two-column, .feedback-lanes { grid-template-columns: 1fr; }
-  .platform-work-layout { grid-template-columns: minmax(0, 1fr) 300px; }
   .feedback-toolbar .control-rail-search { min-width: 180px; }
   .feedback-toolbar .control-rail-select { flex-basis: 130px; }
   .feedback-more-menu > summary { display: inline-flex; }

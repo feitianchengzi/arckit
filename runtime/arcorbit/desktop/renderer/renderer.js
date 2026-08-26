@@ -29,6 +29,14 @@ import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-q
 import { taskDisplayTitle } from "../../src/task-display-title.mjs";
 import { initializeWindowControls } from "./window-controls.mjs";
 import {
+  createWorkInspectorWidthPersistence,
+  effectiveWorkInspectorWidth,
+  normalizeWorkInspectorWidth,
+  workInspectorKeyboardWidth,
+  workInspectorPointerWidth,
+  WORK_INSPECTOR_DEFAULT_WIDTH
+} from "../../src/desktop/work-inspector-preference.mjs";
+import {
   canManageProject,
   deriveAutomationGuidance,
   deriveReadinessSteps,
@@ -133,6 +141,7 @@ const state = {
   workQueryOffset: 0,
   platformTaskAttachments: {},
   pendingTaskCommentResources: {},
+  workInspectorWidthPx: WORK_INSPECTOR_DEFAULT_WIDTH,
   platformTaskAttachmentPreviews: {},
   taskAttachmentCacheEpoch: 0,
   taskAttachmentIdentityEpoch: 0,
@@ -178,11 +187,27 @@ let platformActionDisabledControls = new Map();
 
 const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map((element) => [element.id, element]));
 let refreshQueued = false;
+let automationRefreshQueued = false;
 let activityRefreshQueued = false;
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
 let platformWorkInspectorRender = { taskId: "", html: "" };
+let workInspectorResizeSession = null;
+let workInspectorResizeObserver = null;
+const workInspectorWidthPersistence = createWorkInspectorWidthPersistence({
+  initialWidth: state.workInspectorWidthPx,
+  persistWidth: (width) => api.setWorkInspectorWidth(width),
+  onVisibleWidth: (width) => {
+    state.workInspectorWidthPx = width;
+    applyWorkInspectorWidth();
+  },
+  onConfirmedWidth: (width) => {
+    if (state.platform.ui_preferences) {
+      state.platform.ui_preferences.work_inspector_width_px = width;
+    }
+  }
+});
 const taskAttachmentPreviewQueue = [];
 let activeTaskAttachmentPreviews = 0;
 const TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3;
@@ -261,7 +286,7 @@ async function boot() {
     state.setupActionError = "";
     renderSetup();
   });
-  api.onAutomationEvent(() => scheduleRefresh());
+  api.onAutomationEvent(() => scheduleAutomationRefresh());
   api.onWorkSyncEvent(() => scheduleRefresh());
   api.onChatEvent((event) => {
     if (event?.type === "chat.draft.changed") return;
@@ -289,6 +314,7 @@ async function boot() {
 }
 
 function wireEvents() {
+  initializeWorkInspectorResize();
   els.setupRetryButton.addEventListener("click", () => runAction(async () => {
     state.setupActionError = "";
     state.setupBusy = true;
@@ -639,6 +665,82 @@ function wireEvents() {
   });
 }
 
+function initializeWorkInspectorResize() {
+  const separator = els.workInspectorSeparator;
+  const layout = els.platformWorkLayout;
+  if (!separator || !layout) return;
+  const finishPointerResize = (event, persist) => {
+    const session = workInspectorResizeSession;
+    if (!session || event.pointerId !== session.pointerId) return;
+    workInspectorResizeSession = null;
+    separator.classList.remove("is-resizing");
+    document.body.classList.remove("is-resizing-work-inspector");
+    if (separator.hasPointerCapture?.(event.pointerId)) separator.releasePointerCapture(event.pointerId);
+    if (persist) runAction(() => persistWorkInspectorWidth(session.previewWidth));
+    else applyWorkInspectorWidth();
+  };
+  separator.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    workInspectorResizeSession = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: state.workInspectorWidthPx,
+      previewWidth: state.workInspectorWidthPx
+    };
+    separator.setPointerCapture?.(event.pointerId);
+    separator.classList.add("is-resizing");
+    document.body.classList.add("is-resizing-work-inspector");
+  });
+  separator.addEventListener("pointermove", (event) => {
+    const session = workInspectorResizeSession;
+    if (!session || event.pointerId !== session.pointerId) return;
+    session.previewWidth = workInspectorPointerWidth(session.startWidth, session.startX, event.clientX);
+    applyWorkInspectorWidth(session.previewWidth);
+  });
+  separator.addEventListener("pointerup", (event) => finishPointerResize(event, true));
+  separator.addEventListener("pointercancel", (event) => finishPointerResize(event, false));
+  separator.addEventListener("keydown", (event) => {
+    const width = workInspectorKeyboardWidth(state.workInspectorWidthPx, event.key, event.shiftKey);
+    if (width === null) return;
+    event.preventDefault();
+    runAction(() => persistWorkInspectorWidth(width));
+  });
+  separator.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    runAction(() => persistWorkInspectorWidth(WORK_INSPECTOR_DEFAULT_WIDTH));
+  });
+  if (typeof ResizeObserver === "function") {
+    workInspectorResizeObserver = new ResizeObserver(() => applyWorkInspectorWidth());
+    workInspectorResizeObserver.observe(layout);
+  } else {
+    window.addEventListener("resize", () => applyWorkInspectorWidth());
+  }
+  applyWorkInspectorWidth();
+}
+
+function syncWorkInspectorWidth(platform) {
+  workInspectorWidthPersistence.synchronize(platform?.ui_preferences?.work_inspector_width_px);
+}
+
+function applyWorkInspectorWidth(requestedWidth = state.workInspectorWidthPx) {
+  const layout = els.platformWorkLayout;
+  const separator = els.workInspectorSeparator;
+  if (!layout || !separator) return;
+  const savedWidth = normalizeWorkInspectorWidth(requestedWidth);
+  const effectiveWidth = effectiveWorkInspectorWidth(savedWidth, layout.clientWidth);
+  layout.style.setProperty("--work-inspector-width", `${effectiveWidth}px`);
+  layout.classList.toggle("is-inspector-narrow", effectiveWidth < 400);
+  separator.setAttribute("aria-valuenow", String(savedWidth));
+  separator.setAttribute("aria-valuetext", effectiveWidth === savedWidth
+    ? `${savedWidth} 像素`
+    : `保存 ${savedWidth} 像素，当前窗口有效 ${effectiveWidth} 像素`);
+}
+
+function persistWorkInspectorWidth(width) {
+  return workInspectorWidthPersistence.persist(width);
+}
+
 function renderSetup() {
   const setup = state.setup;
   if (!setup) return;
@@ -949,6 +1051,7 @@ async function refreshSnapshot({ quiet = false, surface = "all" } = {}) {
     invalidateTaskAttachmentCaches(state, { clearPending: identityChanged });
     state.snapshot = snapshot;
     state.platform = platform;
+    syncWorkInspectorWidth(platform);
     const scopeIds = new Set((state.platform.organization_scopes || []).map((item) => String(item.id)));
     if ((!state.organizationScopeChosen && scopeIds.size > 0) || !state.organizationScopeId || (state.organizationScopeId !== "personal" && !scopeIds.has(state.organizationScopeId))) {
       state.organizationScopeId = String(state.platform.organization_scopes?.[0]?.id || "personal");
@@ -1028,6 +1131,7 @@ function mergeWorkPlatformSnapshot(current, incoming) {
     user: incoming.user,
     worksets: incoming.worksets,
     active_workset: incoming.active_workset,
+    ui_preferences: incoming.ui_preferences,
     projects: incoming.projects,
     product_workspaces: productWorkspaces,
     tasks: incoming.tasks,
@@ -1046,6 +1150,19 @@ function scheduleRefresh(delay = 80) {
     refreshQueued = false;
     const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     await refresh.catch((error) => showToast(error.message));
+  }, delay);
+}
+
+function scheduleAutomationRefresh(delay = 80) {
+  if (automationRefreshQueued) return;
+  automationRefreshQueued = true;
+  window.setTimeout(async () => {
+    automationRefreshQueued = false;
+    if (state.refreshing) {
+      scheduleAutomationRefresh(delay);
+      return;
+    }
+    await refreshSnapshot({ quiet: true }).catch((error) => showToast(error.message));
   }, delay);
 }
 
@@ -1771,6 +1888,33 @@ function renderWorkFilterSummaries() {
   els.workFilterSummary.textContent = total ? `${total} 项` : "全部";
 }
 
+function workInspectorRuntimeContext(taskId) {
+  const activeExecutions = (state.snapshot.active_executions || []).filter((execution) => String(execution.task_id) === String(taskId));
+  const completion = (state.snapshot.recent_completions || []).find((item) => String(item.task_id) === String(taskId)) || null;
+  return { activeExecutions, completion };
+}
+
+function workInspectorRuntimeSummary(taskId) {
+  const { activeExecutions, completion } = workInspectorRuntimeContext(taskId);
+  if (activeExecutions.length > 1) return `${activeExecutions.length} 个活动 Runtime · 需要恢复`;
+  if (activeExecutions.length === 1) {
+    const execution = activeExecutions[0];
+    const runtimeRef = execution.run_id || execution.case_id || execution.execution_id;
+    return runtimeRef
+      ? `${runtimeRef} · ${automationPhaseLabel(execution.phase)}`
+      : `正在启动 · ${automationPhaseLabel(execution.phase)}`;
+  }
+  return completion?.run_id ? `${completion.run_id} · 已完成` : "未关联";
+}
+
+function workInspectorRuntimeNavigation(task, automationTask, workspace) {
+  const { activeExecutions } = workInspectorRuntimeContext(task.id);
+  const workspaceValid = Boolean(automationTask?.local_project_path || workspace?.local_project_path);
+  return activeExecutions.length === 1 && workspaceValid
+    ? { destination: "runtime", execution: activeExecutions[0] }
+    : { destination: "recovery", execution: null };
+}
+
 function renderPlatformWorkInspector(task) {
   if (!task) {
     updatePlatformWorkInspector("", `<div class="empty-state">选择待办查看详情与允许操作。</div>`);
@@ -1788,7 +1932,7 @@ function renderPlatformWorkInspector(task) {
     canManageTask: canManage,
     errors: state.platform.errors
   });
-  const inspectorActions = workInspectorActions(task, automationTask, canManage);
+  const inspectorActions = workInspectorActions(task, automationTask, workspace, canManage);
   const replacement = (state.platform.task_replacements || []).find((item) => (
     String(item.source_task_id) === String(task.id) || String(item.target_task_id) === String(task.id)
   ));
@@ -1796,20 +1940,20 @@ function renderPlatformWorkInspector(task) {
     ? `<div class="feedback-link-recovery task-replacement-recovery"><span><strong>目标待办 ${escapeHtml(replacement.target_task_id)} 已创建，源待办 ${escapeHtml(replacement.source_task_id)} 尚未删除</strong><small>${escapeHtml(replacement.error || "可以安全重试删除源待办，或明确保留两条待办。重试不会再次创建目标待办。")}</small></span><span class="task-replacement-recovery-actions"><button class="primary-button" data-task-replacement-retry="${escapeHtml(replacement.id)}" type="button">重试删除源待办</button><button class="secondary-button" data-task-replacement-keep="${escapeHtml(replacement.id)}" type="button">保留两者</button></span></div>`
     : "";
   const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${replacementRecovery}${renderInlineGuidance(eligibilityGuidance)}${factRows([
+  const inspectorHtml = `<section class="work-inspector-section work-inspector-identity"><div class="work-inspector-identity-row"><div class="work-inspector-identity-copy"><h2>待办 ${escapeHtml(task.id)}</h2><p class="work-inspector-identity-product">${escapeHtml(task.project_name || projectName(task.project_id))}</p></div><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></div>${replacementRecovery}${renderInlineGuidance(eligibilityGuidance)}${inspectorActions.length ? `<div class="task-actions platform-work-state-actions">${inspectorActions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-work-task-action="${action.id}" type="button">${action.label}</button>`).join("")}</div>` : ""}</section><section class="work-inspector-section work-inspector-content"><div class="work-inspector-section-heading"><h3>内容</h3></div><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article></section><section class="work-inspector-section work-inspector-properties"><div class="work-inspector-section-heading"><h3>属性</h3></div><div class="work-inspector-facts">${factRows([
     ["待办标识", task.id],
-    ["所属产品", task.project_name],
     ["创建人", taskCreatorName(task)],
     ["执行人", taskExecutorName(task)],
     ["优先级", formatPriority(task.priority)],
-    ["标签", taskTagNames(task)],
+    ["标签", taskTagNames(task), { wide: true }],
     ["父待办", task.father_id || "无"],
     ["创建时间", formatDateTime(task.created_at)],
     ["更新时间", formatDateTime(task.updated_at)],
     ["完成时间", task.completion_at ? formatDateTime(task.completion_at) : "未完成"],
-    ["本地工作区", automationTask?.local_project_path || workspace?.local_path || "未绑定"],
-    ["自动执行资格", automationTask ? (automationTask.eligible ? `队列第 ${automationTask.queue_position} 项` : automationTask.eligibility_reason || "不适用于当前状态") : "不在当前用户 Automation 范围"]
-  ])}${inspectorActions.length ? `<div class="task-actions platform-work-state-actions">${inspectorActions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-work-task-action="${action.id}" type="button">${action.label}</button>`).join("")}</div>` : ""}<div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}${acceptanceFeedback}`;
+    ["本地工作区", automationTask?.local_project_path || workspace?.local_path || "未绑定", { wide: true }],
+    ["自动执行资格", automationTask ? (automationTask.eligible ? `队列第 ${automationTask.queue_position} 项` : automationTask.eligibility_reason || "不适用于当前状态") : "不在当前用户 Automation 范围", { wide: true }],
+    ["关联 Runtime", workInspectorRuntimeSummary(task.id), { wide: true }]
+  ])}</div></section><section class="work-inspector-section work-inspector-collaboration"><div class="work-inspector-section-heading"><h3>协作</h3></div><div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}</section>${acceptanceFeedback}`;
   if (!updatePlatformWorkInspector(String(task.id), inspectorHtml)) {
     if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
     else loadMissingTaskAttachmentPreviews(task);
@@ -1826,7 +1970,7 @@ function renderPlatformWorkInspector(task) {
   els.platformWorkInspector.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
   els.platformWorkInspector.querySelector("[data-task-replacement-retry]")?.addEventListener("click", (event) => runAction(() => retryTaskProjectReplacement(event.currentTarget.dataset.taskReplacementRetry)));
   els.platformWorkInspector.querySelector("[data-task-replacement-keep]")?.addEventListener("click", (event) => runAction(() => keepTaskProjectReplacement(event.currentTarget.dataset.taskReplacementKeep)));
-  els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeWorkTaskAction(task, automationTask, button.dataset.workTaskAction))));
+  els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeWorkTaskAction(task, automationTask, workspace, button.dataset.workTaskAction))));
   els.platformWorkInspector.querySelector("[data-task-comment-submit]")?.addEventListener("click", () => runAction(() => createTaskComment(task.id)));
   els.platformWorkInspector.querySelector("[data-task-comment-add-link]")?.addEventListener("click", () => runAction(() => addTaskCommentLink(task.id)));
   els.platformWorkInspector.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
@@ -3492,8 +3636,14 @@ async function executeTaskAction(task, action) {
   await refreshSnapshot();
 }
 
-async function executeWorkTaskAction(task, automationTask, action) {
+async function executeWorkTaskAction(task, automationTask, workspace, action) {
   if (action === "review") {
+    if (task.state === "in_progress") {
+      const target = workInspectorRuntimeNavigation(task, automationTask, workspace);
+      if (target.destination === "recovery") return showPage("recovery");
+      state.snapshot = await api.selectAutomationExecution(target.execution.execution_id);
+      return openWorkbench("review", target.execution.run_id || "", { task: automationTask || task });
+    }
     if (!automationTask) return;
     return executeTaskAction(automationTask, action);
   }
@@ -4168,7 +4318,7 @@ function feedbackTone(status) {
 }
 
 function factRows(rows) {
-  return rows.map(([label, value]) => `<div class="fact-row"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? "")}</strong></div>`).join("");
+  return rows.map(([label, value, options = {}]) => `<div class="fact-row${options.wide ? " is-wide" : ""}"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? "")}</strong></div>`).join("");
 }
 
 function taskActions(task) {
@@ -4181,9 +4331,15 @@ function taskActions(task) {
   return [];
 }
 
-function workInspectorActions(task, automationTask, canManage) {
+function workInspectorActions(task, automationTask, workspace, canManage) {
+  const runtimeNavigation = task.state === "in_progress"
+    ? workInspectorRuntimeNavigation(task, automationTask, workspace)
+    : null;
   return taskActions({ ...task, acceptance_feedback_items: automationTask?.acceptance_feedback_items || [] })
-    .filter((action) => action.id === "review" ? Boolean(automationTask) : canManage);
+    .filter((action) => action.id === "review" ? task.state === "in_progress" || Boolean(automationTask) : canManage)
+    .map((action) => action.id === "review" && runtimeNavigation
+      ? { ...action, label: runtimeNavigation.destination === "runtime" ? "打开运行" : "进入恢复中心" }
+      : action);
 }
 
 function taskActionTransition(task, action) {
@@ -4487,6 +4643,7 @@ function emptyPlatformSnapshot() {
     user: null,
     worksets: [],
     active_workset: null,
+    ui_preferences: { work_inspector_width_px: WORK_INSPECTOR_DEFAULT_WIDTH },
     projects: [],
     organizations: [],
     organization_scopes: [],

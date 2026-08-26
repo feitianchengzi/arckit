@@ -11,6 +11,7 @@ const taskAttachments = workDetailRefreshTest ? {
 let workQueryDelayMs = 0;
 let workQueryFailure = "";
 let workQueryScenarios = [];
+let platformSnapshotBarrier = null;
 let createdTaskSequence = 0;
 let taskReplacementScenario = "success";
 const feedbackV2ImageTest = process.env.ARCORBIT_ELECTRON_FEEDBACK_V2_TEST === "1";
@@ -25,17 +26,21 @@ const automation = {
     { id: "21", name: "Personal Lab", local_project_id: "", participating: false, eligible: false, source_status: "healthy", task_counts: { pending: 1 } }
   ],
   tasks: [
+    { id: "W-RUNNING", project_id: "11", project_name: "ArcOrbit", title: "Running work", content: "Inspect the associated Runtime", state: "in_progress", state_label: "进行中", acceptance_feedback_items: [], eligible: false, local_project_path: "/repo/arcorbit" },
     { id: "W-COMPLETED", project_id: "11", project_name: "ArcOrbit", title: "Completed work", content: "Ready for acceptance check", state: "completed", state_label: "已完成", acceptance_feedback_items: [], eligible: false },
     { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", state_label: "已验收", acceptance_feedback_items: [], eligible: false }
   ], queue: [], todo_queue: [],
   blocked_pending_tasks: [], state_counts: { pending: 2 },
-  active_executions: [{ execution_id: "EXECUTION-OUTSIDE", workspace_key: "local-21", task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" }],
+  active_executions: [
+    { execution_id: "EXECUTION-OUTSIDE", workspace_key: "local-21", task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
+    { execution_id: "EXECUTION-W-RUNNING", workspace_key: "local-11", task_id: "W-RUNNING", project_id: "11", task_title: "Running work", phase: "running", case_id: "CASE-W-RUNNING", run_id: "RUN-W-RUNNING" }
+  ],
   active_execution: { execution_id: "EXECUTION-OUTSIDE", workspace_key: "local-21", task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
   active_task: { task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
   active_run: null,
   attention_items: [],
   recovery_items: [{ id: "RECOVERY-global", type: "multiple_active_tasks", task_id: "multiple", project_id: "", message: "Global recovery remains visible", freeze_scope: "global", responsibility: "operator", actions: ["retry_sync"] }],
-  recent_completions: [],
+  recent_completions: [{ task_id: "W-COMPLETED", project_id: "11", run_id: "RUN-W-COMPLETED", title: "Completed work", completed_at: "2026-08-25T12:00:00Z" }],
   acceptance_feedback_queue: [
     { feedback_id: "AF-11", source_project_id: "11", source_task_id: "T-11", original_feedback: "Workset feedback", progress: "queued", status: "queued", queue_position: 1 },
     { feedback_id: "AF-21", source_project_id: "21", source_task_id: "T-21", original_feedback: "Outside feedback", progress: "queued", status: "queued", queue_position: 2 }
@@ -84,6 +89,7 @@ const platform = {
   })),
   members: projectMembers,
   tasks: [
+    { id: "W-RUNNING", project_id: "11", project_name: "ArcOrbit", title: "Running work", content: "Inspect the associated Runtime", state: "in_progress", terminal: false, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "" },
     { id: "W-11", project_id: "11", project_name: "ArcOrbit", title: "legacy unbounded task title", content: `Verify Work state scope\n${"👩‍💻".repeat(65)}`, state: "pending", terminal: false, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: null, tags: "201" },
     { id: "W-NAMELESS", project_id: "11", project_name: "ArcOrbit", title: "Member without a name", content: "Resolve a project member without exposing the id", state: "pending", terminal: false, priority: 97, raw: { priority: 1 }, executor_id: "9", assignee: null, tags: "" },
     { id: "W-UNKNOWN", project_id: "11", project_name: "ArcOrbit", title: "Unknown executor", content: "Keep an unresolved executor id internal", state: "pending", terminal: false, priority: 96, raw: { priority: 1 }, executor_id: "999", assignee: null, tags: "" },
@@ -123,8 +129,31 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   createChat: noOp, selectChat: noOp, deleteChat: noOp, renameChat: noOp,
   interruptChat: noOp, decideChatApproval: noOp, sendChatMessage: noOp,
   automationSnapshot: async () => automation,
+  selectAutomationExecution: async (executionId) => {
+    calls.push(["selectAutomationExecution", executionId]);
+    const execution = automation.active_executions.find((item) => item.execution_id === executionId);
+    if (!execution) throw new Error(`Unknown execution ${executionId}`);
+    automation.selected_execution_id = execution.execution_id;
+    automation.active_execution = execution;
+    automation.active_task = { ...execution, local_project_path: execution.project_id === "11" ? "/repo/arcorbit" : "" };
+    automation.active_run = {
+      id: execution.run_id,
+      project_id: execution.project_id,
+      task_id: execution.task_id,
+      session_id: `SESSION-${execution.task_id}`,
+      status: "running",
+      activity: {}
+    };
+    return automation;
+  },
   platformSnapshot: async (input) => {
     calls.push(["platformSnapshot", input]);
+    const barrier = platformSnapshotBarrier;
+    if (barrier) {
+      barrier.markReached();
+      await barrier.release;
+      if (platformSnapshotBarrier === barrier) platformSnapshotBarrier = null;
+    }
     return platform;
   },
   platformWorkQuery: async (input) => {
@@ -314,6 +343,26 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   handoffAutomationToCli: noOp, reopenAutomationCli: noOp, resumeAutomationRuntime: noOp, stopAutomationRun: noOp,
   sendAuthVerification: noOp, loginWithCode: noOp, logoutAuth: noOp, updateSettings: noOp,
   setTestRecoveryItems: async (items) => { automation.recovery_items = items; },
+  setTestActiveExecutions: async (items) => { automation.active_executions = Array.isArray(items) ? items : []; },
+  armTestPlatformSnapshotBarrier: async () => {
+    let markReached;
+    let release;
+    platformSnapshotBarrier = {
+      reached: new Promise((resolve) => { markReached = resolve; }),
+      release: new Promise((resolve) => { release = resolve; }),
+      markReached,
+      releaseBarrier: release
+    };
+  },
+  waitForTestPlatformSnapshotBarrier: async () => platformSnapshotBarrier?.reached,
+  releaseTestPlatformSnapshotBarrier: async () => platformSnapshotBarrier?.releaseBarrier(),
+  setTestWorkRuntimeWorkspaceValid: async (valid) => {
+    const localPath = valid ? "/repo/arcorbit" : "";
+    const task = automation.tasks.find((item) => item.id === "W-RUNNING");
+    const workspace = platform.product_workspaces.find((item) => item.id === "11");
+    if (task) task.local_project_path = localPath;
+    if (workspace) workspace.local_project_path = localPath;
+  },
   emitTestAutomationEvent: async (event = { type: "automation.changed" }) => {
     for (const listener of automationListeners) listener(event);
   },

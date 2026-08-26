@@ -99,6 +99,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   setWorkspacePreference: (projectId, input) => (
     ipcRenderer.invoke("arckit:platform-workspace-preference", projectId, input)
   ),
+  setWorkInspectorWidth: (widthPx) => ipcRenderer.invoke("arckit:platform-work-inspector-width", widthPx),
   executePlatformAction: (command, input) => ipcRenderer.invoke("arckit:platform-action", command, input),
   getFeedbackV2Messages: (input) => invokeFeedbackV2("arckit:feedback-v2-messages", input),
   sendFeedbackV2Reply: (input) => invokeFeedbackV2("arckit:feedback-v2-reply", input),

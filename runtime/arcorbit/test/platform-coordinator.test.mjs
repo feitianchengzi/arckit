@@ -99,6 +99,7 @@ test("platform coordinator composes a simultaneous multi-product snapshot withou
   const coordinator = createPlatformCoordinator({ runManager, automationCoordinator, platformSource, now: () => "2026-08-18T00:00:00.000Z" });
 
   const initial = await coordinator.getSnapshot({});
+  assert.equal(initial.ui_preferences.work_inspector_width_px, 440);
   assert.deepEqual(initial.active_workset.project_ids, ["11", "12"]);
   assert.deepEqual(initial.product_workspaces.map((item) => item.name), ["Alpha", "Beta"]);
   assert.deepEqual(initial.tasks.map((item) => item.project_name), ["Alpha", "Beta"]);
@@ -110,6 +111,8 @@ test("platform coordinator composes a simultaneous multi-product snapshot withou
   assert.deepEqual(initial.organization_scopes[0].projects.map((item) => item.name), ["Alpha", "Beta"]);
   assert.equal(await coordinator.getFeedbackAttachmentUrl({ project_id: "11", feedback_id: "F-11", feedback_source: "v1" }), "https://example.test/11/screen.png");
   await assert.rejects(() => coordinator.getFeedbackAttachmentUrl({ project_id: "11", feedback_id: "F-unknown", feedback_source: "v1" }), /不属于当前反馈记录/);
+  assert.deepEqual(await coordinator.setWorkInspectorWidth(612.4), { work_inspector_width_px: 612 });
+  assert.equal(store.platform.ui_preferences.work_inspector_width_px, 612);
 
   await coordinator.updateWorkset({ id: "WORKSET-DEFAULT", project_ids: ["12"] });
   assert.deepEqual(store.platform.worksets[0].project_ids, ["12"]);

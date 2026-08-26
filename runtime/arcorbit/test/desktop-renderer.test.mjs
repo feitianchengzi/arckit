@@ -1119,6 +1119,7 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(commandbar, /管理当前产品集/);
   assert.match(workView, /id="workStateFilters"/);
   assert.match(workView, /class="platform-work-layout"/);
+  assert.match(workView, /id="workInspectorSeparator"[^>]+role="separator"[^>]+aria-orientation="vertical"[^>]+aria-valuemin="360"[^>]+aria-valuemax="640"/);
   assert.match(workView, /id="platformWorkInspector"/);
   assert.match(commandView, /id="acceptanceFeedbackOnlyButton"/);
   assert.match(commandView, /仅看验收问题/);
@@ -1140,6 +1141,25 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(source, /const stateCounts = workStateCounts\(projection\)/);
   assert.match(source, /data-platform-task-select/);
   assert.match(source, /function renderPlatformWorkInspector\(task\)/);
+  assert.match(source, /function workInspectorRuntimeSummary\(taskId\)/);
+  assert.match(source, /state\.snapshot\.active_executions/);
+  assert.match(source, /state\.snapshot\.recent_completions/);
+  assert.match(source, /work-inspector-identity-product/);
+  assert.match(source, /\["关联 Runtime", workInspectorRuntimeSummary\(task\.id\), \{ wide: true \}\]/);
+  assert.doesNotMatch(source, /\["所属产品", task\.project_name\]/);
+  for (const section of ["work-inspector-content", "work-inspector-properties", "work-inspector-collaboration", "acceptance-feedback-panel"]) {
+    assert.match(source, new RegExp(section));
+  }
+  assert.match(source, /function initializeWorkInspectorResize\(\)/);
+  assert.match(source, /workInspectorKeyboardWidth\(state\.workInspectorWidthPx, event\.key, event\.shiftKey\)/);
+  assert.match(source, /workInspectorPointerWidth\(session\.startWidth, session\.startX, event\.clientX\)/);
+  assert.match(source, /createWorkInspectorWidthPersistence\(\{/);
+  assert.match(source, /persistWidth: \(width\) => api\.setWorkInspectorWidth\(width\)/);
+  assert.match(source, /workInspectorWidthPersistence\.persist\(width\)/);
+  const resizeSource = source.slice(source.indexOf("function initializeWorkInspectorResize"), source.indexOf("\nfunction syncWorkInspectorWidth"));
+  assert.match(resizeSource, /pointerup[\s\S]+persistWorkInspectorWidth/);
+  assert.match(resizeSource, /dblclick[\s\S]+WORK_INSPECTOR_DEFAULT_WIDTH/);
+  assert.doesNotMatch(resizeSource, /renderPlatformWorkInspector|replaceChildren/);
   assert.match(source, /automationTask\?\.state === "completed"/);
   assert.match(source, /该待办已验收，不再接受新的验收问题/);
   assert.doesNotMatch(html.slice(html.indexOf('id="feedbackView"'), html.indexOf('id="commandView"')), /验收问题队列|验收反馈|acceptanceFeedbackPlatformTable/);
@@ -1162,6 +1182,9 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(styles, /#workView\.is-active, #feedbackView\.is-active \{ overflow: hidden; \}/);
   assert.match(styles, /\.primary-workspace-page[^}]+grid-template-rows: 44px minmax\(0, 1fr\)[^}]+height: 100%[^}]+min-height: 0/);
   assert.match(styles, /\.platform-work-layout[^}]+align-items: stretch[^}]+min-height: 0[^}]+overflow: hidden/);
+  assert.match(styles, /\.platform-work-layout \{[^}]*grid-template-columns: minmax\(420px, 1fr\) 12px minmax\(0, var\(--work-inspector-width\)\)/);
+  assert.match(styles, /\.work-inspector-facts \{[^}]*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.platform-work-layout\.is-inspector-narrow \.work-inspector-facts \{[^}]*grid-template-columns: 1fr/);
   assert.match(styles, /\.workspace-pane-scroll[^}]+overflow-y: auto[^}]+overscroll-behavior: contain[^}]+scrollbar-gutter: stable/);
 });
 
@@ -1219,10 +1242,16 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /Object\.assign\(state, workTaskReferenceSelection\(target\)\)/);
   const workInspectorSource = source.slice(source.indexOf("function renderPlatformWorkInspector"), source.indexOf("\nfunction updatePlatformWorkInspector"));
   assert.doesNotMatch(workInspectorSource, /data-work-inspector-state|更新状态/);
-  assert.match(workInspectorSource, /workInspectorActions\(task, automationTask, canManage\)/);
-  assert.match(workInspectorSource, /executeWorkTaskAction\(task, automationTask, button\.dataset\.workTaskAction\)/);
-  assert.match(source, /function workInspectorActions\(task, automationTask, canManage\)/);
-  assert.match(source, /async function executeWorkTaskAction\(task, automationTask, action\)[\s\S]+executeManagedAction\("task\.update",[\s\S]+expected_state: transition\[1\]/);
+  assert.match(workInspectorSource, /workInspectorActions\(task, automationTask, workspace, canManage\)/);
+  assert.match(workInspectorSource, /executeWorkTaskAction\(task, automationTask, workspace, button\.dataset\.workTaskAction\)/);
+  assert.match(source, /function workInspectorRuntimeNavigation\(task, automationTask, workspace\)/);
+  assert.match(source, /activeExecutions\.length === 1 && workspaceValid/);
+  assert.match(source, /function workInspectorActions\(task, automationTask, workspace, canManage\)/);
+  assert.match(source, /runtimeNavigation\.destination === "runtime" \? "打开运行" : "进入恢复中心"/);
+  assert.match(source, /async function executeWorkTaskAction\(task, automationTask, workspace, action\)[\s\S]+api\.selectAutomationExecution\(target\.execution\.execution_id\)[\s\S]+openWorkbench\("review", target\.execution\.run_id/);
+  assert.match(source, /async function executeWorkTaskAction\(task, automationTask, workspace, action\)[\s\S]+executeManagedAction\("task\.update",[\s\S]+expected_state: transition\[1\]/);
+  assert.match(source, /api\.onAutomationEvent\(\(\) => scheduleAutomationRefresh\(\)\)/);
+  assert.match(source, /function scheduleAutomationRefresh\(delay = 80\)[\s\S]+if \(state\.refreshing\) \{\s*scheduleAutomationRefresh\(delay\);\s*return;\s*\}[\s\S]+refreshSnapshot\(\{ quiet: true \}\)/);
   assert.match(source, /platformField\("state", "状态", \{\s*type: "select",[\s\S]+options: taskStateOptions\(\)/);
   assert.doesNotMatch(styles, /\.work-task-status-editor/);
   assert.match(styles, /\.platform-work-state-actions/);
@@ -1318,7 +1347,7 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /message\.task_id/);
   assert.match(source, /Task Session/);
   assert.match(source, /import \{ taskDisplayTitle \} from "\.\.\/\.\.\/src\/task-display-title\.mjs"/);
-  assert.match(source, /const inspectorHtml = `<h2>待办 \$\{escapeHtml\(task\.id\)\}<\/h2><article class="task-markdown-detail">\$\{renderRestrictedMarkdown\(task\.content\)\}/);
+  assert.match(source, /const inspectorHtml = `<section class="work-inspector-section work-inspector-identity">[\s\S]+<section class="work-inspector-section work-inspector-content">[\s\S]+<article class="task-markdown-detail">\$\{renderRestrictedMarkdown\(task\.content\)\}/);
   assert.match(source, /taskInspector\.innerHTML = `<h2>待办 \$\{escapeHtml\(task\.id\)\}<\/h2><p>\$\{escapeHtml\(task\.content/);
   assert.doesNotMatch(source, /taskInspector\.innerHTML = `<h2>\$\{escapeHtml\(task\.title\)\}/);
   assert.doesNotMatch(source, /`\$\{task\.title\} \$\{task\.content\} \$\{task\.project_name\}/);
@@ -1775,7 +1804,8 @@ test("desktop main and preload expose bounded platform composition IPC without c
     "arckit:platform-workset-update",
     "arckit:platform-workset-delete",
     "arckit:platform-workset-active",
-    "arckit:platform-workspace-preference"
+    "arckit:platform-workspace-preference",
+    "arckit:platform-work-inspector-width"
   ]) {
     const pattern = new RegExp(channel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     assert.match(main, pattern);
@@ -1786,6 +1816,7 @@ test("desktop main and preload expose bounded platform composition IPC without c
   assert.match(preload, /platformWorkQuery: \(input\)/);
   assert.match(preload, /createWorkset: \(input\)/);
   assert.match(preload, /setActiveWorkset: \(worksetId\)/);
+  assert.match(preload, /setWorkInspectorWidth: \(widthPx\)/);
   assert.doesNotMatch(preload, /access_token|refresh_token|apiKey|sessionToken|genericRequest/);
 });
 

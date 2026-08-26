@@ -112,13 +112,15 @@ Work Inspector 与 Automation Task Inspector 只渲染一次完整 `content`。�
 
 ## 本地状态
 
-Desktop Store version 13 的顶层 `platform` 同时保存平台配置和 Work-owned task sync：
+Desktop Store 的顶层 `platform` 同时保存平台配置、Work 界面偏好和 Work-owned task sync：
 
 ```text
 platform
   active_workset_id: string
   worksets: Workset[]
   workspace_preferences: map<remote_project_id, WorkspacePreference>
+  ui_preferences:
+    work_inspector_width_px: integer
   feedback_v2: FeedbackV2Configuration
   task_sync: WorkTaskSyncState
 ```
@@ -148,6 +150,14 @@ WorkspacePreference 以远端 Project id 为键，字段为：
 - `last_opened_at`：最后打开时间。
 
 本地 repository binding 和 automation participation 继续使用既有 `automation.project_bindings` 与 `automation.project_participation`，不复制到 `platform`。
+
+### PlatformUiPreferences
+
+`ui_preferences` 只保存跨项目、跨 Workset 的 ArcOrbit 平台界面偏好，不保存 Workshop 领域字段，也不与按远端 Project id 分区的 `workspace_preferences` 混用。`work_inspector_width_px` 是 Work 任务树与右侧 Inspector 的用户选择宽度：缺失或非有限数值时使用 440，持久值归一化为 360–640 范围内的整数。
+
+Renderer 从 `platformSnapshot` 取得该值，并在第一次渲染 Work 双栏前应用，避免先以旧固定宽度绘制再跳动。分隔条拖拽期间只更新 CSS 布局值；`pointerup`、键盘调整完成或双击复位时才通过类型化 main-process action 持久化。任务、项目、Workset 或登录身份切换不重置该偏好；应用重启由 Desktop Store 恢复。
+
+保存值与本次布局有效值明确分离。Renderer 根据当前 Work 内容宽度为左侧任务树保留至少 420px，并为分隔条保留 12px；窗口暂时不足时把 Inspector 有效宽度收敛到剩余空间，但不写回 Desktop Store。窗口恢复后重新使用保存值。宽度变化只改变 grid track，不重新构造 Inspector DOM，因而不得丢失任务选择、列表/详情滚动位置、评论草稿、验收草稿或已加载附件状态。
 
 ### WorkTaskSyncState
 
@@ -220,6 +230,7 @@ Preload 新增以下产品动作：
 - `deleteWorkset(worksetId)`
 - `setActiveWorkset(worksetId)`
 - `setWorkspacePreference(projectId, input)`
+- `setWorkInspectorWidth(widthPx)`：只接受有限数值；main 进程归一化为 360–640 的整数并写入 `platform.ui_preferences.work_inspector_width_px`。它不是任意 Store key 写入口，也不触发 Workshop、Work Sync 或 Automation mutation。
 - `executePlatformAction(command, input)`：只接受 Coordinator 内的固定业务命令 allowlist。
 - `pickWorkTaskAttachment(input)`：只允许主窗口通过系统文件选择器选择单个图片或文件，并在 main 进程完成大小、类型、任务可见性与受限 OSS 上传。
 - `previewWorkTaskAttachment(input)` / `openWorkTaskAttachment(input)`：以 task id、attachment id 和 object key 共同定位已持久化资源；前者为评论时间线的自动图片加载返回受限 data URL，后者由 main 进程打开非图片文件的短期下载 URL。
@@ -313,6 +324,8 @@ Desktop Store v13 把待办同步所有权归入 `platform.task_sync`，并保�
 
 迁移不改变 participation，不启动同步，不调用远端服务，也不删除未知项目 binding。归一化测试覆盖 v9-v12、空 store、重复 project id、缺失 platform、旧 Automation snapshot/realtime 和已存在 v13 的重复读取。
 
+增加 `platform.ui_preferences` 时，Desktop Store 实现从当前 v14 提升到 v15：旧记录仅补入规范化的 `work_inspector_width_px=440`，已存在的有限值取整并夹在 360–640，非法值回退 440。迁移不访问远端、不改变 task projection、workset、workspace preference、登录或 Automation 状态，重复读取保持相同结果。
+
 ## 平台 Shell 投影
 
 Renderer 的顶层导航按职责分组：
@@ -367,6 +380,9 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - Platform Adapter 的组织、项目、成员、完整待办和 V1 feedback 归一化。
 - Task 文本投影覆盖连续空白折叠、63/64/65 grapheme 边界、组合附加符、ZWJ emoji 与代理对、单字符省略号和空白异常输入；完整 `content` 在 Agent intent、搜索和 mutation 中保持不变。
 - Work 与 Automation 消费面覆盖列表、父任务候选、队列、当前运行、Workbench 顶部、确认对话、session/Activity/CLI 标签、详情只显示一次完整正文，以及历史展示快照不成为服务端或搜索事实。
+- Work Inspector 覆盖 440 默认、360/640 边界、非法 Store 值归一化、v14→v15 幂等迁移、`pointerup`/键盘/双击复位持久化、应用重启恢复和任务/项目/Workset 切换不重置。
+- Work 双栏覆盖 12px 分隔条、420px 列表最小宽度、窗口暂时收窄不覆盖保存值、窗口恢复后复原，以及拖拽期间任务选择、两栏滚动、评论草稿、验收草稿和附件状态不丢失；Renderer 测试同时验证 separator 的 ARIA 数值与 16/48px 键盘步长。
+- Inspector 内容验证覆盖身份动作、“内容/属性/协作/验收”顺序、属性两列与低于 400px 单列、长字段跨列、completed 的验收 Composer、accepted 的只读结果，以及其余状态不生成空验收分区。
 - Work Task 查询的多值筛选序列化、100 天日期边界、树结果父链/子树补全和命中总数区分。
 - Task 创建、子任务创建、父任务调整/清空、循环拒绝、级联删除确认和跨产品候选隔离。
 - Task 产品归属替换覆盖目标创建先于源删除、目标字段校验、新 Task 身份、评论附件与 Run/thread 不迁移、创建失败不删除源 Task、删除失败保留双 Task 和恢复记录、两个项目对账及活动 execution 外部变化恢复。
