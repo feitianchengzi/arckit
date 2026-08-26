@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-26T12:58:55.759Z
+Updated: 2026-08-26T15:47:47.707Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,16 +17,16 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260826-007-work.md)
-- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260826-007-work.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260826-007-work.md)
-- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260826-007-work.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260826-008-automation.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md)
 - software_decision.data_and_state: settled (arckit/cases/active/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md)
 - software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260826-010-arcorbit.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260826-010-arcorbit.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260826-010-arcorbit.md)
+- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260826-010-arcorbit.md)
 
 ## Remaining Project Gaps
 

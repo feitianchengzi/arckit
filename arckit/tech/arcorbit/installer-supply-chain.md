@@ -285,7 +285,7 @@ workflow 根据渠道选择 `internal`、`beta` 或 `appstore` GitHub Environmen
 
 Desktop 由 Electron main process 持有独立 `CodexSetupManager` 与 `SkillProvisioningManager`。前者拥有 Codex discovery、官方 installer、版本、认证与 logout 子进程；后者拥有项目 skill 文件写入。Renderer 只通过窄 IPC 请求 setup snapshot 和结构化动作；preload 不暴露任意 URL、路径、参数、shell command、process handle 或 provider module handle。
 
-Manager 分为全局资源检查和项目准备。全局检查校验 bundle、provider、source store 与 Codex executable，不生成 Agent apply plan。应用启动的 coordinated check 从 Desktop Store fresh-read 全部本地 Product Workspace roots，去重并规范化后一次性交给项目准备；Renderer 的当前项目筛选不参与该作用域。空 roots 以显式空集合清除既有项目 plan 并回到 global-only，不复用上一次检查的项目作用域。项目准备只接受 Automation/Product Workspace Coordinator 已解析的项目 id、规范化绝对根路径和绑定证据。
+Manager 分为全局资源检查和项目准备。全局检查校验 bundle、provider、source store 与 Codex executable，不生成 Agent apply plan。应用冷启动的 coordinated check 从 Desktop Store fresh-read 全部本地 Product Workspace roots，去重并规范化后一次性交给项目准备；新增或改变本地项目关联后使用同一 aggregate check，用户主动 retry 也 fresh-read Store。Renderer 的项目集、具体项目、Workset 等查看筛选不参与触发或作用域，解除关联不启动检查。空 roots 以显式空集合清除既有项目 plan 并回到 global-only，不复用上一次检查的项目作用域。项目准备只接受 Automation/Product Workspace Coordinator 已解析的项目 id、规范化绝对根路径和绑定证据。
 
 项目准备顺序：
 
@@ -310,7 +310,7 @@ ArcForge Core 是 upgrade classification 与迁移语义的唯一实现。Embedd
 
 `unmanaged-conflict` 与 `CATALOG_VERSION_CONFLICT` 永不进入普通 apply replacement set。fresh assessment 能为用户选择的阻塞目标证明安全边界和唯一 bundled source 映射时，provider 允许 `backup-and-overwrite-selected`；旧 `backup-and-reinstall` 名称只可作为进入同一事务的兼容别名。assessment digest 变化、source 映射缺失、备份失败、目标提交失败或关系提交失败都会 fail closed；覆盖前的内容保持可恢复。Runtime 只选择并转发 provider 声明的动作，不从路径、版本字符串或 `changed` 计数自行提升可覆盖性。检查阶段没有写入时，snapshot 使用 `write_state: not_started`，Renderer 不把它投影为 rollback。
 
-Manager 不修改现有 `preflightRun` 的 kernel 语义。Automation Coordinator 在 start 前用 task 的本地项目绑定请求对应项目 readiness，再组合 Setup Readiness 和 Runtime preflight 两个独立结果，避免 Runtime 通过文件扫描推断 Agent native skill discovery。
+Manager 不修改现有 `preflightRun` 的 kernel 语义。SkillProvisioningManager 的 task-start `assertReady(projectRoot)` 只读取内存 snapshot：状态必须为 `ready`，且规范化 task root 必须存在于最近成功 full check 的 `plan.project_roots`；它不调用 provider、读取项目 skills 或刷新 snapshot。Automation Coordinator 将这项缓存断言与 Runtime preflight 组合，任一失败都 fail closed；用户通过独立 Setup retry 建立新状态，Runtime 不通过文件扫描推断 Agent native skill discovery。
 
 Codex discoverability 解析一个经过 `--version` 验证的绝对 executable，而不假设 Desktop GUI 进程继承交互式 shell 的 `PATH`。解析顺序覆盖显式配置、当前 `PATH`、常见用户级安装目录以及 NVM/FNM 的版本目录；Node 版本管理器中的 CLI 同时携带其 sibling `bin` 目录作为子进程 `PATH` 前缀，保证 `#!/usr/bin/env node` 启动器可执行。解析失败保持 Setup blocked，不修改系统或用户 `PATH`。
 
@@ -423,6 +423,7 @@ Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Ele
 - API Key/Access Token 只进入 stdin，argv/environment/log/error/store/Renderer shared state 均无 secret，并对恶意值和 spawn failure 做泄漏回归；
 - `codex login status` 退出码判定、login/logout 后复核、Codex/Workshop auth domain 隔离，以及对 auth file 零访问；
 - aggregate ready 同时要求 executable、version、login status、全局资源和项目 skills，旧 Setup/Chat/Automation 流程保持通过；
+- 冷启动与新增/改绑 fresh-check 全部关联 roots；项目/Workset 查看切换和解除关联不调用 Setup；task-start 缓存断言不扫描文件且拒绝未验证 root；主动 retry 仍 fresh-check；
 - 旧用户级 managed skills/loader 到项目 target 的 typed migration、内容备份、用户保留阻断 scope-clean ready，以及 unrelated 用户目录保持不变；
 - source upgrade 对 missing managed target、provider destination/policy migration、managed loader update、local content change、legacy unverified relation 和 unmanaged conflict 的 typed classification；
 - 内容不同且双方无有效 SemVer 的 catalog 同名 skill 返回 `CATALOG_VERSION_CONFLICT` 及可恢复目标，不被 manager 压缩成无路径 `SETUP_FAILED`；

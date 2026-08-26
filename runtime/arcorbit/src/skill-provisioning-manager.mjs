@@ -239,10 +239,14 @@ export function createSkillProvisioningManager(options = {}) {
     });
   }
 
-  async function assertReady(projectRoot, projectAssessments = [], associatedProjectRoots = [], codexProbeResult) {
+  async function assertReady(projectRoot) {
     if (!projectRoot) throw setupError("PROJECT_REQUIRED", "当前任务没有关联的本地 Product Workspace 项目。", "preflight");
-    const current = await check({ quiet: true, projectRoot: [projectRoot, ...associatedProjectRoots], projectAssessments, codexProbeResult });
-    if (current.status !== "ready") throw setupError("SETUP_NOT_READY", "Arckit skills 尚未达到可运行状态。", "preflight");
+    const normalizedProjectRoot = normalizeProjectRoots(projectRoot)[0];
+    const current = structuredClone(snapshot);
+    const readyProjectRoots = normalizeProjectRoots(current.plan?.project_roots || []);
+    if (current.status !== "ready" || !readyProjectRoots.includes(normalizedProjectRoot)) {
+      throw setupError("SETUP_NOT_READY", "Arckit skills 尚未达到可运行状态。", "preflight");
+    }
     return current;
   }
 

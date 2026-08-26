@@ -628,7 +628,6 @@ function wireEvents() {
     state.workQueryOffset = 0;
     if (state.page === "work") await refreshWorkQuery();
     else await refreshSnapshot();
-    await checkSetupReadinessForSelection();
   }));
   els.editWorksetButton.addEventListener("click", () => runAction(editCurrentWorkset));
   els.createOrganizationButton.addEventListener("click", () => runAction(createOrganization));
@@ -1727,10 +1726,12 @@ async function bindProjectWorkspace(workspace) {
 async function bindAutomationWorkspace(remoteProjectId, localProjectId) {
   await api.bindAutomationProject(remoteProjectId, localProjectId);
   let setupError = null;
-  try {
-    await checkSetupReadinessForSelection(localProjectId);
-  } catch (error) {
-    setupError = error;
+  if (localProjectId) {
+    try {
+      await checkSetupReadinessForSelection(localProjectId);
+    } catch (error) {
+      setupError = error;
+    }
   }
   await refreshSnapshot({ quiet: true });
   if (setupError) throw setupError;
@@ -3638,7 +3639,7 @@ function renderCommandInspector(projects) {
       }
       await api.bindAutomationProject(remoteId, localProjectId);
       await refreshSnapshot();
-      await checkSetupReadinessForSelection(localProjectId);
+      if (localProjectId) await checkSetupReadinessForSelection(localProjectId);
     }));
     checkbox.addEventListener("change", () => runAction(async () => {
       await api.setProjectParticipation(remoteId, checkbox.checked);

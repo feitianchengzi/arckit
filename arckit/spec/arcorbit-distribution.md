@@ -85,7 +85,7 @@ workflow 不创建、移动或覆盖 tag。tag 不存在、tag 与选择的渠�
 
 ## Setup Readiness
 
-Desktop 在进入普通工作区前执行协调式 Setup Readiness：先检查全局资源，再从 Desktop Store 读取全部已关联本地 Product Workspace 的规范化项目根，并检查这些项目相对于当前内置 payload 的 skills 安装关系与 drift。没有已关联本地项目时只执行全局检查。该启动范围不依赖关闭应用前界面显示“项目集全部”还是某个具体项目。绑定项目或启动 Runtime task 前仍执行对应项目的 Setup Readiness；这些检查都不进入 Runtime `preflightRun` 或 Agent Loop。
+Desktop 只在应用冷启动时自动执行完整的协调式 Setup Readiness：先检查全局资源，再从 Desktop Store 读取全部已关联本地 Product Workspace 的规范化项目根，并检查这些项目相对于当前内置 payload 的 skills 安装关系与 drift。没有已关联本地项目时只执行全局检查。该启动范围不依赖关闭应用前界面显示“项目集全部”还是某个具体项目。运行期间新增或改变本地项目关联后立即再检查全部当前关联 roots；用户也可以从 Setup 恢复页主动“重新检查”。项目集、具体项目、Workset 或其它纯查看范围切换、解除关联和 Runtime task start 都不得自动重新扫描 skills；task start 只消费最近一次成功检查建立的 readiness，并对当前 task root 不在已验证 roots 中的情况 fail closed。这些检查都不进入 Runtime `preflightRun` 或 Agent Loop。
 
 Setup Readiness 检查：
 
@@ -183,7 +183,7 @@ ArcForge 用户 catalog 不属于 Codex skill 应用目标，也不使 catalog �
 
 Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Desktop 不依据当前进程 cwd、最近打开目录或 Runtime Gap 猜测目标；同一本地项目被多个 Workshop Project 引用时复用同一个规范化项目根和关系，同一来源版本不会重复安装。
 
-每项 project applicability 由当前 Agent 或用户根据项目规格、源码和任务事实判断；`unsuitable` 或 `needs-input` 不进入 apply。项目级 apply 使用 fresh plan、drift、确认、事务和关系记录语义。绑定新增或改变、项目路径变化、payload 升级、关系 drift 或 task preflight 触发对应项目重新检查；Runtime 不预先为 Gap 绑定项目级 skill。
+每项 project applicability 由当前 Agent 或用户根据项目规格、源码和任务事实判断；`unsuitable` 或 `needs-input` 不进入 apply。项目级 apply 使用 fresh plan、drift、确认、事务和关系记录语义。冷启动、绑定新增或改变以及用户主动恢复触发 fresh 检查；payload 升级和关系 drift 在这些边界被发现。task preflight 只断言缓存状态和 task root 覆盖，不重新读取项目 skills；Runtime 不预先为 Gap 绑定项目级 skill。
 
 解除 Product Workspace 绑定或移除本地项目不会静默删除项目目录中的受管理 skills。Desktop 保留关系并将其标为未关联，用户从设置中查看精确项目路径后才可单独确认移除。
 
@@ -242,6 +242,7 @@ Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Deskt
 - Runtime trusted ledger 使用应用内受信资源；Codex Agent 只使用关联项目 `.codex/skills` 中按策略安装的 skills 和 loader；两者不会混用消费副本，ArcOrbit 不创建 Codex 用户级副本。
 - 全局 Setup Readiness 不会在没有项目绑定时写入 Agent 目录；每个关联项目都有独立 plan、关系、drift 和 ready 结果。
 - 应用启动会对 Desktop Store 中全部已关联本地项目执行 fresh project skill drift 检查；关闭前选择项目集全部或具体项目不会改变检查范围，任一未 ready 项目都会阻止 Automation 启动。
+- 新增或改变本地项目关联会再次检查全部当前关联 roots；纯查看范围切换、解除关联和 task start 不重新扫描，主动“重新检查”入口保持可用。
 - 旧版受管理用户级 targets 只在所有权、目标、备份和 disposition 可见并经确认后迁移；未知或无关用户目录保持不变。
 - 首次安装、drift、修复、升级和清理都展示目标并要求相应确认。
 - source upgrade 能区分受管理缺失、provider 管理迁移、用户内容变化和未受管理冲突；每个非 ready 状态都提供与其风险相符的可执行恢复动作或明确的外部恢复条件。

@@ -238,6 +238,9 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     assert.deepEqual(preflightEvents, []);
 
     await writeFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "local edit\n");
+    const cachedPreflight = await manager.assertReady(projectRoot);
+    assert.equal(cachedPreflight.status, "ready");
+    await assert.rejects(manager.assertReady(path.join(fixture, "not-checked-project")), (error) => error.code === "SETUP_NOT_READY");
     const conflict = await manager.check({ projectRoot });
     assert.equal(conflict.status, "conflict");
     assert.equal(conflict.can_apply, false);

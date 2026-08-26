@@ -115,14 +115,8 @@ app.whenReady().then(async () => {
     runManager,
     getCodexExecutable: () => codexExecutableResolver.getResolved(),
     setupReadinessPreflight: async (projectRoot) => {
-      const store = await runManager.readDesktopStore();
-      const codex = await codexSetupManager.assertReady();
-      return skillProvisioningManager.assertReady(
-        projectRoot,
-        [],
-        store.projects.map((item) => item.path).filter(Boolean),
-        codexProbeFromSetupSnapshot(codex)
-      );
+      await codexSetupManager.assertReady();
+      return skillProvisioningManager.assertReady(projectRoot);
     }
   });
   chatCoordinator.onEvent((event) => {
@@ -132,14 +126,8 @@ app.whenReady().then(async () => {
     runManager,
     workSync: workSyncCoordinator,
     setupReadinessPreflight: async (projectRoot) => {
-      const store = await runManager.readDesktopStore();
-      const codex = await codexSetupManager.assertReady();
-      return skillProvisioningManager.assertReady(
-        projectRoot,
-        [],
-        store.projects.map((item) => item.path).filter(Boolean),
-        codexProbeFromSetupSnapshot(codex)
-      );
+      await codexSetupManager.assertReady();
+      return skillProvisioningManager.assertReady(projectRoot);
     },
     cliLauncher: createInteractiveCodexCliLauncher({
       getCodexExecutable: () => codexExecutableResolver.getResolved()

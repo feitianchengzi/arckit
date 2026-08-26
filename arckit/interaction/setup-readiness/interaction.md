@@ -2,7 +2,7 @@
 
 ## 页面定位
 
-Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页面。应用进入普通工作区前完成全局检查；Codex 缺失、损坏、需要更新或尚未认证时，用户在本页完成官方 standalone 安装、更新和显式登录；用户绑定 Product Workspace 或启动 Runtime task 时，页面再为对应本地项目检查 Arckit skills。它只在受信资源、Codex 或当前项目能力尚未达到可运行状态时成为主路由；当前检查通过后，应用继续原路由或恢复原 task start intent。
+Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页面。应用冷启动时检查全部已关联本地项目；运行期间只有新增或改变 Product Workspace 本地关联、用户主动恢复或“重新检查”才再次检查 Arckit skills。项目集全部、具体项目、Workset 或其它纯查看切换不进入本页，解除关联也不产生无意义检查。Codex 缺失、损坏、需要更新或尚未认证时，用户在本页完成官方 standalone 安装、更新和显式登录；它只在受信资源、Codex 或当前项目能力尚未达到可运行状态时成为主路由，当前检查通过后继续原路由。
 
 页面不承担 GitHub 出包、ArcForge 治理编辑、Codex 凭证管理或 Runtime task 执行。它只展示当前安装包锁定的资源、Codex 安装/认证状态、目标目录、plan/drift、需要的确认和可恢复结果。
 
@@ -19,7 +19,7 @@ Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页
 3. Codex 未认证时，页面先显示无默认值的凭证类型选择；选择 ChatGPT 后再显示无默认值的浏览器/设备码流程选择。完成当前层级选择前“继续登录”始终禁用。
 4. 官方登录流程结束、取消、超时或失败后自动重新运行 `codex login status`；只有退出码确认已认证才继续后续全局检查。
 5. 全局环境 ready 时显示短暂成功结果并继续 Login 或工作区；没有项目绑定时不把任意项目声明为 skills ready。Codex ready 不等于 Workshop 已登录，Workshop ready 也不等于 Codex 已认证。
-6. 用户新增或改变 Product Workspace 本地绑定，或 task start 检测到项目 readiness 失效时，页面锁定该 Product Workspace 和规范化项目根，读取对应关系、项目适用性与 drift。
+6. 用户新增或改变 Product Workspace 本地绑定时，页面锁定该 Product Workspace 和规范化项目根，并对全部当前关联 roots 读取关系、项目适用性与 drift；解除绑定只更新关联，不进入检查。task start 只断言最近成功状态包含当前 task root，失败时返回本页等待用户主动重新检查，不在 start 路径扫描 skills。
 7. 需要安装或升级 skills 时，页面默认展示来源、版本、项目身份、项目绝对写入目标、Codex 用户级写入边界、变更分类及数量；完整逐项计划作为可选明细，不承担确认门槛。
 8. 用户阅读默认可见的写入与变更摘要后勾选确认框。确认框与“安装并继续”位于同一动作区域；未确认时该区域直接说明“请先确认上方写入目标与变更摘要”，确认后提示消失并立即启用主动作。
 9. source upgrade 和用户级迁移先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标、未受管理冲突和 catalog 同名版本冲突；每项同时显示 diagnostic code、skill、目标类型与路径、双方 digest、所有权依据和可用动作。
@@ -43,6 +43,7 @@ Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页
 - `managed-stale` 清理使用独立 confirmation，不和普通 apply 捆绑。`drifted` 页面直接展示可选路径和固定清理主动作，不把唯一恢复入口放入折叠详情。
 - ArcOrbit 不向 `~/.codex/skills` 安装 bundled skill 或 `arcforge-on-demand` loader。source user-ambient 在关联项目中解释为默认项目常驻，source project-ambient 仍要求适用性判断；user-on-demand catalog 是非 Codex 发现的控制面，loader 只安装到当前项目。
 - 没有明确 Product Workspace 绑定时不生成 skill apply plan；页面不允许手输任意目标目录。
+- 项目集、具体项目、Workset 和其它纯查看范围只改变业务投影，不触发 Setup；用户需要即时复核时使用独立“重新检查”。
 - 旧版受管理用户级 target 只有在关系所有权可证明、具体路径可见且用户确认 disposition 后才迁移或移除；用户保留冲突内容时，相关项目不能显示 scope-clean ready。
 - 签名或系统信任问题只提供平台恢复入口，不把“忽略风险”伪装成 ready。
 
@@ -215,9 +216,9 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - 应用启动且全局 Setup Readiness 非 ready：进入本页，隐藏 Login 和 Automation Workspace 的主操作。
 - Codex CLI 与认证未 ready：停留本页完成安装、更新或显式登录；不得进入 Chat 或启动 Automation。
 - 全局 ready 且 Workshop 认证未知：进入 Login 会话恢复；Codex authentication 与 Workshop authentication 独立，全局 ready 不代表任意项目 skills ready。
-- Workshop 会话有效：进入 Automation Workspace；绑定或执行具体项目时再检查该项目 readiness。
+- Workshop 会话有效：进入 Automation Workspace；新增或改变具体项目的本地关联时再检查全部关联 roots，纯查看切换不检查。
 - 设置页的“Arckit 能力”入口可以再次打开本页的只读状态；选择修复后才进入可写 plan。
-- Runtime task start 检测到对应项目 readiness 失效时返回本页，锁定原 Product Workspace 并保留 task start intent；修复成功后重新执行 preflight，不自动领取其它远端任务。
+- Runtime task start 只消费已建立的 readiness；状态非 ready 或不包含对应项目 root 时返回本页并 fail closed，用户主动重新检查和修复后才能再次 start，不自动领取其它远端任务。
 
 ## 确认与安全
 

@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-26T12:58:55.759Z",
+  "updated_at": "2026-08-26T15:47:47.707Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -2891,6 +2891,50 @@
         "arckit/cases/active/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/arcorbit-distribution.md:88",
+        "Verification: 63 focused tests passed, 0 failed",
+        "arckit/cases/active/CASE-20260826-010-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-010-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/setup-readiness/interaction.md:22",
+        "arckit/interaction/setup-readiness/default.html:19",
+        "arckit/cases/active/CASE-20260826-010-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-010-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/installer-supply-chain.md:288",
+        "arckit/tech/arcorbit/installer-supply-chain.md:313",
+        "arckit/cases/active/CASE-20260826-010-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-010-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "quality_and_validation",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/desktop-renderer.test.mjs:1493",
+        "runtime/arcorbit/test/skill-provisioning-manager.test.mjs:241",
+        "arckit/cases/active/CASE-20260826-010-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-010-arcorbit.md"
     }
   ],
   "acceptance": {
@@ -3015,15 +3059,25 @@
     "arckit/cases/closed/CASE-20260826-006-arcorbit-skill-drift.md",
     "arckit/cases/closed/CASE-20260826-007-work.md",
     "arckit/cases/closed/CASE-20260826-008-automation.md",
-    "arckit/cases/closed/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md"
+    "arckit/cases/closed/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md",
+    "arckit/cases/closed/CASE-20260826-010-arcorbit.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md",
+    "case_ref": "arckit/cases/closed/CASE-20260826-010-arcorbit.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md"
+      "arckit/cases/closed/CASE-20260826-010-arcorbit.md",
+      "arckit/spec/arcorbit-distribution.md",
+      "arckit/interaction/setup-readiness/interaction.md",
+      "arckit/interaction/setup-readiness/default.html",
+      "arckit/tech/arcorbit/installer-supply-chain.md",
+      "runtime/arcorbit/desktop/renderer/renderer.js",
+      "runtime/arcorbit/desktop/main.mjs",
+      "runtime/arcorbit/src/skill-provisioning-manager.mjs",
+      "runtime/arcorbit/test/desktop-renderer.test.mjs",
+      "runtime/arcorbit/test/skill-provisioning-manager.test.mjs"
     ],
-    "updated_at": "2026-08-26T12:58:55.759Z"
+    "updated_at": "2026-08-26T15:47:47.707Z"
   }
 }

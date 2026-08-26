@@ -154,3 +154,4 @@
 | [CASE-20260826-007](closed/CASE-20260826-007-work.md) | closed | Work 已完成待办验收后自动切换相邻待办 | 2026-08-26T10:13:16.611Z |
 | [CASE-20260826-008](closed/CASE-20260826-008-automation.md) | closed | 补充新建待办执行人 Automation 提示 | 2026-08-26T10:33:19.260Z |
 | [CASE-20260826-009](closed/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md) | closed | Make same-name skill conflicts recoverable | 2026-08-26T12:58:55.759Z |
+| [CASE-20260826-010](closed/CASE-20260826-010-arcorbit.md) | closed | 收敛 ArcOrbit 本地能力检查触发边界 | 2026-08-26T15:47:47.707Z |
