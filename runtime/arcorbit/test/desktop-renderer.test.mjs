@@ -795,7 +795,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /api\.automationSnapshot/);
   assert.match(source, /invalidateTaskAttachmentCaches\(state, \{ clearPending: identityChanged \}\)/);
   assert.match(source, /taskAttachmentIdentityKey\(\{ platform: state\.platform, authentication: state\.authentication \}\)/);
-  assert.match(source, /state\.platform = emptyPlatformSnapshot\(\);[\s\S]+state\.selectedPlatformTaskId = "";[\s\S]+invalidateTaskAttachmentCaches\(state, \{ clearPending: true \}\)/);
+  assert.match(source, /state\.authentication = normalizeAuthentication\(result\.authentication\);\s+invalidatePlatformTaskSelectionContext\(\);\s+state\.settings = normalizeSettings\(await api\.getSettings\(\)\);[\s\S]+state\.platform = emptyPlatformSnapshot\(\);[\s\S]+invalidateTaskAttachmentCaches\(state, \{ clearPending: true \}\)/);
   assert.match(source, /captureTaskAttachmentRequest\(state\)[\s\S]+task\.attachments\.list[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
   assert.match(source, /captureTaskAttachmentRequest\(state, \{ identityOnly: true \}\)[\s\S]+pickWorkTaskAttachment[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
   assert.match(source, /api\.setAutomationEnabled/);
@@ -1250,6 +1250,15 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /runtimeNavigation\.destination === "runtime" \? "打开运行" : "进入恢复中心"/);
   assert.match(source, /async function executeWorkTaskAction\(task, automationTask, workspace, action\)[\s\S]+api\.selectAutomationExecution\(target\.execution\.execution_id\)[\s\S]+openWorkbench\("review", target\.execution\.run_id/);
   assert.match(source, /async function executeWorkTaskAction\(task, automationTask, workspace, action\)[\s\S]+executeManagedAction\("task\.update",[\s\S]+expected_state: transition\[1\]/);
+  assert.match(source, /const acceptanceSelection = action === "accept" \? workAcceptanceSelectionTarget\(task\.id\) : ""/);
+  assert.match(source, /const acceptanceSelectionIntentEpoch = action === "accept" \? state\.platformTaskSelectionIntentEpoch : 0;[\s\S]+state\.selectedPlatformTaskId = completedAcceptanceSelectionAfterSuccess\(\{[\s\S]+currentSelectedTaskId: state\.selectedPlatformTaskId,[\s\S]+adjacentTaskId: acceptanceSelection,[\s\S]+acceptanceSelectionIntentEpoch,[\s\S]+currentSelectionIntentEpoch: state\.platformTaskSelectionIntentEpoch[\s\S]+await refreshWorkQuery\(\)/);
+  assert.match(source, /const acceptanceSelectionContextEpoch = action === "accept" \? state\.platformTaskSelectionContextEpoch : 0;[\s\S]+acceptanceSelectionContextEpoch !== state\.platformTaskSelectionContextEpoch\) return result;/);
+  assert.match(source, /async function selectTaskReplacementTarget\([\s\S]+state\.selectedProjectId = targetProjectId;\s+setPlatformTaskSelectionIntent\(targetTaskId\);\s+await refreshWorkQuery\(\)/);
+  assert.match(source, /function setPlatformTaskSelectionIntent\(taskId = ""\) \{[\s\S]+markPlatformTaskSelectionIntent\(\);[\s\S]+state\.selectedPlatformTaskId = String\(taskId \|\| ""\)/);
+  assert.match(source, /function invalidatePlatformTaskSelectionContext\(\) \{[\s\S]+state\.platformTaskSelectionContextEpoch \+= 1;[\s\S]+setPlatformTaskSelectionIntent\(""\);[\s\S]+async function logout\(\)[\s\S]+invalidatePlatformTaskSelectionContext\(\)/);
+  assert.match(source, /data-platform-task-select[\s\S]+setPlatformTaskSelectionIntent\(row\.dataset\.platformTaskSelect\)/);
+  assert.match(source, /data-product-work[\s\S]+markPlatformTaskSelectionIntent\(\);\s+state\.selectedProjectId = button\.dataset\.productWork;\s+state\.platformWorkFilter = "";\s+showPage\("work"\)/);
+  assert.match(source, /function renderPlatformWork\(\)[\s\S]+state\.selectedPlatformTaskId = String\(tasks\[0\]\?\.id \|\| ""\)/);
   assert.match(source, /api\.onAutomationEvent\(\(\) => scheduleAutomationRefresh\(\)\)/);
   assert.match(source, /function scheduleAutomationRefresh\(delay = 80\)[\s\S]+if \(state\.refreshing\) \{\s*scheduleAutomationRefresh\(delay\);\s*return;\s*\}[\s\S]+refreshSnapshot\(\{ quiet: true \}\)/);
   assert.match(source, /platformField\("state", "状态", \{\s*type: "select",[\s\S]+options: taskStateOptions\(\)/);

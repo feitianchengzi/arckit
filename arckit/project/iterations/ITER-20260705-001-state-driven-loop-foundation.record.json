@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-26T05:49:15.211Z",
+  "updated_at": "2026-08-26T10:13:16.611Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -2768,6 +2768,53 @@
         "arckit/cases/active/CASE-20260826-006-arcorbit-skill-drift.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260826-006-arcorbit-skill-drift.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "system:current_operator_input",
+        "arckit/interaction/task-browser/interaction.md",
+        "runtime/arcorbit/desktop/renderer/renderer.js",
+        "arckit/cases/active/CASE-20260826-007-work.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-007-work.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "quality_and_validation",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/work-task-selection.test.mjs",
+        "runtime/arcorbit/test/desktop-renderer.test.mjs",
+        "arckit/cases/active/CASE-20260826-007-work.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-007-work.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/task-browser/interaction.md",
+        "runtime/arcorbit/desktop/renderer/work-task-selection.mjs",
+        "runtime/arcorbit/desktop/renderer/renderer.js",
+        "arckit/cases/active/CASE-20260826-007-work.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-007-work.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "quality_and_validation",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/work-task-selection.test.mjs",
+        "runtime/arcorbit/test/desktop-renderer.test.mjs",
+        "Verification: focused 58 passed, 0 failed",
+        "arckit/cases/active/CASE-20260826-007-work.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-007-work.md"
     }
   ],
   "acceptance": {
@@ -2889,15 +2936,16 @@
     "arckit/cases/closed/CASE-20260826-003-automation.md",
     "arckit/cases/closed/CASE-20260826-004-work-inspector.md",
     "arckit/cases/closed/CASE-20260826-005-arcorbit-work-inspector.md",
-    "arckit/cases/closed/CASE-20260826-006-arcorbit-skill-drift.md"
+    "arckit/cases/closed/CASE-20260826-006-arcorbit-skill-drift.md",
+    "arckit/cases/closed/CASE-20260826-007-work.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260826-006-arcorbit-skill-drift.md",
+    "case_ref": "arckit/cases/closed/CASE-20260826-007-work.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260826-006-arcorbit-skill-drift.md"
+      "arckit/cases/closed/CASE-20260826-007-work.md"
     ],
-    "updated_at": "2026-08-26T05:49:15.211Z"
+    "updated_at": "2026-08-26T10:13:16.611Z"
   }
 }

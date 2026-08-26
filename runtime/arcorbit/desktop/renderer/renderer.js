@@ -26,6 +26,7 @@ import {
 import { createChatStateCoordinator } from "./chat-state-coordinator.mjs";
 import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } from "./chat-session-groups.mjs";
 import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-query-state.mjs";
+import { completedAcceptanceSelectionAfterSuccess, nextCompletedAcceptanceTaskId } from "./work-task-selection.mjs";
 import { taskDisplayTitle } from "../../src/task-display-title.mjs";
 import { initializeWindowControls } from "./window-controls.mjs";
 import {
@@ -132,6 +133,8 @@ const state = {
   acceptanceFeedbackOnly: false,
   selectedTaskId: "",
   selectedPlatformTaskId: "",
+  platformTaskSelectionIntentEpoch: 0,
+  platformTaskSelectionContextEpoch: 0,
   selectedFeedbackId: "",
   snapshot: emptySnapshot(),
   platform: emptyPlatformSnapshot(),
@@ -546,7 +549,7 @@ function wireEvents() {
   els.platformWorkTable.addEventListener("click", (event) => {
     const row = event.target.closest("[data-platform-task-select]");
     if (row && els.platformWorkTable.contains(row)) {
-      state.selectedPlatformTaskId = row.dataset.platformTaskSelect;
+      setPlatformTaskSelectionIntent(row.dataset.platformTaskSelect);
       els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((item) => {
         const selected = item === row;
         item.classList.toggle("selected", selected);
@@ -558,7 +561,7 @@ function wireEvents() {
     const pageButton = event.target.closest("[data-work-query-offset]");
     if (!pageButton || !els.platformWorkTable.contains(pageButton)) return;
     state.workQueryOffset = Math.max(0, Number(pageButton.dataset.workQueryOffset) || 0);
-    state.selectedPlatformTaskId = "";
+    setPlatformTaskSelectionIntent("");
     refreshWorkQuery().catch((error) => showToast(error.message));
   });
   [els.workCreatorFilter, els.workExecutorFilter, els.workTagFilter, els.workPriorityFilter, els.workStartDateFilter, els.workEndDateFilter].forEach((element) => element.addEventListener("change", () => {
@@ -580,6 +583,7 @@ function wireEvents() {
     scheduleWorkFilterRefresh(0);
   });
   els.worksetSelect.addEventListener("change", () => runAction(async () => {
+    markPlatformTaskSelectionIntent();
     state.selectedProjectId = "all";
     workQueryState.clear();
     state.workQuery = { key: "", projection: null, loading: false, error: "" };
@@ -589,7 +593,7 @@ function wireEvents() {
   els.productScopeSelect.addEventListener("change", () => runAction(async () => {
     state.selectedProjectId = els.productScopeSelect.value;
     state.selectedTaskId = "";
-    state.selectedPlatformTaskId = "";
+    setPlatformTaskSelectionIntent("");
     state.selectedFeedbackId = "";
     state.workQueryOffset = 0;
     if (state.page === "work") await refreshWorkQuery();
@@ -1208,7 +1212,7 @@ async function refreshVisibleAutomationActivity(runId) {
 function scheduleWorkFilterRefresh(delay = 280) {
   window.clearTimeout(workFilterTimer);
   workFilterTimer = window.setTimeout(() => {
-    state.selectedPlatformTaskId = "";
+    setPlatformTaskSelectionIntent("");
     state.workQueryOffset = 0;
     refreshWorkQuery().catch((error) => showToast(error.message));
   }, delay);
@@ -1591,6 +1595,7 @@ function renderToday() {
     return `<button class="product-card" data-product-work="${escapeHtml(workspace.id)}" type="button"><span class="product-card-head"><i>${escapeHtml(workspace.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(workspace.name)}</strong><small>${escapeHtml(workspace.current_user_role || "member")} · ${escapeHtml(connection)}</small></span></span><span class="product-card-readiness"><span><small>项目连接</small><strong>${escapeHtml(connection)}</strong></span><span><small>当前工作</small><strong>${escapeHtml(work)}</strong></span></span><span class="product-card-stats"><b>${open}<small>未结束</small></b><b>${projectTasks.filter((task) => task.state === "completed").length}<small>待审查</small></b><b>${workspace.feedback_count}<small>反馈</small></b></span><span class="product-card-foot"><em class="status-pill ${projectErrors.length ? "blocked" : workspace.eligible ? "accepted" : "pending_review"}">${projectErrors.length ? "部分未知" : workspace.eligible ? "可自动执行" : workspace.participating ? "待满足执行条件" : "未授权自动领取"}</em><small>打开工作 →</small></span></button>`;
   }).join("") : `<div class="empty-state platform-empty">当前产品集未选择产品。使用顶部“管理”选择一个或多个项目。</div>`;
   els.todayProductGrid.querySelectorAll("[data-product-work]").forEach((button) => button.addEventListener("click", () => {
+    markPlatformTaskSelectionIntent();
     state.selectedProjectId = button.dataset.productWork;
     state.platformWorkFilter = "";
     showPage("work");
@@ -1662,7 +1667,7 @@ async function performGuidanceAction(guidance, { task = guidance.task, workspace
 
 function openWorkGuidanceTask(task, targetState = task?.state || "pending") {
   if (task?.project_id) state.selectedProjectId = String(task.project_id);
-  if (task?.id) state.selectedPlatformTaskId = String(task.id);
+  if (task?.id) setPlatformTaskSelectionIntent(task.id);
   state.selectedState = targetState;
   state.platformWorkFilter = "";
   state.platformWorkFilters = defaultWorkFilters();
@@ -2060,6 +2065,7 @@ async function openWorkTaskReference() {
     platformWorkFilters: state.platformWorkFilters
   };
   try {
+    markPlatformTaskSelectionIntent();
     Object.assign(state, workTaskReferenceSelection(target));
     state.platformWorkFilter = "";
     state.platformWorkFilters = {
@@ -3110,7 +3116,7 @@ async function selectTaskReplacementTarget(result, fallbackProjectId = "", fallb
   const targetTaskId = String(result?.target_task_id || fallbackTaskId || "");
   if (!targetProjectId || !targetTaskId) return;
   state.selectedProjectId = targetProjectId;
-  state.selectedPlatformTaskId = targetTaskId;
+  setPlatformTaskSelectionIntent(targetTaskId);
   await refreshWorkQuery().catch((error) => showToast(`产品切换已完成，但目标待办刷新失败：${error?.message || String(error)}`));
 }
 
@@ -3650,11 +3656,33 @@ async function executeWorkTaskAction(task, automationTask, workspace, action) {
   const transition = taskActionTransition(task, action);
   if (!transition) return;
   if (["cancel", "block", "resume"].includes(action) && !window.confirm(`确认将任务 ${task.id} 更新为${STATE_LABELS[transition[0]]}？`)) return;
-  await executeManagedAction("task.update", {
+  const acceptanceSelection = action === "accept" ? workAcceptanceSelectionTarget(task.id) : "";
+  const acceptanceSelectionIntentEpoch = action === "accept" ? state.platformTaskSelectionIntentEpoch : 0;
+  const acceptanceSelectionContextEpoch = action === "accept" ? state.platformTaskSelectionContextEpoch : 0;
+  const result = await executeManagedAction("task.update", {
     task_id: task.id,
     state: transition[0],
     expected_state: transition[1]
-  }, `待办状态已更新为${STATE_LABELS[transition[0]] || transition[0]}`);
+  }, `待办状态已更新为${STATE_LABELS[transition[0]] || transition[0]}`, { refresh: action !== "accept" });
+  if (action === "accept" && acceptanceSelectionContextEpoch !== state.platformTaskSelectionContextEpoch) return result;
+  if (action === "accept") {
+    state.selectedPlatformTaskId = completedAcceptanceSelectionAfterSuccess({
+      currentSelectedTaskId: state.selectedPlatformTaskId,
+      adjacentTaskId: acceptanceSelection,
+      acceptanceSelectionIntentEpoch,
+      currentSelectionIntentEpoch: state.platformTaskSelectionIntentEpoch
+    });
+    await refreshWorkQuery().catch((error) => showToast(`待办已验收，但列表刷新失败：${error?.message || String(error)}`));
+  }
+  return result;
+}
+
+function workAcceptanceSelectionTarget(taskId) {
+  const tasksById = new Map((state.workQuery.projection?.tasks || []).map((task) => [String(task.id), task]));
+  const orderedVisibleTasks = [...els.platformWorkTable.querySelectorAll("[data-platform-task-select]")]
+    .map((row) => tasksById.get(String(row.dataset.platformTaskSelect)))
+    .filter(Boolean);
+  return nextCompletedAcceptanceTaskId(orderedVisibleTasks, taskId);
 }
 
 async function openWorkbench(mode = "review", runId = "", context = {}) {
@@ -3922,10 +3950,24 @@ function openTaskBrowser(taskState = "pending", taskId = "") {
 
 function openWorkState(taskState = "pending") {
   state.selectedState = TASK_STATES.includes(taskState) ? taskState : "pending";
-  state.selectedPlatformTaskId = "";
+  setPlatformTaskSelectionIntent("");
   state.workQueryOffset = 0;
   state.page = "work";
   refreshWorkQuery().catch((error) => showToast(error.message));
+}
+
+function markPlatformTaskSelectionIntent() {
+  state.platformTaskSelectionIntentEpoch += 1;
+}
+
+function setPlatformTaskSelectionIntent(taskId = "") {
+  markPlatformTaskSelectionIntent();
+  state.selectedPlatformTaskId = String(taskId || "");
+}
+
+function invalidatePlatformTaskSelectionContext() {
+  state.platformTaskSelectionContextEpoch += 1;
+  setPlatformTaskSelectionIntent("");
 }
 
 function showPage(page) {
@@ -4104,12 +4146,12 @@ async function logout() {
       result = await api.logoutAuth({ confirm_active_task: true });
     }
     state.authentication = normalizeAuthentication(result.authentication);
+    invalidatePlatformTaskSelectionContext();
     state.settings = normalizeSettings(await api.getSettings());
     state.snapshot = emptySnapshot();
     state.platform = emptyPlatformSnapshot();
     workQueryState.clear();
     state.workQuery = { key: "", projection: null, loading: false, error: "" };
-    state.selectedPlatformTaskId = "";
     invalidateTaskAttachmentCaches(state, { clearPending: true });
     renderSettingsForm();
     render();

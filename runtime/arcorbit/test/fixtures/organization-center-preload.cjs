@@ -12,9 +12,13 @@ let workQueryDelayMs = 0;
 let workQueryFailure = "";
 let workQueryScenarios = [];
 let platformSnapshotBarrier = null;
+let acceptanceActionBarrier = null;
+let settingsBarrier = null;
 let createdTaskSequence = 0;
 let taskReplacementScenario = "success";
 const feedbackV2ImageTest = process.env.ARCORBIT_ELECTRON_FEEDBACK_V2_TEST === "1";
+const workAcceptanceReplacementTest = process.env.ARCORBIT_WORK_ACCEPTANCE_REPLACEMENT_TEST === "1";
+const workAcceptanceLogoutTest = process.env.ARCORBIT_WORK_ACCEPTANCE_LOGOUT_TEST === "1";
 let failedFeedbackV2ImagePreview = false;
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
@@ -98,6 +102,14 @@ const platform = {
     { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", terminal: true, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "" },
     { id: "W-12", project_id: "12", project_name: "Workshop Todo", title: "Other project work", content: "Must be filtered", state: "pending", terminal: false, priority: 98, raw: { priority: 2 }, executor_id: "8", assignee: { id: "8", username: "Lin" }, tags: "203" }
   ],
+  task_replacements: workAcceptanceReplacementTest ? [{
+    id: "11:completed-newest",
+    source_task_id: "completed-newest",
+    source_project_id: "11",
+    target_task_id: "W-12-NEW",
+    target_project_id: "12",
+    error: "Fixture source delete failed"
+  }] : [],
   feedback_v1: [
     ...(feedbackV2ImageTest ? [{ id: "F-11-V2", short_id: "FB12", project_id: "11", project_name: "ArcOrbit", feedback_source: "v2", title: "V2 conversation feedback", content: "Validate bilateral message images", priority: "P2", ignored: false, linked_task_id: "", custom_user_id: "v2-customer", user_phone: "", user_email: "", file: "", created_at: "2026-08-20T10:00:00Z", updated_at: "2026-08-20T10:00:00Z", metadata: {} }] : []),
     { id: "F-11", short_id: "FB11", project_id: "11", project_name: "ArcOrbit", title: "Scoped feedback", content: "Visible in the selected product", priority: "P1", ignored: false, linked_task_id: "", custom_user_id: "customer-11", user_phone: "13800000011", user_email: "customer11@example.test", file: "https://example.test/feedback/F-11.png", created_at: "2026-08-19T10:00:00Z", updated_at: "2026-08-19T10:00:00Z", metadata: {} },
@@ -117,7 +129,15 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   onWindowState: () => () => {},
   getSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} }),
   continueFromSetup: noOp,
-  getSettings: async () => ({ task_source: { enabled: true, auth_mode: "nebula" }, codex_proxy: {} }),
+  getSettings: async () => {
+    if (settingsBarrier) {
+      const barrier = settingsBarrier;
+      barrier.markReached();
+      await barrier.release;
+      if (settingsBarrier === barrier) settingsBarrier = null;
+    }
+    return { task_source: { enabled: true, auth_mode: "nebula" }, codex_proxy: {} };
+  },
   getProductFeedbackStatus: async () => ({
     integration_mode: "sdk-webview", sdk_auth_mode: "apiKey", notifications_enabled: true,
     credential_strategy: "bundled-static", configured: true, project_id: 107, unread_count: 0
@@ -216,6 +236,16 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   updateWorkset: async (input) => { calls.push(["updateWorkset", input]); platform.active_workset.project_ids = input.project_ids; return input; },
   executePlatformAction: async (command, input) => {
     calls.push([command, input]);
+    if (command === "task.update" && acceptanceActionBarrier) {
+      const barrier = acceptanceActionBarrier;
+      const task = platform.tasks.find((item) => String(item.id) === String(input.task_id));
+      if (task) task.state = String(input.state);
+      for (const listener of workSyncListeners) listener({ type: "work.changed", task_id: String(input.task_id) });
+      barrier.markEventEmitted();
+      await barrier.release;
+      if (acceptanceActionBarrier === barrier) acceptanceActionBarrier = null;
+      return task || { id: String(input.task_id), state: String(input.state) };
+    }
     if (command === "task.attachments.list") return taskAttachments[String(input.task_id)] || [];
     if (command === "task.attachment.create") return { id: `TA-${String(input.task_id)}-NEW`, task_id: String(input.task_id), creator_id: "7", type: input.type, content: input.content };
     if (command === "task.replace_project") {
@@ -341,7 +371,12 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   resolveAutomationRecovery: async (input) => { calls.push(["resolveAutomationRecovery", input]); return {}; },
   updateAutomationTaskState: async (input) => { calls.push(["updateAutomationTaskState", input]); return {}; },
   handoffAutomationToCli: noOp, reopenAutomationCli: noOp, resumeAutomationRuntime: noOp, stopAutomationRun: noOp,
-  sendAuthVerification: noOp, loginWithCode: noOp, logoutAuth: noOp, updateSettings: noOp,
+  sendAuthVerification: noOp, loginWithCode: noOp,
+  logoutAuth: async () => workAcceptanceLogoutTest ? {
+    authentication: { status: "logged_out", authenticated: false },
+    requires_confirmation: false
+  } : undefined,
+  updateSettings: noOp,
   setTestRecoveryItems: async (items) => { automation.recovery_items = items; },
   setTestActiveExecutions: async (items) => { automation.active_executions = Array.isArray(items) ? items : []; },
   armTestPlatformSnapshotBarrier: async () => {
@@ -356,6 +391,30 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   waitForTestPlatformSnapshotBarrier: async () => platformSnapshotBarrier?.reached,
   releaseTestPlatformSnapshotBarrier: async () => platformSnapshotBarrier?.releaseBarrier(),
+  armTestAcceptanceActionBarrier: async () => {
+    let markEventEmitted;
+    let releaseBarrier;
+    acceptanceActionBarrier = {
+      eventEmitted: new Promise((resolve) => { markEventEmitted = resolve; }),
+      release: new Promise((resolve) => { releaseBarrier = resolve; }),
+      markEventEmitted,
+      releaseBarrier
+    };
+  },
+  waitForTestAcceptanceActionEvent: async () => acceptanceActionBarrier?.eventEmitted,
+  releaseTestAcceptanceAction: async () => acceptanceActionBarrier?.releaseBarrier(),
+  armTestSettingsBarrier: async () => {
+    let markReached;
+    let releaseBarrier;
+    settingsBarrier = {
+      reached: new Promise((resolve) => { markReached = resolve; }),
+      release: new Promise((resolve) => { releaseBarrier = resolve; }),
+      markReached,
+      releaseBarrier
+    };
+  },
+  waitForTestSettingsBarrier: async () => settingsBarrier?.reached,
+  releaseTestSettingsBarrier: async () => settingsBarrier?.releaseBarrier(),
   setTestWorkRuntimeWorkspaceValid: async (valid) => {
     const localPath = valid ? "/repo/arcorbit" : "";
     const task = automation.tasks.find((item) => item.id === "W-RUNNING");

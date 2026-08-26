@@ -151,3 +151,4 @@
 | [CASE-20260826-004](closed/CASE-20260826-004-work-inspector.md) | closed | 收敛 Work Inspector 状态流转交互 | 2026-08-26T03:01:59.155Z |
 | [CASE-20260826-005](closed/CASE-20260826-005-arcorbit-work-inspector.md) | closed | 优化 ArcOrbit Work 待办详情 Inspector 体验 | 2026-08-26T05:30:07.723Z |
 | [CASE-20260826-006](closed/CASE-20260826-006-arcorbit-skill-drift.md) | closed | 修复 ArcOrbit 启动时遗漏项目 skill drift 检查 | 2026-08-26T05:49:15.211Z |
+| [CASE-20260826-007](closed/CASE-20260826-007-work.md) | closed | Work 已完成待办验收后自动切换相邻待办 | 2026-08-26T10:13:16.611Z |
