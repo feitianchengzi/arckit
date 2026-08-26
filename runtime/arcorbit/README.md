@@ -2,6 +2,8 @@
 
 ArcOrbit automates the work a person normally performs around one continuous Codex conversation. It does not replace the Codex Agent's semantic reasoning, workspace execution, native skill discovery, validation, or Git capability.
 
+ArcOrbit is source-available under the [PolyForm Perimeter License 1.0.1](LICENSE). Personal, team, and enterprise internal use and modification are permitted. Providing a product or service that competes with ArcOrbit is not permitted, even when provided free of charge. Commercial, OEM, white-label, and competing-use licensing inquiries may be sent to `hi@feitianchengzi.com`.
+
 ## Runtime boundary
 
 The Runtime kernel owns:
@@ -170,6 +172,8 @@ Every installer carries three independently verifiable resources outside ASAR:
 - trusted Runtime capability manifests and ledger entrypoints;
 - the complete governed Arckit skill payload and its source/content manifest;
 - the exact `arcforge-embedded-provider/v1` package selected by release tag and digest.
+
+The application package also carries the ArcOrbit license and third-party notices. The governed Arckit skill payload carries the Apache License 2.0 with each independently distributed skill.
 
 On startup, Desktop's main process validates those resources and fresh-checks every local Product Workspace in the Desktop Store against the packaged skill payload before Automation can start. With no local workspace it remains a global-only check; the last Renderer project filter never narrows the startup scope. Setup Readiness opens when any associated project needs installation, has drift, or contains a conflict. It stages the packaged payload into the app data source store and only applies a provider plan after the user expands the target summary and confirms the plan digest. Changed managed targets and loader conflicts are never overwritten; `managed-stale` removal uses a separate path-bound confirmation.
 

@@ -44,6 +44,8 @@ test("package exposes the ArcOrbit identity and the legacy CLI alias through one
   assert.equal(manifest.name, "@arckit/arcorbit");
   assert.equal(manifest.bin.arcorbit, "./bin/arcorbit.mjs");
   assert.equal(manifest.bin["arckit-runtime"], manifest.bin.arcorbit);
+  assert.equal(manifest.license, "SEE LICENSE IN LICENSE");
+  assert.match(await readFile(path.join(runtimeRoot, "LICENSE"), "utf8"), /PolyForm Perimeter License 1\.0\.1/);
 });
 
 test("distribution assembly binds provider, skills, trusted capabilities, config, and external artifact attestation", async () => {
@@ -91,6 +93,10 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     assert.equal(lock.skillPayload.sharedAssetCount, payloadManifest.sharedAssetPaths.length);
     assert.equal(payloadManifest.files.some((item) => item.path === "definition/skills/_arckit_shared/case-gap-contract.md"), true);
     assert.equal(payloadManifest.files.some((item) => item.path === "definition/skills/_arckit_shared/content-spec.md"), true);
+    for (const skillPath of payloadManifest.skillPaths) {
+      assert.match(await readFile(path.join(payloadRoot, skillPath, "LICENSE"), "utf8"), /Apache License/);
+      assert.match(await readFile(path.join(payloadRoot, skillPath, "NOTICE"), "utf8"), /Feitianchengzi contributors/);
+    }
     assert.equal(
       await readFile(path.join(payloadRoot, "definition", "skills", "_arckit_shared", "case-gap-contract.md"), "utf8"),
       await readFile(path.join(repositoryRoot, "definition", "skills", "_arckit_shared", "case-gap-contract.md"), "utf8")
@@ -111,6 +117,8 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     assert.match(fuseHook, /\[FuseV1Options\.GrantFileProtocolExtraPrivileges\]: true/);
     assert.match(fuseHook, /\[FuseV1Options\.GrantFileProtocolExtraPrivileges, FUSE_ENABLED\]/);
     assert.match(config.artifactName, /^ArcOrbit-/);
+    assert.equal(config.files.includes("LICENSE"), true);
+    assert.equal(config.files.includes("THIRD_PARTY_NOTICES.md"), true);
     assert.deepEqual(config.extraResources.map((item) => item.to), ["arcorbit", "provisioning"]);
 
     const localBuildRoot = path.join(fixture, "local-dist-package");

@@ -1,5 +1,9 @@
 # Spec Relations
 
+## 许可与商业使用
+
+`licensing-and-commercial-use.md` 定义仓库各组件对外使用、修改、分发、竞争性产品、商业授权、商标和许可证随包交付的稳定规则。它约束 `arckit-skill-system.md` 的独立 skill 分发和 `arcorbit-distribution.md` 的安装包内容；实际许可证文本位于仓库根 `LICENSE` 与 `runtime/arcorbit/LICENSE`，公开范围摘要位于根 `LICENSING.md`。
+
 ## Runtime 分发与安装
 
 `arcorbit-distribution.md` 定义用户从人工选择的 GitHub 安装包进入全局资源检查、Product Workspace 项目级 skills provisioning、旧用户级 managed target 迁移、修复、升级和清理的产品行为。它依赖 `agentic-software-development/skill-architecture.md` 的 Agent 原生 skill 边界和 `arcorbit-platform-capabilities.md` 的本地项目绑定，并在 Runtime task 启动前衔接 `agentic-software-development/runtime-automation-workspace.md`。

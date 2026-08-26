@@ -2,6 +2,8 @@
 
 Arckit 是面向真实软件项目的 Agent 协作与交接协议层。它让人类、Codex 类单 Agent 和多 Agent 自动化平台，能够围绕同一组项目事实、Case 状态、受边界约束的 Worker packet、证据和 handoff 持续推进工作。
 
+Arckit 采用 Apache License 2.0 开源。仓库中的 ArcOrbit Desktop 与 Runtime 采用 PolyForm Perimeter License 1.0.1，允许个人、团队和企业内部使用及修改，但不允许对外提供与 ArcOrbit 竞争的产品或服务，即使该产品或服务免费。完整范围见 [LICENSING.md](LICENSING.md)。
+
 这个仓库是 Arckit skills 的 source of truth，保存飞天橙子团队在真实 2B、2C 项目中验证过的协作方法，以及经过审查和本地化适配的外部方法。它不以堆积提示词或模拟固定研发流水线为目标，而是把可恢复的项目状态、稳定事实维护、工程诊断和安全交接整理成 Agent 能独立理解、可靠执行的能力包。
 
 ## 产品主轴：Project State → Case → Loop
@@ -250,3 +252,10 @@ Skill 之间可以软协作，但不能依赖隐藏的 skill-to-skill import。�
 Arckit 当前优先验证的是：不同执行桥能否基于同一组仓库事实，以相同的 Project State → Case → Loop 语义推进真实软件项目；Runtime 能否保持确定性、可观察和 policy-neutral；Agent 能否在明确边界内完成事实维护、诊断、实现协作和安全交接。
 
 能力扩展会继续来自真实项目反馈。新增能力必须先证明它能提高项目状态恢复、事实治理、handoff 质量、实现边界、诊断可靠性或安全续接，而不是仅仅增加一个新的 Agent 角色名称。
+
+## License
+
+- Arckit 及仓库中没有更具体许可证的内容： [Apache License 2.0](LICENSE)。
+- `runtime/arcorbit/`： [PolyForm Perimeter License 1.0.1](runtime/arcorbit/LICENSE)。
+- 商业授权、OEM、白标或竞争性产品与服务：`hi@feitianchengzi.com`。
+- 商标规则与第三方组件边界见 [TRADEMARKS.md](TRADEMARKS.md) 和 [LICENSING.md](LICENSING.md)。
