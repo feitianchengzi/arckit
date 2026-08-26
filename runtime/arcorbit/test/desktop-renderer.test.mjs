@@ -1150,6 +1150,8 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   for (const section of ["work-inspector-content", "work-inspector-properties", "work-inspector-collaboration", "acceptance-feedback-panel"]) {
     assert.match(source, new RegExp(section));
   }
+  assert.match(styles, /\.acceptance-feedback-item > span:first-child \{ min-width: 0; white-space: normal; \}/);
+  assert.match(styles, /\.acceptance-feedback-item strong, \.acceptance-feedback-item small \{ display: block; overflow-wrap: anywhere; white-space: normal; \}/);
   assert.match(source, /function initializeWorkInspectorResize\(\)/);
   assert.match(source, /workInspectorKeyboardWidth\(state\.workInspectorWidthPx, event\.key, event\.shiftKey\)/);
   assert.match(source, /workInspectorPointerWidth\(session\.startWidth, session\.startX, event\.clientX\)/);

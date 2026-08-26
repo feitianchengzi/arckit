@@ -921,7 +921,8 @@ body.is-resizing-work-inspector { cursor: col-resize; user-select: none; }
 .acceptance-feedback-panel { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--ink-150); border-radius: 8px; background: var(--ink-50); }
 .acceptance-feedback-list { display: grid; gap: 6px; }
 .acceptance-feedback-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; padding: 9px; text-align: left; border: 1px solid var(--ink-150); border-radius: 7px; background: #fff; }
-.acceptance-feedback-item strong, .acceptance-feedback-item small { display: block; }
+.acceptance-feedback-item > span:first-child { min-width: 0; white-space: normal; }
+.acceptance-feedback-item strong, .acceptance-feedback-item small { display: block; overflow-wrap: anywhere; white-space: normal; }
 .acceptance-feedback-item small { margin-top: 3px; color: var(--ink-500); font-size: var(--type-caption); }
 .acceptance-feedback-composer { display: grid; gap: 7px; }
 .acceptance-feedback-composer > span { font-size: var(--type-label); font-weight: 700; }

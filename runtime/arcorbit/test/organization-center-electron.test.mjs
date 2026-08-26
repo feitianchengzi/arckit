@@ -91,6 +91,19 @@ test("production Organization Center keeps governance independent and invitation
   assert.deepEqual(result.editSelectedTagIds, ["201"]);
   assert.equal(result.completedHasAcceptanceComposer, true);
   assert.equal(result.completedInspectorRuntime, "RUN-W-COMPLETED · 已完成");
+  const { title_lines: acceptanceTitleLines, progress_lines: acceptanceProgressLines, ...acceptanceLayout } = result.acceptanceFeedbackLayout;
+  assert.deepEqual(acceptanceLayout, {
+    item_overflows: false,
+    copy_overflows: false,
+    copy_within_item: true,
+    status_within_item: true,
+    title_white_space: "normal",
+    progress_white_space: "normal",
+    title_overflow_wrap: "anywhere",
+    progress_overflow_wrap: "anywhere"
+  });
+  assert.ok(acceptanceTitleLines > 1);
+  assert.ok(acceptanceProgressLines > 1);
   assert.equal(result.runningInspectorRuntime, "RUN-W-RUNNING · 自动执行中");
   assert.equal(result.runningInspectorAction, "打开运行");
   assert.equal(result.runningWorkbenchActive, true);

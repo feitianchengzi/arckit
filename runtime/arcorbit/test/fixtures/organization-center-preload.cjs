@@ -31,7 +31,7 @@ const automation = {
   ],
   tasks: [
     { id: "W-RUNNING", project_id: "11", project_name: "ArcOrbit", title: "Running work", content: "Inspect the associated Runtime", state: "in_progress", state_label: "进行中", acceptance_feedback_items: [], eligible: false, local_project_path: "/repo/arcorbit" },
-    { id: "W-COMPLETED", project_id: "11", project_name: "ArcOrbit", title: "Completed work", content: "Ready for acceptance check", state: "completed", state_label: "已完成", acceptance_feedback_items: [], eligible: false },
+    { id: "W-COMPLETED", project_id: "11", project_name: "ArcOrbit", title: "Completed work", content: "Ready for acceptance check", state: "completed", state_label: "已完成", acceptance_feedback_items: [{ feedback_id: "AF-WRAP", original_feedback: `验收问题${"UnbrokenAcceptanceIssue".repeat(18)}`, progress: `进展${"UnbrokenProgress".repeat(12)}`, status: "queued" }], eligible: false },
     { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", state_label: "已验收", acceptance_feedback_items: [], eligible: false }
   ], queue: [], todo_queue: [],
   blocked_pending_tasks: [], state_counts: { pending: 2 },

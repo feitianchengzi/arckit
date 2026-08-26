@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-26T16:04:43.334Z",
+  "updated_at": "2026-08-26T16:16:50.117Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -2935,6 +2935,18 @@
         "arckit/cases/active/CASE-20260826-010-arcorbit.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260826-010-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "case:fact:FACT-20260826-012-001",
+        "local:fact:acceptance-wrapping-realized",
+        "runtime/arcorbit/test/organization-center-electron.test.mjs",
+        "arckit/cases/active/CASE-20260826-012-development-case.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-012-development-case.md"
     }
   ],
   "acceptance": {
@@ -3061,15 +3073,16 @@
     "arckit/cases/closed/CASE-20260826-008-automation.md",
     "arckit/cases/closed/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md",
     "arckit/cases/closed/CASE-20260826-010-arcorbit.md",
-    "arckit/cases/closed/CASE-20260826-011-work.md"
+    "arckit/cases/closed/CASE-20260826-011-work.md",
+    "arckit/cases/closed/CASE-20260826-012-development-case.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260826-011-work.md",
+    "case_ref": "arckit/cases/closed/CASE-20260826-012-development-case.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260826-011-work.md"
+      "arckit/cases/closed/CASE-20260826-012-development-case.md"
     ],
-    "updated_at": "2026-08-26T16:04:43.334Z"
+    "updated_at": "2026-08-26T16:16:50.117Z"
   }
 }
