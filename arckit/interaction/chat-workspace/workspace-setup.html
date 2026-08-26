@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Chat Workspace Setup - 线框图</title><link rel="stylesheet" href="../wireframe-style.css"></head>
+<body><div class="wireframe-container">
+<header><h1>Chat · 原位绑定 Product Workspace</h1><div class="meta-info"><div>Parent: <code>ChatWorkspace</code></div><div>形态: <strong>上下文 Sheet</strong></div></div></header>
+<details open><summary>选择项目并绑定本地目录</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>Chat 没有可用 Product Workspace，用户已有远端项目并选择“选择项目并绑定本地目录”。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationSplitView"><div class="desktop-titlebar"><span>Personal / Chat</span><strong>新对话草稿</strong><span>草稿已保留</span></div><div class="conversation-pane"><div class="conversation-tabs"><span class="conversation-tab active">新对话</span><span>等待 Product Workspace</span></div><div class="chat-thread"><div class="modal-overlay" data-kit="Sheet"><div class="modal-content" data-label="绑定 Product Workspace"><h3>让 Chat 进入一个本地项目</h3><p>选择 Workshop Project 和它对应的本地目录。组织、邀请成员和加入 Workset 都不是这个动作的前置步骤。</p><div class="form-grid"><label><span>远端项目</span><div class="input-field">ArcOrbit ▾</div></label><label><span>本地目录</span><div class="input-field">尚未选择</div></label></div><div class="current-action"><strong>选择后将检查项目环境</strong><small>成功：在当前 Chat 使用该 cwd；失败：保留项目、目录和聊天草稿。</small></div><div class="page-actions"><button class="button small">取消</button><button class="button small">选择目录…</button><button class="button primary small">绑定并返回 Chat</button></div></div></div></div><div class="composer-panel"><div class="input-field" data-kit="TextEditor">分析这个项目的新人流程…</div><div class="composer-actions"><span>绑定期间不可发送</span><button class="button small" disabled>发送</button></div></div></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>保留草稿的 Chat 背景</li><li>远端项目选择器</li><li>本地目录选择器</li><li>Setup Readiness 影响说明</li><li>绑定并返回动作</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择目录</code> → 使用 Product Workspace 已有目录选择与边界校验</div><div class="interaction-item"><code>绑定并返回 Chat</code> → 执行绑定和项目 Setup Readiness；成功后关闭 Sheet、选中新工作区并恢复草稿</div><div class="interaction-item"><code>检查失败</code> → Sheet 保持打开，显示对应修复动作，不清空任何选择</div><div class="interaction-item"><code>取消</code> → 返回阻塞空态并保留草稿</div></div>
+</div></details>
+</div></body></html>

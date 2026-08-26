@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work Eligibility Guidance - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body><div class="wireframe-container">
+<header><h1>Work · 执行资格就地引导</h1><div class="meta-info"><div>Parent: <code>TaskBrowser</code></div><div>原则: <strong>解释当前对象，原位修复</strong></div></div></header>
+
+<details open><summary>待评审 · 确认并交给 ArcOrbit</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>当前用户是执行人，任务为待评审，项目连接完整；该任务尚不进入 Automation 候选。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationSplitView"><div class="desktop-titlebar"><span>Product Lifecycle / Work</span><strong>ArcOrbit · 待评审</strong><span>1 条</span></div><div class="split-h"><section class="list-pane"><div class="table-row selected"><span>AR-208</span><strong>完善新人交互</strong><span class="badge">待评审</span></div></section><aside class="detail-pane"><div class="detail-header"><div><strong>完善新人交互</strong><small>ArcOrbit · 执行人：你</small></div><span class="badge">不会自动执行</span></div><div class="detail-scroll"><div class="attention-strip"><div class="run-orb">1</div><div><strong>先确认任务可以开始</strong><small>待评审任务不会进入自动领取。确认后状态变为待处理，Automation 将自行判断领取。</small></div><button class="compact-action primary">确认并交给 ArcOrbit</button></div><section class="surface"><div class="surface-header"><strong>执行资格</strong><span>当前事实</span></div><div class="surface-body"><dl class="key-value-list"><dt>执行人</dt><dd>你</dd><dt>任务状态</dt><dd>待评审</dd><dt>本地目录</dt><dd>已绑定</dd><dt>项目授权</dt><dd>已允许</dd></dl></div></section></div></aside></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>保留选择的任务列表</li><li>资格原因 attention strip</li><li>当前事实摘要</li><li>服务器状态确认动作</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>确认并交给 ArcOrbit</code> → 提交 pending_review → pending，成功后留在 Inspector 并显示等待领取</div><div class="interaction-item"><code>提交失败</code> → 保留任务选择与原因，显示服务器错误</div></div>
+</div></details>
+
+<details><summary>执行人不匹配 · 修改真实归属</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>任务为待处理，但未分配或执行人不是当前用户；当前用户具备编辑权限。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>Product Lifecycle / Work</span><strong>AR-214</strong><span>待处理</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Eligibility · Assignee</div><h2>这条任务不会由你的 Automation 领取</h2><p>任务当前分配给 Lin。自动领取只考虑“执行人是当前用户”的待处理任务。</p></div><span class="badge">执行人不匹配</span></div><div class="attention-strip"><div class="run-orb">L</div><div><strong>当前执行人：Lin</strong><small>如果这项工作确实应由你推进，请修改真实执行人；否则无需改变。</small></div><button class="compact-action primary">修改执行人</button></div><section class="surface"><div class="surface-header"><strong>不会被连带修改</strong><span>显式边界</span></div><div class="surface-body"><p>修改执行人不绑定目录、不改变项目授权，也不自动开启全局领取。</p></div></section></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>执行人不匹配说明</li><li>真实当前执行人</li><li>修改执行人动作</li><li>非连带修改边界</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>修改执行人</code> → 打开任务编辑 Sheet 并聚焦执行人字段</div><div class="interaction-item"><code>保存</code> → fresh-read 任务资格，留在当前 Inspector</div></div>
+</div></details>
+
+<details><summary>任务已待处理 · 项目连接缺口</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>任务已分配给当前用户且为待处理，但所属项目没有本地目录。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>Product Lifecycle / Work</span><strong>AR-220</strong><span>连接缺口</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Eligibility · Workspace</div><h2>任务已准备好，但 ArcOrbit 还不能进入项目</h2><p>缺少本地目录会同时阻止本地 Automation 和 Chat；任务状态本身无需再次修改。</p></div></div><div class="attention-strip"><div class="run-orb">2</div><div><strong>为 ArcOrbit 选择本地目录</strong><small>Workshop Project：ArcOrbit · 当前执行人：你 · 状态：待处理</small></div><button class="compact-action primary">选择本地目录</button></div></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>任务已具备状态提示</li><li>跨能力影响说明</li><li>项目上下文</li><li>目录绑定动作</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择本地目录</code> → 打开所属项目的绑定 Sheet</div><div class="interaction-item"><code>绑定成功</code> → 回到当前任务并显示下一项资格事实，不重复确认任务</div></div>
+</div></details>
+
+<details><summary>无权限 · 显示责任方</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>当前用户能查看任务，但无权修改执行人、确认状态或项目连接。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>Product Lifecycle / Work</span><strong>AR-231</strong><span>只读</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Responsibility</div><h2>需要项目管理员确认</h2><p>任务仍是待评审，当前执行人未分配；你没有修改该项目任务的权限。</p></div><span class="badge">需要 owner / admin</span></div><section class="surface"><div class="surface-header"><strong>可交接信息</strong><span>AR-231</span></div><div class="surface-body"><dl class="key-value-list"><dt>需要动作</dt><dd>分配执行人并确认为待处理</dd><dt>责任角色</dt><dd>Project owner / admin</dd><dt>当前用户</dt><dd>member · 只读</dd></dl><button class="compact-action">复制任务与原因</button></div></section></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>权限说明</li><li>责任角色</li><li>所需动作</li><li>可复制交接摘要</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>复制任务与原因</code> → 复制项目、任务、阻断和责任角色</div><div class="interaction-item"><code>权限变化</code> → fresh-read 后原位显示可执行动作</div></div>
+</div></details>
+</div></body></html>

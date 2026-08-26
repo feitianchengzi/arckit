@@ -993,7 +993,7 @@ test("Feedback list keeps every feedback on one compact visual row", async () =>
   assert.match(listSource, /feedback-list-copy/);
   assert.match(listSource, /feedback-list-meta/);
   assert.match(styles, /\.feedback-list \{[^}]*align-content: start;/);
-  assert.match(styles, /\.feedback-list-item \{[^}]*align-items: center;[^}]*min-height: 40px;/);
+  assert.match(styles, /\.feedback-list-item \{[^}]*align-items: center;[^}]*min-height: var\(--row-compact\) !important;[^}]*padding: 7px 14px;/);
   assert.match(styles, /\.feedback-list-copy \{[^}]*display: flex;[^}]*white-space: nowrap;/);
   assert.match(styles, /\.feedback-list-meta \{[^}]*display: flex;[^}]*white-space: nowrap;/);
   assert.doesNotMatch(styles, /\.feedback-list-copy \{[^}]*display: grid/);

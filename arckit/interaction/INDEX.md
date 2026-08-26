@@ -16,14 +16,19 @@
 - setup-readiness/ 环境准备页面：全局资源检查、Codex standalone 安装/更新、无默认值显式认证、项目写入确认、用户级迁移、事务 apply 与阻塞恢复。✅
   - default.html 环境准备线框：Codex 缺失/安装/认证选择/登录复核、可见项目写入摘要、managed-stale 清理、执行、完成、升级迁移和失败恢复。✅ (165行)
   - interaction.md 环境准备交互：Codex 安装状态、两级无默认认证、自动复核、项目绑定门禁、用户级 managed 迁移、备份恢复与异常恢复。✅ (231行)
-- platform-workspace/ 多产品平台工作区：以三组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、主工作台式 Feedback 与 Organization 行为。✅
-  - default.html 平台首页线框：三组导航、全局产品范围、Feedback 单行控制轨、窄窗口收敛、剩余高度双栏和转待办恢复状态。✅ (160行)
-  - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)
+- platform-workspace/ 多产品平台应用壳：以三组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、主工作台式 Feedback 与 Organization 行为。✅
+  - default.html 平台应用壳线框：三组导航、全局产品范围、Feedback 单行控制轨、窄窗口收敛、剩余高度双栏和转待办恢复状态。✅ (160行)
+  - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系、项目邀请与项目连接缺口就地修复。✅ (13行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
-  - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织三级管理与 Feedback 单行控制轨、剩余高度双栏、共享图片查看和流转。✅ (160行)
+  - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织项目连接引导与 Feedback 单行控制轨、剩余高度双栏、共享图片查看和流转。✅ (168行)
+- today-workspace/ Today 个人推进首页：从现有事实选择唯一下一步，并在日常状态下汇总跨产品执行、人工事项与连接/工作全貌。✅
+  - default.html Today 主线框：首次准备唯一动作、总闸启动、健康多产品执行、人工事项、完成审查和部分未知。✅ (127行)
+  - readiness-details.html 准备关系子视图：六项完整关系、无项目分流、多产品连接/工作摘要、创建并交给 ArcOrbit 与无权限交接。✅ (72行)
+  - interaction.md Today 交互：动作优先级、事实派生、准备关系、多产品表达、创建委托、恢复与跨页面就地引导。✅ (212行)
 - chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，并在显式项目归属下进行本地 Codex 对话。✅
-  - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、权限和失败恢复。✅ (55行)
-  - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、session/thread 生命周期、Composer、恢复和 Automation 隔离。✅ (120行)
+  - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
+  - workspace-setup.html 工作区绑定子视图：从 Chat 原位选择项目、目录并检查 Setup Readiness，同时保留草稿。✅ (12行)
+  - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、原位工作区绑定、session/thread 生命周期、Composer、恢复和 Automation 隔离。✅ (121行)
 - idea-workspace/ Idea 页面：创意探索、团队讨论、证据与风险比较，以及确认后的正式项目转换预览。✅
   - default.html Idea 线框：创意漏斗、详情、团队观点与开始项目动作。✅ (14行)
   - interaction.md Idea 交互：探索/讨论/确认状态、团队观点和项目转换边界。✅ (35行)
@@ -39,14 +44,16 @@
 - product-feedback-center/ ArcOrbit 产品反馈中心：在受限 SDK 窗口内提交产品反馈、查看我的反馈并从未配置或加载失败中恢复。✅
   - default.html 产品反馈中心线框：SDK 加载、可用内容、账户/配置恢复和 SDK 失败恢复。✅ (54行)
   - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (88行)
-- automation-workspace/ 自动化指挥中心：消费 Work 本地待办状态，以 workspace lane 管理双队列串行、跨项目并行、人工 Gate、Runtime/CLI 接力与恢复。✅
+- automation-workspace/ 自动化指挥中心：消费 Work 本地待办状态，以 workspace lane 管理双队列串行、跨项目并行、Case 绑定恢复、人工 Gate 与 Runtime/CLI 接力。✅
   - default.html 指挥中心线框：顶部产品范围、Work 同步健康摘要、双队列、活动执行选择、并发容量、人工等待、Runtime/CLI 接管与恢复。✅ (328行)
   - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复与退出。✅ (51行)
   - intervention-workbench.html 介入工作台线框：单行有界待办标题、Chat 共享消息面、固定三栏与 Composer、完整时间及逐 Gap 执行全貌。✅ (99行)
-  - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户说明续跑、安全停止、lane 局部外部状态变化与 Work Sync 异常。✅ (137行)
-  - interaction.md 自动化指挥中心交互：Work 本地状态消费、统一待办标题、双队列、workspace lane 串行与跨项目并行、定向 Gate 与 Runtime/CLI 接力。✅ (407行)
+  - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、Case 绑定待确认、用户说明续跑、安全停止、lane 局部外部变化与 Work Sync 异常。✅ (152行)
+  - eligibility-guidance.html 资格引导子视图：本地目录、待评审、全局总闸和无权限责任的原位解释与直接动作。✅ (39行)
+  - interaction.md 自动化指挥中心交互：Work 本地状态消费、资格原因与 Case 绑定就地恢复、统一待办标题、双队列、workspace lane 串行与跨项目并行。✅ (415行)
 - task-browser/ Work 同屏任务浏览：以本地 Task Projection、单行控制轨和剩余高度列表/Inspector 创建、检查、验收并同步待办。✅
   - default.html Work 任务浏览线框：顶部产品范围、Inspector 七状态编辑、Automation 消费提示、运行/验收、恢复与冲突。✅ (217行)
   - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、带七状态 Picker 的任务树/Inspector 与图片浏览。✅ (78行)
   - task-form.html 待办表单子视图：创建/编辑产品切换、跨产品复制确认、目标字段联动和分步失败恢复。✅ (45行)
-  - interaction.md 任务浏览交互：本地查询、Work-owned 同步、三入口七状态编辑、跨产品受控替换、双栏与图片浏览。✅ (279行)
+  - readiness-guidance.html 执行资格子视图：待评审确认、执行人不匹配、项目连接缺口和无权限责任交接。✅ (39行)
+  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、三入口七状态编辑、执行资格就地引导、跨产品受控替换、双栏与图片浏览。✅ (290行)

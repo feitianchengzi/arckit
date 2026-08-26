@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 264
-Updated: 2026-08-26T00:42:58.867Z
+Revision: 266
+Updated: 2026-08-26T02:00:36.343Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-让 create_case 只接收 Agent 的 semantic local handles，并由 trusted Ledger 分配 Fact、Gap、Impact 的 canonical ID、revision 与引用，避免空 ID 导致自动化未收束。
+按照正式交互稿，将 Today 建设为登录后的个人推进首页，并在 Organization、Work、Automation、Chat 中提供基于当前事实的就地解释、直接操作和操作后的 fresh-read。
 
 ## Active Work
 

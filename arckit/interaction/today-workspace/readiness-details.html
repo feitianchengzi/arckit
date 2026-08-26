@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Today Readiness Details - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body>
+    <div class="wireframe-container">
+        <header><h1>Today · 准备全貌与多产品摘要</h1><div class="meta-info"><div>Parent: <code>TodayWorkspace</code></div><div>平台: <strong>macOS</strong></div><div>用途: <strong>按需展开，不成为独立导航</strong></div></div></header>
+
+        <details open>
+            <summary>完整准备关系 · 当前在项目授权</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户从 Today 主动作卡选择“查看全部准备关系”；ArcOrbit 已绑定本地目录并通过项目环境检查，尚未允许自动领取。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="desktop-titlebar"><span>ArcOrbit / Today</span><strong>全部准备关系</strong><span>3 / 6 已完成</span></div>
+                        <div class="workspace-shell">
+                            <aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>当前产品</small></div></div><div class="nav-group"><div class="nav-label">准备状态</div><div class="nav-row"><span class="nav-glyph">✓</span><span>工作归属</span></div><div class="nav-row"><span class="nav-glyph">✓</span><span>本地工作区</span></div><div class="nav-row"><span class="nav-glyph">✓</span><span>项目环境</span></div><div class="nav-row active"><span class="nav-glyph">4</span><span>项目授权</span></div><div class="nav-row"><span class="nav-glyph">5</span><span>工作资格</span></div><div class="nav-row"><span class="nav-glyph">6</span><span>全局领取</span></div></div></aside>
+                            <section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>Today</strong><span>/</span><span>准备关系</span></div><div class="command-spacer"></div><button class="compact-action">关闭</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Readiness · ArcOrbit</div><h2>当前需要允许项目自动领取</h2><p>完整关系用于理解前后依赖；仍然只有当前一步使用强调动作。</p></div><span class="badge active">当前步骤 4</span></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>从项目到自动执行</strong><span>实时派生</span></div><div class="surface-body"><div class="timeline-list"><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>1 · 工作归属</strong><small>ArcOrbit · 个人项目 · 默认产品集</small></div><time>完成</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>2 · 本地工作区</strong><small>…/feitianchengzi/arckit</small></div><time>完成</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>3 · 项目环境</strong><small>Setup Readiness 可用</small></div><time>完成</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>4 · 项目授权</strong><small>本地目录已准备，但 Automation 尚未获得领取范围</small></div><time>当前</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>5 · 工作资格</strong><small>1 条待评审，需要确认或创建待处理任务</small></div><time>稍后</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>6 · 全局领取</strong><small>总闸关闭</small></div><time>稍后</time></div></div></div></section><aside class="stack"><section class="surface"><div class="surface-header"><strong>当前动作</strong><span>项目级授权</span></div><div class="surface-body"><div class="current-action"><strong>允许 ArcOrbit 自动领取</strong><small>只扩大该项目的候选范围，不修改 Workset、任务状态或全局总闸。</small></div><button class="compact-action primary">允许此项目</button></div></section><section class="surface"><div class="surface-header"><strong>数据来源</strong><span>不是 onboarding 记录</span></div><div class="surface-body"><p>每项都从 Project、Desktop Store、Setup Readiness、Work 和 Automation 当前事实派生。</p></div></section></aside></div></div></section>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>六步完整准备关系</li><li>已完成、当前和稍后状态</li><li>唯一强调动作</li><li>事实来源边界</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>允许此项目</code> → 调用 Automation participation 动作，成功后原位进入工作资格</div><div class="interaction-item"><code>关闭</code> → 返回 Today 主卡并保持当前产品</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>没有可推进产品 · 选择真实工作归属</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>当前 Workset 为空，或其中没有当前用户可访问项目；用户尚未选择个人还是团队工作方式。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>ArcOrbit / Today</span><strong>选择从哪里开始</strong><span>没有当前产品</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Choose Work Context</div><h2>先选择要推进的真实项目</h2><p>个人使用不要求创建组织；团队治理只在用户选择团队路径时展开。</p></div></div><div class="card-grid"><section class="card"><div class="card-title">使用个人项目</div><p>创建或选择归属于自己的 Workshop Project，再加入当前 Workset。</p><button class="compact-action primary">创建个人项目</button></section><section class="card"><div class="card-title">加入现有项目</div><p>使用组织或项目邀请码加入团队已有工作，不新建组织。</p><button class="compact-action">使用邀请码加入</button></section><section class="card"><div class="card-title">建立团队项目</div><p>需要组织成员、角色和共享治理时，创建或选择 Organization。</p><button class="compact-action">前往 Organization</button></section></div><div class="attention-strip quiet"><div class="run-orb">i</div><div><strong>产品集只是观察范围</strong><small>选择或创建项目后仍需明确加入当前 Workset；该动作不绑定目录或授权 Automation。</small></div><button class="compact-action">管理产品集</button></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>个人项目、邀请码加入和团队项目三种互斥路径</li><li>Organization 可选边界</li><li>Workset 观察范围说明</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>创建个人项目</code> → 打开个人范围项目创建 Sheet</div><div class="interaction-item"><code>使用邀请码加入</code> → 复用 Organization 全局加入入口</div><div class="interaction-item"><code>前往 Organization</code> → 进入组织治理，不自动创建组织</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>多产品就绪度 · 连接与工作分开</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>Workset 含 ArcOrbit、Workshop Todo 和 Feedback；用户在 Today 展开产品全貌。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>ArcOrbit / Today</span><strong>产品连接与当前工作</strong><span>3 个产品</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Product Workspace Readiness</div><h2>产品集全貌</h2><p>连接就绪度与工作数量分别表达，首要阻断提供直接动作。</p></div><button class="compact-action">关闭全貌</button></div><div class="stack"><section class="surface"><div class="surface-header"><strong>ArcOrbit</strong><span>连接完整 · 运行中</span></div><div class="surface-body"><div class="metric-grid"><div class="metric-card"><span>本地目录</span><strong>已绑定</strong><small>环境可用</small></div><div class="metric-card"><span>项目授权</span><strong>已允许</strong><small>Work Sync 正常</small></div><div class="metric-card emphasis"><span>当前工作</span><strong>1 运行</strong><small>2 待处理</small></div><div class="metric-card"><span>需要我处理</span><strong>0</strong><small>健康</small></div></div></div></section><section class="surface"><div class="surface-header"><strong>Workshop Todo</strong><span>连接完整 · 等待工作</span></div><div class="surface-body"><div class="metric-grid"><div class="metric-card"><span>本地目录</span><strong>已绑定</strong><small>环境可用</small></div><div class="metric-card"><span>项目授权</span><strong>已允许</strong><small>Work Sync 正常</small></div><div class="metric-card emphasis"><span>当前工作</span><strong>2 待评审</strong><small>0 待处理</small></div><div class="metric-card"><span>首要动作</span><strong>审查任务</strong><small>进入 Work</small></div></div><button class="compact-action primary">查看待评审 2</button></div></section><section class="surface"><div class="surface-header"><strong>Feedback</strong><span>仅远端协作</span></div><div class="surface-body"><div class="metric-grid"><div class="metric-card emphasis"><span>本地目录</span><strong>未绑定</strong><small>Chat 不可用</small></div><div class="metric-card"><span>项目授权</span><strong>未允许</strong><small>等待本地目录</small></div><div class="metric-card"><span>当前工作</span><strong>1 待处理</strong><small>不可领取</small></div><div class="metric-card emphasis"><span>首要阻断</span><strong>本地目录</strong><small>选择工作区</small></div></div><button class="compact-action primary">绑定 Feedback 本地目录</button></div></section></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>每产品连接事实</li><li>待评审、待处理、运行和人工工作事实</li><li>首要阻断与直接动作</li><li>健康、等待和仅远端协作差异</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>查看待评审</code> → 进入 Work 并预设产品与状态</div><div class="interaction-item"><code>绑定本地目录</code> → 打开指定项目 Sheet，不能落到其他产品</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>创建并交给 ArcOrbit · 明确执行意图</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>ArcOrbit 项目连接已完整，但当前用户没有待评审或待处理任务；用户选择“创建并交给 ArcOrbit”。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>ArcOrbit / Today</span><strong>创建并交给 ArcOrbit</strong><span>明确自动执行意图</span></div><div class="modal-overlay" data-kit="Sheet"><div class="modal-content" data-label="创建并交给 ArcOrbit"><h3>创建一项可执行工作</h3><p>该入口会以当前用户为执行人，并请求“待处理”状态；普通 Work 创建仍默认“待评审”。</p><div class="form-grid"><label>产品<select><option>ArcOrbit</option><option>Workshop Todo</option></select></label><label>执行人<select><option>Glare · 我</option></select></label><label>状态<select><option>待处理 · 进入自动队列</option></select></label><label>优先级<select><option>中 · 正常处理</option><option>高 · 优先处理</option></select></label><label>待办内容<textarea>完善 Today 的正式交互策略与原型</textarea></label></div><section class="surface"><div class="surface-header"><strong>提交后的真实影响</strong><span>ArcOrbit</span></div><div class="surface-body"><dl class="key-value-list"><dt>本地目录</dt><dd>已绑定</dd><dt>项目授权</dt><dd>已允许</dd><dt>全局领取</dt><dd>关闭</dd><dt>下一步</dt><dd>开始自动执行</dd></dl></div></section><div class="page-actions"><button class="compact-action">改为 Work 待评审</button><button class="compact-action">取消</button><button class="compact-action primary">创建并进入待处理</button></div></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>完整正文与目标产品</li><li>执行人“我”和待处理状态</li><li>项目连接及全局领取影响</li><li>转为普通待评审入口</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>创建并进入待处理</code> → 由 Work 创建真实任务，服务器确认后 Today 重算下一步</div><div class="interaction-item"><code>改为 Work 待评审</code> → 打开普通 Work 创建表单并保留正文草稿</div><div class="interaction-item"><code>创建成功但总闸关闭</code> → 显示“开始自动执行”，不声称任务已经运行</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>无权限恢复 · 不展示失败主按钮</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>当前用户可以看到组织项目，但没有修改项目本地连接或确认待办状态所需权限。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>ArcOrbit / Today</span><strong>需要项目管理员处理</strong><span>权限受限</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Responsibility Handoff</div><h2>当前账户不能完成项目准备</h2><p>页面显示真实责任和替代路径，不提供必然失败的“立即修复”。</p></div><span class="badge">member</span></div><div class="attention-strip"><div class="run-orb">!</div><div><strong>ArcOrbit 尚未绑定团队本地工作区</strong><small>需要项目 owner/admin 配置；你仍可查看远端 Work 和 Feedback。</small></div><button class="compact-action primary">复制处理说明</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>所需责任</strong><span>项目管理员</span></div><div class="surface-body"><dl class="key-value-list"><dt>对象</dt><dd>ArcOrbit</dd><dt>当前角色</dt><dd>member</dd><dt>所需角色</dt><dd>owner / admin</dd><dt>阻断能力</dt><dd>Chat、本地 Automation</dd></dl></div></section><aside class="surface"><div class="surface-header"><strong>仍可使用</strong><span>远端协作</span></div><div class="surface-body"><button class="compact-action">查看 Work</button><button class="compact-action">查看 Feedback</button><button class="compact-action">返回 Today</button></div></aside></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>当前角色与所需角色</li><li>责任方和受影响能力</li><li>复制处理说明</li><li>仍可使用的替代路径</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>复制处理说明</code> → 复制项目、缺口、所需角色和影响，不发外部消息</div><div class="interaction-item"><code>权限变化</code> → fresh-read 后原位恢复直接动作</div></div>
+            </div>
+        </details>
+    </div>
+</body>
+</html>

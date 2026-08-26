@@ -29,7 +29,8 @@ const automation = {
     { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", state_label: "已验收", acceptance_feedback_items: [], eligible: false }
   ], queue: [], todo_queue: [],
   blocked_pending_tasks: [], state_counts: { pending: 2 },
-  active_execution: { task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
+  active_executions: [{ execution_id: "EXECUTION-OUTSIDE", workspace_key: "local-21", task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" }],
+  active_execution: { execution_id: "EXECUTION-OUTSIDE", workspace_key: "local-21", task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
   active_task: { task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
   active_run: null,
   attention_items: [],

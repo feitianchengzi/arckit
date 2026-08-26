@@ -2,13 +2,21 @@
 
 ## Platform Workspace
 
-`platform-workspace/interaction.md` 定义登录后的三组一级信息架构：Personal 下的 Today、Chat；Product Lifecycle 下的 Idea、Work、Automation、Release、Operations、Feedback；Organization 下的 Organization、Engineering。它与 `task-browser/interaction.md` 共同约束 Work/Feedback 的主工作区骨架：全局产品栏之后只保留一条页面控制轨，列表与详情取得剩余高度并独立滚动。`default.html` 投影分组后的多产品推进壳、Feedback 主工作台和完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系和项目上下文邀请；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
+`platform-workspace/interaction.md` 定义登录后的三组一级信息架构：Personal 下的 Today、Chat；Product Lifecycle 下的 Idea、Work、Automation、Release、Operations、Feedback；Organization 下的 Organization、Engineering。它与 `task-browser/interaction.md` 共同约束 Work/Feedback 的主工作区骨架：全局产品栏之后只保留一条页面控制轨，列表与详情取得剩余高度并独立滚动。`default.html` 投影应用壳、Feedback 主工作台和完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系、项目上下文邀请和项目连接缺口；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
 
 Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md`、`arcorbit-planned-workspaces.md` 与 `arckit/tech/arcorbit/platform-composition-solution.md`。Product Workspace 组合 Workshop Project 与 ArcOrbit 本地 repository binding、participation 和偏好；Workset 只控制同时展示范围，不能改变 Automation participation、workspace lane 串行顺序或全局并发容量。
 
+## Today Workspace
+
+`today-workspace/interaction.md` 定义登录后个人推进首页：从 Project、Workset、Product Workspace、本地绑定、Setup Readiness、Work Task Projection、Automation participation、全局领取、活动 execution 和人工事项实时派生唯一下一步，不保存第二套 readiness 或 onboarding 完成状态。`default.html` 投影首次准备、总闸启动、健康多产品推进、人工事项、完成审查和部分未知；`readiness-details.html` 投影六项完整关系、无项目分流、连接/工作分离的多产品摘要、明确创建并委托和无权限责任交接。
+
+Today 与目标页面共享原因而不复制写入：Organization Project Detail 负责本地绑定和项目授权的对象上下文，`task-browser/readiness-guidance.html` 负责待评审、执行人和任务所属项目缺口，`automation-workspace/eligibility-guidance.html` 负责候选全貌、全局总闸和队列资格，`chat-workspace/workspace-setup.html` 负责保留草稿的原位项目绑定。动作成功后目标页面留在原处 fresh-read；返回 Today 时重新选择唯一主动作。
+
+Workset 只决定 Today 的观察范围；创建组织、邀请成员、加入 Workset、本地绑定、项目授权、任务状态和全局自动领取保持独立事实与显式动作。个人用户没有团队治理需求时，不把 Organization 或成员邀请放入固定准备路径。
+
 ## Chat and Planned Workspaces
 
-`chat-workspace/` 定义绑定本地 Product Workspace 的真实 Codex 自由对话、session/thread 生命周期、流式消息、停止、权限、删除和失败恢复；`idea-workspace/` 定义创意探索、团队讨论与正式项目转换预览；`release-workspace/` 定义发版准备和上线监控计划；`operations-workspace/` 定义外部市场动作和效果信号回流；`engineering-profile/` 把 Project/Case State 的软件工程定义与维护预期事实、实现现状和问题定位的领域 Skills 组合为一个 Domain Profile，并明确排除 entry skills。
+`chat-workspace/` 定义绑定本地 Product Workspace 的真实 Codex 自由对话、原位工作区绑定、session/thread 生命周期、流式消息、停止、权限、删除和失败恢复；`idea-workspace/` 定义创意探索、团队讨论与正式项目转换预览；`release-workspace/` 定义发版准备和上线监控计划；`operations-workspace/` 定义外部市场动作和效果信号回流；`engineering-profile/` 把 Project/Case State 的软件工程定义与维护预期事实、实现现状和问题定位的领域 Skills 组合为一个 Domain Profile，并明确排除 entry skills。
 
 五个页面共同消费 `arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md`。Chat 通过 `arckit/tech/arcorbit/desktop-execution-solution.md` 复用 Codex transport 与中性消息投影，同时隔离 state-driven Runtime、Automation lease 和 ledger；它不提供 Idea/Work 转换。其余页面只使用当前真实 Project、Task、Feedback、Run、ledger、代码/配置/测试/运行证据和 release workflow 事实组织展示，不建立新的服务端、发布、监控、市场或 registry 写入合约；Idea 的转换、Release 的发布、Operations 的外部动作和 Engineering 的 Profile 管理保持计划动作。
 
@@ -30,9 +38,9 @@ Organization Center 复用 Workshop Organization、OrganizationMember 和 Projec
 
 `login/interaction.md` 定义应用启动时的认证门禁；`login/default.html` 投影会话恢复、未登录入口、验证码已发送和登录失败。未登录时 Login 是唯一可交互主页面，认证成功后才进入 Automation Command Center，退出登录后返回 Login。
 
-`automation-workspace/interaction.md` 定义 Automation 只消费 Work Sync 发布的本地待办状态，并维护普通待办与验收问题双队列、workspace lane 内统一串行仲裁、最多 3 条 lane 并行、execution 定向 Gate/恢复/控制和待办会话交接；`automation-workspace/default.html` 只投影 Work 的实时/补取/降级健康摘要及 Automation 自己的两条队列、活动执行集合、槽位容量、选中执行和 lane 局部状态，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办问题会话。
+`automation-workspace/interaction.md` 定义 Automation 只消费 Work Sync 发布的本地待办状态，并维护资格原因就地引导、普通待办与验收问题双队列、workspace lane 内统一串行仲裁、最多 3 条 lane 并行、execution 定向 Gate/恢复/控制和待办会话交接；`automation-workspace/default.html` 只投影 Work 的实时/补取/降级健康摘要及 Automation 自己的两条队列、活动执行集合、槽位容量、选中执行和 lane 局部状态，`automation-workspace/eligibility-guidance.html` 投影候选存在但不满足目录、任务状态、项目授权或全局总闸时的直接动作，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办问题会话。
 
-`task-browser/interaction.md` 定义 Work 面板内本地状态/搜索/筛选控制轨、Work-owned 同步、占满剩余高度的父子任务树与 Inspector、完整详情、评论附件、产品限定待办维护，以及新建、编辑和 Inspector 三入口完整七状态选择。`task-browser/daily-work.html` 投影不触发远端请求的本地查询、独立滚动的树与 Inspector、详情状态 Picker 和评论，`task-browser/task-form.html` 投影产品联动字段、七状态、语义优先级和标签管理，`task-browser/default.html` 投影状态修改与 Automation 外部变化恢复。completed Inspector 展示验收问题、进展和 Composer；accepted Inspector 不允许提出新问题，但仍可由 Work 提交其他状态。验收快捷动作可要求未解决问题清零；通用状态 mutation 只受 Workshop 权限、冲突与服务端确认约束。Work 的本地筛选在同页替换任务树与 Inspector；Automation 入口携带对象身份进入对应详情，Feedback 页面只消费 Workshop 用户反馈。
+`task-browser/interaction.md` 定义 Work 面板内本地状态/搜索/筛选控制轨、Work-owned 同步、占满剩余高度的父子任务树与 Inspector、完整详情、评论附件、产品限定待办维护，以及新建、编辑和 Inspector 三入口完整七状态选择。`task-browser/daily-work.html` 投影不触发远端请求的本地查询、独立滚动的树与 Inspector、详情状态 Picker 和评论，`task-browser/task-form.html` 投影产品联动字段、七状态、语义优先级和标签管理，`task-browser/readiness-guidance.html` 投影当前任务的待评审、执行人和项目连接资格原因，`task-browser/default.html` 投影状态修改与 Automation 外部变化恢复。completed Inspector 展示验收问题、进展和 Composer；accepted Inspector 不允许提出新问题，但仍可由 Work 提交其他状态。验收快捷动作可要求未解决问题清零；通用状态 mutation 只受 Workshop 权限、冲突与服务端确认约束。Work 的本地筛选在同页替换任务树与 Inspector；Automation 入口携带对象身份进入对应详情，Feedback 页面只消费 Workshop 用户反馈。
 
 Work Sync 先维护当前用户可访问项目的七状态本地 Task Projection，再把当前执行人候选发布给 Automation；Work 用户和 Automation 都经 Work Sync 提交状态 mutation，Automation 只在确认后的本地状态变化后推进、收束或进入外部变化恢复。“所有项目”只聚合这些项目的待办，不构成独立任务来源。验收问题是 Desktop Store 拥有的独立工作来源，保留自己的队列状态、Run、Case 和进展；它只引用来源待办，不成为第八种服务器任务状态。普通待办与验收问题按规范化本地 workspace 共享一条串行 lane，不同 lane 在有界容量内并行。项目、任务归属与任务状态由远端任务服务器拥有；Work Task Projection、工作区绑定、自动化参与状态、反馈记录、执行子状态、事件和 ledger 证据由 ArcOrbit 拥有。
 

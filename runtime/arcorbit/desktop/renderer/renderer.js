@@ -28,6 +28,13 @@ import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } 
 import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-query-state.mjs";
 import { taskDisplayTitle } from "../../src/task-display-title.mjs";
 import { initializeWindowControls } from "./window-controls.mjs";
+import {
+  canManageProject,
+  deriveAutomationGuidance,
+  deriveReadinessSteps,
+  deriveTodayGuidance,
+  deriveWorkEligibilityGuidance
+} from "../../src/desktop/today-guidance.mjs";
 
 const api = window.arckitDesktop;
 
@@ -1218,6 +1225,7 @@ function renderChat() {
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
+  const manageableRemoteProjects = (state.platform.projects || []).filter(canManageProject);
   const unavailableSessionProjectOption = session && !project
     ? `<option value="${escapeHtml(session.project_id)}" selected>${escapeHtml(session.project_id)}（不可用）</option>`
     : "";
@@ -1259,21 +1267,41 @@ function renderChat() {
     messages: session ? chat.snapshot.messages : [],
     emptyHtml: session
       ? `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`
-      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "Chat 只允许绑定已配置的本地 Product Workspace，Renderer 不能指定任意目录。"}</p>${project ? "" : `<button class="primary-button" data-chat-add-workspace type="button">添加本地项目</button>`}</div>`,
+      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : manageableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
   });
   els.chatErrorHost.querySelector("[data-chat-retry-last]")?.addEventListener("click", () => {
     chatStateCoordinator.prepareRetry();
     renderChatComposer();
     els.chatInput.focus();
   });
-  els.chatTranscript.querySelector("[data-chat-add-workspace]")?.addEventListener("click", () => runAction(async () => {
-    const localProject = await api.pickProject();
-    if (!localProject) return;
-    await checkSetupReadinessForSelection(localProject.id);
-    await refreshSnapshot({ quiet: true });
-    await refreshChat({ quiet: true, resetOwner: true });
+  els.chatTranscript.querySelector("[data-chat-add-workspace]")?.addEventListener("click", () => runAction(openChatWorkspaceSetup));
+  els.chatTranscript.querySelector("[data-chat-copy-workspace-handoff]")?.addEventListener("click", () => runAction(async () => {
+    await navigator.clipboard.writeText("Chat 需要一个已绑定本地目录的 Product Workspace。请由 Project owner / admin 在 Organization 项目详情完成本地连接。");
+    showToast("项目连接说明已复制；聊天草稿保持不变。");
   }));
   renderChatComposer();
+}
+
+async function openChatWorkspaceSetup() {
+  const projects = (state.platform.projects || []).filter(canManageProject).map((project) => ({ value: project.id, label: project.name }));
+  if (!projects.length) throw new Error("当前没有可由你绑定本地目录的远端项目；请联系 Project owner / admin。");
+  await openPlatformAction({
+    title: "让 Chat 进入一个本地项目",
+    lead: "选择远端项目后再选择它对应的本地目录。绑定期间保留当前 Chat 草稿；失败不会清空选择或草稿。",
+    confirmLabel: "选择目录并绑定",
+    fields: [
+      platformField("project_id", "远端项目", { type: "select", required: true, options: projects }),
+      platformField("boundary", "不会连带修改", { value: "Organization、成员、Workset、任务和 Automation 授权", readonly: true })
+    ],
+    onSubmit: async (values) => {
+      const localProject = await api.pickProject();
+      if (!localProject) return { keepOpen: true };
+      await bindAutomationWorkspace(values.project_id, localProject.id);
+      await refreshChat({ quiet: true, resetOwner: true });
+      showToast("Product Workspace 已绑定；聊天草稿已保留。");
+      return { close: true };
+    }
+  });
 }
 
 function renderChatComposer() {
@@ -1409,6 +1437,14 @@ function renderToday() {
     ...(platform.automation?.recovery_items || []).map((item) => ({ ...item, kind_label: "恢复" })),
     ...tasks.filter((task) => task.state === "blocked").map((task) => ({ ...task, task_id: task.id, kind_label: "待办阻塞", reason: task.content }))
   ].filter(scopedTaskFilter);
+  const guidance = deriveTodayGuidance({
+    platform,
+    automation: state.snapshot,
+    setup: state.setup,
+    authentication: state.authentication,
+    selectedProjectId: state.selectedProjectId
+  });
+  renderTodayPrimaryAction(guidance);
   els.todaySummary.textContent = `${workspaces.length} 个产品在当前查看范围 · ${openTasks.length} 项未结束工作 · ${ordinaryFeedback.length} 条普通反馈。`;
   els.platformHealthBadge.className = `health-badge ${platform.source_status === "healthy" ? "success" : platform.source_status === "degraded" ? "warning" : "danger"}`;
   els.platformHealthBadge.textContent = platform.source_status === "healthy" ? "平台已同步" : platform.source_status === "degraded" ? "部分数据降级" : sourceStatusLabel(platform.source_status);
@@ -1424,7 +1460,18 @@ function renderToday() {
   ].join("");
   els.todayProductGrid.innerHTML = workspaces.length ? workspaces.map((workspace) => {
     const open = Object.entries(workspace.task_counts || {}).filter(([key]) => !["completed", "accepted", "cancelled"].includes(key)).reduce((sum, [, value]) => sum + Number(value || 0), 0);
-    return `<button class="product-card" data-product-work="${escapeHtml(workspace.id)}" type="button"><span class="product-card-head"><i>${escapeHtml(workspace.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(workspace.name)}</strong><small>${escapeHtml(workspace.current_user_role || "member")} · ${workspace.local_project_path ? "已绑定本地项目" : "仅远端"}</small></span></span><span class="product-card-stats"><b>${open}<small>未结束</small></b><b>${workspace.feedback_count}<small>反馈</small></b><b>${workspace.members.length}<small>成员</small></b></span><span class="product-card-foot"><em class="status-pill ${workspace.eligible ? "accepted" : "pending_review"}">${workspace.eligible ? "可自动执行" : workspace.participating ? "待满足执行条件" : "未授权自动领取"}</em><small>打开工作 →</small></span></button>`;
+    const projectErrors = (platform.errors || []).filter((error) => !error.project_id || String(error.project_id) === String(workspace.id));
+    const connection = projectErrors.length
+      ? "连接状态部分未知"
+      : !workspace.local_project_path ? "仅远端 · 未绑定目录"
+        : !workspace.participating ? "本地已绑定 · 未授权领取"
+          : workspace.source_status === "healthy" ? "连接完整" : `连接 · ${workspace.source_status || "未知"}`;
+    const projectTasks = tasks.filter((task) => String(task.project_id) === String(workspace.id));
+    const running = (state.snapshot.active_executions || []).filter((execution) => String(execution.project_id) === String(workspace.id)).length;
+    const work = projectErrors.length
+      ? "当前工作部分未知"
+      : `${Number(workspace.task_counts?.pending_review || 0)} 待评审 · ${Number(workspace.task_counts?.pending || 0)} 待处理 · ${running} 运行`;
+    return `<button class="product-card" data-product-work="${escapeHtml(workspace.id)}" type="button"><span class="product-card-head"><i>${escapeHtml(workspace.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(workspace.name)}</strong><small>${escapeHtml(workspace.current_user_role || "member")} · ${escapeHtml(connection)}</small></span></span><span class="product-card-readiness"><span><small>项目连接</small><strong>${escapeHtml(connection)}</strong></span><span><small>当前工作</small><strong>${escapeHtml(work)}</strong></span></span><span class="product-card-stats"><b>${open}<small>未结束</small></b><b>${projectTasks.filter((task) => task.state === "completed").length}<small>待审查</small></b><b>${workspace.feedback_count}<small>反馈</small></b></span><span class="product-card-foot"><em class="status-pill ${projectErrors.length ? "blocked" : workspace.eligible ? "accepted" : "pending_review"}">${projectErrors.length ? "部分未知" : workspace.eligible ? "可自动执行" : workspace.participating ? "待满足执行条件" : "未授权自动领取"}</em><small>打开工作 →</small></span></button>`;
   }).join("") : `<div class="empty-state platform-empty">当前产品集未选择产品。使用顶部“管理”选择一个或多个项目。</div>`;
   els.todayProductGrid.querySelectorAll("[data-product-work]").forEach((button) => button.addEventListener("click", () => {
     state.selectedProjectId = button.dataset.productWork;
@@ -1433,6 +1480,120 @@ function renderToday() {
   }));
   els.todayWorkList.innerHTML = openTasks.length ? `<div class="compact-list">${rankTasks(openTasks).slice(0, 8).map(platformTaskRow).join("")}</div>` : `<div class="empty-state compact">当前产品集没有未结束待办。</div>`;
   els.todayAttentionList.innerHTML = attention.length ? `<div class="compact-list">${attention.slice(0, 8).map((item) => `<div class="compact-row attention"><span><strong>${escapeHtml(item.title || item.reason || item.task_id || "需要处理")}</strong><small>${escapeHtml(projectName(item.project_id))} · ${escapeHtml(item.kind_label)}</small></span><em>${escapeHtml(item.task_id || item.id || "")}</em></div>`).join("")}</div>` : `<div class="empty-state compact">当前没有人工介入、恢复或阻塞项。</div>`;
+}
+
+function renderTodayPrimaryAction(guidance) {
+  const workspace = guidance.workspace;
+  const userTasks = (state.snapshot.tasks || []).filter((task) => !workspace || String(task.project_id) === String(workspace.id));
+  const steps = deriveReadinessSteps({
+    workspace,
+    setup: state.setup,
+    automation: state.snapshot,
+    userTasks,
+    unknown: guidance.kind === "unknown"
+  });
+  const source = workspace ? `<span>${escapeHtml(workspace.name)}</span>` : "";
+  const actionButton = guidance.action_id
+    ? `<button class="${guidance.tone === "info" ? "secondary-button" : "primary-button"}" data-guidance-action="${escapeHtml(guidance.action_id)}" type="button">${escapeHtml(guidance.action_label)}</button>`
+    : "";
+  els.todayPrimaryAction.innerHTML = `<div class="today-primary-copy"><p class="eyebrow">唯一下一步 ${source}</p><h2>${escapeHtml(guidance.title)}</h2><p>${escapeHtml(guidance.reason)}</p></div><div class="today-primary-controls">${actionButton}<details class="today-readiness-details"><summary>查看全部准备关系</summary><div>${steps.map((step, index) => `<span class="readiness-step ${escapeHtml(step.status)}"><i>${step.status === "complete" ? "✓" : step.status === "unknown" ? "?" : index + 1}</i><strong>${escapeHtml(step.label)}</strong><small>${step.status === "complete" ? "完成" : step.status === "current" ? "当前" : step.status === "unknown" ? "未知" : "稍后"}</small></span>`).join("")}</div></details></div>`;
+  els.todayPrimaryAction.querySelector("[data-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(guidance)));
+}
+
+async function performGuidanceAction(guidance, { task = guidance.task, workspace = guidance.workspace } = {}) {
+  switch (guidance.action_id) {
+    case "open_auth":
+      await openSettings({ loginGate: true });
+      return;
+    case "open_recovery": showPage("recovery"); return;
+    case "open_attention": openWorkbench("intervention"); return;
+    case "review_completion": openWorkGuidanceTask(task, "completed"); return;
+    case "manage_workset":
+      if (state.platform.active_workset) await editCurrentWorkset();
+      else showPage("organization");
+      return;
+    case "bind_workspace": await bindProjectWorkspace(workspace); return;
+    case "check_setup": await checkSetupReadinessForSelection(workspace?.local_project_id); return;
+    case "enable_project":
+      await api.setProjectParticipation(workspace.id, true);
+      await refreshSnapshot();
+      return;
+    case "review_task": openWorkGuidanceTask(task, "pending_review"); return;
+    case "create_for_arcorbit": await createTaskForArcOrbit(workspace?.id); return;
+    case "enable_automation":
+      if (!window.confirm("开始自动执行只开启全局新任务领取；不会修改任务状态、项目授权或停止当前运行。继续吗？")) return;
+      await api.setAutomationEnabled(true);
+      await refreshSnapshot();
+      return;
+    case "resume_queue":
+      await api.setQueuePaused(false);
+      await refreshSnapshot();
+      return;
+    case "view_automation": showPage("command"); return;
+    case "retry_refresh": await refreshSnapshot(); return;
+    case "edit_assignee": await editTask(task.id, { focusField: "executor_id" }); return;
+    case "confirm_review":
+      await executeManagedAction("task.update", { task_id: task.id, state: "pending", expected_state: "pending_review" }, "任务已确认为待处理；正在重新计算执行资格");
+      return;
+    case "copy_handoff":
+      await navigator.clipboard.writeText(`${workspace?.name || task?.project_name || "当前项目"}\n${guidance.title}\n${guidance.reason}\n责任角色：Project owner / admin`);
+      showToast("处理说明已复制；ArcOrbit 未发送外部消息。");
+      return;
+    default: return;
+  }
+}
+
+function openWorkGuidanceTask(task, targetState = task?.state || "pending") {
+  if (task?.project_id) state.selectedProjectId = String(task.project_id);
+  if (task?.id) state.selectedPlatformTaskId = String(task.id);
+  state.selectedState = targetState;
+  state.platformWorkFilter = "";
+  state.platformWorkFilters = defaultWorkFilters();
+  state.workQueryOffset = 0;
+  showPage("work");
+}
+
+async function bindProjectWorkspace(workspace) {
+  if (!workspace?.id) throw new Error("未找到要绑定的远端项目。");
+  const localProject = await api.pickProject();
+  if (!localProject) return;
+  await bindAutomationWorkspace(workspace.id, localProject.id);
+  showToast(`${workspace.name || "项目"} 已绑定本地目录；正在使用 fresh 状态计算下一步。`);
+}
+
+async function bindAutomationWorkspace(remoteProjectId, localProjectId) {
+  await api.bindAutomationProject(remoteProjectId, localProjectId);
+  let setupError = null;
+  try {
+    await checkSetupReadinessForSelection(localProjectId);
+  } catch (error) {
+    setupError = error;
+  }
+  await refreshSnapshot({ quiet: true });
+  if (setupError) throw setupError;
+}
+
+async function createTaskForArcOrbit(defaultProjectId = "") {
+  const projects = workspaceOptions().filter((project) => !defaultProjectId || String(project.value) === String(defaultProjectId));
+  if (!projects.length || !state.platform.user?.id) throw new Error("当前没有可由你创建待处理任务的产品。");
+  await openPlatformAction({
+    title: "创建并交给 ArcOrbit",
+    lead: "这是明确的自动执行意图：执行人固定为当前用户，状态固定为待处理。普通 Work 创建仍默认待评审。",
+    confirmLabel: "创建并进入待处理",
+    fields: [
+      platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId || projects[0].value, options: projects }),
+      platformField("content", "待办内容", { type: "textarea", required: true }),
+      platformField("executor", "执行人", { value: `${currentWorkshopUserName()} · 我`, readonly: true }),
+      platformField("task_state", "状态", { value: "待处理 · 进入 Automation 候选", readonly: true }),
+      platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions() })
+    ],
+    onSubmit: async (values) => {
+      const input = { project_id: values.project_id, content: values.content, state: "pending", executor_id: state.platform.user.id };
+      if (values.priority !== "") input.priority = values.priority;
+      await executeManagedAction("task.create", input, "待处理任务已创建；正在重新计算下一步", { tolerateRefreshFailure: true });
+      return { close: true };
+    }
+  });
 }
 
 function renderOrganization() {
@@ -1506,7 +1667,13 @@ function renderOrganizationProjects(scope, personalProjects) {
   const members = selected ? (state.platform.project_members || []).filter((member) => String(member.project_id) === String(selected.id)) : [];
   const canManage = selected && ["owner", "admin"].includes(selected.current_user_role);
   const selectedScopeLabel = personal ? (selected?.external_participation ? "外部参与" : "个人项目") : scope?.name || "";
-  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><p>${escapeHtml(selected.git_url || "未设置 Git 地址")}</p><div class="project-connection-list"><span><strong>组织归属</strong><small>${escapeHtml(selectedScopeLabel)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>本地项目</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span></div><div class="row-actions project-detail-actions"><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
+  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><p>${escapeHtml(selected.git_url || "未设置 Git 地址")}</p><div class="project-connection-list"><span><strong>组织归属</strong><small>${escapeHtml(selectedScopeLabel)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>本地项目</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span></div>${organizationProjectGuidance(selected, canManage)}<div class="row-actions project-detail-actions"><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
+}
+
+function organizationProjectGuidance(project, canManage) {
+  if (!project.local_project_path && !project.local_project_id) return `<div class="inline-guidance"><strong>本地连接未完成</strong><p>绑定目录会启用 Chat 和本地 Automation；不会加入 Workset 或授权领取。</p>${canManage ? `<button class="primary-button" data-organization-bind-workspace="${escapeHtml(project.id)}" type="button">选择本地目录</button>` : `<small>责任角色：Project owner / admin。当前角色 ${escapeHtml(project.current_user_role || "只读")} 无法完成此动作。</small><button class="secondary-button" data-organization-copy-handoff="${escapeHtml(project.id)}" type="button">复制处理说明</button>`}</div>`;
+  if (!project.participating) return `<div class="inline-guidance"><strong>项目尚未允许自动领取</strong><p>项目目录已绑定；授权只扩大该项目候选范围。</p>${canManage ? `<button class="primary-button" data-organization-enable-project="${escapeHtml(project.id)}" type="button">允许此项目</button>` : `<small>责任角色：Project owner / admin。当前角色 ${escapeHtml(project.current_user_role || "只读")} 无法完成此动作。</small><button class="secondary-button" data-organization-copy-handoff="${escapeHtml(project.id)}" type="button">复制处理说明</button>`}</div>`;
+  return `<div class="inline-guidance is-ready"><strong>项目连接已准备</strong><p>本地目录和项目授权已就绪；Workset 仍只控制观察范围。</p></div>`;
 }
 
 function wireOrganizationActions() {
@@ -1520,6 +1687,12 @@ function wireOrganizationActions() {
   els.organizationContent.querySelectorAll("[data-product-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteProject(button.dataset.productInvite))));
   els.organizationContent.querySelectorAll("[data-product-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProduct(button.dataset.productDelete))));
   els.organizationContent.querySelectorAll("[data-project-workset-toggle]").forEach((button) => button.addEventListener("click", () => runAction(() => toggleProjectInWorkset(button.dataset.projectWorksetToggle))));
+  els.organizationContent.querySelectorAll("[data-organization-bind-workspace]").forEach((button) => button.addEventListener("click", () => runAction(() => bindProjectWorkspace(findWorkspace(button.dataset.organizationBindWorkspace)))));
+  els.organizationContent.querySelectorAll("[data-organization-enable-project]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+    await api.setProjectParticipation(button.dataset.organizationEnableProject, true);
+    await refreshSnapshot();
+  })));
+  els.organizationContent.querySelectorAll("[data-organization-copy-handoff]").forEach((button) => button.addEventListener("click", () => runAction(() => performGuidanceAction({ action_id: "copy_handoff", title: "完成项目连接准备", reason: "需要绑定本地目录或允许项目自动领取。", workspace: findWorkspace(button.dataset.organizationCopyHandoff) }))));
   els.organizationContent.querySelectorAll("[data-organization-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editOrganizationMember(button.dataset.organizationMemberEdit, button.dataset.memberOrganization))));
   els.organizationContent.querySelectorAll("[data-organization-member-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteOrganizationMember(button.dataset.organizationMemberDelete, button.dataset.memberOrganization))));
   els.organizationContent.querySelectorAll("[data-project-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editProjectMember(button.dataset.projectMemberEdit, button.dataset.memberProject))));
@@ -1607,6 +1780,14 @@ function renderPlatformWorkInspector(task) {
   const automationTask = state.snapshot.tasks.find((item) => String(item.id) === String(task.id)) || null;
   const feedbackItems = automationTask?.acceptance_feedback_items || [];
   const canManage = canManagePlatformTask(task);
+  const eligibilityGuidance = deriveWorkEligibilityGuidance({
+    task,
+    workspace,
+    automationTask,
+    currentUserId: state.platform.user?.id,
+    canManageTask: canManage,
+    errors: state.platform.errors
+  });
   const automationActions = automationTask ? taskActions(automationTask).filter((action) => action.id === "review") : [];
   const replacement = (state.platform.task_replacements || []).find((item) => (
     String(item.source_task_id) === String(task.id) || String(item.target_task_id) === String(task.id)
@@ -1618,7 +1799,7 @@ function renderPlatformWorkInspector(task) {
     ? `<div class="work-task-status-editor"><label><span>状态</span><select data-work-inspector-state>${taskStateOptions().map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === task.state ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label><button class="secondary-button" data-work-inspector-state-save="${escapeHtml(task.id)}" type="button">更新状态</button><small>由 Work Sync 提交并等待服务器确认；Automation 只消费确认后的状态。</small></div>`
     : "";
   const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${replacementRecovery}${statusEditor}${factRows([
+  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${replacementRecovery}${renderInlineGuidance(eligibilityGuidance)}${statusEditor}${factRows([
     ["待办标识", task.id],
     ["所属产品", task.project_name],
     ["创建人", taskCreatorName(task)],
@@ -1638,6 +1819,7 @@ function renderPlatformWorkInspector(task) {
     return;
   }
   els.platformWorkInspector.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
+  els.platformWorkInspector.querySelector("[data-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(eligibilityGuidance, { task, workspace })));
   els.platformWorkInspector.querySelector("[data-work-inspector-state-save]")?.addEventListener("click", () => runAction(() => updateTaskStateFromInspector(task)));
   els.platformWorkInspector.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
   els.platformWorkInspector.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
@@ -1672,6 +1854,13 @@ function renderPlatformWorkInspector(task) {
   }));
   if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
   else loadMissingTaskAttachmentPreviews(task);
+}
+
+function renderInlineGuidance(guidance) {
+  const button = guidance.action_id
+    ? `<button class="${guidance.tone === "info" ? "secondary-button" : "primary-button"}" data-guidance-action="${escapeHtml(guidance.action_id)}" type="button">${escapeHtml(guidance.action_label)}</button>`
+    : "";
+  return `<section class="inline-guidance ${guidance.tone === "info" ? "is-ready" : ""}"><strong>${escapeHtml(guidance.title)}</strong><p>${escapeHtml(guidance.reason)}</p>${guidance.responsibility === "project_admin" ? `<small>责任角色：Project owner / admin。不会展示必然失败的修改按钮。</small>` : ""}${button}</section>`;
 }
 
 function updatePlatformWorkInspector(taskId, html) {
@@ -2358,7 +2547,7 @@ async function createTask() {
   await executeManagedAction("task.create", values, "待办已创建");
 }
 
-async function editTask(taskId) {
+async function editTask(taskId, { focusField = "" } = {}) {
   const task = findPlatformTask(taskId);
   const projects = workspaceOptions();
   const action = openPlatformAction({
@@ -2380,6 +2569,7 @@ async function editTask(taskId) {
     excludedTaskId: task.id,
     tags: task.tags
   });
+  if (focusField) els.platformActionForm.querySelector(`[name="${focusField}"]`)?.focus();
   await action;
 }
 
@@ -3081,6 +3271,17 @@ function renderAcceptanceFeedbackQueue(items) {
 }
 
 function renderAttention(blockedPendingTasks = []) {
+  const guidance = deriveAutomationGuidance({
+    automation: state.snapshot,
+    platform: state.platform,
+    selectedProjectId: state.selectedProjectId
+  });
+  if (guidance.kind !== "human_attention") {
+    const button = guidance.action_id ? `<button class="${guidance.tone === "info" ? "secondary-button" : "primary-button"}" data-automation-guidance-action="${escapeHtml(guidance.action_id)}" type="button">${escapeHtml(guidance.action_label)}</button>` : "";
+    els.attentionHost.innerHTML = `<div class="attention-strip ${guidance.kind === "unknown" ? "danger" : guidance.tone === "info" ? "is-ready" : ""}"><span>${guidance.kind === "empty" || guidance.kind === "queue_ready" ? "✓" : "!"}</span><div class="attention-copy"><strong>${escapeHtml(guidance.title)}</strong><p>${escapeHtml(guidance.reason)}</p>${guidance.responsibility === "project_admin" ? `<small>责任角色：Project owner / admin。当前页面不展示必然失败的按钮。</small>` : ""}</div>${button}</div>`;
+    els.attentionHost.querySelector("[data-automation-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(guidance)));
+    return;
+  }
   const attention = state.snapshot.attention_items.find(scopedTaskFilter);
   const recovery = state.snapshot.recovery_items[0];
   const blocked = blockedPendingTasks.find((task) => task.eligibility_code === "project_not_participating") || blockedPendingTasks[0];

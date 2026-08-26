@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Today Workspace - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <h1>Today Workspace</h1>
+            <div class="meta-info">
+                <div>View: <code>TodayWorkspace</code></div>
+                <div>平台: <strong>macOS</strong></div>
+                <div>定位: <strong>唯一下一步 · 完整关系按需展开 · 多产品长期摘要</strong></div>
+            </div>
+        </header>
+
+        <details open>
+            <summary>唯一下一步 · 绑定本地目录</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>当前 Workset 已包含 ArcOrbit，远端项目可访问，但尚未绑定本地目录；该缺口同时阻止 Chat 和本地 Automation。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit</strong><span>Workshop 已连接 · Runtime 在线</span></div>
+                        <div class="workspace-shell">
+                            <aside class="app-sidebar" data-kit="List(sidebar)">
+                                <div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>Product Workspace</small></div></div>
+                                <div class="nav-group"><div class="nav-label">PERSONAL</div><div class="nav-row active"><span class="nav-glyph">T</span><span>Today</span><span class="count">1</span></div><div class="nav-row"><span class="nav-glyph">C</span><span>Chat</span></div></div>
+                                <div class="nav-group"><div class="nav-label">PRODUCT LIFECYCLE</div><div class="nav-row"><span class="nav-glyph">W</span><span>Work</span><span class="count">1</span></div><div class="nav-row"><span class="nav-glyph">A</span><span>Automation</span></div><div class="nav-row"><span class="nav-glyph">F</span><span>Feedback</span></div></div>
+                                <div class="nav-group"><div class="nav-label">ORGANIZATION</div><div class="nav-row"><span class="nav-glyph">O</span><span>Organization</span></div></div>
+                                <div class="sidebar-status"><strong>Glare</strong><div class="status-line"><i class="status-dot active"></i><span>个人账户</span></div></div>
+                            </aside>
+                            <section class="workspace-column">
+                                <div class="command-bar" data-kit="toolbar"><div class="breadcrumbs"><strong>默认产品集 · 1</strong><span>/</span><span>ArcOrbit</span></div><div class="command-spacer"></div><button class="compact-action" data-kit="Menu">ArcOrbit ▾</button><button class="compact-action">管理产品集</button><button class="compact-action" data-kit="Toggle">自动领取 · 关闭</button></div>
+                                <div class="page-content">
+                                    <div class="page-header"><div><div class="eyebrow">Today · Next Best Action</div><h2>让 ArcOrbit 开始推进第一个项目</h2><p>系统根据当前事实只突出一个可推进动作，完成后在原位置继续显示下一步。</p></div><span class="badge">还差 4 项条件</span></div>
+                                    <div class="content-grid">
+                                        <div class="stack">
+                                            <section class="surface">
+                                                <div class="surface-header"><strong>现在最值得完成</strong><span>ArcOrbit · 项目连接</span></div>
+                                                <div class="surface-body">
+                                                    <div class="run-identity"><div class="run-orb">1</div><div><strong>绑定本地目录</strong><small>确定 Agent 工作与 Chat 会话的 cwd、workspace root 和安全边界。</small></div><span class="badge active">当前</span></div>
+                                                    <div class="metric-grid"><div class="metric-card"><span>当前产品</span><strong>ArcOrbit</strong><small>个人项目</small></div><div class="metric-card emphasis"><span>当前影响</span><strong>Chat</strong><small>无法创建本地会话</small></div><div class="metric-card emphasis"><span>当前影响</span><strong>Automation</strong><small>任务不可领取</small></div><div class="metric-card"><span>完成后</span><strong>检查环境</strong><small>继续项目准备</small></div></div>
+                                                    <div class="page-actions"><button class="compact-action primary">选择本地目录</button><button class="compact-action" data-kit="Inspector">查看全部准备关系</button></div>
+                                                </div>
+                                            </section>
+                                            <div class="metric-grid"><div class="metric-card"><span>待推进</span><strong>1</strong><small>分配给我的待评审</small></div><div class="metric-card"><span>运行中</span><strong>0</strong><small>Automation 待命</small></div><div class="metric-card emphasis"><span>需要我处理</span><strong>1</strong><small>绑定本地目录</small></div><div class="metric-card"><span>最近完成</span><strong>0</strong><small>尚无执行记录</small></div></div>
+                                        </div>
+                                        <aside class="stack">
+                                            <section class="surface"><div class="surface-header"><strong>准备关系</strong><span>1 / 6</span></div><div class="surface-body"><div class="timeline-list"><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>工作归属</strong><small>ArcOrbit 已在默认产品集</small></div><time>完成</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>本地工作区</strong><small>尚未绑定</small></div><time>当前</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>项目环境与授权</strong><small>等待本地目录</small></div><time>稍后</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>工作与全局领取</strong><small>等待前置条件</small></div><time>稍后</time></div></div></div></section>
+                                            <section class="surface"><div class="surface-header"><strong>组织不是必经步骤</strong><span>当前为个人项目</span></div><div class="surface-body"><p>只有需要团队协作时才创建组织或邀请成员。</p><button class="compact-action">了解团队协作</button></div></section>
+                                        </aside>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>Today 应用壳与当前 Workset</li><li>单一主动作卡</li><li>当前产品、影响能力和完成后结果</li><li>可展开准备关系与组织可选说明</li><li>低强调日常指标</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择本地目录</code> → 打开当前项目的绑定 Sheet，成功后留在 Today 并 fresh-read</div><div class="interaction-item"><code>查看全部准备关系</code> → 打开 readiness Inspector，不离开 Today</div><div class="interaction-item"><code>切换产品范围</code> → 重算当前产品的主动作，不修改项目授权</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>可执行任务已存在 · 全局领取关闭</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>ArcOrbit 的本地目录、项目环境和项目授权均已就绪，当前用户有 2 条待处理任务，但全局自动领取关闭。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><span>ArcOrbit</span><strong>Today</strong><span>Work Sync 刚刚更新</span></div>
+                        <div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>Product Workspace</small></div></div><div class="nav-group"><div class="nav-label">PERSONAL</div><div class="nav-row active"><span class="nav-glyph">T</span><span>Today</span><span class="count">1</span></div><div class="nav-row"><span class="nav-glyph">C</span><span>Chat</span></div></div><div class="nav-group"><div class="nav-label">PRODUCT LIFECYCLE</div><div class="nav-row"><span class="nav-glyph">W</span><span>Work</span><span class="count">2</span></div><div class="nav-row"><span class="nav-glyph">A</span><span>Automation</span><span class="count">2</span></div></div><div class="sidebar-status"><strong>ArcOrbit 已连接</strong><div class="status-line"><i class="status-dot active"></i><span>本地环境可用</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>默认产品集 · 1</strong><span>/</span><span>ArcOrbit</span></div><div class="command-spacer"></div><button class="compact-action">管理产品集</button><button class="compact-action" data-kit="Toggle">自动领取 · 关闭</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Ready To Start</div><h2>工作已经准备好</h2><p>2 条待处理任务满足项目执行资格，只差开启全局自动领取。</p></div><span class="badge active">5 / 6 已完成</span></div><div class="attention-strip"><div class="run-orb">6</div><div><strong>开始自动执行</strong><small>作用于所有已绑定且已授权项目；不会修改待评审任务，也不会停止当前运行。</small></div><button class="compact-action primary" data-kit="ConfirmationDialog">开始自动执行</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>下一工作</strong><span>2 条可领取</span></div><div class="data-table"><div class="table-head"><span>#</span><span>任务</span><span>项目</span><span>资格</span><span>状态</span></div><div class="table-row selected"><i class="priority-mark high"></i><div><strong>完善 Today 新人交互</strong><small>P0 · 确认于 10:28</small></div><span>ArcOrbit</span><span>可执行</span><span class="badge active">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>补齐 Chat 恢复入口</strong><small>P1 · 确认于 10:31</small></div><span>ArcOrbit</span><span>可执行</span><span class="badge">待处理</span></div></div></section><aside class="surface"><div class="surface-header"><strong>作用范围</strong><span>显式确认</span></div><div class="surface-body"><dl class="key-value-list"><dt>项目</dt><dd>ArcOrbit</dd><dt>本地目录</dt><dd>已绑定</dd><dt>项目授权</dt><dd>已允许</dd><dt>队列暂停</dt><dd>否</dd></dl></div></aside></div></div></section></div></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>可领取任务数量</li><li>全局总闸影响说明</li><li>开始自动执行确认动作</li><li>下一工作与作用范围</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>开始自动执行</code> → 确认作用范围后开启总闸，等待 Work 发布进行中</div><div class="interaction-item"><code>查看任务</code> → 进入 Work 对应 Inspector，不直接从 Today 修改队列顺序</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>健康运行 · 多产品日常推进</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>当前 Workset 含 3 个产品，Automation 有 2 条健康活动 execution，没有人工事项。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><span>ArcOrbit</span><strong>Today</strong><span>2 条 execution · 无需人工</span></div>
+                        <div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>Product Workspace</small></div></div><div class="nav-group"><div class="nav-label">PERSONAL</div><div class="nav-row active"><span class="nav-glyph">T</span><span>Today</span></div><div class="nav-row"><span class="nav-glyph">C</span><span>Chat</span></div></div><div class="nav-group"><div class="nav-label">PRODUCT LIFECYCLE</div><div class="nav-row"><span class="nav-glyph">W</span><span>Work</span><span class="count">8</span></div><div class="nav-row"><span class="nav-glyph">A</span><span>Automation</span><span class="count">2</span></div><div class="nav-row"><span class="nav-glyph">F</span><span>Feedback</span><span class="count">4</span></div></div><div class="sidebar-status"><strong>自动领取已开启</strong><div class="status-line"><i class="status-dot active"></i><span>2 / 3 lane 活动</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>本周重点 · 3</strong><span>/</span><span>项目集全部</span></div><div class="command-spacer"></div><button class="compact-action" data-kit="Menu">项目集全部 ▾</button><button class="compact-action">管理产品集</button><button class="compact-action primary" data-kit="Toggle">自动领取 · 开启</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Today · In Progress</div><h2>ArcOrbit 正在推进 2 个产品</h2><p>当前执行健康；只有出现人工责任、恢复或验收时才提升主动作。</p></div><button class="compact-action primary">查看 Automation</button></div><div class="metric-grid"><div class="metric-card"><span>产品</span><strong>3</strong><small>2 已就绪 · 1 有阻断</small></div><div class="metric-card"><span>运行中</span><strong>2</strong><small>2 个 workspace lane</small></div><div class="metric-card"><span>下一工作</span><strong>4</strong><small>均为待处理</small></div><div class="metric-card"><span>需要我处理</span><strong>0</strong><small>没有人工责任</small></div></div><div class="content-grid"><div class="stack"><section class="surface"><div class="surface-header"><strong>当前执行</strong><span>跨 workspace 并行</span></div><div class="surface-body"><div class="run-identity"><div class="run-orb">A</div><div><strong>完善 Today 新人交互</strong><small>ArcOrbit · 验证阶段 · 最近事件 12 秒前</small></div><span class="badge active">运行中</span></div><div class="stage-strip"><div class="stage-item done"><i class="stage-marker">✓</i><strong>理解</strong><small>完成</small></div><div class="stage-item done"><i class="stage-marker">✓</i><strong>执行</strong><small>完成</small></div><div class="stage-item current"><i class="stage-marker">3</i><strong>验证</strong><small>进行中</small></div><div class="stage-item"><i class="stage-marker">4</i><strong>收口</strong><small>待开始</small></div></div><div class="run-identity"><div class="run-orb">W</div><div><strong>修复任务状态冲突</strong><small>Workshop Todo · 实现阶段 · 最近事件 31 秒前</small></div><span class="badge active">运行中</span></div></div></section><section class="surface"><div class="surface-header"><strong>下一工作</strong><span>4 条待处理</span></div><div class="data-table"><div class="table-head"><span>#</span><span>任务</span><span>项目</span><span>资格</span><span>状态</span></div><div class="table-row"><i class="priority-mark high"></i><div><strong>补齐恢复入口</strong><small>当前 lane 收束后领取</small></div><span>ArcOrbit</span><span>可执行</span><span class="badge">待处理</span></div></div></section></div><aside class="stack"><section class="surface"><div class="surface-header"><strong>产品连接与工作</strong><span>3 个</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">A</span><div><strong>ArcOrbit</strong><small>连接完整 · 1 运行 · 2 待处理</small></div><span class="badge active">健康</span></div><div class="activity-row"><span class="run-orb">W</span><div><strong>Workshop Todo</strong><small>连接完整 · 1 运行 · 1 待处理</small></div><span class="badge active">健康</span></div><div class="activity-row"><span class="run-orb">F</span><div><strong>Feedback</strong><small>未允许自动领取 · 仅远端协作</small></div><span class="badge">有限</span></div></div></section><section class="surface"><div class="surface-header"><strong>需要我处理</strong><span>0</span></div><div class="surface-body"><div class="current-action"><strong>当前无需操作</strong><small>健康执行继续推进；异常不会被隐藏在正常摘要中。</small></div></div></section></aside></div></div></section></div></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>多产品当前执行集合</li><li>真实阶段与最近事件</li><li>下一工作队列</li><li>产品连接与当前工作分离摘要</li><li>无人工事项的低强调状态</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>查看 Automation</code> → 进入 Command Center 并保留当前产品集范围</div><div class="interaction-item"><code>选择产品摘要</code> → 切换为单产品范围，不修改执行资格</div><div class="interaction-item"><code>健康运行</code> → 不制造需要确认的下一步按钮</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>需要人工处理 · 高于普通准备动作</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>ArcOrbit 的活动 Runtime 声明 requires_human，需要用户确认数据迁移范围；另一个产品仍健康运行。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationSplitView"><div class="desktop-titlebar"><span>ArcOrbit</span><strong>Today</strong><span>需要你处理 · 1</span></div><div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>Product Workspace</small></div></div><div class="nav-group"><div class="nav-label">PERSONAL</div><div class="nav-row active"><span class="nav-glyph">T</span><span>Today</span><span class="count">1</span></div></div><div class="nav-group"><div class="nav-label">PRODUCT LIFECYCLE</div><div class="nav-row"><span class="nav-glyph">A</span><span>Automation</span><span class="count">1</span></div></div><div class="sidebar-status"><strong>1 条 lane 等待人工</strong><div class="status-line"><i class="status-dot"></i><span>其他 lane 正常</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>本周重点 · 3</strong><span>/</span><span>项目集全部</span></div><div class="command-spacer"></div><button class="compact-action primary">自动领取 · 开启</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Today · Human Responsibility</div><h2>ArcOrbit 需要你的决定</h2><p>人工责任优先于本地绑定、项目授权和普通待办准备。</p></div><span class="badge active">优先处理</span></div><div class="attention-strip"><div class="run-orb">!</div><div><strong>确认数据迁移是否包含历史草稿</strong><small>ArcOrbit · TASK-2048 · 当前 lane 已暂停；Workshop Todo lane 继续运行。</small></div><button class="compact-action primary">处理当前事项</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>当前上下文</strong><span>Intervention Workbench</span></div><div class="surface-body"><dl class="key-value-list"><dt>需要决定</dt><dd>迁移历史草稿</dd><dt>当前 Case</dt><dd>CASE-20260825-009</dd><dt>冻结范围</dt><dd>仅 ArcOrbit lane</dd><dt>恢复条件</dt><dd>用户明确范围</dd></dl></div></section><aside class="surface"><div class="surface-header"><strong>其他推进</strong><span>不受影响</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">W</span><div><strong>Workshop Todo</strong><small>实现阶段 · 正常运行</small></div><span class="badge active">健康</span></div><div class="activity-row"><span class="run-orb">F</span><div><strong>Feedback</strong><small>尚未绑定本地目录</small></div><span class="badge">稍后</span></div></div></aside></div></div></section></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>唯一人工责任主动作</li><li>任务、Case、冻结范围和恢复条件</li><li>其他健康 lane 与普通准备缺口</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>处理当前事项</code> → 打开对应 Intervention Workbench</div><div class="interaction-item"><code>其他产品缺口</code> → 保持次要，不覆盖人工责任</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>完成待审查 · 验收优先</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>任务已完成并具有可审查证据，当前没有人工 Gate；结果尚未验收。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationSplitView"><div class="desktop-titlebar"><span>ArcOrbit</span><strong>Today</strong><span>完成待审查 · 1</span></div><div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>Product Workspace</small></div></div><div class="nav-group"><div class="nav-label">PERSONAL</div><div class="nav-row active"><span class="nav-glyph">T</span><span>Today</span><span class="count">1</span></div></div><div class="sidebar-status"><strong>自动领取已开启</strong><div class="status-line"><i class="status-dot active"></i><span>1 项等待验收</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>ArcOrbit</strong><span>/</span><span>完成结果</span></div><div class="command-spacer"></div><button class="compact-action primary">自动领取 · 开启</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Today · Review Result</div><h2>审查刚刚完成的工作</h2><p>结果审查优先于创建新工作；验收仍由 Work 拥有。</p></div></div><div class="attention-strip"><div class="run-orb">✓</div><div><strong>完善 Today 新人交互</strong><small>ArcOrbit · 12 项验证通过 · 0 个未解决验收问题。</small></div><button class="compact-action primary">审查结果</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>完成证据</strong><span>刚刚</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">12</span><div><strong>自动验证</strong><small>全部通过</small></div><span class="badge active">verified</span></div><div class="activity-row"><span class="run-orb">6</span><div><strong>文件影响</strong><small>交互策略与线框</small></div><button class="compact-action">查看</button></div><div class="activity-row"><span class="run-orb">0</span><div><strong>验收问题</strong><small>当前没有未解决问题</small></div><span class="badge">clear</span></div></div></section><aside class="surface"><div class="surface-header"><strong>后续动作</strong><span>Work</span></div><div class="surface-body"><button class="compact-action primary">标记已验收</button><button class="compact-action">提出验收问题</button><button class="compact-action">打开完整对话</button></div></aside></div></div></section></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>完成结果主动作</li><li>验证、文件影响和验收问题摘要</li><li>Work 拥有的验收动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>审查结果</code> → 进入 Work completed Inspector</div><div class="interaction-item"><code>标记已验收</code> → 复用 Work 确认规则，不由 Today 推断成功</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>部分数据未知 · 保留最近事实</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>Work Sync 无法刷新 Feedback 项目，但 ArcOrbit 与 Workshop Todo 的最近成功投影仍可信。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationSplitView"><div class="desktop-titlebar"><span>ArcOrbit</span><strong>Today</strong><span>部分数据未更新</span></div><div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>Product Workspace</small></div></div><div class="nav-group"><div class="nav-label">PERSONAL</div><div class="nav-row active"><span class="nav-glyph">T</span><span>Today</span><span class="count">1</span></div></div><div class="sidebar-status"><strong>2 / 3 产品已更新</strong><div class="status-line"><i class="status-dot"></i><span>Feedback 未知</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>本周重点 · 3</strong><span>/</span><span>项目集全部</span></div><div class="command-spacer"></div><button class="compact-action">重试 Work Sync</button><button class="compact-action primary">自动领取 · 开启</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Today · Partial Data</div><h2>2 个产品状态已更新</h2><p>Feedback 的任务与项目授权当前未知，不把未知解释为空队列或未准备。</p></div><span class="badge">最近完整 10:18</span></div><div class="attention-strip"><div class="run-orb">!</div><div><strong>Feedback 数据暂时不可确认</strong><small>保留 10:18 的最近事实；该产品不参与新的主动作选择和领取判断。</small></div><button class="compact-action primary">重试 Feedback</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>仍可信的推进</strong><span>2 个产品</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">A</span><div><strong>ArcOrbit</strong><small>连接完整 · 1 运行</small></div><span class="badge active">fresh</span></div><div class="activity-row"><span class="run-orb">W</span><div><strong>Workshop Todo</strong><small>连接完整 · 2 待处理</small></div><span class="badge active">fresh</span></div></div></section><aside class="surface"><div class="surface-header"><strong>未知范围</strong><span>Feedback</span></div><div class="surface-body"><dl class="key-value-list"><dt>项目访问</dt><dd>最近已知可用</dd><dt>Work Sync</dt><dd>读取失败</dd><dt>任务数量</dt><dd>未知</dd><dt>自动化资格</dt><dd>不参与新领取</dd></dl></div></aside></div></div></section></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>最近完整时间</li><li>可信产品与未知产品分离</li><li>区段级重试</li><li>不误报空队列或完成状态</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>重试 Feedback</code> → 只刷新对应来源，保留其他产品当前投影</div><div class="interaction-item"><code>未知状态</code> → 不生成绑定、授权或创建任务主动作</div></div>
+            </div>
+        </details>
+    </div>
+</body>
+</html>

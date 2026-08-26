@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automation Eligibility Guidance - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body><div class="wireframe-container">
+<header><h1>Automation · 资格原因就地引导</h1><div class="meta-info"><div>Parent: <code>AutomationWorkspace</code></div><div>原则: <strong>候选存在时不显示空队列</strong></div></div></header>
+
+<details open><summary>缺少本地目录 · 修复首要连接</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>全局自动领取开启，当前范围有 3 条待处理任务，但首个项目没有本地目录。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationSplitView"><div class="desktop-titlebar"><span>Product Lifecycle / Automation</span><strong>Command Center</strong><span>自动领取 · 开启</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Eligibility · Workspace</div><h2>3 条工作在等待项目连接</h2><p>不是空队列。ArcOrbit 已找到待处理任务，但还不能进入对应本地项目。</p></div><span class="badge">首要原因 1 / 2</span></div><div class="attention-strip"><div class="run-orb">3</div><div><strong>为 ArcOrbit 绑定本地目录</strong><small>影响 Chat 和本地 Automation；不会修改任务、Workset 或项目成员。</small></div><button class="compact-action primary">选择本地目录</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>受影响候选</strong><span>3</span></div><div class="data-table"><div class="table-row selected"><span>AR-208</span><strong>完善新人交互</strong><span class="badge">待处理</span></div><div class="table-row"><span>AR-214</span><strong>补齐 Chat 恢复</strong><span class="badge">待处理</span></div></div></section><aside class="surface"><div class="surface-header"><strong>项目事实</strong><span>ArcOrbit</span></div><div class="surface-body"><dl class="key-value-list"><dt>本地目录</dt><dd>未绑定</dd><dt>项目授权</dt><dd>未检查</dd><dt>Work Sync</dt><dd>fresh</dd></dl></div></aside></div></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>非空候选数量</li><li>首要资格原因</li><li>受影响任务</li><li>目录绑定主动作</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择本地目录</code> → 在当前 Automation 范围打开项目绑定 Sheet</div><div class="interaction-item"><code>绑定成功</code> → 原位重算并显示项目授权或健康队列</div></div>
+</div></details>
+
+<details><summary>只有待评审 · 进入 Work 确认</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>项目连接和总闸均可用，但当前用户只有 2 条待评审任务。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>Product Lifecycle / Automation</span><strong>Command Center</strong><span>没有可领取任务</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Eligibility · Task State</div><h2>2 条任务还需要你确认</h2><p>待评审不会自动执行。先在 Work 核对内容，再把明确可以开始的任务变为待处理。</p></div></div><div class="attention-strip"><div class="run-orb">2</div><div><strong>查看待评审任务</strong><small>执行人均为你；确认动作不会自动改变项目授权或 Workset。</small></div><button class="compact-action primary">查看并确认</button></div></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>待评审数量</li><li>隐式规则显性解释</li><li>执行人摘要</li><li>Work 深链</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>查看并确认</code> → 打开 Work 待评审状态并选中首条当前用户任务</div><div class="interaction-item"><code>返回 Automation</code> → fresh-read 队列，不保留失效原因</div></div>
+</div></details>
+
+<details><summary>全局总闸关闭 · 开始自动执行</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>2 条任务、项目目录和项目授权均已满足，只有全局自动领取关闭。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>Product Lifecycle / Automation</span><strong>Command Center</strong><span>自动领取 · 关闭</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Ready To Start</div><h2>工作已经准备好</h2><p>总闸只作用于已绑定且已授权的项目，不修改任务状态，也不影响当前运行。</p></div><span class="badge active">2 条可领取</span></div><div class="attention-strip"><div class="run-orb">6</div><div><strong>开始自动执行</strong><small>ArcOrbit · 2 条待处理 · 队列未暂停</small></div><button class="compact-action primary">开始自动执行</button></div></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>完整资格摘要</li><li>总闸作用范围</li><li>可领取数量</li><li>显式开始动作</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>开始自动执行</code> → 确认范围后开启全局领取</div><div class="interaction-item"><code>开启成功</code> → 等待 Work 发布进行中，不在 Renderer 假设已领取</div></div>
+</div></details>
+
+<details><summary>无权限 · 责任交接</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>当前用户可见待处理任务，但项目未允许自动领取且用户不是 owner/admin。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>Product Lifecycle / Automation</span><strong>Command Center</strong><span>有限权限</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Responsibility</div><h2>需要项目管理员允许自动领取</h2><p>当前用户不能扩大该项目的 Automation 参与范围，任务和其他项目保持可见。</p></div><span class="badge">owner / admin</span></div><section class="surface"><div class="surface-header"><strong>交接摘要</strong><span>ArcOrbit · 3 条候选</span></div><div class="surface-body"><dl class="key-value-list"><dt>当前缺口</dt><dd>项目未允许自动领取</dd><dt>责任角色</dt><dd>Project owner / admin</dd><dt>其他项目</dt><dd>继续正常领取</dd></dl><button class="compact-action">复制项目与原因</button></div></section></div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>无权限说明</li><li>责任角色</li><li>候选影响范围</li><li>交接摘要动作</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>复制项目与原因</code> → 复制项目、阻断、候选数和责任角色</div><div class="interaction-item"><code>授权变化</code> → Work Sync fresh-read 后原位恢复候选</div></div>
+</div></details>
+</div></body></html>

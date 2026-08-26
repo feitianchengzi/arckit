@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
+  <title>ArcOrbit · Today Guidance Concepts</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="prototype-banner">
+    <div><strong>交互概念对比</strong><span>同一业务状态 · 三种 Today 与模块内引导形态</span></div>
+    <div class="concept-switcher" role="tablist" aria-label="概念方案">
+      <button class="active" type="button" role="tab" data-concept="focus">A · 下一步聚焦</button>
+      <button type="button" role="tab" data-concept="journey">B · 准备路径</button>
+      <button type="button" role="tab" data-concept="portfolio">C · 产品就绪</button>
+    </div>
+    <button class="quiet-button" id="resetButton" type="button">恢复初始状态</button>
+  </div>
+
+  <div class="comparison-note" id="comparisonNote" aria-live="polite"></div>
+
+  <div class="app-window">
+    <header class="titlebar">
+      <span class="window-controls" aria-hidden="true"><i></i><i></i><i></i></span>
+      <strong>ArcOrbit</strong>
+      <span>Workshop 已连接 · Runtime 在线</span>
+    </header>
+
+    <aside class="sidebar">
+      <div class="brand"><b>A</b><strong>ArcOrbit</strong></div>
+      <nav aria-label="ArcOrbit 主导航">
+        <small>PERSONAL</small>
+        <button class="active" type="button"><span>⌂</span><strong>Today</strong></button>
+        <button type="button"><span>◌</span><strong>Chat</strong></button>
+        <small>PRODUCT LIFECYCLE</small>
+        <button type="button"><span>✦</span><strong>Idea</strong></button>
+        <button type="button"><span>☷</span><strong>Work</strong><em>1</em></button>
+        <button type="button"><span>◎</span><strong>Automation</strong></button>
+        <button type="button"><span>△</span><strong>Release</strong></button>
+        <button type="button"><span>◇</span><strong>Feedback</strong></button>
+        <small>ORGANIZATION</small>
+        <button type="button"><span>▦</span><strong>Organization</strong></button>
+      </nav>
+      <div class="account"><span>G</span><div><strong>Glare</strong><small>个人账户</small></div></div>
+    </aside>
+
+    <main class="workspace">
+      <header class="commandbar">
+        <div class="workset"><span>产品集</span><strong>默认产品集 · 1</strong><button type="button">管理</button></div>
+        <div class="scope"><span>观察范围</span><strong>ArcOrbit</strong></div>
+        <label class="toggle"><input id="automationToggle" type="checkbox"><span></span><strong>自动领取</strong></label>
+      </header>
+      <section id="todayCanvas" class="today-canvas" aria-live="polite"></section>
+    </main>
+  </div>
+
+  <section class="module-lab">
+    <header>
+      <div><small>CONTEXTUAL GUIDANCE</small><h2>用户自由探索到功能模块时</h2><p>切换位置，比较当前方案如何解释同一组依赖。</p></div>
+      <div class="module-switcher" role="tablist" aria-label="模块位置">
+        <button class="active" type="button" data-module="organization">Organization</button>
+        <button type="button" data-module="work">Work</button>
+        <button type="button" data-module="automation">Automation</button>
+        <button type="button" data-module="chat">Chat</button>
+      </div>
+    </header>
+    <div id="moduleCanvas" class="module-canvas" aria-live="polite"></div>
+  </section>
+
+  <script src="./app.js"></script>
+</body>
+</html>
