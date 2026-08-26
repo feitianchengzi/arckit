@@ -17,7 +17,21 @@
           <section class="app-view" data-page-view="feedback"></section>
           <section class="app-view" data-page-view="command"><div class="command-grid"><div></div><aside></aside></div></section>
           <section class="app-view" data-page-view="tasks"></section>
-          <section class="app-view" data-page-view="workbench"></section>
+          <section class="app-view" data-page-view="workbench">
+            <div class="workbench-layout">
+              <aside class="workbench-context"></aside>
+              <section class="workbench-transcript">
+                <div class="workbench-heading"><div><p class="eyebrow">INTERVENTION WORKBENCH</p><h1 id="layoutWorkbenchTitle">CASE-20260826-001 · 一个足够长、必须被限制在中间栏而不能延伸到右侧证据面板下面的任务标题</h1></div></div>
+                <div class="transcript-scroll-area">
+                  <div id="layoutTranscriptList" class="conversation-surface chat-transcript">
+                    <article id="layoutMessage" class="chat-message assistant"><div class="chat-message-meta"><strong>Codex</strong></div><div class="chat-message-content"><p>这是一条足够长的消息内容，用来确认人工介入消息列表中的每个消息节点只占中间空间，不会延伸到右侧执行全貌与证据面板下面。</p></div></article>
+                  </div>
+                </div>
+                <div class="intervention-composer"><textarea></textarea><button class="primary-button" type="button">提交</button></div>
+              </section>
+              <aside class="workbench-evidence"></aside>
+            </div>
+          </section>
           <section class="app-view" data-page-view="recovery"></section>
         </div>
       </main>

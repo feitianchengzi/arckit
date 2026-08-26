@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 269
-Updated: 2026-08-26T02:26:42.244Z
+Revision: 271
+Updated: 2026-08-26T02:39:49.500Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-让 ArcOrbit 的应用标题栏按运行平台采用符合系统习惯的窗口控制：macOS 使用原生 traffic lights，绿色按钮单击进入全屏并由系统在悬停或支持的按住手势下提供布局面板；Windows 与 Linux 保持应用标题栏，并提供符合对应平台习惯的最小化、最大化/还原和关闭控制。
+修复 Automation 人工介入工作台的三栏布局，使标题、消息列表、滚动区域和 Composer 始终只占中间列，不进入或延伸到右侧执行证据面板下方。
 
 ## Active Work
 

@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-26T02:26:42.244Z",
-    "revision": 269
+    "updated_at": "2026-08-26T02:39:49.500Z",
+    "revision": 271
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "让 ArcOrbit 的应用标题栏按运行平台采用符合系统习惯的窗口控制：macOS 使用原生 traffic lights，绿色按钮单击进入全屏并由系统在悬停或支持的按住手势下提供布局面板；Windows 与 Linux 保持应用标题栏，并提供符合对应平台习惯的最小化、最大化/还原和关闭控制。",
+      "current_focus": "修复 Automation 人工介入工作台的三栏布局，使标题、消息列表、滚动区域和 Composer 始终只占中间列，不进入或延伸到右侧执行证据面板下方。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

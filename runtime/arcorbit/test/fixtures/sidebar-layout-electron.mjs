@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const fixtureDir = dirname(fileURLToPath(import.meta.url));
 const fixtureUserData = join(tmpdir(), `arckit-layout-${process.pid}`);
+const boundaryWidth = process.argv.includes("--workbench-boundary") ? 1200 : 1280;
 
 app.setName("Arckit Layout Fixture");
 app.setPath("userData", fixtureUserData);
@@ -14,7 +15,7 @@ app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     show: false,
-    width: 1280,
+    width: boundaryWidth,
     height: 820,
     webPreferences: {
       sandbox: true
@@ -29,12 +30,25 @@ app.whenReady().then(async () => {
         const views = Array.from(document.querySelectorAll('[data-page-view]'));
         const todayView = document.querySelector('[data-page-view="today"]');
         const commandView = document.querySelector('[data-page-view="command"]');
+        const workbenchView = document.querySelector('[data-page-view="workbench"]');
         const commandGrid = commandView.querySelector('.command-grid');
         todayView.classList.remove('is-active');
         commandView.classList.add('is-active');
         void commandGrid.offsetWidth;
         const commandColumns = getComputedStyle(commandGrid).gridTemplateColumns.split(' ').length;
         commandView.classList.remove('is-active');
+        todayView.classList.add('is-active');
+        todayView.classList.remove('is-active');
+        workbenchView.classList.add('is-active');
+        void workbenchView.offsetWidth;
+        const transcript = rect('#layoutTranscriptList');
+        const transcriptColumn = rect('.workbench-transcript');
+        const heading = rect('.workbench-heading');
+        const headingTitle = rect('#layoutWorkbenchTitle');
+        const message = rect('#layoutMessage');
+        const evidenceColumn = rect('.workbench-evidence');
+        const workbenchLayout = rect('.workbench-layout');
+        workbenchView.classList.remove('is-active');
         todayView.classList.add('is-active');
         return {
           sidebarWidth: rect('.sidebar').width,
@@ -47,7 +61,21 @@ app.whenReady().then(async () => {
           productColumns: getComputedStyle(document.querySelector('.product-grid')).gridTemplateColumns.split(' ').length,
           platformColumns: getComputedStyle(document.querySelector('.platform-two-column')).gridTemplateColumns.split(' ').length,
           commandColumns,
-          minBodyWidth: getComputedStyle(document.documentElement).minWidth
+          minBodyWidth: getComputedStyle(document.documentElement).minWidth,
+          transcriptLeft: transcript.left,
+          transcriptRight: transcript.right,
+          transcriptColumnLeft: transcriptColumn.left,
+          transcriptColumnRight: transcriptColumn.right,
+          headingLeft: heading.left,
+          headingRight: heading.right,
+          headingTitleLeft: headingTitle.left,
+          headingTitleRight: headingTitle.right,
+          messageLeft: message.left,
+          messageRight: message.right,
+          evidenceColumnLeft: evidenceColumn.left,
+          evidenceColumnRight: evidenceColumn.right,
+          workbenchLayoutRight: workbenchLayout.right,
+          viewportWidth: window.innerWidth
         };
       })()
     `);
