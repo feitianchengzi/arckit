@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   deriveAutomationGuidance,
   deriveReadinessSteps,
+  deriveTaskExecutorAutomationHelp,
   deriveTodayGuidance,
   deriveWorkEligibilityGuidance
 } from "../src/desktop/today-guidance.mjs";
@@ -75,6 +76,24 @@ test("Work never describes pending review or another assignee as automatically e
   assert.equal(ready.kind, "eligible");
 });
 
+test("new task executor guidance distinguishes all Automation qualification combinations", () => {
+  const unassigned = deriveTaskExecutorAutomationHelp({ executorId: "", currentUserId: "u1", state: "pending" });
+  assert.match(unassigned, /未分配/);
+  assert.match(unassigned, /不会进入 Automation 候选/);
+
+  const other = deriveTaskExecutorAutomationHelp({ executorId: "u2", currentUserId: "u1", state: "pending" });
+  assert.match(other, /其他成员/);
+  assert.match(other, /不会进入你的 Automation 候选/);
+
+  const review = deriveTaskExecutorAutomationHelp({ executorId: "u1", currentUserId: "u1", state: "pending_review" });
+  assert.match(review, /当前状态不是待处理/);
+  assert.match(review, /不会进入 Automation 候选/);
+
+  const pending = deriveTaskExecutorAutomationHelp({ executorId: "u1", currentUserId: "u1", state: "pending" });
+  assert.match(pending, /项目连接、项目授权和全局领取/);
+  assert.match(pending, /不表示已经进入队列/);
+});
+
 test("permission-limited project gaps produce responsibility handoff without a failing action", () => {
   const workspace = ownerWorkspace({ current_user_role: "member", local_project_id: "", local_project_path: "", participating: false });
   const today = deriveTodayGuidance({ platform: platform(workspace), automation: automation(), setup: { status: "ready" }, authentication: { authenticated: true } });
@@ -125,6 +144,9 @@ test("Renderer reuses owned mutations, fresh-reads after success, and preserves 
   const source = await readFile(new URL("../desktop/renderer/renderer.js", import.meta.url), "utf8");
   assert.match(source, /state: "pending", executor_id: state\.platform\.user\.id/);
   assert.match(source, /platformField\("state", "状态", \{ type: "select", value: "pending_review"/);
+  assert.match(source, /taskProjectFields\(defaultProjectId, \{ includeExecutorAutomationHelp: true, taskState: "pending_review" \}\)/);
+  assert.match(source, /bindTaskFormProjectScope\(defaultProjectId, \{ includeExecutorAutomationHelp: true \}\)/);
+  assert.match(source, /deriveTaskExecutorAutomationHelp\(\{[\s\S]*executorId: executorSelect\.value,[\s\S]*state: stateSelect\?\.value/);
   assert.match(source, /async function bindAutomationWorkspace[\s\S]*await api\.bindAutomationProject\(remoteProjectId, localProjectId\);[\s\S]*await refreshSnapshot\(\{ quiet: true \}\);/);
   assert.match(source, /await api\.setProjectParticipation\(workspace\.id, true\);[\s\S]*await refreshSnapshot\(\);/);
   assert.match(source, /await api\.setAutomationEnabled\(true\);[\s\S]*await refreshSnapshot\(\);/);

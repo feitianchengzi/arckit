@@ -743,8 +743,8 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.doesNotMatch(source, /`成员 \$\{item\.user_id\}`/);
   const createTaskHandler = source.slice(source.indexOf("async function createTask"), source.indexOf("async function editTask"));
   const editTaskHandler = source.slice(source.indexOf("async function editTask"), source.indexOf("async function deleteTask"));
-  assert.match(createTaskHandler, /taskProjectFields\(defaultProjectId\)/);
-  assert.match(createTaskHandler, /bindTaskFormProjectScope\(defaultProjectId\)/);
+  assert.match(createTaskHandler, /taskProjectFields\(defaultProjectId, \{ includeExecutorAutomationHelp: true, taskState: "pending_review" \}\)/);
+  assert.match(createTaskHandler, /bindTaskFormProjectScope\(defaultProjectId, \{ includeExecutorAutomationHelp: true \}\)/);
   assert.match(createTaskHandler, /platformField\("state", "状态", \{ type: "select", value: "pending_review", options: taskStateOptions\(\)/);
   assert.match(createTaskHandler, /platformField\("priority", "优先级", \{ type: "select"/);
   assert.doesNotMatch(createTaskHandler, /服务优先级|type: "number"/);

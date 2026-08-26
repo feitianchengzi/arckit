@@ -13,4 +13,4 @@
 | `engineering-profile/` | ✅ | 选择、编辑、比较和应用由 State Model、Capability Mapping 与 Lifecycle Mapping 组成的 Domain Profile | Profile Library、草稿编辑、跨行业比较、兼容性检查、Apply 确认、稳定 Loop Kernel |
 | `product-feedback-center/` | ✅ | 在 ArcOrbit 内向固定 Project 107 提交反馈、查看当前账户反馈并感知未读变化 | 未读角标、SDK 加载、提交反馈、我的反馈、需要登录、SDK 失败恢复 |
 | `automation-workspace/` | ✅ | 登录后只消费 Work 发布的本地待办状态，以本地 workspace lane 串行仲裁普通待办与验收问题，并在最多 3 条独立 lane 间并行；候选不可领取时解释首要原因并原位修复 | Work 同步健康摘要、资格原因引导、双队列总览、活动执行选择、槽位容量、lane 串行、跨 workspace 并行、问题等待/运行/待人工/阻塞、项目范围切换、CLI 接管、人工介入、完成续接、Work 动作失败、领取冲突与用量诊断 |
-| `task-browser/` | ✅ | 在 Work 的单行控制轨中组合本地查询，并用 Work-owned 同步和任务树/可持久调宽 Inspector 完成分区详情、评论附件、产品限定维护、编辑七状态兜底及引导式状态动作；Automation 只消费确认结果 | 本地查询、Work Sync、单行控制轨与窄窗口收敛、多维筛选、任务树、Inspector 440px 默认/拖拽/键盘/跨重启恢复、内容/紧凑属性/协作/验收分区、评论附件、新建/编辑七状态 Picker、Inspector 下一步动作、待评审/执行人/项目连接引导、标签生命周期、运行/验收查看、外部状态恢复、空态与冲突 |
+| `task-browser/` | ✅ | 在 Work 的单行控制轨中组合本地查询，并用 Work-owned 同步和任务树/可持久调宽 Inspector 完成分区详情、评论附件、产品限定维护、编辑七状态兜底及引导式状态动作；Automation 只消费确认结果 | 本地查询、Work Sync、单行控制轨与窄窗口收敛、多维筛选、任务树、Inspector 440px 默认/拖拽/键盘/跨重启恢复、内容/紧凑属性/协作/验收分区、评论附件、新建/编辑七状态 Picker、新建执行人 Automation 资格提示、Inspector 下一步动作、待评审/执行人/项目连接引导、标签生命周期、运行/验收查看、外部状态恢复、空态与冲突 |

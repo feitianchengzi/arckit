@@ -20,6 +20,21 @@ export function canManageProject(workspace = {}) {
   return ["owner", "admin"].includes(text(workspace.current_user_role).toLowerCase());
 }
 
+export function deriveTaskExecutorAutomationHelp({ executorId = "", currentUserId = "", state = "" } = {}) {
+  const executor = text(executorId).trim();
+  const currentUser = text(currentUserId).trim();
+  if (!executor) {
+    return "未分配的待办不会进入 Automation 候选。只有分配给当前用户且状态为待处理，才会继续检查项目连接、项目授权和全局领取。";
+  }
+  if (!currentUser || executor !== currentUser) {
+    return "分配给其他成员的待办不会进入你的 Automation 候选。只有分配给当前用户且状态为待处理，才会继续检查项目连接、项目授权和全局领取。";
+  }
+  if (state !== "pending") {
+    return "待办已分配给你，但当前状态不是待处理，因此不会进入 Automation 候选。";
+  }
+  return "待办已分配给你且状态为待处理。创建成功后仍会检查项目连接、项目授权和全局领取，不表示已经进入队列。";
+}
+
 function currentUserTasks(tasks = [], userId = "", selectedProjectId = "all") {
   return tasks.filter((task) => inScope(task, selectedProjectId) && (
     !userId || text(task.executor_id) === text(userId)

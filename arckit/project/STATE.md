@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 284
-Updated: 2026-08-26T10:13:16.611Z
+Revision: 287
+Updated: 2026-08-26T10:33:19.260Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-实现 ArcOrbit Work 页面已完成待办的连续验收选择规则：验收最新项后选择下一条较旧项；验收中间项后选择相邻的较新项。
+在新建待办页面的“执行人”字段下方提供清晰的提示和 Automation 资格信息，使用户理解执行人选择如何影响待办能否进入自动领取。
 
 ## Active Work
 
@@ -31,7 +31,7 @@ Arckit is a state-driven software-development protocol and optional supervised R
 | product_intent_and_scope | settled | 3 | Arckit is the repository-owned development protocol and skill system; ArcOrbit is its supervised Desktop/Runtime product and is expanding into a local-project-anchored, multi-product software-development platform for people who coordinate organization, product, member, todo, AI execution, and feedback work without relying on the Todo or Feedback web clients for daily operation. | - |
 | product_capabilities | settled | 35 | ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback 与 Work 能力和边界。Work 是 Workshop 待办同步与本地 Task Projection 的唯一客户端所有者；新建和编辑 Sheet 提供完整七状态，编辑 Sheet 是异常纠偏兜底，Inspector 按当前状态提供有限下一步动作。Work Inspector 默认更宽，支持可访问拖拽调宽与跨应用重启恢复，并使用内容、紧凑属性、协作和验收语义分区。Work 编辑待办允许把内容复制到当前产品集内另一个可写产品，并在目标创建获 Workshop 确认后删除源 Task。目标 Task 获得新身份，仅复制正文、状态、优先级及目标产品内重新选择的关联字段，不继承评论、附件、Run、session、thread、Gate 或验收问题。Work 负责两阶段 mutation 和部分成功恢复；Automation 只消费服务器确认后的本地状态。Setup Readiness 在每次应用启动时 fresh-check Desktop Store 中全部已关联本地项目相对于内置 payload 的 skill drift，界面当前选择项目集全部或具体项目都不缩小检查范围，任一项目未 ready 时不启动 Automation。trusted Case binding 的既有能力和边界保持不变。 | GAP-agent-scenario-evaluation |
 | runtime_surfaces | settled | 4 | The software comprises repository-owned Arckit skills and Node.js ledger CLIs plus ArcOrbit, an Electron platform Desktop with Setup Readiness, skill provisioning, a main-process Platform Coordinator, restricted Workshop Platform Adapter, Automation Coordinator, Runtime supervisor, Codex adapter, and packaged trusted capability resources. Workshop web clients remain available administration and source surfaces but are not required for ArcOrbit daily work. | - |
-| experience_and_interaction | settled | 54 | ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 新建和编辑 Sheet 保留完整七状态，编辑 Sheet 承担异常纠偏；右侧 Inspector 按当前状态显示有限下一步动作。Work Inspector 首次使用 440px，用户可通过 12px 可访问分隔条在 360–640px 保存范围内拖拽、键盘调整或双击复位，偏好跨任务、项目、Workset 和应用重启恢复。布局为任务树保留至少 420px，窗口临时收窄只改变有效宽度且不覆盖保存值。Inspector 以单一内部滚动区组织身份动作、内容、紧凑属性、协作和按状态出现的验收分区，宽度变化不丢失选择、滚动、草稿或附件状态。Work 已完成列表按新完成在上、历史完成在下排列；标记首项为已验收后选择下一条较旧待办，标记其他位置后选择相邻较新待办，树补全项不参与目标计算，且选择只在服务器确认成功后切换。验收请求期间允许浏览其他任务；若用户在服务器确认前产生较新的选择，成功回调保留该选择而不执行旧任务的自动相邻切换。跨产品替换、主窗口和 Case 绑定恢复的既有交互保持不变。应用启动会在进入 Automation 前检查全部关联本地项目；发现 skill drift 时直接呈现既有 Setup Readiness 安装、修复或人工恢复路径，无需用户先切换到具体项目。 | - |
+| experience_and_interaction | settled | 55 | ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 新建和编辑 Sheet 保留完整七状态，编辑 Sheet 承担异常纠偏；右侧 Inspector 按当前状态显示有限下一步动作。Work Inspector 首次使用 440px，用户可通过 12px 可访问分隔条在 360–640px 保存范围内拖拽、键盘调整或双击复位，偏好跨任务、项目、Workset 和应用重启恢复。布局为任务树保留至少 420px，窗口临时收窄只改变有效宽度且不覆盖保存值。Inspector 以单一内部滚动区组织身份动作、内容、紧凑属性、协作和按状态出现的验收分区，宽度变化不丢失选择、滚动、草稿或附件状态。Work 已完成列表按新完成在上、历史完成在下排列；标记首项为已验收后选择下一条较旧待办，标记其他位置后选择相邻较新待办，树补全项不参与目标计算，且选择只在服务器确认成功后切换。验收请求期间允许浏览其他任务；若用户在服务器确认前产生较新的选择，成功回调保留该选择而不执行旧任务的自动相邻切换。Work 新建待办 Sheet 在执行人控件下根据执行人与状态原位解释 Automation 资格：未分配、分配给他人或非待处理均不进入当前用户候选；当前用户且待处理只继续检查项目连接、项目授权和全局领取，不隐式修改这些事实。跨产品替换、主窗口和 Case 绑定恢复的既有交互保持不变。应用启动会在进入 Automation 前检查全部关联本地项目；发现 skill drift 时直接呈现既有 Setup Readiness 安装、修复或人工恢复路径，无需用户先切换到具体项目。 | - |
 | visual_language | settled | 5 | Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口保持既有单一应用标题栏和平台原生窗口控件差异。Work Inspector 使用既有中性表面、8px 间距节奏、标题层级和可见焦点表达身份动作、内容、紧凑属性、协作和验收分区；分区不只依赖单条顶边，属性在可用宽度下优先两列并在窄宽度降为单列。 | - |
 | identity_and_access | settled | 4 | Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. Runtime sessions use a server-backed rolling seven-day inactivity window: successful verification login, successful startup session restoration/refresh, or successful token refresh renews the window through rotated server credentials; only more than seven days without such activity, missing or expired credentials, explicit logout, or explicit server rejection/revocation requires login again. ArcOrbit 产品反馈要求有效 Workshop 登录，并以服务端 current-user 的不可变业务 ID 作为反馈身份；退出或切换账户会关闭旧反馈上下文。Codex authentication 是独立于 ArcOrbit/Workshop authentication 的状态域，由 `codex login status` 退出码确认。未认证用户必须显式选择 ChatGPT、API Key 或明确支持的 Enterprise Access Token；ChatGPT 还必须显式选择 system-browser 或 device-auth，所有选项均无默认值。 | - |
 | data_and_state | settled | 18 | Canonical development state、Workshop 远端真相、ArcOrbit Task Projection、Automation execution、Chat session/thread 和 Case 绑定收据继续保持既有所有权边界。ArcOrbit Desktop Store 额外拥有全局 `platform.ui_preferences.work_inspector_width_px`，用于保存 360–640px 的 Work Inspector 用户选择宽度；它不属于 Workshop Task、按项目 workspace preference、Work Sync 投影或 Automation。缺失或非法值使用 440，窗口临时约束产生的有效宽度不写回保存值，任务、项目、Workset、登录身份切换和应用重启均不重置该偏好。 | GAP-cross-record-audit |

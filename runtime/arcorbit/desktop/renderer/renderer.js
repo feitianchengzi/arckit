@@ -41,6 +41,7 @@ import {
   canManageProject,
   deriveAutomationGuidance,
   deriveReadinessSteps,
+  deriveTaskExecutorAutomationHelp,
   deriveTodayGuidance,
   deriveWorkEligibilityGuidance
 } from "../../src/desktop/today-guidance.mjs";
@@ -2683,11 +2684,11 @@ async function createTask() {
       platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
       platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions(), help: "可直接选择任一待办状态；Automation 只消费创建成功后的状态。" }),
-      taskProjectFields(defaultProjectId),
+      taskProjectFields(defaultProjectId, { includeExecutorAutomationHelp: true, taskState: "pending_review" }),
       platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions(), help: "最高优先处理；无优先级表示创建时不设置该字段。" })
     ]
   });
-  bindTaskFormProjectScope(defaultProjectId);
+  bindTaskFormProjectScope(defaultProjectId, { includeExecutorAutomationHelp: true });
   const values = normalizeTaskFormValues(await action);
   if (!values) return;
   await executeManagedAction("task.create", values, "待办已创建");
@@ -3143,13 +3144,18 @@ function platformCheckboxGroup(name, label, options) {
   return `<fieldset class="platform-action-field platform-checkbox-group" data-multiple-field="${escapeHtml(name)}"><legend>${escapeHtml(label)}</legend>${options.length ? options.map((option) => `<label><input name="${escapeHtml(name)}" type="checkbox" value="${escapeHtml(option.value)}" ${option.checked ? "checked" : ""}><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.detail || "")}</small></span></label>`).join("") : `<div class="empty-state compact">尚无可访问项目。</div>`}</fieldset>`;
 }
 
-function taskProjectFields(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "", includeFather = true } = {}) {
-  return `<div class="task-project-fields" data-task-project-fields data-project-id="${escapeHtml(projectId)}">${taskProjectFieldControls(projectId, { executorId, fatherId, excludedTaskId, tags, includeFather })}</div>`;
+function taskProjectFields(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "", includeFather = true, includeExecutorAutomationHelp = false, taskState = "" } = {}) {
+  return `<div class="task-project-fields" data-task-project-fields data-project-id="${escapeHtml(projectId)}">${taskProjectFieldControls(projectId, { executorId, fatherId, excludedTaskId, tags, includeFather, includeExecutorAutomationHelp, taskState })}</div>`;
 }
 
-function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "", includeFather = true } = {}) {
+function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "", includeFather = true, includeExecutorAutomationHelp = false, taskState = "" } = {}) {
   return [
-    platformField("executor_id", "执行人", { type: "select", value: executorId, options: memberSelectOptions(projectId) }),
+    platformField("executor_id", "执行人", {
+      type: "select",
+      value: executorId,
+      options: memberSelectOptions(projectId),
+      help: includeExecutorAutomationHelp ? deriveTaskExecutorAutomationHelp({ executorId, currentUserId: state.platform.user?.id, state: taskState }) : ""
+    }),
     ...(includeFather ? [platformField("father_id", "父待办", { type: "select", value: fatherId, options: taskSelectOptions(projectId, excludedTaskId) })] : []),
     taskTagField(projectId, tags)
   ].join("");
@@ -3158,17 +3164,47 @@ function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", e
 function bindTaskFormProjectScope(defaultProjectId, initial = {}) {
   const projectSelect = els.platformActionForm.querySelector('[name="project_id"]');
   if (!projectSelect) return;
+  const stateSelect = els.platformActionForm.querySelector('[name="state"]');
+  const includeExecutorAutomationHelp = initial.includeExecutorAutomationHelp === true;
+  const projectInitial = { ...initial };
+  delete projectInitial.includeExecutorAutomationHelp;
+  const updateExecutorAutomationHelp = () => {
+    if (!includeExecutorAutomationHelp) return;
+    const executorSelect = els.platformActionForm.querySelector('[name="executor_id"]');
+    const help = executorSelect?.closest(".platform-action-field")?.querySelector("small");
+    if (!executorSelect || !help) return;
+    help.textContent = deriveTaskExecutorAutomationHelp({
+      executorId: executorSelect.value,
+      currentUserId: state.platform.user?.id,
+      state: stateSelect?.value || ""
+    });
+  };
+  const bindExecutorAutomationHelp = () => {
+    if (!includeExecutorAutomationHelp) return;
+    els.platformActionForm.querySelector('[name="executor_id"]')?.addEventListener("change", updateExecutorAutomationHelp);
+    updateExecutorAutomationHelp();
+  };
   const renderProjectFields = (projectId) => {
     const host = els.platformActionForm.querySelector("[data-task-project-fields]");
     if (!host) return;
     host.dataset.projectId = projectId;
-    host.innerHTML = taskProjectFieldControls(projectId);
+    host.innerHTML = taskProjectFieldControls(projectId, {
+      includeExecutorAutomationHelp,
+      taskState: stateSelect?.value || ""
+    });
     bindTaskTagManager(projectId);
+    bindExecutorAutomationHelp();
   };
   projectSelect.addEventListener("change", () => renderProjectFields(projectSelect.value));
+  if (includeExecutorAutomationHelp) stateSelect?.addEventListener("change", updateExecutorAutomationHelp);
   const host = els.platformActionForm.querySelector("[data-task-project-fields]");
-  if (host) host.innerHTML = taskProjectFieldControls(defaultProjectId, initial);
+  if (host) host.innerHTML = taskProjectFieldControls(defaultProjectId, {
+    ...projectInitial,
+    includeExecutorAutomationHelp,
+    taskState: stateSelect?.value || ""
+  });
   bindTaskTagManager(defaultProjectId);
+  bindExecutorAutomationHelp();
 }
 
 function normalizeTaskFormValues(values, { emptyPriority = "omit" } = {}) {

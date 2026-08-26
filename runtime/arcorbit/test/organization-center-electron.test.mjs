@@ -53,6 +53,13 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.feedbackQueueVisible, true);
   assert.equal(result.selectedProductTaskDefault, "12");
   assert.deepEqual(result.selectedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "8", label: "Lin" }]);
+  assert.match(result.initialExecutorAutomationHelp, /未分配.*不会进入 Automation 候选/);
+  assert.match(result.currentUserReviewAutomationHelp, /当前状态不是待处理/);
+  assert.match(result.currentUserPendingAutomationHelp, /项目连接、项目授权和全局领取/);
+  assert.match(result.currentUserPendingAutomationHelp, /不表示已经进入队列/);
+  assert.match(result.otherUserPendingAutomationHelp, /其他成员.*不会进入你的 Automation 候选/);
+  assert.match(result.productSwitchAutomationHelp, /未分配.*不会进入 Automation 候选/);
+  assert.equal(result.executorGuidanceCallCountAfter, result.executorGuidanceCallCountBefore);
   assert.deepEqual(result.selectedProductTagLabels, ["Docs"]);
   assert.deepEqual(result.priorityOptionLabels, ["无优先级", "最高 · 紧急且重要", "高 · 优先处理", "中 · 正常处理", "低 · 可以延后"]);
   assert.deepEqual(result.switchedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare" }, { value: "8", label: "Lin" }, { value: "9", label: "成员姓名不可用" }]);
