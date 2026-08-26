@@ -33,13 +33,13 @@
                     <div class="device-frame tablet" data-kit="NavigationSplitView">
                         <div class="desktop-titlebar"><strong>ArcOrbit · Work</strong><span>紧凑窗口</span></div>
                         <div class="page-content">
-                            <div class="command-bar"><strong>Work</strong><select aria-label="任务状态"><option>待处理 · 8</option><option>待评审 · 3</option><option>进行中 · 4</option></select><input class="command-search" aria-label="搜索任务内容" placeholder="搜索"><button class="compact-action" data-kit="Menu">筛选 · 4</button><button class="compact-action primary">创建</button></div>
+                            <div class="command-bar"><strong>Work</strong><select aria-label="任务状态"><option>待处理 · 8</option><option>待评审 · 3</option><option>进行中 · 4</option></select><input class="command-search" aria-label="搜索任务内容" placeholder="搜索"><button class="compact-action" data-kit="Menu">筛选 · 4</button><button class="compact-action primary">创建</button></div><section class="surface" data-kit="Menu"><div class="surface-header"><strong>筛选</strong><span>距窗口边缘 12px · 面板内部滚动</span></div><div class="surface-body"><div class="form-grid"><label>创建人<select><option>Glare</option></select></label><label>执行人<select><option>Lin</option></select></label><label>标签<select><option>Desktop</option></select></label><label>优先级<select><option>高</option></select></label><label>创建日期从<input type="date"></label><label>创建日期至<input type="date"></label></div></div></section>
                             <div class="content-grid"><section class="surface split-v"><div class="surface-header"><strong>任务树</strong><span>3 项</span></div><div class="surface-body"><div class="activity-row"><span>−</span><strong>升级任务筛选</strong></div><div class="activity-row"><span>↳</span><strong>补齐筛选回归</strong></div></div></section><aside class="surface split-v" data-kit="Inspector"><div class="surface-header"><strong>TASK-3126</strong><span>详情</span></div><div class="surface-body"><p>完整正文与动作保持可访问。</p><button class="compact-action" data-kit="Menu">更多操作 ▾</button></div></aside></div>
                         </div>
                     </div>
                 </div>
                 <div class="component-list"><h3>组件清单</h3><ul><li>显示当前状态与数量的状态菜单</li><li>保持可见的搜索、筛选摘要和创建动作</li><li>单行省略的列表元数据</li><li>列表与 Inspector 双栏</li></ul></div>
-                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>状态菜单</code> → 替代七状态分段并切换同一本地状态查询，不请求 Workshop</div><div class="interaction-item"><code>更多操作</code> → 承载低频动作，不移动搜索和筛选入口</div><div class="interaction-item"><code>恢复宽度</code> → 重新展开七状态分段，保持筛选、任务选择与两栏滚动位置</div></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>状态菜单</code> → 替代七状态分段并切换同一本地状态查询，不请求 Workshop</div><div class="interaction-item"><code>筛选</code> → 面板保持在可视窗口内，紧凑宽度降为两列，更窄时降为单列；可用高度不足时内部滚动或显示在触发器上方</div><div class="interaction-item"><code>更多操作</code> → 承载低频动作，不移动搜索和筛选入口</div><div class="interaction-item"><code>恢复宽度</code> → 重新展开七状态分段，保持筛选、任务选择与两栏滚动位置</div></div>
             </div>
         </details>
 

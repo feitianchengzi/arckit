@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 293
-Updated: 2026-08-26T15:47:47.707Z
+Revision: 295
+Updated: 2026-08-26T16:04:43.334Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-让 ArcOrbit 仅在冷启动、本地项目产生新关联以及用户主动恢复时检查本地能力；查看或切换项目不得自动触发完整 Setup Readiness。
+修复 ArcOrbit Work 页面在非全屏、可用宽度有限时筛选弹层超出可视区域或被裁切的问题。
 
 ## Active Work
 

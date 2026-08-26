@@ -161,33 +161,65 @@ app.whenReady().then(async () => {
       const rail = document.querySelector('.work-control-rail');
       const list = document.querySelector('#platformWorkTable');
       const detail = document.querySelector('#platformWorkInspector');
+      const filterMenu = document.querySelector('[data-work-filter-menu]');
+      filterMenu.open = true;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const filterPopover = filterMenu.querySelector('.work-filter-popover');
+      const filterRect = filterPopover.getBoundingClientRect();
       list.scrollTop = 120;
       detail.scrollTop = 90;
-      return {
+      const result = {
         rail_single_line: rail.scrollWidth <= rail.clientWidth && rail.getBoundingClientRect().height <= 44.5,
         state_buttons_hidden: getComputedStyle(document.querySelector('#workStateFilters')).display === 'none',
         compact_state_visible: getComputedStyle(document.querySelector('.work-state-compact')).display !== 'none',
+        filter_popover: {
+          left: Number(filterRect.left.toFixed(2)),
+          right: Number(filterRect.right.toFixed(2)),
+          top: Number(filterRect.top.toFixed(2)),
+          bottom: Number(filterRect.bottom.toFixed(2)),
+          viewport_width: window.innerWidth,
+          viewport_height: window.innerHeight,
+          columns: getComputedStyle(filterPopover).gridTemplateColumns.split(' ').length
+        },
         selected: document.querySelector('#platformWorkTable tr.selected')?.dataset.platformTaskSelect || '',
         list_scroll: list.scrollTop,
         detail_scroll: detail.scrollTop
       };
+      filterMenu.open = false;
+      return result;
     })()`);
-    window.setSize(1100, 720);
+    window.setSize(1040, 720);
     await new Promise((resolveWait) => setTimeout(resolveWait, 80));
-    result.minimum_work = await window.webContents.executeJavaScript(`(() => {
+    result.minimum_work = await window.webContents.executeJavaScript(`(async () => {
       const page = document.querySelector('#workView > .platform-page');
       const rail = page.querySelector('.work-control-rail');
       const layout = page.querySelector('.platform-work-layout');
       const list = document.querySelector('#platformWorkTable');
       const detail = document.querySelector('#platformWorkInspector');
-      return {
+      const filterMenu = document.querySelector('[data-work-filter-menu]');
+      filterMenu.open = true;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const filterPopover = filterMenu.querySelector('.work-filter-popover');
+      const filterRect = filterPopover.getBoundingClientRect();
+      const result = {
         rail_single_line: rail.scrollWidth <= rail.clientWidth && rail.getBoundingClientRect().height <= 44.5,
         layout_height: Number(layout.getBoundingClientRect().height.toFixed(2)),
         layout_within_page: layout.getBoundingClientRect().bottom <= page.getBoundingClientRect().bottom,
+        filter_popover: {
+          left: Number(filterRect.left.toFixed(2)),
+          right: Number(filterRect.right.toFixed(2)),
+          top: Number(filterRect.top.toFixed(2)),
+          bottom: Number(filterRect.bottom.toFixed(2)),
+          viewport_width: window.innerWidth,
+          viewport_height: window.innerHeight,
+          columns: getComputedStyle(filterPopover).gridTemplateColumns.split(' ').length
+        },
         selected: document.querySelector('#platformWorkTable tr.selected')?.dataset.platformTaskSelect || '',
         list_scroll: list.scrollTop,
         detail_scroll: detail.scrollTop
       };
+      filterMenu.open = false;
+      return result;
     })()`);
     if (resultPath) await writeFile(resultPath, JSON.stringify(result), "utf8");
     else process.stdout.write(`${JSON.stringify(result)}\n`);

@@ -602,7 +602,11 @@ function wireEvents() {
   document.querySelectorAll("[data-work-filter-menu]").forEach((menu) => menu.addEventListener("toggle", () => {
     if (!menu.open) return;
     document.querySelectorAll("[data-work-filter-menu]").forEach((other) => { if (other !== menu) other.open = false; });
+    positionWorkFilterPopover(menu);
   }));
+  window.addEventListener("resize", () => {
+    document.querySelectorAll("[data-work-filter-menu][open]").forEach(positionWorkFilterPopover);
+  });
   document.addEventListener("click", (event) => {
     if (event.target.closest("[data-work-filter-menu]")) return;
     document.querySelectorAll("[data-work-filter-menu][open]").forEach((menu) => { menu.open = false; });
@@ -1918,6 +1922,37 @@ function renderWorkFilterControls() {
   els.workStartDateFilter.value = state.platformWorkFilters.start_time;
   els.workEndDateFilter.value = state.platformWorkFilters.end_time;
   renderWorkFilterSummaries();
+}
+
+function positionWorkFilterPopover(menu) {
+  if (!menu?.open) return;
+  window.requestAnimationFrame(() => {
+    if (!menu.open) return;
+    const trigger = menu.querySelector("summary");
+    const popover = menu.querySelector(".work-filter-popover");
+    if (!trigger || !popover) return;
+    const viewportMargin = 12;
+    const triggerGap = 5;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const triggerRect = trigger.getBoundingClientRect();
+    const popoverRect = popover.getBoundingClientRect();
+    const width = Math.min(popoverRect.width, Math.max(0, viewportWidth - (viewportMargin * 2)));
+    const maxLeft = Math.max(viewportMargin, viewportWidth - viewportMargin - width);
+    const left = Math.min(maxLeft, Math.max(viewportMargin, triggerRect.right - width));
+    const preferredHeight = Math.min(popover.scrollHeight, 520);
+    const availableBelow = Math.max(0, viewportHeight - triggerRect.bottom - triggerGap - viewportMargin);
+    const availableAbove = Math.max(0, triggerRect.top - triggerGap - viewportMargin);
+    const placeAbove = availableBelow < Math.min(preferredHeight, 260) && availableAbove > availableBelow;
+    const availableHeight = Math.max(80, placeAbove ? availableAbove : availableBelow);
+    const renderedHeight = Math.min(preferredHeight, availableHeight);
+    const top = placeAbove
+      ? Math.max(viewportMargin, triggerRect.top - triggerGap - renderedHeight)
+      : Math.min(viewportHeight - viewportMargin - renderedHeight, triggerRect.bottom + triggerGap);
+    popover.style.setProperty("--work-filter-popover-left", `${left}px`);
+    popover.style.setProperty("--work-filter-popover-top", `${Math.max(viewportMargin, top)}px`);
+    popover.style.setProperty("--work-filter-popover-max-height", `${availableHeight}px`);
+  });
 }
 
 function setMultiSelectOptions(element, options, selectedValues) {

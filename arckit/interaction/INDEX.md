@@ -56,4 +56,4 @@
   - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、可调宽分区 Inspector 与图片浏览。✅ (96行)
   - task-form.html 待办表单子视图：创建/编辑产品切换、执行人 Automation 资格提示、跨产品复制确认、目标字段联动和分步失败恢复。✅ (45行)
   - readiness-guidance.html 执行资格子视图：待评审确认、执行人不匹配、项目连接缺口和无权限责任交接。✅ (39行)
-  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、新建执行人 Automation 提示、编辑七状态兜底、Inspector 引导动作、持久宽度、紧凑分区、跨产品受控替换与图片浏览。✅ (304行)
+  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、新建执行人 Automation 提示、编辑七状态兜底、Inspector 引导动作、持久宽度、紧凑分区、跨产品受控替换与图片浏览。✅ (305行)

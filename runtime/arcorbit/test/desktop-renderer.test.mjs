@@ -1267,7 +1267,8 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(styles, /\.work-filter-groups/);
   assert.match(html, /id="workFilterSummary"/);
   assert.match(html, /id="workStateSelect"/);
-  assert.match(styles, /\.work-filter-popover \{[^}]*position: absolute/);
+  assert.match(styles, /\.work-filter-popover \{[^}]*position: fixed/);
+  assert.match(source, /function positionWorkFilterPopover\(menu\)[\s\S]+--work-filter-popover-left[\s\S]+--work-filter-popover-max-height/);
   assert.match(styles, /\.platform-work-table td \{[^}]*height: 40px;[^}]*white-space: nowrap/);
   assert.match(styles, /\.task-comment-timeline/);
   assert.match(styles, /\.task-markdown-detail/);

@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-26T15:47:47.707Z",
-    "revision": 293
+    "updated_at": "2026-08-26T16:04:43.334Z",
+    "revision": 295
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "让 ArcOrbit 仅在冷启动、本地项目产生新关联以及用户主动恢复时检查本地能力；查看或切换项目不得自动触发完整 Setup Readiness。",
+      "current_focus": "修复 ArcOrbit Work 页面在非全屏、可用宽度有限时筛选弹层超出可视区域或被裁切的问题。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

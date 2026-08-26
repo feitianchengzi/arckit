@@ -155,3 +155,4 @@
 | [CASE-20260826-008](closed/CASE-20260826-008-automation.md) | closed | 补充新建待办执行人 Automation 提示 | 2026-08-26T10:33:19.260Z |
 | [CASE-20260826-009](closed/CASE-20260826-009-make-same-name-skill-conflicts-recoverable.md) | closed | Make same-name skill conflicts recoverable | 2026-08-26T12:58:55.759Z |
 | [CASE-20260826-010](closed/CASE-20260826-010-arcorbit.md) | closed | 收敛 ArcOrbit 本地能力检查触发边界 | 2026-08-26T15:47:47.707Z |
+| [CASE-20260826-011](closed/CASE-20260826-011-work.md) | closed | 优化窄窗口下 Work 筛选弹层 | 2026-08-26T16:04:43.334Z |
