@@ -86,6 +86,25 @@ h1, h2, h3, p { margin-top: 0; }
 .setup-summary { border-left: 1px solid var(--ink-150); background: #fff; }
 .setup-summary h2, .setup-conflict-panel h2 { margin: 0 0 12px; font-size: var(--type-body); }
 .setup-lead { margin-bottom: 18px; color: var(--ink-500); font-size: var(--type-body); line-height: 1.65; }
+.codex-setup-panel { margin-bottom: 16px; padding: 15px; border: 1px solid var(--violet-200); border-radius: 9px; background: var(--violet-50); }
+.codex-setup-header { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.codex-setup-header h2 { margin: 2px 0 0; font-size: var(--type-body); }
+.codex-setup-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
+.codex-setup-facts > div { min-width: 0; padding: 9px; border-radius: 7px; background: rgba(255, 255, 255, .78); }
+.codex-setup-facts small, .codex-setup-facts strong { display: block; }
+.codex-setup-facts small { color: var(--ink-500); font-size: var(--type-micro); }
+.codex-setup-facts strong { margin-top: 3px; overflow-wrap: anywhere; font-size: var(--type-caption); }
+.codex-setup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.codex-auth-panel { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--violet-200); }
+.codex-auth-panel fieldset { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
+.codex-auth-panel fieldset + fieldset { margin-top: 12px; }
+.codex-auth-panel legend { width: 100%; margin-bottom: 7px; color: var(--ink-600); font-size: var(--type-caption); font-weight: 800; }
+.codex-auth-panel fieldset label { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--ink-150); border-radius: 7px; background: #fff; font-size: var(--type-caption); cursor: pointer; }
+.codex-secret-region { display: grid; gap: 6px; margin-top: 12px; }
+.codex-secret-region > span { font-size: var(--type-caption); font-weight: 800; }
+.codex-secret-region input { width: 100%; padding: 9px 10px; border: 1px solid var(--ink-200); border-radius: 7px; background: #fff; }
+.codex-secret-region small, .codex-setup-feedback { color: var(--ink-500); font-size: var(--type-micro); line-height: 1.5; }
+.codex-setup-feedback { margin: 10px 0 0; }
 .setup-cleanup-panel { margin-bottom: 16px; padding: 14px; border: 1px solid #dfbd80; border-radius: 9px; background: var(--amber-100); }
 .setup-cleanup-header { display: flex; justify-content: space-between; gap: 14px; }
 .setup-cleanup-header h2 { margin: 0 0 4px; font-size: var(--type-body); }

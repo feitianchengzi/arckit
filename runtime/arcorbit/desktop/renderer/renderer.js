@@ -70,11 +70,14 @@ const RECOVERY_LABELS = {
   runtime_process_missing: "Runtime 进程未连接",
   safe_stop_requested: "正在安全停止",
   cli_handoff_failed: "Codex CLI 接管失败",
-  case_reconciliation_failed: "Case 对账失败"
+  case_reconciliation_failed: "Case 对账失败",
+  case_binding_missing: "需要确认任务对应的 Case"
 };
 const RECOVERY_ACTION_LABELS = {
   retry_sync: "重新同步",
   retry_start: "重试同一任务",
+  retry_case_reuse: "复用已有 Case",
+  retry_as_new_case: "作为新事项继续",
   retry_cli_handoff: "重试切换到 CLI",
   retry_complete: "重试完成写回",
   feedback_continue: "补充说明并继续",
@@ -106,6 +109,8 @@ const state = {
   setupCleanupPaths: [],
   setupReviewPlanDigest: "",
   setupReviewPlanChanged: false,
+  codexAuthMethod: "",
+  codexAuthFlow: "",
   page: "today",
   selectedProjectId: "all",
   selectedState: "pending",
@@ -271,6 +276,9 @@ async function boot() {
     const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     refresh.catch(() => {});
   }, 30_000);
+  window.setInterval(() => {
+    if (state.setup?.codex_setup?.operation?.started_at) renderCodexSetup();
+  }, 1_000);
 }
 
 function wireEvents() {
@@ -284,6 +292,47 @@ function wireEvents() {
       state.setupBusy = false;
       renderSetup();
     }
+  }));
+  els.codexInstallButton.addEventListener("click", () => runAction(async () => {
+    await runConfirmedCodexSetupAction("install", (input) => api.installCodex(input));
+  }));
+  els.codexUpdateButton.addEventListener("click", () => runAction(async () => {
+    await runConfirmedCodexSetupAction("update", (input) => api.updateCodex(input));
+  }));
+  els.codexMigrateButton.addEventListener("click", () => runAction(async () => {
+    await runConfirmedCodexSetupAction("migrate", (input) => api.migrateCodexToStandalone(input));
+  }));
+  els.codexAuthMethods.addEventListener("change", (event) => {
+    state.codexAuthMethod = String(event.target?.value || "");
+    state.codexAuthFlow = "";
+    for (const input of els.codexChatgptFlows.querySelectorAll('input[type="radio"]')) input.checked = false;
+    els.codexSecretInput.value = "";
+    renderCodexSetup();
+  });
+  els.codexChatgptFlows.addEventListener("change", (event) => {
+    state.codexAuthFlow = String(event.target?.value || "");
+    renderCodexSetup();
+  });
+  els.codexSecretInput.addEventListener("input", () => renderCodexSetup());
+  els.codexLoginButton.addEventListener("click", () => runAction(async () => {
+    const method = state.codexAuthMethod;
+    const flow = state.codexAuthFlow;
+    if (["api-key", "access-token"].includes(method)) {
+      const secret = els.codexSecretInput.value;
+      els.codexSecretInput.value = "";
+      await runConfirmedCodexSetupAction("login", (input) => api.loginCodexWithSecret({ ...input, secret }), { method, flow: "" });
+      return;
+    }
+    await runConfirmedCodexSetupAction("login", (input) => api.loginCodex(input), { method, flow });
+  }));
+  els.codexLogoutButton.addEventListener("click", () => runAction(async () => {
+    await runConfirmedCodexSetupAction("logout", (input) => api.logoutCodex(input));
+  }));
+  els.codexCancelButton.addEventListener("click", () => runAction(async () => {
+    const operation = state.setup?.codex_setup?.operation;
+    if (operation?.cancellable !== true || !operation.id) return;
+    state.setup = await api.cancelCodexSetup({ operation_id: operation.id });
+    renderSetup();
   }));
   els.setupRecoveryGuideButton.addEventListener("click", () => runAction(async () => {
     await navigator.clipboard.writeText(setupRecoveryGuide(state.setup));
@@ -595,6 +644,7 @@ function renderSetup() {
     checking: ["正在检查 Arckit 能力", "逐项验证安装包资源和本机目标。"],
     applying: ["正在准备完整能力", "写入由 ArcForge provider 事务化执行，请保持应用打开。"],
     ready: ["Arckit 已准备完成", "关键资源、skills drift 与 Codex discoverability 均已通过。"],
+    "codex-action-required": ["需要恢复 Codex 环境", "完成安装或显式登录后会自动重新验证，无需重启 ArcOrbit。"],
     "needs-install": ["需要安装 Arckit skills", "查看 fresh plan 的目标后确认安装。"],
     drifted: ["发现 managed-stale 路径", "清理需要独立确认，普通安装不会隐式删除。"],
     conflict: ["需要选择冲突恢复方式", "每个阻塞目标都显示其所有权依据与当前可执行的恢复动作。"],
@@ -606,6 +656,7 @@ function renderSetup() {
   els.setupStatusPill.textContent = setup.status.toUpperCase();
   els.setupStatusPill.className = `health-badge ${ready ? "success" : ["blocked", "conflict"].includes(setup.status) ? "danger" : "warning"}`;
   els.setupChecks.innerHTML = (setup.checks || []).map((item) => `<div class="setup-check ${escapeHtml(item.status)}"><span>${item.status === "passed" ? "✓" : item.status === "failed" ? "!" : "…"}</span><div><strong>${escapeHtml(setupCheckLabel(item.id))}</strong><small>${escapeHtml(item.summary)}</small></div></div>`).join("") || `<div class="setup-check pending"><span>…</span><div><strong>准备检查</strong><small>等待 main process 返回状态</small></div></div>`;
+  renderCodexSetup();
   els.setupDistribution.innerHTML = setup.distribution ? [
     ["Runtime", setup.distribution.runtime_version], ["Release intent", setup.distribution.release_tag],
     ["ArcForge provider", setup.distribution.provider_version], ["Payload", shortDigest(setup.distribution.payload_digest)]
@@ -617,7 +668,7 @@ function renderSetup() {
   const setupError = setup.error || (state.setupActionError ? { code: "SETUP_ACTION_FAILED", stage: "setup-action", message: state.setupActionError } : null);
   els.setupErrorPanel.classList.toggle("hidden", !setupError);
   const writeSummary = setup.write_state === "not_started" ? "写入：未开始" : setup.write_state === "committed" ? "写入：已完成" : setup.write_state === "rolled_back" ? "写入：已回滚" : setup.write_state === "rollback_incomplete" ? "写入：回滚需人工检查" : "写入：进行中";
-  els.setupErrorPanel.innerHTML = setupError ? `<strong>${escapeHtml(setupError.code)}</strong><p>${escapeHtml(setupError.message)}</p><small>阶段：${escapeHtml(setupError.stage)} · ${writeSummary}</small>` : "";
+  els.setupErrorPanel.innerHTML = setupError ? `<strong>${escapeHtml(setupError.code)}</strong><p>${escapeHtml(setupError.message)}</p>${renderCodexOwnerBlockers(setupError)}<small>阶段：${escapeHtml(setupError.stage)} · ${writeSummary}</small>` : "";
   const upgradeItems = setup.source_upgrade?.items || [];
   const conflicts = setup.drift?.conflicts || [];
   els.setupConflictPanel.classList.toggle("hidden", upgradeItems.length === 0 && conflicts.length === 0 && !setup.recovery_backup);
@@ -629,6 +680,118 @@ function renderSetup() {
         ? `<h2>本地修改已备份</h2><div class="setup-path-row"><code>${escapeHtml(setup.recovery_backup.path)}</code></div>`
         : "";
   renderSetupActions();
+}
+
+function renderCodexOwnerBlockers(error) {
+  const owners = Array.isArray(error?.owners) ? error.owners : [];
+  if (error?.code !== "CODEX_UPDATE_ACTIVE_TASKS" || owners.length === 0) return "";
+  return `<ul class="codex-owner-blockers">${owners.map((owner) => {
+    const kind = owner?.kind === "automation" ? "Automation" : owner?.kind === "chat" ? "Chat" : "Codex";
+    return `<li><strong>${kind}</strong><code>${escapeHtml(owner?.id || "")}</code></li>`;
+  }).join("")}</ul>`;
+}
+
+function codexOperationFeedback(operation) {
+  const phaseLabels = {
+    starting: "正在启动",
+    downloading: "正在下载安装程序",
+    executing: "正在执行",
+    discovering: "正在重新发现 executable",
+    "awaiting-device-auth": "正在等待设备验证",
+    "rechecking-executable": "正在重新发现 executable",
+    "rechecking-version": "正在复核 version",
+    "rechecking-login-status": "正在复核 login status",
+    "rechecking-readiness": "正在复核其它 readiness"
+  };
+  const startedAt = Date.parse(String(operation?.started_at || ""));
+  const elapsedSeconds = Number.isFinite(startedAt) ? Math.max(0, Math.floor((Date.now() - startedAt) / 1_000)) : null;
+  const elapsed = elapsedSeconds === null ? "" : ` · 已等待 ${elapsedSeconds} 秒`;
+  return `${operation?.kind || "setup"} · ${phaseLabels[operation?.phase] || operation?.phase || "进行中"}${elapsed}`;
+}
+
+function renderCodexSetup() {
+  const codex = state.setup?.codex_setup || {};
+  const installation = codex.installation || {};
+  const authentication = codex.authentication || {};
+  const capabilities = authentication.capabilities || {};
+  const operating = Boolean(codex.operation) || state.setupBusy;
+  const status = String(codex.status || "checking");
+  els.codexSetupStatus.textContent = status.toUpperCase();
+  els.codexSetupStatus.className = `health-badge ${status === "ready" ? "success" : codex.error ? "danger" : "warning"}`;
+  els.codexSetupFacts.innerHTML = [
+    ["Executable", installation.available ? installation.command : "未发现"],
+    ["Provenance", installation.provenance || "none"],
+    ["Version", installation.version_summary || "等待检测"],
+    ["Authentication", authentication.authenticated ? "已认证" : authentication.state || "等待检测"]
+  ].map(([label, value]) => `<div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("");
+
+  els.codexInstallButton.classList.toggle("hidden", !installation.can_install);
+  els.codexUpdateButton.classList.toggle("hidden", !installation.can_update);
+  els.codexMigrateButton.classList.toggle("hidden", !installation.can_migrate);
+  const ownerBlocked = codex.error?.code === "CODEX_UPDATE_ACTIVE_TASKS";
+  for (const button of [els.codexInstallButton, els.codexUpdateButton, els.codexMigrateButton]) button.disabled = operating || ownerBlocked;
+
+  const needsAuthentication = Boolean(installation.available && !authentication.authenticated);
+  els.codexAuthPanel.classList.toggle("hidden", !needsAuthentication);
+  els.codexAccessTokenOption.classList.toggle("hidden", !capabilities.access_token);
+  els.codexDeviceFlowOption.classList.toggle("hidden", !capabilities.device_auth);
+  if (!capabilities.access_token && state.codexAuthMethod === "access-token") clearCodexAuthSelection();
+  if (!capabilities.device_auth && state.codexAuthFlow === "device") state.codexAuthFlow = "";
+  const chatgpt = state.codexAuthMethod === "chatgpt";
+  const secretMethod = ["api-key", "access-token"].includes(state.codexAuthMethod);
+  els.codexChatgptFlows.classList.toggle("hidden", !chatgpt);
+  els.codexSecretRegion.classList.toggle("hidden", !secretMethod);
+  els.codexSecretLabel.textContent = state.codexAuthMethod === "access-token" ? "Enterprise Access Token" : "API Key";
+  const choiceComplete = Boolean(state.codexAuthMethod)
+    && (!chatgpt || Boolean(state.codexAuthFlow))
+    && (!secretMethod || Boolean(els.codexSecretInput.value));
+  els.codexLoginButton.disabled = operating || !choiceComplete;
+  for (const input of els.codexAuthPanel.querySelectorAll("input")) input.disabled = operating;
+  els.codexLogoutButton.classList.toggle("hidden", !authentication.authenticated);
+  els.codexLogoutButton.disabled = operating;
+  const cancellableOperation = codex.operation?.cancellable === true && Boolean(codex.operation?.id);
+  els.codexCancelButton.classList.toggle("hidden", !cancellableOperation);
+  els.codexCancelButton.disabled = !cancellableOperation;
+  const deviceAuth = codex.operation?.device_auth || null;
+  const deviceAuthFeedback = deviceAuth
+    ? [
+        deviceAuth.verification_url ? `请在浏览器打开 ${deviceAuth.verification_url}` : "请按 Codex 官方设备码流程打开验证页面",
+        deviceAuth.user_code ? `并输入一次性代码 ${deviceAuth.user_code}` : "正在等待一次性代码"
+      ].join("，")
+    : "";
+  els.codexSetupFeedback.textContent = codex.error?.message || (codex.operation
+    ? [deviceAuthFeedback, codexOperationFeedback(codex.operation)].filter(Boolean).join("；")
+    : authentication.authenticated
+      ? "Codex 与 Workshop 认证保持独立；当前 Codex 状态已由 login status 复核。"
+      : installation.available
+        ? "请选择认证方式；所有选项默认未选。"
+        : "安装使用固定官方 URL；Renderer 不能提供 URL、argv、environment 或 shell。");
+}
+
+function clearCodexAuthSelection() {
+  state.codexAuthMethod = "";
+  state.codexAuthFlow = "";
+  els.codexSecretInput.value = "";
+  for (const input of els.codexAuthPanel.querySelectorAll('input[type="radio"]')) input.checked = false;
+}
+
+async function runCodexSetupAction(action) {
+  state.setupActionError = "";
+  state.setupBusy = true;
+  renderSetup();
+  try {
+    state.setup = await action();
+    if (state.setup?.codex_setup?.status === "ready") clearCodexAuthSelection();
+  } finally {
+    state.setupBusy = false;
+    renderSetup();
+  }
+}
+
+async function runConfirmedCodexSetupAction(action, operation, intent = {}) {
+  const confirmation = await api.confirmCodexSetup({ action, ...intent });
+  if (!confirmation?.confirmed || !confirmation.confirmation_id) return;
+  await runCodexSetupAction(() => operation({ ...intent, confirmation_id: confirmation.confirmation_id }));
 }
 
 function renderSetupPlan() {

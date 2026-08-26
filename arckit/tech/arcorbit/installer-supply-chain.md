@@ -53,7 +53,7 @@ manual GitHub workflow_dispatch
   -> optional draft GitHub Release
 
 installed Desktop
-  -> Setup Readiness / SkillProvisioningManager
+  -> Setup Readiness / CodexSetupManager / SkillProvisioningManager
   -> Product Workspace local-project binding
   -> ArcForge Embedded Provider
   -> <project-root>/.codex/skills + ~/.arcforge catalog/relations
@@ -277,7 +277,7 @@ workflow 根据渠道选择 `internal`、`beta` 或 `appstore` GitHub Environmen
 
 ## Desktop Setup Readiness
 
-Desktop 新增独立 `SkillProvisioningManager`，由 Electron main process 持有文件系统写权限。Renderer 只通过窄 IPC 请求 status、plan、apply、repair 和 remove；preload 不暴露任意路径执行或 provider module handle。
+Desktop 由 Electron main process 持有独立 `CodexSetupManager` 与 `SkillProvisioningManager`。前者拥有 Codex discovery、官方 installer、版本、认证与 logout 子进程；后者拥有项目 skill 文件写入。Renderer 只通过窄 IPC 请求 setup snapshot 和结构化动作；preload 不暴露任意 URL、路径、参数、shell command、process handle 或 provider module handle。
 
 Manager 分为全局资源检查和项目准备。全局检查校验 bundle、provider、source store 与 Codex executable，不生成 Agent apply plan。项目准备只接受 Automation/Product Workspace Coordinator 已解析的项目 id、规范化绝对根路径和绑定证据。
 
@@ -311,6 +311,69 @@ Codex discoverability 解析一个经过 `--version` 验证的绝对 executable�
 Windows 的 npm 安装通常暴露 `.cmd`/`.bat` command shim。版本探测不得把这类文件直接交给 `execFile`，也不得用拼接用户路径的 shell 字符串；必须通过固定 PowerShell 脚本启动，并仅用结构化环境变量传递 executable 和 JSON 参数。原生 executable 继续使用直接参数边界。
 
 同一次成功 probe 的 executable 与必要 `PATH` 前缀由 Desktop 进程持有，并由 Runtime child、Codex app-server 和交互式 CLI handoff 共同复用。Setup 重试会重新解析并替换该结果；未成功 probe 的裸命令不得进入任务执行链路。
+
+### Codex installation 与 authentication manager
+
+`CodexSetupManager` 维护与 Workshop session、SkillProvisioningManager project relation 和 Runtime execution 分离的 snapshot：
+
+```text
+installation: checking | missing | installing | installed | updating | broken | install-failed
+authentication: checking | selection-required | login-in-progress | authenticated | logged-out | expired | login-failed
+executable: absolute path + required PATH prefix + detected owner
+operation: opaque id + kind + phase + started_at + cancellable
+last_error: stable code + safe summary + recovery actions
+```
+
+`detected owner` 至少区分 `standalone`、`npm`、`homebrew`、`configured` 和 `unknown-external`。来源判断只使用 executable 路径、resolver provenance 和固定的安装元数据，不读取 Codex auth storage。外部 executable 继续参与版本和认证 probe；manager 不为它静默创建 standalone 副本。只有当前 executable 的 standalone 所有权可证明时，`update` 才直接进入 installer；其它来源返回 `CODEX_EXTERNAL_INSTALLATION`，由 UI 解释外部所有权或发起独立、显式的 standalone migration confirmation。迁移成功后 discovery 必须证明 ArcOrbit 实际选择的新 executable 且没有未解释的 PATH precedence 冲突。
+
+平台 installer 规格来自 OpenAI 官方 Codex CLI 文档，并固定在 main-process allowlist：
+
+| 平台 | 官方 standalone 入口 | 受控执行边界 |
+| --- | --- | --- |
+| macOS、Linux | `https://chatgpt.com/codex/install.sh` | manager 下载到 owner-only 临时文件，校验响应和大小上限后以固定系统 shell 执行；不拼接 Renderer 输入 |
+| Windows | `https://chatgpt.com/codex/install.ps1` | manager 下载到 owner-only 临时文件，以固定 PowerShell executable 和固定 policy/file 参数执行；不把 URL 或用户内容插入 script |
+
+同一官方 installer 用于安装和 standalone 更新。临时脚本、下载响应和子进程在 operation 结束后清理；installer 不进入 ArcOrbit 包，不被重新分发。网络、HTTP、临时文件、权限、process exit 和 post-probe 各自映射稳定错误 code。stdout/stderr 只经过界限化、控制字符清理和敏感模式屏蔽后形成进度/诊断，不能作为成功事实；成功必须重新运行 executable discovery 与 `codex --version`。固定来源和当前命令以 [Codex CLI 官方安装文档](https://learn.chatgpt.com/docs/codex/cli) 为权威证据，版本升级时通过契约测试显式更新 allowlist。
+
+install、update 和 migration 在 main process 内互斥，并先向 Automation Coordinator、ChatCoordinator 和其它 Codex process owner 查询 active operation。存在 running/starting/waiting-approval Codex task 或 turn 时返回 `CODEX_UPDATE_ACTIVE_TASKS`，携带无敏感的 owner/execution refs；manager 不主动 interrupt 它们。应用退出、窗口销毁或用户取消只在当前 phase 可安全终止时发出 bounded termination，随后 fresh discovery，绝不根据“进程已退出”推断安装成功。
+
+认证命令同样只从固定枚举物化：
+
+| 结构化选择 | executable 参数 | stdin |
+| --- | --- | --- |
+| ChatGPT / system-browser | `login` | 无 |
+| ChatGPT / device-auth | `login --device-auth` | 无 |
+| API Key | `login --with-api-key` | 一次性 secret + line terminator |
+| Enterprise Access Token | `login --with-access-token` | 一次性 secret + line terminator |
+| status | `login status` | 无 |
+| logout | `logout` | 无 |
+
+选择由 Renderer 以 `credential_type` 与必要的 `auth_flow` 枚举提交；两者都没有默认值。main process 拒绝缺失、未知或当前 capability 不支持的组合，也不接受自由参数。设备码和 Access Token 的可见性由固定产品 policy 与当前 executable 的 capability probe 共同决定；不可见选项不能通过 IPC 强行调用。命令契约以 [Codex 官方认证文档](https://learn.chatgpt.com/docs/auth) 为权威证据。
+
+API Key 或 Access Token 只存在于当前安全输入控件的一次性值和对应 IPC 调用的瞬时 payload，不写入共享 Renderer store、Desktop Store、配置、analytics、错误或日志。preload 暴露专用 secret action 并立即清空调用侧输入；main process 在 spawn 成功后直接写入 child stdin、结束 stdin 并覆盖可控 buffer，不把值放入 argv、environment 或 operation snapshot。通用 IPC tracing、exception serialization 和 process diagnostics 对该 action 只记录 operation id 与 secret-present boolean。第一版不持久化 secret；未来持久化只能由单独接受的操作系统安全凭证库契约提供。
+
+ChatGPT username/password、验证码、MFA 和 SSO 始终由 Codex 与系统浏览器处理。ArcOrbit 不打开、读取、复制、监视或解析 `~/.codex/auth.json` 或任何 Codex credential-store 实现，不刷新 OAuth token。浏览器和 device-auth child 的可展示进度来自有界、已清理的官方进程输出；device code 只作为当前 operation 的短期交互提示，不进入持久状态或日志。
+
+`codex login status` 的退出码是认证事实的唯一来源。退出码为零投影 `authenticated`；非零且先前为 authenticated 投影 `expired`，其它非零投影 `logged-out`，spawn/timeout 等探测错误投影 `login-failed`。manager 不解析 status 输出或 credential file 来提升认证状态。任一 login 子进程结束、取消或超时后都重新运行 status；只有 status 为零才报告成功。logout 也必须在结束后以非零 status 复核，结果异常则保留可重试错误。
+
+Setup aggregate snapshot 按固定顺序组合：resource lock → executable discovery → `codex --version` → `codex login status` → project skill readiness。只有全部通过才投影 Runtime `ready`。安装/更新后的 fresh discovery 替换所有 Codex process owner 使用的 executable；登录/退出只改变 Codex authentication domain，不读写 Workshop authentication。SkillProvisioningManager 可以在 Codex 恢复期间保留已经生成的 project plan，但不能越过 aggregate gate 启动 Runtime。
+
+preload IPC 至少限定为：
+
+```text
+codexSetup.snapshot()
+codexSetup.install({ confirmation_id })
+codexSetup.update({ confirmation_id })
+codexSetup.migrateToStandalone({ confirmation_id })
+codexSetup.login({ credential_type, auth_flow, confirmation_id })
+codexSetup.loginWithSecret({ credential_type, secret, confirmation_id })
+codexSetup.cancel({ operation_id })
+codexSetup.logout({ confirmation_id })
+codexSetup.recheck()
+codexSetup.subscribe(listener)
+```
+
+main process 为每个动作校验当前 snapshot、窗口 sender、operation id、capability 和一次性 confirmation；Renderer 不能覆盖 executable、cwd、URL、timeout、environment 或 args。事件只包含状态枚举、阶段、有限进度、稳定错误和 recovery action，不包含 argv、raw stdout/stderr、secret、auth file、token 或完整 environment。
 
 Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Electron 应用 executable 重新解释为 Node。开发态 CLI 继续由明确的 standalone Node 启动；Desktop 在 `app.whenReady()` 后使用 Electron `utilityProcess.fork()` 以 `app.asar` 中的 Runtime module 作为入口，stdout/stderr 保留结果与事件流，`process.parentPort` 只接收带 schema 的 steer/interrupt 控制消息，utility environment 会剔除外部遗留的 Electron-to-Node bootstrap 输入。project initialization 与 trusted ledger writeback 在同一受信进程内调用 manifest-resolved module API；trusted entrypoint 不再通过 `process.execPath` 嵌套执行自己的 CLI wrapper。外部 Codex 仍是经过 Setup probe 的独立 executable，并保持自身 stdio/RPC 生命周期。
 
@@ -347,6 +410,13 @@ Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Ele
 - source user-ambient 到项目常驻 override、project-ambient assessment、user-on-demand catalog 与项目 loader；
 - 无项目根时 `needs-project` 且不写用户级目录、多个项目独立 relation、同根绑定去重与项目路径变化；
 - clean project install、项目 target drift、项目级 shared assets 和以项目 cwd 执行的 Codex discoverability；
+- macOS、Linux 和 Windows 的固定 standalone installer allowlist、下载/执行失败分类、安装后 fresh discovery 与 `--version` 验证；
+- standalone update、活动 Automation/Chat/Codex owner 阻断，以及 npm/Homebrew/configured/unknown external installation 不产生静默副本；
+- installation 与 authentication 状态转换、重复动作互斥、取消/超时、退出后 fresh probe 和应用无需重启的恢复；
+- 无默认认证选择、缺失选择拒绝、device/access-token capability gating，以及每个可见方式只映射固定 argv；
+- API Key/Access Token 只进入 stdin，argv/environment/log/error/store/Renderer shared state 均无 secret，并对恶意值和 spawn failure 做泄漏回归；
+- `codex login status` 退出码判定、login/logout 后复核、Codex/Workshop auth domain 隔离，以及对 auth file 零访问；
+- aggregate ready 同时要求 executable、version、login status、全局资源和项目 skills，旧 Setup/Chat/Automation 流程保持通过；
 - 旧用户级 managed skills/loader 到项目 target 的 typed migration、内容备份、用户保留阻断 scope-clean ready，以及 unrelated 用户目录保持不变；
 - source upgrade 对 missing managed target、provider destination/policy migration、managed loader update、local content change、legacy unverified relation 和 unmanaged conflict 的 typed classification；
 - assessment/plan freshness、逐类 disposition、内容备份、atomic source switch、repair/migration、关系摘要升级和 explicit cleanup；

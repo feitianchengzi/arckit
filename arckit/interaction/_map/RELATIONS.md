@@ -26,7 +26,7 @@ Organization Center 复用 Workshop Organization、OrganizationMember 和 Projec
 
 ## Automation Workspace
 
-`setup-readiness/interaction.md` 定义启动期全局资源门禁，以及 Product Workspace 绑定和 Runtime task 之前的项目能力门禁；`setup-readiness/default.html` 投影受信资源检查、项目级 skills plan/drift、旧用户级 managed target 迁移、事务 apply、完成、冲突与阻塞恢复。全局 ready 只允许继续 Login 或工作区，具体任务还要求其关联项目 ready；修复成功后只重新执行原项目 task preflight，不自动领取其它远端任务。
+`setup-readiness/interaction.md` 定义启动期全局资源、Codex executable/version/authentication 门禁，以及 Product Workspace 绑定和 Runtime task 之前的项目能力门禁；`setup-readiness/default.html` 投影官方 standalone 安装/更新、两级无默认认证选择、登录状态复核、外部安装/活动任务阻断、项目级 skills plan/drift、旧用户级 managed target 迁移、事务 apply、完成、冲突与恢复。Codex authentication 与 Workshop authentication 是独立状态域；全局 ready 只允许继续 Login 或工作区，具体任务还要求其关联项目 ready。该交互消费 `arckit/spec/arcorbit-distribution.md` 与 `arckit/tech/arcorbit/installer-supply-chain.md`，修复成功后只重新执行原项目 task preflight，不自动领取其它远端任务。
 
 `login/interaction.md` 定义应用启动时的认证门禁；`login/default.html` 投影会话恢复、未登录入口、验证码已发送和登录失败。未登录时 Login 是唯一可交互主页面，认证成功后才进入 Automation Command Center，退出登录后返回 Login。
 

@@ -4,7 +4,180 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { codexProbeFromSetupSnapshot, createCodexSetupManager } from "../src/codex-setup-manager.mjs";
+import { checkCoordinatedDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
+
+test("post-operation readiness reuses the Codex manager probe instead of running a second executable probe", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-shared-codex-probe-"));
+  const resourcesRoot = path.join(fixture, "resources");
+  const fake = createFakeProvider();
+  let skillProbeCalls = 0;
+  let setupProbeCalls = 0;
+  let installed = false;
+  try {
+    await createMinimalBundle(resourcesRoot);
+    const skillManager = createSkillProvisioningManager({
+      resourcesRoot,
+      dataRoot: path.join(fixture, "data"),
+      homeDir: path.join(fixture, "home"),
+      stateRoot: path.join(fixture, "state"),
+      providerLoader: async () => fake.provider,
+      codexProbe: async () => {
+        skillProbeCalls += 1;
+        return { available: false, summary: "unexpected duplicate probe" };
+      }
+    });
+    const codexManager = createCodexSetupManager({
+      platform: "linux",
+      probeExecutable: async () => {
+        setupProbeCalls += 1;
+        return installed
+          ? { available: true, command: "/fixture/codex", pathEntries: ["/fixture"], provenance: "standalone", summary: "codex fixture" }
+          : { available: false, summary: "Codex missing" };
+      },
+      preferStandalone: () => {},
+      installerRunner: async () => { installed = true; },
+      processRunner: async ({ args }) => args.at(-1) === "--help"
+        ? { exitCode: 0, stdout: "--device-auth\n--with-access-token\n", stderr: "" }
+        : { exitCode: 1, stdout: "", stderr: "" },
+      recheckReadiness: ({ codexProbe }) => skillManager.check({ quiet: true, codexProbeResult: codexProbe })
+    });
+
+    const result = await codexManager.install();
+
+    assert.equal(result.status, "selection-required");
+    assert.equal(skillManager.getSnapshot().status, "ready");
+    assert.equal(skillManager.getSnapshot().codex.summary, "codex fixture");
+    assert.equal(setupProbeCalls, 2);
+    assert.equal(skillProbeCalls, 0);
+
+    const independent = await skillManager.check();
+    assert.equal(independent.status, "blocked");
+    assert.equal(independent.error.code, "CODEX_UNAVAILABLE");
+    assert.equal(skillProbeCalls, 1);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test("ordinary readiness and preflight evidence use CodexSetupManager as the single executable authority", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-codex-authority-"));
+  const resourcesRoot = path.join(fixture, "resources");
+  const fake = createFakeProvider();
+  let setupProbeCalls = 0;
+  let fallbackProbeCalls = 0;
+  let codexManager;
+  try {
+    await createMinimalBundle(resourcesRoot);
+    const skillManager = createSkillProvisioningManager({
+      resourcesRoot,
+      dataRoot: path.join(fixture, "data"),
+      homeDir: path.join(fixture, "home"),
+      stateRoot: path.join(fixture, "state"),
+      providerLoader: async () => fake.provider,
+      codexProbe: async () => {
+        fallbackProbeCalls += 1;
+        return codexProbeFromSetupSnapshot(codexManager.getSnapshot());
+      }
+    });
+    codexManager = createCodexSetupManager({
+      platform: "linux",
+      probeExecutable: async () => {
+        setupProbeCalls += 1;
+        return { available: true, command: "/fixture/codex", pathEntries: ["/fixture"], provenance: "standalone", summary: "codex fixture" };
+      },
+      processRunner: async ({ args }) => args.at(-1) === "--help"
+        ? { exitCode: 0, stdout: "--device-auth\n--with-access-token\n", stderr: "" }
+        : { exitCode: 0, stdout: "", stderr: "" }
+    });
+
+    const ordinary = await checkCoordinatedDesktopSetupReadiness({
+      checkCodex: () => codexManager.check(),
+      checkSkills: (input) => skillManager.check(input)
+    });
+    assert.equal(ordinary.status, "ready");
+    assert.equal(ordinary.codex_setup.installation.version_summary, "codex fixture");
+    assert.equal(codexManager.getSnapshot().status, "ready");
+    assert.equal(setupProbeCalls, 1);
+    assert.equal(fallbackProbeCalls, 0);
+
+    const authoritative = await codexManager.assertReady();
+    assert.equal(setupProbeCalls, 2);
+    const reused = await skillManager.check({
+      quiet: true,
+      codexProbeResult: codexProbeFromSetupSnapshot(authoritative)
+    });
+    assert.equal(reused.status, "ready");
+    assert.equal(reused.codex.summary, "codex fixture");
+    assert.equal(setupProbeCalls, 2);
+    assert.equal(fallbackProbeCalls, 0);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test("ordinary readiness cannot deadlock with Codex post-operation Skill readiness", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-lock-order-"));
+  const resourcesRoot = path.join(fixture, "resources");
+  const fake = createFakeProvider();
+  let installed = false;
+  let releaseInstaller;
+  let reportInstallerStarted;
+  const installerGate = new Promise((resolve) => { releaseInstaller = resolve; });
+  const installerStarted = new Promise((resolve) => { reportInstallerStarted = resolve; });
+  let codexManager;
+  try {
+    await createMinimalBundle(resourcesRoot);
+    const skillManager = createSkillProvisioningManager({
+      resourcesRoot,
+      dataRoot: path.join(fixture, "data"),
+      homeDir: path.join(fixture, "home"),
+      stateRoot: path.join(fixture, "state"),
+      providerLoader: async () => fake.provider,
+      codexProbe: async () => codexProbeFromSetupSnapshot(codexManager.getSnapshot())
+    });
+    codexManager = createCodexSetupManager({
+      platform: "linux",
+      probeExecutable: async () => installed
+        ? { available: true, command: "/fixture/codex", pathEntries: ["/fixture"], provenance: "standalone", summary: "codex fixture" }
+        : { available: false, summary: "Codex missing" },
+      preferStandalone: () => {},
+      installerRunner: async () => {
+        installed = true;
+        reportInstallerStarted();
+        await installerGate;
+      },
+      processRunner: async ({ args }) => args.at(-1) === "--help"
+        ? { exitCode: 0, stdout: "--device-auth\n--with-access-token\n", stderr: "" }
+        : { exitCode: 0, stdout: "", stderr: "" },
+      recheckReadiness: ({ codexProbe }) => skillManager.check({ quiet: true, codexProbeResult: codexProbe })
+    });
+
+    const installation = codexManager.install();
+    await installerStarted;
+    const ordinaryCheck = checkCoordinatedDesktopSetupReadiness({
+      checkCodex: () => codexManager.check(),
+      checkSkills: (input) => skillManager.check(input)
+    });
+    releaseInstaller();
+
+    const timeout = Symbol("timeout");
+    const result = await Promise.race([
+      Promise.all([installation, ordinaryCheck]),
+      new Promise((resolve) => setTimeout(() => resolve(timeout), 1_000))
+    ]);
+
+    assert.notEqual(result, timeout);
+    assert.equal(result[0].status, "ready");
+    assert.equal(result[1].status, "ready");
+    assert.equal(codexManager.getSnapshot().operation, null);
+    assert.equal(skillManager.getSnapshot().status, "ready");
+  } finally {
+    releaseInstaller?.();
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
 
 test("Setup Readiness installs governed skills, preserves unrelated skills, detects drift, and rolls back an upgrade source", async () => {
   const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-manager-"));

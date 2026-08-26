@@ -10,19 +10,69 @@
     <div class="wireframe-container">
         <header>
             <h1>Setup Readiness</h1>
-            <div class="meta-info"><div>View: <code>SetupReadinessView</code></div><div>平台: <strong>Desktop</strong></div><div>原则: <strong>先 drift · 后确认 · 再 apply</strong></div></div>
+            <div class="meta-info"><div>View: <code>SetupReadinessView</code></div><div>平台: <strong>Desktop</strong></div><div>原则: <strong>显式选择 · 受控执行 · 自动复核</strong></div></div>
         </header>
 
         <details open>
             <summary>正在检查</summary>
             <div class="state-content">
-                <div class="state-description"><strong>触发条件：</strong>应用启动时校验全局资源；绑定 Product Workspace 或启动任务时，再锁定当前本地项目并检查项目级安装关系。</div>
+                <div class="state-description"><strong>触发条件：</strong>应用启动时校验全局资源、Codex executable、版本和独立登录状态；绑定 Product Workspace 或启动任务时，再锁定当前本地项目并检查项目级安装关系。</div>
                 <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack">
                     <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · 环境准备</strong><span>检查中</span></div>
-                    <div class="content-area"><div class="page-header"><div><div class="eyebrow">Setup Readiness</div><h2>正在检查完整运行环境</h2><p>不会从网络下载未锁定资源，也不会在检查阶段写入 Agent 目录。</p></div></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>检查项目</strong><span>3 / 6</span></div><div class="surface-body"><div class="timeline-list"><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Distribution Lock</strong><small>Runtime 0.1.0 · tf/b1</small></div><time>通过</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Trusted Ledger Resources</strong><small>capabilities 与 scripts digest 一致</small></div><time>通过</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>ArcForge Provider</strong><small>API v1 · checksum 一致</small></div><time>通过</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>Arckit Skills</strong><small>正在读取 availability 与关系</small></div><time>当前</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>Codex</strong><small>等待 discoverability probe</small></div><time>等待</time></div></div></div></section><aside class="surface"><div class="surface-header"><strong>当前来源</strong><span>离线 payload</span></div><div class="surface-body"><dl class="key-value-list"><dt>Arckit</dt><dd>commit 84f…</dd><dt>ArcForge</dt><dd>v0.2.0</dd><dt>目标</dt><dd>Codex</dd><dt>写入</dt><dd>尚未开始</dd></dl><div class="page-actions"><button class="compact-action">退出</button><button class="compact-action" disabled>继续</button></div></div></aside></div></div>
+                    <div class="content-area"><div class="page-header"><div><div class="eyebrow">Setup Readiness</div><h2>正在检查完整运行环境</h2><p>检查阶段不写 Agent 目录，也不读取 Codex credential file。</p></div></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>检查项目</strong><span>4 / 8</span></div><div class="surface-body"><div class="timeline-list"><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Distribution Lock</strong><small>Runtime 0.1.0 · tf/b1</small></div><time>通过</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Trusted Ledger Resources</strong><small>capabilities 与 scripts digest 一致</small></div><time>通过</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>ArcForge Provider</strong><small>API v1 · checksum 一致</small></div><time>通过</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Codex executable</strong><small>/opt/codex/bin/codex · standalone</small></div><time>通过</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>Codex version</strong><small>正在运行 codex --version</small></div><time>当前</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>Codex 登录</strong><small>等待 login status</small></div><time>等待</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>Arckit Skills</strong><small>等待 availability 与关系</small></div><time>等待</time></div></div></div></section><aside class="surface"><div class="surface-header"><strong>独立状态域</strong><span>fresh probe</span></div><div class="surface-body"><dl class="key-value-list"><dt>Codex 安装</dt><dd>checking</dd><dt>Codex 认证</dt><dd>checking</dd><dt>Workshop 认证</dt><dd>不在本检查改变</dd><dt>写入</dt><dd>尚未开始</dd></dl><div class="page-actions"><button class="compact-action">退出</button><button class="compact-action" disabled>继续</button></div></div></aside></div></div>
                 </div></div>
                 <div class="component-list"><h3>组件清单</h3><ul><li>资源与环境检查时间线</li><li>锁定来源摘要</li><li>禁用的继续动作</li></ul></div>
                 <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>全部通过</code> → 进入完成结果</div><div class="interaction-item"><code>需要安装</code> → 进入安装计划</div><div class="interaction-item"><code>冲突或失败</code> → 进入对应恢复状态</div></div>
+            </div>
+        </details>
+
+        <details open>
+            <summary>Codex CLI 缺失</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>executable discovery 未找到可通过版本验证的 Codex CLI。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · Codex 环境</strong><span>MISSING</span></div><div class="content-area"><div class="card"><div class="icon-placeholder">CLI</div><h2>安装官方 Codex CLI</h2><p>不需要预先安装 Node、npm 或 Homebrew。ArcOrbit 将调用当前平台的 OpenAI 官方 standalone installer。</p><dl class="key-value-list"><dt>平台</dt><dd>macOS · arm64</dd><dt>来源</dt><dd>OpenAI official standalone installer</dd><dt>现有外部安装</dt><dd>未发现</dd><dt>完成后</dt><dd>自动重新发现、验证版本并检查登录</dd></dl><div class="current-action"><label><input type="checkbox"> <strong>我确认安装官方 standalone Codex</strong></label><small>未确认时不会下载或执行任何 installer。</small></div><div class="page-actions"><button class="compact-action">退出</button><button class="compact-action">重新检查</button><button class="compact-action primary" disabled>安装 Codex CLI</button></div></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>缺失结果与平台</li><li>官方来源说明</li><li>无 Node/npm/Homebrew 前置说明</li><li>独立安装确认</li><li>禁用的安装动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>勾选确认</code> → 启用当前平台固定 installer 动作</div><div class="interaction-item"><code>安装</code> → 只提交 confirmation id，不提交 URL、路径、参数或 shell</div><div class="interaction-item"><code>重新检查</code> → fresh discovery；发现外部安装时改为显示来源和所有权</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>Codex 安装或更新中</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户已确认安装或 standalone 更新，main process 正在下载、执行并复核官方 installer；活动 Codex owner 会在进入本状态前阻断更新。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · Codex 更新</strong><span>UPDATING</span></div><div class="content-area"><div class="card"><div class="icon-placeholder">3/4</div><h2>正在重新发现 Codex CLI</h2><p>installer 已结束；成功仍需 executable discovery 与 <code>codex --version</code> 复核。</p><div class="progress-bar"><div class="progress-fill p-75"></div></div><div class="stage-strip"><div class="stage-item done"><span class="stage-marker">1</span><strong>下载</strong><small>已完成</small></div><div class="stage-item done"><span class="stage-marker">2</span><strong>执行</strong><small>已结束</small></div><div class="stage-item current"><span class="stage-marker">3</span><strong>发现</strong><small>当前</small></div><div class="stage-item"><span class="stage-marker">4</span><strong>版本/登录</strong><small>等待</small></div></div><div class="current-action"><strong>更新期间不启动新的 Codex task</strong><small>取消只在安全阶段可用；installer exit 不等于 ready。</small></div><div class="page-actions"><button class="compact-action" disabled>再次更新</button><button class="compact-action">取消</button></div></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>四阶段进度</li><li>operation 状态</li><li>复核说明</li><li>阶段性取消</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>版本通过</code> → 自动进入 login status 检查</div><div class="interaction-item"><code>网络/权限/执行失败</code> → 保留稳定错误、当前 executable 可用性与重试</div><div class="interaction-item"><code>活动任务出现</code> → 更新不启动并展示 Chat/Automation 阻塞 owner</div></div>
+            </div>
+        </details>
+
+        <details open>
+            <summary>选择 Codex 凭证类型</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong><code>codex login status</code> 未确认认证，且当前没有登录 operation。任何方式都没有默认选择。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · Codex 登录</strong><span>SELECTION REQUIRED</span></div><div class="content-area"><div class="page-header"><div><div class="eyebrow">CODEX AUTHENTICATION</div><h2>选择凭证类型</h2><p>ArcOrbit 不会根据环境、历史方式或推荐自动选择。</p></div></div><section class="surface"><div class="surface-body"><label class="list-item"><input type="radio" name="credential"><span class="list-item-text"><span class="list-item-title">ChatGPT 账号</span><span class="list-item-subtitle">下一步再选择系统浏览器或设备码</span></span></label><label class="list-item"><input type="radio" name="credential"><span class="list-item-text"><span class="list-item-title">API Key</span><span class="list-item-subtitle">仅一次通过 stdin 传给 Codex，不保存</span></span></label><label class="list-item"><input type="radio" name="credential"><span class="list-item-text"><span class="list-item-title">企业 Access Token</span><span class="list-item-subtitle">当前 CLI 与企业 policy 均明确支持时才显示</span></span></label></div></section><div class="current-action"><strong>请选择凭证类型</strong><small>选择前无法继续；Codex 登录与 Workshop 登录互不替代。</small></div><div class="page-actions"><button class="compact-action">退出</button><button class="compact-action primary" disabled>继续登录</button></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>三个 capability-gated 凭证卡片</li><li>默认未选 radio group</li><li>禁用原因</li><li>独立认证域说明</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择 ChatGPT</code> → 进入第二级流程选择，仍无默认项</div><div class="interaction-item"><code>选择 API Key/Access Token</code> → 进入一次性 masked 输入，不创建持久草稿</div><div class="interaction-item"><code>取消/后退</code> → 清空一次性 secret 与下一级选择</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>选择 ChatGPT 登录流程</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户已明确选择 ChatGPT 账号；浏览器与设备码仍默认未选。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · ChatGPT 登录</strong><span>STEP 2 OF 2</span></div><div class="content-area"><div class="card"><h2>如何打开官方认证流程？</h2><label class="list-item"><input type="radio" name="flow"><span class="list-item-text"><span class="list-item-title">系统浏览器登录</span><span class="list-item-subtitle"><code>codex login</code> · 用户名、密码与 MFA 不进入 ArcOrbit</span></span></label><label class="list-item"><input type="radio" name="flow"><span class="list-item-text"><span class="list-item-title">设备码登录</span><span class="list-item-subtitle"><code>codex login --device-auth</code> · 仅在当前 CLI 支持时显示</span></span></label><div class="current-action"><strong>请选择认证流程</strong><small>说明不是默认值；ArcOrbit 不会自动改选。</small></div><div class="page-actions"><button class="compact-action">返回凭证类型</button><button class="compact-action primary" disabled>继续登录</button></div></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>浏览器与设备码卡片</li><li>官方命令说明</li><li>默认未选状态</li><li>返回与禁用继续</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>明确选择并继续</code> → main process 只物化对应固定命令</div><div class="interaction-item"><code>设备码不支持</code> → 隐藏该卡片并解释能力条件，不自动选浏览器</div><div class="interaction-item"><code>返回</code> → 保留 ChatGPT 凭证类型，清除 flow</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>官方登录进行中与复核</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户已明确选择可见方式并启动官方 Codex 登录进程。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · Codex 登录</strong><span>LOGIN IN PROGRESS</span></div><div class="content-area"><div class="card"><div class="icon-placeholder">↗</div><h2>在系统浏览器完成登录</h2><p>ArcOrbit 不收集 ChatGPT 密码、验证码、MFA 或 SSO 凭证。</p><dl class="key-value-list"><dt>已选择</dt><dd>ChatGPT · 系统浏览器</dd><dt>当前阶段</dt><dd>等待官方流程结束</dd><dt>超时</dt><dd>09:42 后可重试</dd><dt>完成条件</dt><dd>重新执行 codex login status</dd></dl><div class="current-action"><strong>流程结束后将自动重新验证</strong><small>取消、超时或失败也会先检查当前登录状态。</small></div><div class="page-actions"><button class="compact-action">取消登录</button></div></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>明确的已选方式</li><li>等待/超时状态</li><li>凭证边界说明</li><li>取消动作</li><li>status 复核条件</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>官方流程结束</code> → 显示“正在重新验证”，运行 login status</div><div class="interaction-item"><code>status=0</code> → authenticated 并继续其余 readiness</div><div class="interaction-item"><code>取消/超时/失败</code> → 终止当前 operation、复核 status，再提供重试或重新选择</div><div class="interaction-item"><code>logout</code> → 独立确认后执行并复核，不改变 Workshop session</div></div>
             </div>
         </details>
 

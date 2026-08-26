@@ -18,10 +18,15 @@ const WINDOWS_VERSION_PROBE_SCRIPT = [
 
 export function createCodexExecutableResolver(options = {}) {
   let resolved = null;
+  let standalonePreferred = false;
 
   return {
-    async probe() {
-      const result = await resolveCodexExecutable(options);
+    async probe(input = {}) {
+      const result = await resolveCodexExecutable({
+        ...options,
+        preferStandalone: standalonePreferred,
+        onStage: input.onStage
+      });
       resolved = result.available
         ? { command: result.command, pathEntries: [...result.pathEntries] }
         : null;
@@ -32,6 +37,10 @@ export function createCodexExecutableResolver(options = {}) {
         throw new Error("Codex executable has not been resolved by Setup Readiness.");
       }
       return { command: resolved.command, pathEntries: [...resolved.pathEntries] };
+    },
+    preferStandalone() {
+      standalonePreferred = true;
+      resolved = null;
     }
   };
 }
@@ -40,22 +49,27 @@ export async function resolveCodexExecutable({
   platform = process.platform,
   env = process.env,
   homeDir = os.homedir(),
+  preferStandalone = false,
   accessFile = defaultAccessFile,
   readDirectory = readdir,
-  runVersion = defaultRunVersion
+  runVersion = defaultRunVersion,
+  onStage
 } = {}) {
-  const candidates = await discoverCodexCandidates({ platform, env, homeDir, readDirectory });
+  notifyProbeStage(onStage, "executable");
+  const candidates = await discoverCodexCandidates({ platform, env, homeDir, readDirectory, preferStandalone });
   const failures = [];
 
   for (const candidate of candidates) {
     if (!await accessFile(candidate, platform)) continue;
     const pathEntries = [path.dirname(candidate)];
     try {
+      notifyProbeStage(onStage, "version");
       const version = await runVersion(candidate, { env: prependPathEntries(env, pathEntries), platform });
       return {
         available: true,
         command: candidate,
         pathEntries,
+        provenance: classifyCodexProvenance(candidate, { platform, env, homeDir }),
         summary: version || "Codex 可用"
       };
     } catch (error) {
@@ -73,15 +87,38 @@ export async function resolveCodexExecutable({
   };
 }
 
+function notifyProbeStage(listener, stage) {
+  if (typeof listener !== "function") return;
+  try {
+    listener(stage);
+  } catch {
+    // Progress observers cannot alter executable resolution.
+  }
+}
+
 export async function discoverCodexCandidates({
   platform = process.platform,
   env = process.env,
   homeDir = os.homedir(),
-  readDirectory = readdir
+  readDirectory = readdir,
+  preferStandalone = false
 } = {}) {
   const candidates = [];
   const configured = String(env.ARCORBIT_CODEX_BIN || env.ARCKIT_CODEX_BIN || "").trim();
-  if (configured) {
+  if (configured && !preferStandalone) {
+    candidates.push(...(path.isAbsolute(configured)
+      ? [configured]
+      : commandCandidates(configured, { platform, env })));
+  }
+  const standaloneCandidates = platform === "win32"
+    ? [
+        path.join(homeDir, ".local", "bin", "codex.exe"),
+        path.join(homeDir, ".local", "bin", "codex.cmd"),
+        path.join(homeDir, ".local", "bin", "codex")
+      ]
+    : [path.join(homeDir, ".local", "bin", "codex")];
+  if (preferStandalone) candidates.push(...standaloneCandidates);
+  if (configured && preferStandalone) {
     candidates.push(...(path.isAbsolute(configured)
       ? [configured]
       : commandCandidates(configured, { platform, env })));
@@ -90,9 +127,10 @@ export async function discoverCodexCandidates({
 
   if (platform === "win32") {
     if (env.APPDATA) candidates.push(path.join(env.APPDATA, "npm", "codex.cmd"));
+    if (!preferStandalone) candidates.push(...standaloneCandidates);
   } else {
+    if (!preferStandalone) candidates.push(...standaloneCandidates);
     candidates.push(
-      path.join(homeDir, ".local", "bin", "codex"),
       path.join(homeDir, ".volta", "bin", "codex"),
       path.join(homeDir, ".bun", "bin", "codex"),
       "/opt/homebrew/bin/codex",
@@ -103,6 +141,33 @@ export async function discoverCodexCandidates({
   }
 
   return [...new Set(candidates.map((candidate) => path.resolve(candidate)))];
+}
+
+export function classifyCodexProvenance(command, {
+  platform = process.platform,
+  env = process.env,
+  homeDir = os.homedir()
+} = {}) {
+  const normalized = normalizeComparablePath(command, platform);
+  const configured = String(env.ARCORBIT_CODEX_BIN || env.ARCKIT_CODEX_BIN || "").trim();
+  if (configured && normalized === normalizeComparablePath(configured, platform)) return "configured";
+
+  const standaloneRoot = normalizeComparablePath(path.join(homeDir, ".local", "bin"), platform);
+  if (normalized === standaloneRoot || normalized.startsWith(`${standaloneRoot}${platform === "win32" ? "\\" : "/"}`)) {
+    return "standalone";
+  }
+
+  const npmRoot = String(env.APPDATA || "").trim()
+    ? normalizeComparablePath(path.join(env.APPDATA, "npm"), platform)
+    : "";
+  if ((npmRoot && (normalized === npmRoot || normalized.startsWith(`${npmRoot}\\`)))
+    || /[\\/]\.nvm[\\/]|[\\/]\.fnm[\\/]|[\\/]\.volta[\\/]|[\\/]\.bun[\\/]|[\\/]node_modules[\\/]/i.test(normalized)) {
+    return "npm";
+  }
+
+  if (normalized.startsWith("/opt/homebrew/") || normalized.startsWith("/usr/local/homebrew/")) return "homebrew";
+  if (platform === "darwin" && normalized === "/usr/local/bin/codex") return "homebrew";
+  return "unknown-external";
 }
 
 export function prependPathEntries(env, entries, { platform = process.platform } = {}) {
@@ -182,6 +247,13 @@ function compareVersionNames(left, right) {
 function readEnv(env, name) {
   const key = Object.keys(env || {}).find((candidate) => candidate.toUpperCase() === name);
   return key ? String(env[key] || "") : "";
+}
+
+function normalizeComparablePath(value, platform) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const normalized = platform === "win32" ? pathWin32.normalize(raw) : path.normalize(raw);
+  return platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
 async function defaultAccessFile(candidate, platform) {

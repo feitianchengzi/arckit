@@ -2,32 +2,39 @@
 
 ## 页面定位
 
-Setup Readiness 是 Desktop 的全局资源与项目能力准备页面。应用进入普通工作区前完成全局检查；用户绑定 Product Workspace 或启动 Runtime task 时，页面为对应本地项目检查 Arckit skills。它只在受信资源、Codex 或当前项目能力尚未达到可运行状态时成为主路由；当前检查通过后，应用继续原路由或恢复原 task start intent。
+Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页面。应用进入普通工作区前完成全局检查；Codex 缺失、损坏、需要更新或尚未认证时，用户在本页完成官方 standalone 安装、更新和显式登录；用户绑定 Product Workspace 或启动 Runtime task 时，页面再为对应本地项目检查 Arckit skills。它只在受信资源、Codex 或当前项目能力尚未达到可运行状态时成为主路由；当前检查通过后，应用继续原路由或恢复原 task start intent。
 
-页面不承担 GitHub 出包、ArcForge 治理编辑或 Runtime task 执行。它只展示当前安装包锁定的资源、目标目录、plan/drift、需要的确认和可恢复结果。
+页面不承担 GitHub 出包、ArcForge 治理编辑、Codex 凭证管理或 Runtime task 执行。它只展示当前安装包锁定的资源、Codex 安装/认证状态、目标目录、plan/drift、需要的确认和可恢复结果。
 
 ## 交互策略
 
 ### 核心任务
 
-用户确认应用将如何为明确关联的本地项目准备 ArcOrbit Agent 能力，并在不写入 Codex 用户级 skill 目录、不静默覆盖已有 Agent 资产的前提下完成安装、迁移、修复或升级。
+用户先恢复可执行且已认证的 Codex CLI，再确认应用将如何为明确关联的本地项目准备 ArcOrbit Agent 能力；全过程不预选登录方式、不泄露凭证、不静默替换外部 Codex，也不写入 Codex 用户级 skill 目录或覆盖已有 Agent 资产。
 
 ### 主路径
 
-1. 应用启动后只从 ArcOrbit 当前数据身份读取 source store 与关系，并自动校验 distribution lock、trusted resources、ArcForge provider、skill payload 和 Codex；全局检查不写任意 Agent skill 目录，旧 Runtime 数据不参与检查或恢复。
-2. 全局环境 ready 时显示短暂成功结果并继续 Login 或工作区；没有项目绑定时不把任意项目声明为 skills ready。
-3. 用户新增或改变 Product Workspace 本地绑定，或 task start 检测到项目 readiness 失效时，页面锁定该 Product Workspace 和规范化项目根，读取对应关系、项目适用性与 drift。
-4. 需要安装或升级时，页面默认展示来源、版本、项目身份、项目绝对写入目标、Codex 用户级写入边界、变更分类及数量；完整逐项计划作为可选明细，不承担确认门槛。
-5. 用户阅读默认可见的写入与变更摘要后勾选确认框。确认框与“安装并继续”位于同一动作区域；未确认时该区域直接说明“请先确认上方写入目标与变更摘要”，确认后提示消失并立即启用主动作。
-6. source upgrade 和用户级迁移先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标和未受管理冲突；每项同时显示旧目标、新项目目标、所有权依据和可用动作。
-7. missing 与可证明的 managed migration 进入 fresh repair/upgrade plan；changed 或未验证的受管理目标由用户查看 diff 后选择备份并恢复或保留并退出；缺少可用关系但具有完整 bundled source 映射的冲突提供“备份并按当前应用包重装”。
-8. 仅存在 `managed-stale` 时，页面不要求用户先展开安装计划；主区直接显示全部关系可证明的旧路径、逐路径选择和默认未选择的全选控件，底部固定显示“确认并清理所选”主动作。独立确认列出最终绝对路径与 confirmation digest。
-9. 用户确认 fresh plan 或 cleanup confirmation 后，系统执行事务化 apply 或 removal，持续展示 source、项目目录、按需 catalog、项目 loader、关系和 discoverability 阶段。
-10. 项目 post-drift、用户级 managed target 迁移检查与 Codex project discoverability probe 成功后，页面开放“继续”或“恢复任务”。
+1. 应用启动后只从 ArcOrbit 当前数据身份读取 source store 与关系，并自动校验 distribution lock、trusted resources、ArcForge provider、skill payload，随后执行 Codex executable discovery、`codex --version` 和 `codex login status`；全局检查不写任意 Agent skill 目录，也不读取 Codex credential file，旧 Runtime 数据不参与检查或恢复。
+2. Codex 缺失或损坏时，用户确认后由 main process 调用当前平台官方 standalone installer；安装或更新结束后页面自动重新发现 executable 和版本，不要求重启 ArcOrbit。
+3. Codex 未认证时，页面先显示无默认值的凭证类型选择；选择 ChatGPT 后再显示无默认值的浏览器/设备码流程选择。完成当前层级选择前“继续登录”始终禁用。
+4. 官方登录流程结束、取消、超时或失败后自动重新运行 `codex login status`；只有退出码确认已认证才继续后续全局检查。
+5. 全局环境 ready 时显示短暂成功结果并继续 Login 或工作区；没有项目绑定时不把任意项目声明为 skills ready。Codex ready 不等于 Workshop 已登录，Workshop ready 也不等于 Codex 已认证。
+6. 用户新增或改变 Product Workspace 本地绑定，或 task start 检测到项目 readiness 失效时，页面锁定该 Product Workspace 和规范化项目根，读取对应关系、项目适用性与 drift。
+7. 需要安装或升级 skills 时，页面默认展示来源、版本、项目身份、项目绝对写入目标、Codex 用户级写入边界、变更分类及数量；完整逐项计划作为可选明细，不承担确认门槛。
+8. 用户阅读默认可见的写入与变更摘要后勾选确认框。确认框与“安装并继续”位于同一动作区域；未确认时该区域直接说明“请先确认上方写入目标与变更摘要”，确认后提示消失并立即启用主动作。
+9. source upgrade 和用户级迁移先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标和未受管理冲突；每项同时显示旧目标、新项目目标、所有权依据和可用动作。
+10. missing 与可证明的 managed migration 进入 fresh repair/upgrade plan；changed 或未验证的受管理目标由用户查看 diff 后选择备份并恢复或保留并退出；缺少可用关系但具有完整 bundled source 映射的冲突提供“备份并按当前应用包重装”。
+11. 仅存在 `managed-stale` 时，页面不要求用户先展开安装计划；主区直接显示全部关系可证明的旧路径、逐路径选择和默认未选择的全选控件，底部固定显示“确认并清理所选”主动作。独立确认列出最终绝对路径与 confirmation digest。
+12. 用户确认 fresh plan 或 cleanup confirmation 后，系统执行事务化 apply 或 removal，持续展示 source、项目目录、按需 catalog、项目 loader、关系和 discoverability 阶段。
+13. 项目 post-drift、用户级 managed target 迁移检查与 Codex project discoverability probe 成功后，页面开放“继续”或“恢复任务”。
 
 ### 决策点
 
 - 用户可以确认当前 fresh plan、返回检查详情，或退出应用；不存在跳过必须能力并启动 Runtime 的路径。
+- Codex 安装、更新、认证和 skills apply 是不同确认域；一个动作的确认不能替另一个动作继续。
+- 凭证类型、ChatGPT 登录流程和外部安装迁移都默认未选择；说明或推荐不产生选择，只有用户点击后的 typed action 可以继续。
+- 当前 standalone Codex 可以一键更新；检测到 npm、Homebrew、自定义或未知外部安装时显示来源且不静默创建第二份，用户继续使用原安装或进入独立迁移确认。
+- 任一 Automation execution、Chat turn 或其它 Codex 任务运行时，更新/迁移禁用并列出阻塞 owner；页面不提供“强制终止并更新”。
 - 普通安装只以当前 plan 的确认框作为主动作启用条件。展开或收起完整安装明细不改变确认状态，也不作为不可见的附加门槛。
 - 同名未受管理目录不能使用普通确认继续；missing managed target 和关系可证明的 provider-managed migration 不是本地内容冲突，可以进入明确的 repair/upgrade plan。
 - changed managed target 与缺少最后应用摘要的未验证受管理目标不能静默覆盖。用户可以查看文件差异，选择“备份本地内容并恢复”形成新 plan，或保留当前内容并退出。
@@ -41,16 +48,27 @@ Setup Readiness 是 Desktop 的全局资源与项目能力准备页面。应用�
 
 ### 信息揭示
 
-默认摘要显示当前 Runtime 版本、Arckit payload、ArcForge provider、Codex 状态、当前 Product Workspace、项目绝对路径、项目级 Codex 写入目标、Codex 用户级写入边界、Arckit skill 总数、项目默认常驻/项目适用/按需分类数量、项目级 ArcForge loader target 数、变更分类及数量和整体 readiness。Arckit skill 总数不包含 loader，user-on-demand catalog 不与项目常驻 skills 合并。完整明细补充逐 skill availability、文件 drift、plan digest 和关系记录位置，不重复承担关键写入边界的首次揭示。`drifted` 状态立即揭示旧用户级 managed-stale 绝对路径、选择状态和清理动作。
+默认摘要显示当前 Runtime 版本、Arckit payload、ArcForge provider、Codex 安装状态、executable 来源、版本、独立认证状态、当前 Product Workspace、项目绝对路径、项目级 Codex 写入目标、Codex 用户级写入边界、Arckit skill 总数、项目默认常驻/项目适用/按需分类数量、项目级 ArcForge loader target 数、变更分类及数量和整体 readiness。Arckit skill 总数不包含 loader，user-on-demand catalog 不与项目常驻 skills 合并。完整明细补充逐 skill availability、文件 drift、plan digest 和关系记录位置，不重复承担关键写入边界的首次揭示。`drifted` 状态立即揭示旧用户级 managed-stale 绝对路径、选择状态和清理动作。
 
-secret、私钥、完整环境变量、Codex credential 和 GitHub token 永不进入页面。签名信息只显示公开证书身份、签名状态和公证状态。
+ChatGPT 密码、验证码、MFA/SSO、私钥、完整环境变量、Codex credential file、token 和 GitHub token 永不进入页面。API Key/Access Token 仅存在于当前一次性安全输入控件，不进入共享 Renderer state；提交后立即清空。签名信息只显示公开证书身份、签名状态和公证状态。
 
 ### 状态流
 
 ```text
 checking
-  -> global-ready -> continue
-  -> needs-project -> bind-project
+  -> codex-missing -> confirm-install -> installing -> codex-recheck
+  -> codex-broken/install-failed -> repair/retry -> codex-recheck
+  -> codex-installed -> auth-checking
+auth-checking
+  -> authenticated -> global-ready -> continue/needs-project
+  -> selection-required -> choose-credential -> choose-chatgpt-flow/enter-one-time-secret -> login-in-progress
+login-in-progress
+  -> status-recheck -> authenticated/selection-required/login-failed
+  -> cancel/timeout -> status-recheck
+codex-installed
+  -> confirm-update -> updating -> codex-recheck -> auth-checking
+needs-project
+  -> bind-project -> project-checking
 project-checking
   -> ready -> continue/resume-task
   -> needs-install -> review-visible-summary -> confirm-plan -> applying -> ready
@@ -60,6 +78,24 @@ project-checking
 ```
 
 plan 展示后如果 source、target、policy、关系或内容 digest 改变，确认失效并返回 `checking`。apply 不接受旧 plan digest。
+
+### Codex CLI 恢复
+
+- `missing` 首屏说明不需要 Node、npm 或 Homebrew，显示当前平台与官方 standalone 来源；“安装 Codex CLI”只有在用户确认后执行。
+- `broken` 显示候选 executable、来源和版本探测失败摘要，提供重新检查；仅在 standalone 所有权明确时提供修复/重装，外部来源提供所有权说明和显式迁移入口。
+- `installed` 显示绝对 executable 的安全缩略、来源和版本。standalone 可更新；外部来源显示“由外部安装维护”，不伪装成已由 ArcOrbit 管理。
+- `installing` 与 `updating` 显示下载、执行、重新发现、版本复核四阶段。失败保留已完成阶段、稳定 code、可重试动作和“当前安装是否仍可用”，不把 installer 退出零直接显示为成功。
+- 存在活动 Codex owner 时更新按钮禁用，旁边直接列出阻塞的 Chat/Automation 摘要；owner 结束后自动重新计算可更新性。
+
+### Codex 登录选择
+
+- 凭证类型页展示 ChatGPT 账号、API Key，以及 capability 明确支持时的企业 Access Token；所有 radio/card 默认未选，“继续登录”禁用并解释“请选择凭证类型”。
+- 选择 ChatGPT 后进入第二级浏览器/设备码选择；两个流程仍默认未选，返回上一级会清除 ChatGPT flow 选择但保留用户已明确选择的凭证类型。
+- 设备码不受支持时不显示为可选 card，并在说明区解释可用性；不自动切换到浏览器登录。
+- API Key/Access Token 页使用不持久化的 masked 输入和一次性提交；取消或提交立即清空控件，复制、回显和“记住我”不可用。
+- `login-in-progress` 显示官方流程类型、等待时间和取消动作。系统浏览器凭证不回到 ArcOrbit；device code 只在当前 operation 中显示。
+- 成功、取消、超时和失败都先显示“正在重新验证登录状态”；只有 status probe 成功后显示“Codex 已登录”。失败页允许重试当前明确方式或返回重新选择，不保留 secret。
+- logout 是已认证摘要中的独立显式动作；退出后重新检查，不改变 Workshop 账号状态。
 
 ### 反馈机制
 
@@ -76,7 +112,7 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 ### 异常恢复
 
 - bundled resource digest 失败：禁用 apply，提供重新安装当前应用的说明。
-- Codex 不可用：提供重新检测和 Codex 安装/登录入口，保留 Arckit plan。
+- Codex 不可用：提供内建的官方 standalone 安装、修复、显式登录或重新检测入口，保留 Arckit plan。
 - 目标无权限：显示精确目录，用户修复权限后重新检查。
 - provider apply 失败且回滚完整：显示未发生持久变更并允许重试。
 - provider apply 回滚不完整：列出残留路径，禁止继续 Runtime，提供复制诊断。
@@ -89,9 +125,9 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 
 ### 输入输出边界
 
-输入包括 distribution lock 校验结果、provider inspect、source state、Product Workspace、本地项目根、project applicability assessment、plan、drift、Codex probe 和用户确认。页面不接受用户手输任意 source、target 或 shell 命令。
+输入包括 distribution lock 校验结果、provider inspect、source state、Product Workspace、本地项目根、project applicability assessment、plan、drift、Codex installation/auth snapshot、一次性 secret action 和用户确认。页面不接受用户手输任意 source、target、installer URL、executable、参数或 shell 命令。
 
-输出包括被确认的 plan digest、typed upgrade disposition、逐目标备份/恢复确认、按当前应用包重装确认、单独 cleanup confirmation、retry、打开平台恢复入口、复制诊断和继续路由。文件写入只由 Electron main process 的 SkillProvisioningManager 编排，并由 ArcForge provider 执行 provisioning 事务。
+输出包括 Codex install/update/migrate/login/logout/cancel/recheck typed action、被确认的 plan digest、typed upgrade disposition、逐目标备份/恢复确认、按当前应用包重装确认、单独 cleanup confirmation、retry、打开平台恢复入口、复制诊断和继续路由。Codex process 只由 Electron main process 的 CodexSetupManager 编排；skill 文件写入只由 SkillProvisioningManager 编排，并由 ArcForge provider 执行 provisioning 事务。
 
 ## 页面状态
 
@@ -121,6 +157,14 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - 阶段顺序为 source staging、project target directories、catalog、project loader、relationship、user-target migration、post-drift、Codex probe。
 - 应用退出请求先交给 main process 完成当前事务或回滚。
 - 执行结果到达前不把 Runtime 标记 ready。
+
+### Codex 安装与认证
+
+- 安装/更新与登录各自显示独立状态，不将 `installed` 当成 `authenticated`。
+- 所有安装、更新和认证动作在当前 operation 期间禁用重复提交；可取消阶段使用同一个 operation id。
+- 登录选择没有默认卡片；键盘焦点从标题进入第一项，选中后通过状态区域播报“继续登录”已启用。
+- secret 输入不进入草稿恢复；页面刷新、后退、取消、失败或提交都会清空。
+- 自动重新验证依次显示 executable、version、login status 和其它 readiness，不用一个不透明 spinner 隐藏失败位置。
 
 ### 已准备完成
 
@@ -154,13 +198,14 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - 显示稳定错误 code、失败阶段、影响范围和是否已完整回滚。
 - 检查阶段尚未写入时显示“未写入”；只有 apply 已开始并执行恢复时才显示“回滚完整/不完整”。
 - 可恢复错误提供“重新检查”；资源损坏提供“重新安装应用”。
-- 缺少 Codex 登录提供外部登录入口，返回后自动重新 probe。
+- 缺少 Codex 登录进入本页无默认值的登录方式选择；官方流程结束后自动重新 probe。
 - 回滚不完整只提供诊断和人工修复说明，不开放继续按钮。
 
 ## 导航
 
 - 应用启动且全局 Setup Readiness 非 ready：进入本页，隐藏 Login 和 Automation Workspace 的主操作。
-- 全局 ready 且 Workshop 认证未知：进入 Login 会话恢复；全局 ready 不代表任何项目 skills ready。
+- Codex CLI 与认证未 ready：停留本页完成安装、更新或显式登录；不得进入 Chat 或启动 Automation。
+- 全局 ready 且 Workshop 认证未知：进入 Login 会话恢复；Codex authentication 与 Workshop authentication 独立，全局 ready 不代表任意项目 skills ready。
 - Workshop 会话有效：进入 Automation Workspace；绑定或执行具体项目时再检查该项目 readiness。
 - 设置页的“Arckit 能力”入口可以再次打开本页的只读状态；选择修复后才进入可写 plan。
 - Runtime task start 检测到对应项目 readiness 失效时返回本页，锁定原 Product Workspace 并保留 task start intent；修复成功后重新执行 preflight，不自动领取其它远端任务。
@@ -172,6 +217,7 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - managed-stale 清理使用独立 ConfirmationDialog，列出每个绝对路径；触发按钮和选择列表在 drifted 页面首屏直接可见。
 - 移除全部 Arckit managed skills 是设置页中的独立流程，不出现在首次安装主路径。
 - 页面不提供“信任所有”“无备份覆盖全部额外目录”或“删除未知 skills”。
+- 页面不提供自动登录方式、默认凭证类型、从环境推断方式、保存 API Key/Access Token、读取 Codex auth file 或强制中断活动任务后更新。
 
 ## 加载与可访问性
 
@@ -181,3 +227,5 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - 安装确认框通过可感知说明关联当前未满足条件；键盘切换确认后，按钮状态和说明通过状态区域同步更新。
 - source、target、policy、关系或内容 digest 改变时，页面清除旧确认、显示“安装计划已更新，请重新确认”，并把焦点移到更新后的可见摘要。
 - ConfirmationDialog 的默认焦点是取消；破坏性 cleanup 明确逐路径说明。
+- Codex 两级选择每级都从未选择状态开始；禁用按钮的原因与选择变化通过可感知状态区域播报。
+- installer/auth progress 不只依赖原始终端输出；device code、错误与恢复动作可键盘访问，超时倒计时有文本说明。

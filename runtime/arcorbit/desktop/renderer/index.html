@@ -37,6 +37,33 @@
         <div class="setup-grid">
           <main class="setup-main">
             <p id="setupLead" class="setup-lead">正在验证安装包资源、ArcForge provider、Arckit skills 与 Codex。</p>
+            <section id="codexSetupPanel" class="codex-setup-panel" aria-labelledby="codexSetupTitle">
+              <div class="codex-setup-header">
+                <div><p class="eyebrow">CODEX CLI</p><h2 id="codexSetupTitle">检测安装与登录状态</h2></div>
+                <span id="codexSetupStatus" class="health-badge">CHECKING</span>
+              </div>
+              <div id="codexSetupFacts" class="codex-setup-facts"></div>
+              <div id="codexInstallActions" class="codex-setup-actions">
+                <button id="codexInstallButton" class="primary-button hidden" type="button">安装 Codex</button>
+                <button id="codexUpdateButton" class="secondary-button hidden" type="button">更新 standalone</button>
+                <button id="codexMigrateButton" class="secondary-button hidden" type="button">迁移到 standalone</button>
+              </div>
+              <div id="codexAuthPanel" class="codex-auth-panel hidden">
+                <fieldset id="codexAuthMethods"><legend>选择认证方式（无默认值）</legend>
+                  <label><input type="radio" name="codexAuthMethod" value="chatgpt"><span>ChatGPT</span></label>
+                  <label><input type="radio" name="codexAuthMethod" value="api-key"><span>API Key</span></label>
+                  <label id="codexAccessTokenOption"><input type="radio" name="codexAuthMethod" value="access-token"><span>Enterprise Access Token</span></label>
+                </fieldset>
+                <fieldset id="codexChatgptFlows" class="hidden"><legend>选择 ChatGPT 流程（无默认值）</legend>
+                  <label><input type="radio" name="codexChatgptFlow" value="browser"><span>系统浏览器</span></label>
+                  <label id="codexDeviceFlowOption"><input type="radio" name="codexChatgptFlow" value="device"><span>设备码</span></label>
+                </fieldset>
+                <label id="codexSecretRegion" class="codex-secret-region hidden"><span id="codexSecretLabel">凭证</span><input id="codexSecretInput" type="password" autocomplete="off" spellcheck="false" value=""><small>仅通过一次性 IPC 写入 Codex child stdin；ArcOrbit 不保存。</small></label>
+                <div class="codex-setup-actions"><button id="codexLoginButton" class="primary-button" type="button" disabled>继续登录</button></div>
+              </div>
+              <div class="codex-setup-actions"><button id="codexLogoutButton" class="secondary-button hidden" type="button">退出 Codex</button><button id="codexCancelButton" class="secondary-button hidden" type="button">取消当前操作</button></div>
+              <p id="codexSetupFeedback" class="codex-setup-feedback" role="status" aria-live="polite"></p>
+            </section>
             <section id="setupCleanupPanel" class="setup-cleanup-panel hidden" aria-labelledby="setupCleanupTitle">
               <div class="setup-cleanup-header"><div><h2 id="setupCleanupTitle">选择要清理的用户级旧路径</h2><p>仅列出 ArcForge 已证明属于当前关系的 managed-stale 路径；默认不选择。</p></div><span id="setupCleanupCount">0 / 0</span></div>
               <label class="setup-cleanup-select-all"><input id="setupCleanupSelectAll" type="checkbox"><span>全选已证明路径</span></label>

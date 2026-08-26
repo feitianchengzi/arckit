@@ -4,7 +4,7 @@
 
 ArcOrbit 通过可追溯的桌面安装包交付。内部用户只需要取得并运行所选平台的安装包，并把 Workshop Project 关联到本地项目，即可获得 Runtime/Desktop、受信 ledger 能力、`$using-arckit` Agent 入口以及只在关联项目中生效的 Arckit skills。
 
-安装包是一次完整产品交付，不要求用户另行 clone Arckit 或 ArcForge 仓库，也不要求先安装 ArcForge Desktop 或 ArcForge CLI。Codex 登录、操作系统权限、外部任务源账号和签名信任仍属于对应平台的显式前置条件。
+安装包是一次完整产品交付，不要求用户另行 clone Arckit 或 ArcForge 仓库，也不要求先安装 ArcForge Desktop、ArcForge CLI、Node、npm 或 Homebrew。Codex CLI 缺失、版本不可验证或尚未登录时，Setup Readiness 提供官方 standalone 安装、更新和显式登录恢复流程；操作系统权限、外部任务源账号和签名信任仍属于对应平台的显式前置条件。
 
 ## 产品身份
 
@@ -92,7 +92,8 @@ Setup Readiness 检查：
 - 安装包内 Runtime trusted resources 完整且 digest 与 distribution lock 一致；
 - ArcForge Embedded Provider 版本和 digest 一致；
 - Arckit skill payload 版本、来源 commit、manifest 和文件 digest 一致；
-- Codex CLI 可启动且登录状态可恢复；
+- Codex CLI 的 executable 来源可识别、可启动且 `codex --version` 成功；
+- Codex 登录状态由 `codex login status` 的退出码确认；
 - Product Workspace 对应的规范化本地项目根和 Codex 项目级 skill 目标可解析；
 - 当前项目的 skills 安装关系、项目适用性判断和 drift 状态可读取；
 - Codex 用户级 skill 目录不存在由 ArcOrbit 管理的 Arckit skill 或 `arcforge-on-demand` loader。
@@ -105,9 +106,52 @@ Setup Readiness 检查：
 - `needs-confirmation`：计划会写入项目目录、迁移历史受管理用户级副本或覆盖受管理副本；
 - `drifted`：目标与当前 payload 不一致；
 - `conflict`：同名目标包含未受当前关系管理的内容；
-- `blocked`：资源损坏、Codex 不可用、权限不足或 provider 失败。
+- `blocked`：资源损坏、权限不足、provider 失败，或 Codex 安装与认证恢复仍未成功。
 
 只有当前任务对应项目达到 `ready` 才可以启动任务。全局检查通过不会替任意项目声明 skills ready；其它状态进入项目绑定、安装、修复或人工恢复界面。
+
+### Codex CLI 安装与更新
+
+Codex CLI 环境检查拥有独立安装状态：
+
+- `checking`：重新执行 executable discovery 与版本探测；
+- `missing`：没有找到可验证 executable，可由用户确认安装；
+- `installing`：正在调用当前平台的 OpenAI 官方 standalone installer；
+- `installed`：当前 executable 已通过 `codex --version`；
+- `updating`：正在更新当前 standalone installation；
+- `broken`：发现候选 executable，但版本探测失败；
+- `install-failed`：下载、网络、权限、执行或安装后验证失败，可重试。
+
+macOS、Linux 和 Windows 均使用 OpenAI 官方文档发布的 standalone installer。ArcOrbit 固定平台、下载来源和执行方式，负责下载/执行编排、进度、失败分类与重试；Renderer 只能提交安装、更新、取消或重新检查等结构化动作，不能提供 URL、路径、参数或 shell 命令。安装成功后无需重启 ArcOrbit，系统立即重新执行 executable discovery 和 `codex --version`。
+
+发现 npm、Homebrew、自定义路径或其它外部安装时，ArcOrbit 显示当前来源并继续验证该 executable，不静默安装第二份 standalone Codex，也不修改系统或用户 `PATH`。当前 executable 的 standalone 所有权可证明时才直接提供一键更新；外部安装需要继续由其原所有者维护，或者由用户通过独立确认明确迁移到官方 standalone，迁移前后都重新检查实际解析结果和 PATH 冲突。
+
+任何 Automation execution、Chat turn 或其它由 ArcOrbit 持有的 Codex 任务仍在运行时，更新和迁移保持禁用，并明确列出阻塞原因。安装、更新或迁移不接管现有 Codex 任务，不以杀死活动任务换取更新。
+
+### Codex 显式认证
+
+安装状态达到 `installed` 后，Setup Readiness 才进入独立认证检查。认证状态至少包括：
+
+- `checking`：运行 `codex login status`；
+- `selection-required`：尚未认证，等待用户选择凭证类型和必要的认证流程；
+- `login-in-progress`：官方 Codex 登录子进程正在运行；
+- `authenticated`：登录子进程结束后重新运行的 `codex login status` 退出码为零；
+- `logged-out`：当前未认证；
+- `expired`：此前已认证的状态在 fresh status probe 中失效；
+- `login-failed`：取消、超时、进程失败或 status 复核失败，可重试或重新选择。
+
+登录方式使用无默认值的两级选择：
+
+1. 用户先显式选择 `ChatGPT 账号`、`API Key`，或仅在当前 Codex 明确支持时可见的 `企业 Access Token`；
+2. 选择 ChatGPT 账号后，再显式选择 `系统浏览器登录` 或 `设备码登录`。
+
+任何凭证类型和 ChatGPT 流程都不得预选，也不得根据操作系统、终端能力、环境变量或历史登录方式静默推断。“继续登录”在完成当前层级全部选择前保持禁用。设备码或企业 Access Token 只有在官方产品政策和本机 CLI capability 均明确支持时显示；不可用时解释原因，不自动改选其它方式。
+
+ChatGPT 登录完全交给 `codex login` 或 `codex login --device-auth` 的官方流程和系统浏览器；ArcOrbit 不收集用户名、密码、验证码、MFA 或 SSO 凭证。API Key 与受支持的企业 Access Token 只通过 stdin 传给对应官方 login 命令，默认不持久化，不进入命令参数、日志、普通配置或共享 Renderer state。ArcOrbit 不读取、复制、上传或解析 Codex 凭证文件，不刷新或管理 Codex OAuth token。
+
+浏览器与设备码登录都明确反馈等待、成功、取消、超时和失败。取消或超时先终止本次受控登录子进程，再 fresh-run `codex login status`；只有退出码确认认证成功才进入 `authenticated`。`codex logout` 使用独立显式动作，完成后同样重新检查。Codex 认证与 ArcOrbit/Workshop 账号始终是两个独立状态域，任一方登录或退出都不替另一方改变状态。
+
+最终 Runtime `ready` 同时要求：Codex executable 可执行、`codex --version` 成功、`codex login status` 退出码为零，以及当前全局资源和项目级 Setup Readiness 其它检查全部通过。任何安装、更新、登录或退出结果都会按这个顺序自动重新验证；失败保留稳定错误分类、可复制的无敏感诊断和重试入口。
 
 ## 首次安装行为
 
@@ -190,4 +234,10 @@ Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Deskt
 - 首次安装、drift、修复、升级和清理都展示目标并要求相应确认。
 - source upgrade 能区分受管理缺失、provider 管理迁移、用户内容变化和未受管理冲突；每个非 ready 状态都提供与其风险相符的可执行恢复动作或明确的外部恢复条件。
 - 受管理内容变化只有在逐目标差异可见且用户明确选择备份或放弃本地内容后才能恢复；missing 和可证明的 managed migration 不得被错误标记为用户修改。
+- macOS、Linux 和 Windows 缺少 Codex 时都能从 Setup Readiness 确认运行官方 standalone installer，安装后无需重启即可发现并验证 executable。
+- standalone Codex 可以从 ArcOrbit 发起更新；活动 Codex 任务会阻止更新，外部 npm/Homebrew/自定义安装不会被静默替换或制造第二份 PATH 候选。
+- 未登录时没有任何认证选项被预选，当前层级未完成选择时不能继续；每个可见登录命令只在用户明确选择后执行。
+- 浏览器登录、设备码登录、API Key 和明确支持的企业 Access Token 均在完成后以 `codex login status` 退出码复核；取消、超时、网络、权限和认证失败均可恢复或重试。
+- ArcOrbit 不访问 Codex 凭证文件；API Key 和 Access Token 只进入受控子进程 stdin，不出现在命令参数、日志、错误、普通配置或共享 Renderer state。
+- Setup Readiness 只有在 Codex executable、版本、认证和其它全局/项目检查全部通过时投影 `ready`；Codex 与 Workshop 登录状态保持独立。
 - 构建产物可以追溯到 Runtime commit、Arckit payload commit、ArcForge provider 版本、manifest digest、构建 run 和 release intent tag。

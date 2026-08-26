@@ -14,7 +14,7 @@ import {
   transcriptMessageType
 } from "../src/desktop/transcript-presentation.mjs";
 import { copyConversationCode, createConversationSurface, renderConversationSurfaceMessage } from "../desktop/renderer/conversation-surface.mjs";
-import { checkDesktopSetupReadiness, desktopSetupCheckInput } from "../src/desktop-setup-readiness-context.mjs";
+import { checkDesktopSetupReadiness, combineDesktopSetupReadiness, desktopSetupCheckInput } from "../src/desktop-setup-readiness-context.mjs";
 import feedbackV2Ipc from "../desktop/feedback-v2-ipc.cjs";
 import { createChatStateCoordinator } from "../desktop/renderer/chat-state-coordinator.mjs";
 
@@ -26,6 +26,7 @@ const rendererHtmlPath = new URL("../desktop/renderer/index.html", import.meta.u
 const rendererStylesPath = new URL("../desktop/renderer/styles.css", import.meta.url);
 const desktopMainPath = new URL("../desktop/main.mjs", import.meta.url);
 const desktopPreloadPath = new URL("../desktop/preload.cjs", import.meta.url);
+const codexSetupIpcPath = new URL("../src/desktop/codex-setup-ipc.mjs", import.meta.url);
 const imageViewerRendererPath = new URL("../desktop/image-viewer/renderer.js", import.meta.url);
 const conversationSurfacePath = new URL("../desktop/renderer/conversation-surface.mjs", import.meta.url);
 
@@ -1375,11 +1376,19 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(html, /id="setupCleanupButton"/);
   assert.match(html, /id="setupPlanSummary"/);
   assert.match(html, /id="setupReviewHint"/);
+  assert.match(html, /id="codexSetupPanel"/);
+  assert.match(html, /name="codexAuthMethod" value="chatgpt"/);
+  assert.match(html, /name="codexAuthMethod" value="api-key"/);
+  assert.match(html, /name="codexAuthMethod" value="access-token"/);
+  assert.match(html, /name="codexChatgptFlow" value="browser"/);
+  assert.match(html, /name="codexChatgptFlow" value="device"/);
+  assert.doesNotMatch(html, /name="codex(?:AuthMethod|ChatgptFlow)"[^>]+checked/);
   assert.match(html, /setupCleanupPanel[\s\S]+id="setupChecks"/);
   assert.match(html, /查看完整安装明细（可选）/);
   assert.match(styles, /\.setup-readiness/);
   assert.match(styles, /\.setup-plan-summary/);
   assert.match(styles, /\.setup-review-hint/);
+  assert.match(styles, /\.codex-setup-panel/);
   assert.match(source, /api\.applySetupPlan\(\{ planDigest:/);
   assert.match(source, /setupApplyButton\.disabled = applying \|\| !els\.setupReviewed\.checked/);
   assert.doesNotMatch(source, /setupPlanOpened/);
@@ -1412,9 +1421,20 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(preload, /removeManagedSetupPaths/);
   assert.match(preload, /recoverSetupUpgrade/);
   assert.match(preload, /checkSetupReadiness: \(input\) => ipcRenderer\.invoke\("arckit:setup-check", input\)/);
+  assert.match(preload, /loginCodexWithSecret: \(input\) => ipcRenderer\.invoke\("arckit:codex-setup-login-secret", input\)/);
+  assert.match(preload, /confirmCodexSetup: \(input\) => ipcRenderer\.invoke\("arckit:codex-setup-confirm", input\)/);
+  assert.match(preload, /migrateCodexToStandalone: \(input\) => ipcRenderer\.invoke\("arckit:codex-setup-migrate", input\)/);
   assert.match(main, /setupReadinessPreflight: async \(projectRoot\)/);
-  assert.match(main, /skillProvisioningManager\.assertReady\(projectRoot, \[\], store\.projects\.map/);
-  assert.match(main, /checkDesktopSetupReadiness\(\{/);
+  assert.match(main, /const codex = await codexSetupManager\.assertReady\(\)/);
+  assert.equal((main.match(/const codex = await codexSetupManager\.assertReady\(\)/g) || []).length, 2);
+  assert.match(main, /activeOwners: async \(\) => activeCodexOwnersFromStore/);
+  assert.match(main, /recheckReadiness: \(\{ codexProbe \}\) => skillProvisioningManager\.check\(\{ quiet: true, codexProbeResult: codexProbe \}\)/);
+  assert.match(main, /codexProbe: async \(\) => codexProbeFromSetupSnapshot\(codexSetupManager\.getSnapshot\(\)\)/);
+  assert.match(main, /checkCoordinatedDesktopSetupReadiness\(\{[\s\S]+checkCodex: \(\) => codexSetupManager\.check\(\)[\s\S]+checkSkills: \(setupInput\) => skillProvisioningManager\.check\(setupInput\)/);
+  assert.match(main, /skillProvisioningManager\.assertReady\([\s\S]+codexProbeFromSetupSnapshot\(codex\)/);
+  assert.equal((main.match(/codexProbeFromSetupSnapshot\(codex\)/g) || []).length, 2);
+  assert.doesNotMatch(main, /Promise\.all\(\[[\s\S]+skillProvisioningManager\.check[\s\S]+codexSetupManager\.check\(\)/);
+  assert.match(main, /checkCoordinatedDesktopSetupReadiness\(\{/);
   assert.match(source, /api\.checkSetupReadiness\(projectId \? \{ projectId \} : undefined\)/);
   assert.match(source, /setupRetryButton\.addEventListener[\s\S]+await checkSetupReadinessForSelection\(\)/);
   assert.match(source, /await api\.bindAutomationProject\(remoteId, localProjectId\);[\s\S]+await checkSetupReadinessForSelection\(localProjectId\)/);
@@ -1423,6 +1443,31 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(source, /plan\.loader_targets/);
   assert.match(main, /runtimeCwd: app\.isPackaged \? process\.resourcesPath : runtimeRoot/);
   assert.match(main, /if \(readiness\.status !== "ready"\)/);
+  assert.match(source, /els\.codexLoginButton\.disabled = operating \|\| !choiceComplete/);
+  assert.match(source, /codex\.operation\?\.device_auth/);
+  assert.match(source, /function renderCodexOwnerBlockers\(error\)/);
+  assert.match(source, /CODEX_UPDATE_ACTIVE_TASKS/);
+  assert.match(source, /codex-owner-blockers/);
+  assert.match(source, /button\.disabled = operating \|\| ownerBlocked/);
+  assert.match(source, /deviceAuth\.verification_url/);
+  assert.match(source, /deviceAuth\.user_code/);
+  assert.match(source, /const secret = els\.codexSecretInput\.value;[\s\S]+els\.codexSecretInput\.value = "";[\s\S]+loginCodexWithSecret/);
+  assert.match(source, /api\.confirmCodexSetup\(\{ action, \.\.\.intent \}\)[\s\S]+confirmation_id/);
+  assert.match(source, /runConfirmedCodexSetupAction\("login"[\s\S]+loginCodexWithSecret/);
+  assert.match(source, /runConfirmedCodexSetupAction\("login"[\s\S]+loginCodex\(input\)/);
+  assert.match(source, /operation\?\.cancellable !== true \|\| !operation\.id/);
+  assert.match(source, /cancelCodexSetup\(\{ operation_id: operation\.id \}\)/);
+  assert.match(source, /const cancellableOperation = codex\.operation\?\.cancellable === true && Boolean\(codex\.operation\?\.id\)/);
+  assert.match(source, /codexCancelButton\.classList\.toggle\("hidden", !cancellableOperation\)/);
+  assert.match(source, /codexCancelButton\.disabled = !cancellableOperation/);
+  assert.match(source, /function codexOperationFeedback\(operation\)/);
+  assert.match(source, /operation\?\.started_at/);
+  assert.match(source, /rechecking-executable/);
+  assert.match(source, /rechecking-version/);
+  assert.match(source, /rechecking-login-status/);
+  assert.match(source, /rechecking-readiness/);
+  assert.match(source, /已等待 \$\{elapsedSeconds\} 秒/);
+  assert.doesNotMatch(source, /state\.(?:codexSecret|apiKey|accessToken)\s*=/);
   assert.doesNotMatch(preload, /providerLoader|sourceRoot|execFile|writeFile/);
 });
 
@@ -1450,6 +1495,28 @@ test("Desktop resolves project-scoped Setup checks from the trusted local worksp
     () => desktopSetupCheckInput(store, { projectId: "UNKNOWN" }),
     /Unknown local Product Workspace/
   );
+});
+
+test("Desktop Setup aggregate rejects stale divergent Codex evidence with an actionable error", () => {
+  const combined = combineDesktopSetupReadiness(
+    {
+      status: "blocked",
+      checks: [{ id: "codex", status: "failed", summary: "Codex unavailable" }],
+      error: { code: "CODEX_UNAVAILABLE", stage: "codex", message: "Codex unavailable" }
+    },
+    {
+      status: "ready",
+      installation: { available: true, provenance: "standalone", version_summary: "codex fixture" },
+      authentication: { authenticated: true },
+      operation: null,
+      error: null
+    }
+  );
+
+  assert.equal(combined.status, "blocked");
+  assert.equal(combined.can_continue, false);
+  assert.equal(combined.error.code, "SETUP_EVIDENCE_STALE");
+  assert.equal(combined.error.stage, "aggregate");
 });
 
 test("Desktop Setup IPC behavior preserves global checks and sends fresh associated roots for a selected project", async () => {
@@ -1601,8 +1668,9 @@ test("Round Closeout v2 presents trusted invariant judgments", () => {
 });
 
 test("desktop main and preload expose bounded automation IPC without a generic network bridge", async () => {
-  const [main, preload, source, html] = await Promise.all([
+  const [main, codexSetupIpc, preload, source, html] = await Promise.all([
     readFile(desktopMainPath, "utf8"),
+    readFile(codexSetupIpcPath, "utf8"),
     readFile(desktopPreloadPath, "utf8"),
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8")
@@ -1615,6 +1683,15 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:setup-recover-upgrade",
     "arckit:setup-removal-plan",
     "arckit:setup-remove",
+    "arckit:codex-setup-confirm",
+    "arckit:codex-setup-install",
+    "arckit:codex-setup-update",
+    "arckit:codex-setup-migrate",
+    "arckit:codex-setup-login",
+    "arckit:codex-setup-login-secret",
+    "arckit:codex-setup-cancel",
+    "arckit:codex-setup-logout",
+    "arckit:codex-setup-recheck",
     "arckit:setup-continue",
     "arckit:chat-snapshot",
     "arckit:chat-create",
@@ -1643,7 +1720,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:auth-login",
     "arckit:auth-logout"
   ]) {
-    assert.match(main, new RegExp(channel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(`${main}\n${codexSetupIpc}`, new RegExp(channel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.match(preload, /automationSnapshot: \(filter\)/);
   assert.match(preload, /onAutomationEvent: \(listener\)/);

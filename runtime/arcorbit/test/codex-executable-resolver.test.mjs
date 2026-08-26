@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   buildCodexVersionProbeSpec,
+  classifyCodexProvenance,
   createCodexExecutableResolver,
   discoverCodexCandidates,
   resolveCodexExecutable
@@ -30,6 +31,7 @@ test("Codex resolver finds and verifies an NVM installation outside a GUI-like P
     assert.equal(result.command, codexBin);
     assert.deepEqual(result.pathEntries, [binDir]);
     assert.equal(result.summary, "codex-cli fixture");
+    assert.equal(result.provenance, "npm");
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
@@ -66,6 +68,32 @@ test("shared Codex resolver exposes only a successfully probed command", async (
     command: "/fixture/bin/codex",
     pathEntries: ["/fixture/bin"]
   });
+});
+
+test("resolver stage callbacks begin before the corresponding discovery and version work settles", async () => {
+  const stages = [];
+  let startVersion;
+  let releaseVersion;
+  const versionStarted = new Promise((resolve) => { startVersion = resolve; });
+  const versionReleased = new Promise((resolve) => { releaseVersion = resolve; });
+  const pending = resolveCodexExecutable({
+    platform: "linux",
+    env: { ARCORBIT_CODEX_BIN: "/fixture/codex", PATH: "" },
+    homeDir: "/fixture/home",
+    accessFile: async () => true,
+    readDirectory: async () => [],
+    runVersion: async () => {
+      startVersion();
+      await versionReleased;
+      return "codex fixture";
+    },
+    onStage: (stage) => stages.push(stage)
+  });
+
+  await versionStarted;
+  assert.deepEqual(stages, ["executable", "version"]);
+  releaseVersion();
+  assert.equal((await pending).available, true);
 });
 
 test("Windows npm command shims are version-probed through a structured PowerShell boundary", () => {
@@ -111,4 +139,49 @@ test("native Codex executables keep a direct version probe", () => {
     windowsHide: false,
     launchMode: "direct"
   });
+});
+
+test("Codex provenance distinguishes standalone, package-manager, configured, and unknown executables", () => {
+  const env = { PATH: "/usr/bin", ARCORBIT_CODEX_BIN: "/custom/codex" };
+  assert.equal(classifyCodexProvenance("/fixture/home/.local/bin/codex", { platform: "linux", env, homeDir: "/fixture/home" }), "standalone");
+  assert.equal(classifyCodexProvenance("/opt/homebrew/bin/codex", { platform: "darwin", env, homeDir: "/fixture/home" }), "homebrew");
+  assert.equal(classifyCodexProvenance("/fixture/home/.nvm/versions/node/v22/bin/codex", { platform: "linux", env, homeDir: "/fixture/home" }), "npm");
+  assert.equal(classifyCodexProvenance("/custom/codex", { platform: "linux", env, homeDir: "/fixture/home" }), "configured");
+  assert.equal(classifyCodexProvenance("/usr/bin/codex", { platform: "linux", env, homeDir: "/fixture/home" }), "unknown-external");
+});
+
+test("explicit standalone preference changes only ArcOrbit resolution order", async () => {
+  const candidates = await discoverCodexCandidates({
+    platform: "linux",
+    env: { PATH: "/external/bin", ARCORBIT_CODEX_BIN: "/configured/codex" },
+    homeDir: "/fixture/home",
+    preferStandalone: true,
+    readDirectory: async () => []
+  });
+  assert.equal(candidates[0], "/fixture/home/.local/bin/codex");
+  assert.equal(candidates.includes("/configured/codex"), true);
+  assert.equal(candidates.includes("/external/bin/codex"), true);
+});
+
+test("shared resolver selects the verified standalone executable after explicit preference", async () => {
+  const standalone = "/fixture/home/.local/bin/codex";
+  const configured = "/configured/codex";
+  const resolver = createCodexExecutableResolver({
+    platform: "linux",
+    env: { PATH: "/external/bin", ARCORBIT_CODEX_BIN: configured },
+    homeDir: "/fixture/home",
+    accessFile: async (candidate) => candidate === standalone || candidate === configured || candidate === "/external/bin/codex",
+    readDirectory: async () => [],
+    runVersion: async (command) => `codex fixture ${command}`
+  });
+
+  const before = await resolver.probe();
+  assert.equal(before.command, configured);
+  assert.equal(before.provenance, "configured");
+
+  resolver.preferStandalone();
+  const after = await resolver.probe();
+  assert.equal(after.command, standalone);
+  assert.equal(after.provenance, "standalone");
+  assert.deepEqual(resolver.getResolved(), { command: standalone, pathEntries: ["/fixture/home/.local/bin"] });
 });

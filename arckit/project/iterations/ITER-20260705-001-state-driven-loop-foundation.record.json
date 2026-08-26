@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-25T15:34:08.946Z",
+  "updated_at": "2026-08-26T00:42:58.867Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -2422,6 +2422,174 @@
         "arckit/cases/active/CASE-20260825-009-arcorbit.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260825-009-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/arcorbit-distribution.md",
+        "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/setup-readiness/interaction.md",
+        "arckit/interaction/setup-readiness/default.html",
+        "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "identity_and_access",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/arcorbit-distribution.md",
+        "https://learn.chatgpt.com/docs/auth",
+        "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "external_integrations",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/installer-supply-chain.md",
+        "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/installer-supply-chain.md",
+        "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "security_privacy_compliance",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/installer-supply-chain.md",
+        "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "quality_and_validation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/installer-supply-chain.md",
+        "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "delivery_and_distribution",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/arcorbit-distribution.md",
+        "arckit/tech/arcorbit/installer-supply-chain.md",
+        "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-010-arcorbit-codex-cli.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/runtime-case-control.test.mjs",
+        "runtime/arcorbit/test/state-driven-runner.test.mjs",
+        "runtime/arcorbit/test/automation-coordinator.test.mjs",
+        "Verification: 124 focused Runtime tests passed, 2026-08-26",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/interaction/automation-workspace/runtime-recovery.html",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/cases/active/CASE-20260825-011-automation-case.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-011-automation-case.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/runtime-case-control.test.mjs",
+        "runtime/arcorbit/test/state-driven-runner.test.mjs",
+        "runtime/arcorbit/test/automation-coordinator.test.mjs",
+        "Verification: 124 focused Runtime tests passed, 2026-08-26",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/interaction/automation-workspace/runtime-recovery.html",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/cases/active/CASE-20260825-011-automation-case.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-011-automation-case.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "data_and_state",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/runtime-case-control.test.mjs",
+        "runtime/arcorbit/test/state-driven-runner.test.mjs",
+        "runtime/arcorbit/test/automation-coordinator.test.mjs",
+        "Verification: 124 focused Runtime tests passed, 2026-08-26",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/interaction/automation-workspace/runtime-recovery.html",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/cases/active/CASE-20260825-011-automation-case.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-011-automation-case.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/runtime-case-control.test.mjs",
+        "runtime/arcorbit/test/state-driven-runner.test.mjs",
+        "runtime/arcorbit/test/automation-coordinator.test.mjs",
+        "Verification: 124 focused Runtime tests passed, 2026-08-26",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/interaction/automation-workspace/runtime-recovery.html",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/cases/active/CASE-20260825-011-automation-case.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-011-automation-case.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "observability_and_operation",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/runtime-case-control.test.mjs",
+        "runtime/arcorbit/test/state-driven-runner.test.mjs",
+        "runtime/arcorbit/test/automation-coordinator.test.mjs",
+        "Verification: 124 focused Runtime tests passed, 2026-08-26",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/interaction/automation-workspace/runtime-recovery.html",
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/cases/active/CASE-20260825-011-automation-case.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260825-011-automation-case.md"
     }
   ],
   "acceptance": {
@@ -2533,15 +2701,19 @@
     "arckit/cases/closed/CASE-20260825-006-local-capability-setup.md",
     "arckit/cases/closed/CASE-20260825-007-development-case.md",
     "arckit/cases/closed/CASE-20260825-008-work.md",
-    "arckit/cases/closed/CASE-20260825-009-arcorbit.md"
+    "arckit/cases/closed/CASE-20260825-009-arcorbit.md",
+    "arckit/cases/closed/CASE-20260825-011-automation-case.md",
+    "arckit/cases/closed/CASE-20260825-012-automation-codex-output-schema-oneof.md",
+    "arckit/cases/closed/CASE-20260825-013-arcorbit-case.md",
+    "arckit/cases/closed/CASE-20260825-010-arcorbit-codex-cli.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260825-009-arcorbit.md",
+    "case_ref": "arckit/cases/closed/CASE-20260825-010-arcorbit-codex-cli.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260825-009-arcorbit.md"
+      "arckit/cases/closed/CASE-20260825-010-arcorbit-codex-cli.md"
     ],
-    "updated_at": "2026-08-25T15:34:08.946Z"
+    "updated_at": "2026-08-26T00:42:58.867Z"
   }
 }

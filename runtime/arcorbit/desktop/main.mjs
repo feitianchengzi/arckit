@@ -6,6 +6,7 @@ import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createChatCoordinator } from "../src/chat-coordinator.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
 import { createCodexExecutableResolver } from "../src/codex-executable-resolver.mjs";
+import { activeCodexOwnersFromStore, codexProbeFromSetupSnapshot, createCodexSetupManager } from "../src/codex-setup-manager.mjs";
 import { createInteractiveCodexCliLauncher } from "../src/interactive-cli-launcher.mjs";
 import { createPlatformCoordinator } from "../src/platform-coordinator.mjs";
 import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
@@ -19,7 +20,8 @@ import { requireWorkExternalLinkUrl } from "../src/work-external-link.mjs";
 import { WORK_TASK_FILE_MAX_BYTES, WORK_TASK_IMAGE_MAX_BYTES, requireTrustedResourceUrl } from "../src/work-task-attachment-resource.mjs";
 import { createImageViewer } from "../src/work-task-image-viewer.mjs";
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
-import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
+import { checkCoordinatedDesktopSetupReadiness, combineDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
+import { registerCodexSetupIpc } from "../src/desktop/codex-setup-ipc.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
 import { createWorkSyncCoordinator } from "../src/work-sync-coordinator.mjs";
 import { mainWindowState, observeMainWindowState, performMainWindowAction } from "../src/main-window-controls.mjs";
@@ -46,6 +48,7 @@ let chatCoordinator;
 let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
+let codexSetupManager;
 let productFeedbackService;
 let imageViewer;
 let workshopRealtimeAdapter;
@@ -100,14 +103,26 @@ app.whenReady().then(async () => {
   skillProvisioningManager = createSkillProvisioningManager({
     resourcesRoot,
     dataRoot: app.getPath("userData"),
-    codexProbe: () => codexExecutableResolver.probe()
+    codexProbe: async () => codexProbeFromSetupSnapshot(codexSetupManager.getSnapshot())
+  });
+  codexSetupManager = createCodexSetupManager({
+    probeExecutable: (input) => codexExecutableResolver.probe(input),
+    preferStandalone: () => codexExecutableResolver.preferStandalone(),
+    activeOwners: async () => activeCodexOwnersFromStore(await runManager.readDesktopStore()),
+    recheckReadiness: ({ codexProbe }) => skillProvisioningManager.check({ quiet: true, codexProbeResult: codexProbe })
   });
   chatCoordinator = createChatCoordinator({
     runManager,
     getCodexExecutable: () => codexExecutableResolver.getResolved(),
     setupReadinessPreflight: async (projectRoot) => {
       const store = await runManager.readDesktopStore();
-      return skillProvisioningManager.assertReady(projectRoot, [], store.projects.map((item) => item.path).filter(Boolean));
+      const codex = await codexSetupManager.assertReady();
+      return skillProvisioningManager.assertReady(
+        projectRoot,
+        [],
+        store.projects.map((item) => item.path).filter(Boolean),
+        codexProbeFromSetupSnapshot(codex)
+      );
     }
   });
   chatCoordinator.onEvent((event) => {
@@ -118,7 +133,13 @@ app.whenReady().then(async () => {
     workSync: workSyncCoordinator,
     setupReadinessPreflight: async (projectRoot) => {
       const store = await runManager.readDesktopStore();
-      return skillProvisioningManager.assertReady(projectRoot, [], store.projects.map((item) => item.path).filter(Boolean));
+      const codex = await codexSetupManager.assertReady();
+      return skillProvisioningManager.assertReady(
+        projectRoot,
+        [],
+        store.projects.map((item) => item.path).filter(Boolean),
+        codexProbeFromSetupSnapshot(codex)
+      );
     },
     cliLauncher: createInteractiveCodexCliLauncher({
       getCodexExecutable: () => codexExecutableResolver.getResolved()
@@ -168,11 +189,8 @@ app.whenReady().then(async () => {
     }
     scheduleRealtimeSubscriptions();
   });
-  skillProvisioningManager.onEvent((readiness) => {
-    if (!mainWindow?.isDestroyed()) {
-      mainWindow.webContents.send("arckit:setup-event", readiness);
-    }
-  });
+  skillProvisioningManager.onEvent(() => publishSetupReadiness());
+  codexSetupManager.onEvent(() => publishSetupReadiness());
   registerIpc();
   await runManager.warmRunSummaryIndex({ limit: 20 });
   await createWindow({ show: !rendererLoadSmoke });
@@ -181,7 +199,7 @@ app.whenReady().then(async () => {
     return;
   }
   startProductFeedbackUnreadSync();
-  const readiness = await skillProvisioningManager.check();
+  const readiness = await checkCombinedSetupReadiness();
   if (readiness.status === "ready" && !readiness.first_install) {
     startAutomation();
   }
@@ -248,6 +266,7 @@ app.on("before-quit", async (event) => {
     productFeedbackService?.close();
     imageViewer?.close();
     await skillProvisioningManager?.waitForIdle();
+    await codexSetupManager?.waitForIdle();
     await runManager.abortActiveRuns({
       reason: "ArcOrbit is quitting; active runs were aborted."
     });
@@ -312,6 +331,32 @@ async function runRendererLoadSmoke() {
   app.quit();
 }
 
+async function checkCombinedSetupReadiness(input) {
+  return checkCoordinatedDesktopSetupReadiness({
+    input,
+    readDesktopStore: () => runManager.readDesktopStore(),
+    checkCodex: () => codexSetupManager.check(),
+    checkSkills: (setupInput) => skillProvisioningManager.check(setupInput)
+  });
+}
+
+async function refreshAfterCodexOperation(operation) {
+  const codex = await operation();
+  return combinedSetupReadiness(undefined, codex);
+}
+
+function publishSetupReadiness() {
+  if (mainWindow?.isDestroyed()) return;
+  mainWindow.webContents.send("arckit:setup-event", combinedSetupReadiness());
+}
+
+function combinedSetupReadiness(
+  skills = skillProvisioningManager?.getSnapshot(),
+  codex = codexSetupManager?.getSnapshot()
+) {
+  return combineDesktopSetupReadiness(skills, codex);
+}
+
 function registerIpc() {
   ipcMain.handle("arckit:window-state", async (event) => {
     assertMainRenderer(event);
@@ -329,18 +374,23 @@ function registerIpc() {
     assertMainRenderer(event);
     return performMainWindowAction(mainWindow, "close");
   });
-  ipcMain.handle("arckit:setup-status", async () => skillProvisioningManager.getSnapshot());
-  ipcMain.handle("arckit:setup-check", async (_event, input) => checkDesktopSetupReadiness({
-    input,
-    readDesktopStore: () => runManager.readDesktopStore(),
-    check: (setupInput) => skillProvisioningManager.check(setupInput)
-  }));
-  ipcMain.handle("arckit:setup-apply", async (_event, input) => skillProvisioningManager.apply(input));
-  ipcMain.handle("arckit:setup-recover-upgrade", async (_event, input) => skillProvisioningManager.recoverSourceUpgrade(input));
+  ipcMain.handle("arckit:setup-status", async () => combinedSetupReadiness());
+  ipcMain.handle("arckit:setup-check", async (_event, input) => checkCombinedSetupReadiness(input));
+  ipcMain.handle("arckit:setup-apply", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.apply(input)));
+  ipcMain.handle("arckit:setup-recover-upgrade", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.recoverSourceUpgrade(input)));
   ipcMain.handle("arckit:setup-removal-plan", async (_event, managedPaths) => skillProvisioningManager.planManagedRemoval(managedPaths));
-  ipcMain.handle("arckit:setup-remove", async (_event, input) => skillProvisioningManager.removeManaged(input));
+  ipcMain.handle("arckit:setup-remove", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.removeManaged(input)));
+  registerCodexSetupIpc({
+    ipcMain,
+    codexSetupManager,
+    combinedSetupReadiness,
+    checkCombinedSetupReadiness,
+    refreshAfterCodexOperation,
+    authorizeSender: assertMainRenderer,
+    confirmAction: confirmCodexSetupAction
+  });
   ipcMain.handle("arckit:setup-continue", async () => {
-    const readiness = skillProvisioningManager.getSnapshot();
+    const readiness = combinedSetupReadiness();
     if (readiness.status !== "ready") throw new Error("Arckit Setup Readiness is not ready.");
     startAutomation();
     return readiness;
@@ -598,6 +648,35 @@ async function loadImageResource(input = {}) {
 
 function assertMainRenderer(event) {
   if (event.sender !== mainWindow?.webContents) throw new Error("Main-window actions can only be invoked from the main ArcOrbit window.");
+}
+
+async function confirmCodexSetupAction(action, _snapshot, intent = {}) {
+  const loginMethod = {
+    "chatgpt:browser": "将启动 Codex 官方系统浏览器登录流程。",
+    "chatgpt:device": "将启动 Codex 官方设备码登录流程。",
+    "api-key:": "将通过 child stdin 一次性提交当前 API Key；不会写入配置、日志或环境变量。",
+    "access-token:": "将通过 child stdin 一次性提交当前 Enterprise Access Token；不会写入配置、日志或环境变量。"
+  }[`${intent.method || ""}:${intent.flow || ""}`];
+  const messages = {
+    install: ["安装 Codex", "将下载并执行 OpenAI 官方 Codex standalone installer，安装后立即重新检测。"],
+    update: ["更新 Codex", "将更新当前 proven standalone Codex；活动 Chat 或 Automation 会阻止此操作。"],
+    migrate: ["迁移到 standalone", "将保留当前外部 Codex 安装，并另行安装官方 standalone 后切换 ArcOrbit 使用目标。"],
+    login: ["登录 Codex", loginMethod],
+    logout: ["退出 Codex", "将调用 Codex CLI logout；活动 owner 会阻止此操作。"]
+  };
+  const [title, message] = messages[action] || [];
+  if (!title) return false;
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: "warning",
+    title,
+    message,
+    detail: "该确认仅对当前 Setup 状态和本次操作有效。",
+    buttons: ["取消", "继续"],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  });
+  return result.response === 1;
 }
 
 function workAttachmentMimeType(fileName, kind) {

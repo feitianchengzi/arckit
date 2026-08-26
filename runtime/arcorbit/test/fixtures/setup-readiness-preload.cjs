@@ -6,6 +6,44 @@ const calls = [];
 let removalPlanAttempts = 0;
 let setupListener = null;
 
+const codexReady = {
+  schema_version: "arcorbit-codex-setup/v1",
+  status: "ready",
+  installation: { state: "installed", available: true, command: "/fixture/.local/bin/codex", path_entries: ["/fixture/.local/bin"], provenance: "standalone", version_summary: "codex fixture", can_install: false, can_update: true, can_migrate: false },
+  authentication: { state: "authenticated", authenticated: true, method: "", capabilities: { browser: true, device_auth: false, api_key: true, access_token: false } },
+  operation: null,
+  error: null
+};
+
+const codexSelection = {
+  ...codexReady,
+  status: "selection-required",
+  authentication: { ...codexReady.authentication, state: "selection-required", authenticated: false }
+};
+
+const codexActive = {
+  ...codexSelection,
+  status: "login-in-progress",
+  operation: { id: "fixture-operation", kind: "login", phase: "running", started_at: "2026-08-25T19:30:00.000Z", cancellable: true }
+};
+
+const codexRechecking = {
+  ...codexSelection,
+  status: "checking",
+  operation: { kind: "login", phase: "rechecking-login-status", started_at: "2026-08-25T19:30:00.000Z", cancellable: false }
+};
+
+const codexOwnerBlocked = {
+  ...codexReady,
+  status: "ready",
+  error: {
+    code: "CODEX_UPDATE_ACTIVE_TASKS",
+    message: "仍有 2 个活动 Codex owner；请先结束相关 Chat 或 Automation。",
+    stage: "owner-guard",
+    owners: [{ kind: "automation", id: "EXEC-1" }, { kind: "chat", id: "CHAT-1" }]
+  }
+};
+
 const drifted = {
   status: "drifted",
   first_install: false,
@@ -36,6 +74,8 @@ const drifted = {
   write_state: "not_started",
   error: null
 };
+drifted.codex_setup = codexReady;
+drifted.codex = codexReady.installation;
 
 const ready = {
   ...drifted,
@@ -97,6 +137,11 @@ const platform = {
 
 const noOp = async () => ({});
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  getWindowState: async () => ({ maximized: false, full_screen: false, minimizable: true, maximizable: true, closable: true }),
+  minimizeWindow: noOp,
+  toggleMaximizeWindow: noOp,
+  closeWindow: noOp,
+  onWindowState: () => () => {},
   getSetupReadiness: async () => drifted,
   checkSetupReadiness: async () => drifted,
   planSetupRemoval: async (paths) => {
@@ -106,6 +151,20 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     return { managedPaths: paths, confirmationDigest: "b".repeat(64) };
   },
   removeManagedSetupPaths: async (input) => { calls.push(["remove", input]); return ready; },
+  confirmCodexSetup: async () => ({ confirmed: true, confirmation_id: "fixture-confirmation" }),
+  installCodex: noOp,
+  updateCodex: noOp,
+  migrateCodexToStandalone: noOp,
+  loginCodex: noOp,
+  loginCodexWithSecret: async (input) => {
+    calls.push(["codex-login-secret", { method: input.method, secret_length: String(input.secret || "").length }]);
+    const next = { ...drifted, status: "ready", codex_setup: codexReady, codex: codexReady.installation, can_continue: true };
+    setupListener?.(next);
+    return next;
+  },
+  cancelCodexSetup: async (input) => { calls.push(["codex-cancel", input]); return drifted; },
+  logoutCodex: noOp,
+  recheckCodexSetup: noOp,
   continueFromSetup: noOp,
   applySetupPlan: async (input) => { calls.push(["apply", input]); return ready; },
   recoverSetupUpgrade: noOp,
@@ -121,7 +180,13 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   platformWorkQuery: async () => ({ schema_version: "arcorbit-work-query/v1", query_key: "", generated_at: "", source_status: "healthy", active_workset: null, projects: [], product_workspaces: [], tasks: [], task_trees: [], tags: [], window: { offset: 0, limit: 80, returned: 0, total: 0, has_more: false }, errors: [] }),
   getTestCalls: async () => calls,
   emitSetupScenario: async (scenario) => {
-    const next = scenario === "needs-install" ? needsInstall : scenario === "updated-install" ? updatedInstall : drifted;
+    const next = scenario === "needs-install" ? needsInstall
+      : scenario === "updated-install" ? updatedInstall
+        : scenario === "codex-selection" ? { ...drifted, status: "codex-action-required", codex_setup: codexSelection, codex: codexSelection.installation }
+          : scenario === "codex-active" ? { ...drifted, status: "applying", codex_setup: codexActive, codex: codexActive.installation }
+            : scenario === "codex-rechecking" ? { ...drifted, status: "applying", codex_setup: codexRechecking, codex: codexRechecking.installation }
+              : scenario === "codex-owner-blocked" ? { ...drifted, status: "blocked", error: codexOwnerBlocked.error, codex_setup: codexOwnerBlocked, codex: codexOwnerBlocked.installation }
+              : drifted;
     setupListener?.(next);
     return next;
   },

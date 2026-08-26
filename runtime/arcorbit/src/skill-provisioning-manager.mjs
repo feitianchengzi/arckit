@@ -43,7 +43,7 @@ export function createSkillProvisioningManager(options = {}) {
     return structuredClone(snapshot);
   }
 
-  async function check({ quiet = false, projectRoot, projectAssessments = [] } = {}) {
+  async function check({ quiet = false, projectRoot, projectAssessments = [], codexProbeResult } = {}) {
     return runExclusive(async () => {
       const effectiveProjectRoot = projectRoot || internalPlan?.projectRoot || snapshot.plan?.project_roots;
       const effectiveProjectAssessments = projectRoot ? projectAssessments : internalPlan?.projectAssessments || projectAssessments;
@@ -55,7 +55,7 @@ export function createSkillProvisioningManager(options = {}) {
         assertProviderApi(provider);
         const providerInfo = await provider.inspectProvider();
         assertProviderLock(providerInfo, bundle.lock.arcforgeProvider);
-        const probe = await safeCodexProbe(codexProbe);
+        const probe = await resolveCodexProbe(codexProbe, codexProbeResult);
         if (!effectiveProjectRoot) {
           await prepareGlobalSource(bundle);
           return publishCheckSnapshot(globalReadinessSnapshot({ bundle, providerInfo, probe }), quiet);
@@ -225,9 +225,9 @@ export function createSkillProvisioningManager(options = {}) {
     });
   }
 
-  async function assertReady(projectRoot, projectAssessments = [], associatedProjectRoots = []) {
+  async function assertReady(projectRoot, projectAssessments = [], associatedProjectRoots = [], codexProbeResult) {
     if (!projectRoot) throw setupError("PROJECT_REQUIRED", "当前任务没有关联的本地 Product Workspace 项目。", "preflight");
-    const current = await check({ quiet: true, projectRoot: [projectRoot, ...associatedProjectRoots], projectAssessments });
+    const current = await check({ quiet: true, projectRoot: [projectRoot, ...associatedProjectRoots], projectAssessments, codexProbeResult });
     if (current.status !== "ready") throw setupError("SETUP_NOT_READY", "Arckit skills 尚未达到可运行状态。", "preflight");
     return current;
   }
@@ -641,4 +641,5 @@ function assertProviderLock(info, locked) {
   if (missing.length) throw setupError("PROVIDER_CAPABILITY_MISSING", `ArcForge provider 缺少必需能力：${missing.join("、")}`, "provider");
 }
 async function defaultProviderLoader(entrypoint) { return import(pathToFileURL(entrypoint).href); }
-async function safeCodexProbe(probe) { try { const result = await probe(); return result?.available === false ? { available: false, summary: result.summary || "Codex 不可用" } : { available: true, summary: result?.summary || "Codex 可用" }; } catch (error) { return { available: false, summary: error?.code === "ENOENT" ? "未找到 Codex CLI，请先安装后重新检测。" : `Codex 检测失败：${error.message}` }; } }
+async function safeCodexProbe(probe) { try { const result = await probe(); return result?.available === false ? { ...result, available: false, summary: result.summary || "Codex 不可用" } : { ...result, available: true, summary: result?.summary || "Codex 可用" }; } catch (error) { return { available: false, summary: error?.code === "ENOENT" ? "未找到 Codex CLI，请先安装后重新检测。" : `Codex 检测失败：${error.message}` }; } }
+async function resolveCodexProbe(probe, providedResult) { return providedResult === undefined ? safeCodexProbe(probe) : safeCodexProbe(async () => providedResult); }
