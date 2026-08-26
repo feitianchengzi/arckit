@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import { access } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import {
   activeCodexOwnersFromStore,
   buildCodexCommandSpec,
@@ -12,6 +16,8 @@ import {
   runControlledProcess,
   runOfficialInstaller
 } from "../src/codex-setup-manager.mjs";
+
+const execFileAsync = promisify(execFile);
 
 const executable = {
   available: true,
@@ -106,9 +112,35 @@ test("Windows npm command shims use a fixed PowerShell boundary while secrets re
   assert.equal(spec.args.includes(command), false);
   assert.equal(spec.env.ARCORBIT_CODEX_SETUP_COMMAND, command);
   assert.equal(spec.env.ARCORBIT_CODEX_SETUP_ARGS, JSON.stringify(["login", "--with-api-key"]));
+  assert.doesNotMatch(spec.args.at(-1), /\[string\[\]\]/);
   assert.equal(Buffer.isBuffer(spec.stdin), true);
   assert.equal(spec.stdin.toString("utf8"), `${secret}\n`);
   assert.equal(JSON.stringify({ command: spec.command, args: spec.args, env: spec.env }).includes(secret), false);
+});
+
+test("Windows PowerShell 5.1 preserves Codex setup command argument boundaries", { skip: process.platform !== "win32" }, async () => {
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "arcorbit-codex-setup-shim-"));
+  const command = path.join(fixtureRoot, "fixture command.cmd");
+  const captureScript = path.join(fixtureRoot, "capture.mjs");
+  const args = ["login", "--help", "value with spaces"];
+  try {
+    await writeFile(captureScript, "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n", "utf8");
+    await writeFile(command, `@ECHO OFF\r\n"${process.execPath}" "${captureScript}" %*\r\n`, "utf8");
+    const spec = buildCodexCommandSpec({
+      platform: "win32",
+      command,
+      args,
+      env: { ...process.env, SystemRoot: process.env.SystemRoot }
+    });
+
+    const { stdout } = await execFileAsync(spec.command, spec.args, {
+      env: spec.env,
+      windowsHide: spec.windowsHide
+    });
+    assert.deepEqual(JSON.parse(stdout), args);
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true });
+  }
 });
 
 test("controlled process writes framed stdin and clears its buffer before child close", async () => {
@@ -445,7 +477,7 @@ test("standalone update is blocked while any Codex owner is active", async () =>
 });
 
 test("external installations reject direct update with the stable recovery code", async () => {
-  for (const provenance of ["configured", "npm", "homebrew", "unknown-external"]) {
+  for (const provenance of ["configured", "npm", "homebrew", "desktop-runtime", "unknown-external"]) {
     let installerCalls = 0;
     const manager = createCodexSetupManager({
       platform: "linux",
@@ -467,6 +499,8 @@ test("external installations reject direct update with the stable recovery code"
       return true;
     });
     assert.equal(manager.getSnapshot().installation.provenance, provenance);
+    assert.equal(manager.getSnapshot().installation.can_update, false);
+    assert.equal(manager.getSnapshot().installation.can_migrate, true);
     assert.equal(installerCalls, 0);
   }
 });

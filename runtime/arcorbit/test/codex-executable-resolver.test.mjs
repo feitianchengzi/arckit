@@ -11,7 +11,7 @@ import {
   resolveCodexExecutable
 } from "../src/codex-executable-resolver.mjs";
 
-test("Codex resolver finds and verifies an NVM installation outside a GUI-like PATH", async () => {
+test("Codex resolver finds and verifies an NVM installation outside a GUI-like PATH", { skip: process.platform === "win32" }, async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), "arckit-codex-nvm-"));
   const binDir = path.join(homeDir, ".nvm", "versions", "node", "v22.22.2", "bin");
   const codexBin = path.join(binDir, "codex");
@@ -110,6 +110,38 @@ test("Windows npm command shims are version-probed through a structured PowerShe
   assert.equal(spec.env.ARCORBIT_CODEX_PROBE_ARGS, JSON.stringify(["--version"]));
   assert.equal(spec.args.includes(command), false);
   assert.match(spec.args.at(-1), /ARCORBIT_CODEX_PROBE_COMMAND/);
+  assert.doesNotMatch(spec.args.at(-1), /\[string\[\]\]/);
+});
+
+test("Windows resolver discovers the newest verified Codex Desktop runtime without a CLI", async () => {
+  const localAppData = "C:\\Users\\Example User\\AppData\\Local";
+  const binRoot = `${localAppData}\\OpenAI\\Codex\\bin`;
+  const older = `${binRoot}\\older-runtime\\codex.exe`;
+  const current = `${binRoot}\\current-runtime\\codex.exe`;
+  const probed = [];
+  const entries = [
+    { name: "older-runtime", isDirectory: () => true },
+    { name: "current-runtime", isDirectory: () => true },
+    { name: "codex.exe", isDirectory: () => false }
+  ];
+  const result = await resolveCodexExecutable({
+    platform: "win32",
+    env: { LOCALAPPDATA: localAppData, PATH: "", PATHEXT: ".EXE;.CMD" },
+    homeDir: "C:\\Users\\Example User",
+    readDirectory: async (root) => root.toLowerCase() === binRoot.toLowerCase() ? entries : [],
+    statFile: async (candidate) => ({ mtimeMs: candidate.toLowerCase() === current.toLowerCase() ? 200 : 100 }),
+    accessFile: async (candidate) => candidate.toLowerCase() === current.toLowerCase() || candidate.toLowerCase() === older.toLowerCase(),
+    runVersion: async (candidate) => {
+      probed.push(candidate);
+      return candidate.toLowerCase() === current.toLowerCase() ? "codex-cli desktop-current" : "codex-cli desktop-old";
+    }
+  });
+
+  assert.equal(result.available, true);
+  assert.equal(result.command.toLowerCase(), current.toLowerCase());
+  assert.equal(result.provenance, "desktop-runtime");
+  assert.equal(result.summary, "codex-cli desktop-current");
+  assert.deepEqual(probed.map((candidate) => candidate.toLowerCase()), [current.toLowerCase()]);
 });
 
 test("Codex resolver prefers the ArcOrbit override and accepts the legacy override as fallback", async () => {
@@ -148,6 +180,38 @@ test("Codex provenance distinguishes standalone, package-manager, configured, an
   assert.equal(classifyCodexProvenance("/fixture/home/.nvm/versions/node/v22/bin/codex", { platform: "linux", env, homeDir: "/fixture/home" }), "npm");
   assert.equal(classifyCodexProvenance("/custom/codex", { platform: "linux", env, homeDir: "/fixture/home" }), "configured");
   assert.equal(classifyCodexProvenance("/usr/bin/codex", { platform: "linux", env, homeDir: "/fixture/home" }), "unknown-external");
+  assert.equal(classifyCodexProvenance("C:\\Users\\Example\\AppData\\Local\\OpenAI\\Codex\\bin\\runtime-1\\codex.exe", {
+    platform: "win32",
+    env: { LOCALAPPDATA: "C:\\Users\\Example\\AppData\\Local", PATH: "" },
+    homeDir: "C:\\Users\\Example"
+  }), "desktop-runtime");
+});
+
+test("Windows candidate order keeps standalone ahead of the Desktop runtime fallback", async () => {
+  const homeDir = "C:\\Users\\Example";
+  const localAppData = `${homeDir}\\AppData\\Local`;
+  const desktopRuntime = `${localAppData}\\OpenAI\\Codex\\bin\\runtime-1\\codex.exe`;
+  const options = {
+    platform: "win32",
+    env: {
+      ARCORBIT_CODEX_BIN: "C:\\Configured\\codex.exe",
+      PATH: "C:\\Path",
+      PATHEXT: ".EXE;.CMD",
+      APPDATA: `${homeDir}\\AppData\\Roaming`,
+      LOCALAPPDATA: localAppData
+    },
+    homeDir,
+    readDirectory: async (root) => root.endsWith("OpenAI\\Codex\\bin")
+      ? [{ name: "runtime-1", isDirectory: () => true }]
+      : [],
+    statFile: async () => ({ mtimeMs: 1 })
+  };
+
+  const normal = await discoverCodexCandidates(options);
+  assert.ok(normal.indexOf(`${homeDir}\\.local\\bin\\codex.exe`) < normal.indexOf(desktopRuntime));
+  const preferred = await discoverCodexCandidates({ ...options, preferStandalone: true });
+  assert.equal(preferred[0], `${homeDir}\\.local\\bin\\codex.exe`);
+  assert.ok(preferred.indexOf("C:\\Configured\\codex.exe") < preferred.indexOf(desktopRuntime));
 });
 
 test("explicit standalone preference changes only ArcOrbit resolution order", async () => {

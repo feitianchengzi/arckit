@@ -18,7 +18,7 @@ const WINDOWS_COMMAND_EXTENSIONS = new Set([".bat", ".cmd"]);
 const WINDOWS_CODEX_COMMAND_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
   "$codexCommand = $env:ARCORBIT_CODEX_SETUP_COMMAND",
-  "[string[]] $codexArgs = @(ConvertFrom-Json -InputObject $env:ARCORBIT_CODEX_SETUP_ARGS)",
+  "$codexArgs = ConvertFrom-Json -InputObject $env:ARCORBIT_CODEX_SETUP_ARGS",
   "& $codexCommand @codexArgs",
   "exit $LASTEXITCODE"
 ].join("; ");
@@ -298,7 +298,7 @@ export function createCodexSetupManager(options = {}) {
       guardOwners: true,
       prepare: async () => {
         const current = await inspect({ announce: false });
-        if (!["configured", "npm", "homebrew", "unknown-external"].includes(current.installation.provenance)) {
+        if (!["configured", "npm", "homebrew", "desktop-runtime", "unknown-external"].includes(current.installation.provenance)) {
           throw setupError("MIGRATION_NOT_REQUIRED", "当前 Codex 不需要迁移到 standalone。", "migrate");
         }
       },
@@ -694,7 +694,7 @@ function installationSnapshot(probe = {}, state = "checking") {
     version_summary: String(probe.summary || ""),
     can_install: !probe.available,
     can_update: probe.provenance === "standalone",
-    can_migrate: Boolean(probe.available && ["configured", "npm", "homebrew", "unknown-external"].includes(probe.provenance))
+    can_migrate: Boolean(probe.available && ["configured", "npm", "homebrew", "desktop-runtime", "unknown-external"].includes(probe.provenance))
   };
 }
 

@@ -1,9 +1,8 @@
 import { execFile } from "node:child_process";
 import { constants } from "node:fs";
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, stat } from "node:fs/promises";
 import os from "node:os";
-import path from "node:path";
-import { win32 as pathWin32 } from "node:path";
+import { posix as pathPosix, win32 as pathWin32 } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -11,7 +10,7 @@ const WINDOWS_COMMAND_EXTENSIONS = new Set([".bat", ".cmd"]);
 const WINDOWS_VERSION_PROBE_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
   "$probeCommand = $env:ARCORBIT_CODEX_PROBE_COMMAND",
-  "[string[]] $probeArgs = @(ConvertFrom-Json -InputObject $env:ARCORBIT_CODEX_PROBE_ARGS)",
+  "$probeArgs = ConvertFrom-Json -InputObject $env:ARCORBIT_CODEX_PROBE_ARGS",
   "& $probeCommand @probeArgs",
   "exit $LASTEXITCODE"
 ].join("; ");
@@ -52,16 +51,25 @@ export async function resolveCodexExecutable({
   preferStandalone = false,
   accessFile = defaultAccessFile,
   readDirectory = readdir,
+  statFile = stat,
   runVersion = defaultRunVersion,
   onStage
 } = {}) {
+  const pathApi = pathApiFor(platform);
   notifyProbeStage(onStage, "executable");
-  const candidates = await discoverCodexCandidates({ platform, env, homeDir, readDirectory, preferStandalone });
+  const candidates = await discoverCodexCandidates({
+    platform,
+    env,
+    homeDir,
+    readDirectory,
+    preferStandalone,
+    statFile
+  });
   const failures = [];
 
   for (const candidate of candidates) {
     if (!await accessFile(candidate, platform)) continue;
-    const pathEntries = [path.dirname(candidate)];
+    const pathEntries = [pathApi.dirname(candidate)];
     try {
       notifyProbeStage(onStage, "version");
       const version = await runVersion(candidate, { env: prependPathEntries(env, pathEntries), platform });
@@ -82,8 +90,8 @@ export async function resolveCodexExecutable({
     command: "",
     pathEntries: [],
     summary: failures.length
-      ? `Codex CLI 已找到但无法运行：${failures[0]}`
-      : "未找到 Codex CLI，请先安装后重新检测。"
+      ? `Codex executable 已找到但无法运行：${failures[0]}`
+      : "未找到可运行的 Codex。请安装 Codex CLI，或安装并启动一次 Codex Desktop 以准备本地运行时，然后重新检测。"
   };
 }
 
@@ -101,46 +109,45 @@ export async function discoverCodexCandidates({
   env = process.env,
   homeDir = os.homedir(),
   readDirectory = readdir,
-  preferStandalone = false
+  preferStandalone = false,
+  statFile = stat
 } = {}) {
+  const pathApi = pathApiFor(platform);
   const candidates = [];
   const configured = String(env.ARCORBIT_CODEX_BIN || env.ARCKIT_CODEX_BIN || "").trim();
-  if (configured && !preferStandalone) {
-    candidates.push(...(path.isAbsolute(configured)
-      ? [configured]
-      : commandCandidates(configured, { platform, env })));
-  }
   const standaloneCandidates = platform === "win32"
     ? [
-        path.join(homeDir, ".local", "bin", "codex.exe"),
-        path.join(homeDir, ".local", "bin", "codex.cmd"),
-        path.join(homeDir, ".local", "bin", "codex")
+        pathApi.join(homeDir, ".local", "bin", "codex.exe"),
+        pathApi.join(homeDir, ".local", "bin", "codex.cmd"),
+        pathApi.join(homeDir, ".local", "bin", "codex")
       ]
-    : [path.join(homeDir, ".local", "bin", "codex")];
+    : [pathApi.join(homeDir, ".local", "bin", "codex")];
   if (preferStandalone) candidates.push(...standaloneCandidates);
-  if (configured && preferStandalone) {
-    candidates.push(...(path.isAbsolute(configured)
+  if (configured) {
+    candidates.push(...(pathApi.isAbsolute(configured)
       ? [configured]
       : commandCandidates(configured, { platform, env })));
   }
   candidates.push(...commandCandidates("codex", { platform, env }));
 
   if (platform === "win32") {
-    if (env.APPDATA) candidates.push(path.join(env.APPDATA, "npm", "codex.cmd"));
+    const roamingAppData = readEnv(env, "APPDATA") || pathWin32.join(homeDir, "AppData", "Roaming");
+    candidates.push(pathWin32.join(roamingAppData, "npm", "codex.cmd"));
     if (!preferStandalone) candidates.push(...standaloneCandidates);
+    candidates.push(...await windowsDesktopCodexCandidates({ env, homeDir, readDirectory, statFile }));
   } else {
     if (!preferStandalone) candidates.push(...standaloneCandidates);
     candidates.push(
-      path.join(homeDir, ".volta", "bin", "codex"),
-      path.join(homeDir, ".bun", "bin", "codex"),
+      pathApi.join(homeDir, ".volta", "bin", "codex"),
+      pathApi.join(homeDir, ".bun", "bin", "codex"),
       "/opt/homebrew/bin/codex",
       "/usr/local/bin/codex"
     );
-    candidates.push(...await nvmCandidates(homeDir, readDirectory));
-    candidates.push(...await fnmCandidates(homeDir, readDirectory));
+    candidates.push(...await nvmCandidates(homeDir, readDirectory, pathApi));
+    candidates.push(...await fnmCandidates(homeDir, readDirectory, pathApi));
   }
 
-  return [...new Set(candidates.map((candidate) => path.resolve(candidate)))];
+  return [...new Set(candidates.map((candidate) => pathApi.resolve(candidate)))];
 }
 
 export function classifyCodexProvenance(command, {
@@ -148,21 +155,36 @@ export function classifyCodexProvenance(command, {
   env = process.env,
   homeDir = os.homedir()
 } = {}) {
+  const pathApi = pathApiFor(platform);
   const normalized = normalizeComparablePath(command, platform);
   const configured = String(env.ARCORBIT_CODEX_BIN || env.ARCKIT_CODEX_BIN || "").trim();
-  if (configured && normalized === normalizeComparablePath(configured, platform)) return "configured";
+  const configuredCandidates = configured
+    ? (pathApi.isAbsolute(configured) ? [configured] : commandCandidates(configured, { platform, env }))
+    : [];
+  if (configuredCandidates.some((candidate) => normalized === normalizeComparablePath(candidate, platform))) {
+    return "configured";
+  }
 
-  const standaloneRoot = normalizeComparablePath(path.join(homeDir, ".local", "bin"), platform);
+  const standaloneRoot = normalizeComparablePath(pathApi.join(homeDir, ".local", "bin"), platform);
   if (normalized === standaloneRoot || normalized.startsWith(`${standaloneRoot}${platform === "win32" ? "\\" : "/"}`)) {
     return "standalone";
   }
 
-  const npmRoot = String(env.APPDATA || "").trim()
-    ? normalizeComparablePath(path.join(env.APPDATA, "npm"), platform)
+  const roamingAppData = platform === "win32"
+    ? readEnv(env, "APPDATA") || pathWin32.join(homeDir, "AppData", "Roaming")
     : "";
+  const npmRoot = roamingAppData ? normalizeComparablePath(pathWin32.join(roamingAppData, "npm"), platform) : "";
   if ((npmRoot && (normalized === npmRoot || normalized.startsWith(`${npmRoot}\\`)))
     || /[\\/]\.nvm[\\/]|[\\/]\.fnm[\\/]|[\\/]\.volta[\\/]|[\\/]\.bun[\\/]|[\\/]node_modules[\\/]/i.test(normalized)) {
     return "npm";
+  }
+
+  if (platform === "win32") {
+    const localAppData = readEnv(env, "LOCALAPPDATA") || pathWin32.join(homeDir, "AppData", "Local");
+    const desktopRuntimeRoot = normalizeComparablePath(pathWin32.join(localAppData, "OpenAI", "Codex", "bin"), platform);
+    if (normalized === desktopRuntimeRoot || normalized.startsWith(`${desktopRuntimeRoot}\\`)) {
+      return "desktop-runtime";
+    }
   }
 
   if (normalized.startsWith("/opt/homebrew/") || normalized.startsWith("/usr/local/homebrew/")) return "homebrew";
@@ -200,28 +222,58 @@ export function buildCodexVersionProbeSpec({ command, platform = process.platfor
 }
 
 function commandCandidates(command, { platform, env }) {
-  if (path.isAbsolute(command) || command.includes("/") || command.includes("\\")) return [command];
+  const pathApi = platform === "win32" ? pathWin32 : pathPosix;
+  if (pathApi.isAbsolute(command) || command.includes("/") || command.includes("\\")) return [command];
   const pathValue = readEnv(env, "PATH");
   const delimiter = platform === "win32" ? ";" : ":";
   const directories = pathValue.split(delimiter).map((entry) => entry.trim().replace(/^"|"$/g, "")).filter(Boolean);
-  if (platform !== "win32") return directories.map((directory) => path.join(directory, command));
+  if (platform !== "win32") return directories.map((directory) => pathApi.join(directory, command));
   const extensions = (readEnv(env, "PATHEXT") || ".COM;.EXE;.BAT;.CMD")
     .split(";")
     .map((extension) => extension.trim())
     .filter(Boolean);
-  return directories.flatMap((directory) => [path.join(directory, command), ...extensions.map((extension) => path.join(directory, `${command}${extension.toLowerCase()}`))]);
+  return directories.flatMap((directory) => [
+    ...extensions.map((extension) => pathWin32.join(directory, `${command}${extension.toLowerCase()}`)),
+    pathWin32.join(directory, command)
+  ]);
 }
 
-async function nvmCandidates(homeDir, readDirectory) {
-  const root = path.join(homeDir, ".nvm", "versions", "node");
-  const versions = await childDirectoryNames(root, readDirectory);
-  return versions.sort(compareVersionNames).map((version) => path.join(root, version, "bin", "codex"));
+async function windowsDesktopCodexCandidates({ env, homeDir, readDirectory, statFile }) {
+  const localAppData = readEnv(env, "LOCALAPPDATA") || pathWin32.join(homeDir, "AppData", "Local");
+  const binRoot = pathWin32.join(localAppData, "OpenAI", "Codex", "bin");
+  const versioned = [];
+  try {
+    const entries = await readDirectory(binRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const candidate = pathWin32.join(binRoot, entry.name, "codex.exe");
+      try {
+        const metadata = await statFile(candidate);
+        versioned.push({ candidate, modifiedAt: Number(metadata.mtimeMs || 0) });
+      } catch (error) {
+        if (error?.code !== "ENOENT" && error?.code !== "EACCES" && error?.code !== "EPERM") throw error;
+      }
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT" && error?.code !== "EACCES" && error?.code !== "EPERM") throw error;
+  }
+  versioned.sort((left, right) => right.modifiedAt - left.modifiedAt || right.candidate.localeCompare(left.candidate));
+  return [
+    ...versioned.map((entry) => entry.candidate),
+    pathWin32.join(binRoot, "codex.exe")
+  ];
 }
 
-async function fnmCandidates(homeDir, readDirectory) {
-  const root = path.join(homeDir, ".fnm", "node-versions");
+async function nvmCandidates(homeDir, readDirectory, pathApi = pathPosix) {
+  const root = pathApi.join(homeDir, ".nvm", "versions", "node");
   const versions = await childDirectoryNames(root, readDirectory);
-  return versions.sort(compareVersionNames).map((version) => path.join(root, version, "installation", "bin", "codex"));
+  return versions.sort(compareVersionNames).map((version) => pathApi.join(root, version, "bin", "codex"));
+}
+
+async function fnmCandidates(homeDir, readDirectory, pathApi = pathPosix) {
+  const root = pathApi.join(homeDir, ".fnm", "node-versions");
+  const versions = await childDirectoryNames(root, readDirectory);
+  return versions.sort(compareVersionNames).map((version) => pathApi.join(root, version, "installation", "bin", "codex"));
 }
 
 async function childDirectoryNames(root, readDirectory) {
@@ -252,8 +304,12 @@ function readEnv(env, name) {
 function normalizeComparablePath(value, platform) {
   const raw = String(value || "").trim();
   if (!raw) return "";
-  const normalized = platform === "win32" ? pathWin32.normalize(raw) : path.normalize(raw);
+  const normalized = pathApiFor(platform).normalize(raw);
   return platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+function pathApiFor(platform) {
+  return platform === "win32" ? pathWin32 : pathPosix;
 }
 
 async function defaultAccessFile(candidate, platform) {

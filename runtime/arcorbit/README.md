@@ -72,6 +72,22 @@ Codex structured output uses `schemas/agent-loop-result.schema.json`. Runtime pe
 
 ## CLI
 
+### Codex executable discovery on Windows
+
+ArcOrbit accepts both native `codex.exe` executables and npm-installed `codex.cmd` shims. Resolution is fail-closed: every candidate must exist and complete `--version` successfully before Desktop stores it for Chat or Automation. Windows candidates are evaluated in this order:
+
+1. the explicit `ARCORBIT_CODEX_BIN` override (`ARCKIT_CODEX_BIN` remains a legacy fallback);
+2. `codex.exe` or `codex.cmd` found through `PATH`;
+3. the conventional `%APPDATA%\npm\codex.cmd` npm shim;
+4. the standalone installer candidates under `%USERPROFILE%\.local\bin`;
+5. versioned Codex Desktop runtimes under `%LOCALAPPDATA%\OpenAI\Codex\bin\<runtime>\codex.exe`, newest first, followed by the unversioned `bin\codex.exe` fallback.
+
+After ArcOrbit installs, updates, or explicitly migrates Codex, the immediate fresh discovery temporarily prefers the standalone candidates so the operation succeeds only if the managed executable is actually selected. Codex Desktop runtimes are reported as `desktop-runtime`; they remain eligible for explicit standalone migration but never for ArcOrbit-managed in-place updates.
+
+Native executables launch directly. Command shims launch through a non-interactive Windows PowerShell boundary that transports the executable path and argument array in environment-backed JSON, preserving `app-server` and `--stdio` as separate arguments without interpolating them into a shell command. ArcOrbit does not execute binaries directly from the access-controlled `Program Files\WindowsApps` package directory.
+
+The Desktop runtime fallback lets ArcOrbit work when Codex Desktop is installed and has prepared its per-user runtime but no standalone CLI is installed. That location is treated as a discovered, version-probed candidate rather than a guaranteed OpenAI installation contract. If neither a CLI nor a runnable Desktop runtime is present, Setup Readiness remains blocked and asks the user to install or repair Codex instead of starting a Loop that cannot initialize app-server.
+
 Dry-run the current repository:
 
 ```bash

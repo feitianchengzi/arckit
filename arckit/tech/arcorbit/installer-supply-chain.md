@@ -324,7 +324,7 @@ operation: opaque id + kind + phase + started_at + cancellable
 last_error: stable code + safe summary + recovery actions
 ```
 
-`detected owner` 至少区分 `standalone`、`npm`、`homebrew`、`configured` 和 `unknown-external`。来源判断只使用 executable 路径、resolver provenance 和固定的安装元数据，不读取 Codex auth storage。外部 executable 继续参与版本和认证 probe；manager 不为它静默创建 standalone 副本。只有当前 executable 的 standalone 所有权可证明时，`update` 才直接进入 installer；其它来源返回 `CODEX_EXTERNAL_INSTALLATION`，由 UI 解释外部所有权或发起独立、显式的 standalone migration confirmation。迁移成功后 discovery 必须证明 ArcOrbit 实际选择的新 executable 且没有未解释的 PATH precedence 冲突。
+`detected owner` 至少区分 `standalone`、`npm`、`homebrew`、`configured`、`desktop-runtime` 和 `unknown-external`。`desktop-runtime` 表示 Codex Desktop 已准备且通过版本探测的 per-user runtime；它是可识别的兼容来源，不属于 ArcOrbit 管理的 standalone installation。来源判断只使用 executable 路径、resolver provenance 和固定的安装元数据，不读取 Codex auth storage。外部 executable 继续参与版本和认证 probe；manager 不为它静默创建 standalone 副本。只有当前 executable 的 standalone 所有权可证明时，`update` 才直接进入 installer；其它来源返回 `CODEX_EXTERNAL_INSTALLATION`，由 UI 解释外部所有权或发起独立、显式的 standalone migration confirmation。迁移成功后 discovery 必须证明 ArcOrbit 实际选择的新 executable 且没有未解释的 PATH precedence 冲突。
 
 平台 installer 规格来自 OpenAI 官方 Codex CLI 文档，并固定在 main-process allowlist：
 
