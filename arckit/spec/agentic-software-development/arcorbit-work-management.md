@@ -56,10 +56,10 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 - 编辑表单显示当前产品并允许切换目标产品。切换后立即清空旧产品的执行人、父待办和标签选择，只展示目标产品候选；正文、状态和优先级保持草稿值。
 - 产品归属变更使用受控替换：先在目标产品创建新 Task，服务器确认后再删除源 Task。新 Task 复制正文、状态和优先级，并使用用户为目标产品重新选择的执行人、父待办和标签；它获得新的 Task id、创建者和时间字段，不复制源 Task 的评论/附件、ArcOrbit Run/thread 或详情引用。
 - 编辑 Sheet 在提交产品归属变更前明确说明新 Task 身份和不会复制的内容，并要求用户确认。普通字段编辑仍更新原 Task，不触发替换。
-- 编辑表单和同屏 Inspector 都提供完整七状态选择。Automation 是否可见、是否正在消费或是否存在验收问题，不隐藏状态字段，也不成为 Work 状态 mutation 的客户端许可条件。
+- 新建与编辑表单提供完整七状态选择；编辑 Sheet 是异常状态或人工纠偏时的自由修改兜底。同屏 Inspector 不提供任意状态 Picker，而是按当前状态显示有限的下一步动作：待评审可确认为待处理或取消，待处理可取消，进行中可查看运行或标记阻塞，已完成可审查结果并在没有未解决验收问题时标记已验收，已阻塞可返回待处理或取消，已验收可查看验收结果。Automation 是否可见、是否正在消费或是否存在验收问题，不成为 Work 状态 mutation 的客户端许可条件。
 - 优先级使用“最高、高、中、低、无优先级”语义档位，对应 Workshop `0、1、2、3、null`。
 - 标签属于单个 Project；表单支持选择、创建、重命名、调整颜色和确认删除，并在标签操作后保持仍有效的任务草稿。
-- 创建、编辑和 Inspector 状态更新都通过受限 Platform Coordinator 交给 Work Sync。普通编辑使用一次 Workshop update mutation；产品归属变更由 Work Sync 串行编排目标创建和源删除，并分别接受 Workshop 权限与字段校验。确认可处理、打开运行、恢复、取消和验收等上下文动作仍可作为快捷入口，但不是允许修改状态的唯一入口。
+- 创建、编辑和 Inspector 引导动作中的状态更新都通过受限 Platform Coordinator 交给 Work Sync。普通编辑和 Inspector 状态动作使用 Workshop update mutation；产品归属变更由 Work Sync 串行编排目标创建和源删除，并分别接受 Workshop 权限与字段校验。Inspector 的上下文动作负责正常路径引导，编辑 Sheet 的完整七状态选择负责异常纠偏，两者都不依赖 Automation 授权。
 - `in_progress` 任务的修改只向 executor、project admin 或 owner 开放；其余状态遵守 Workshop 当前成员规则。Renderer 只做保守提示，服务端响应是最终事实。
 
 ## 同步、冲突与恢复
@@ -81,7 +81,7 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 - Automation 的领取、阻塞、完成、取消和验收动作提交给 Work Sync。Work Sync 负责服务器同步；Automation 只在观察到 Work 发布的目标本地状态后推进执行生命周期。
 - 用户在 Work 修改活动待办状态或产品归属时不需要 Automation 预先授权。源 Task 删除确认后，Automation 将其作为外部事实消费并安全停止对应 execution；目标产品的新 Task 没有继承的 Runtime、thread 或 Gate，只能按普通新任务重新进入候选。该变化不解释为人工 Gate 回复，也不影响其他健康 lane。
 - Work 可以展示 Automation 资格、当前 Run、恢复入口和 completed 任务的验收问题，但不创建第二套任务状态。
-- 提出验收问题保持来源任务 `completed`，问题进入 ArcOrbit 独立队列并复用来源 thread；上下文“验收通过”快捷动作可要求问题先解决，但 Work 的通用状态编辑仍由 Workshop 权限、版本冲突和服务端确认决定，Automation 负责消费结果并对账问题执行。
+- 提出验收问题保持来源任务 `completed`，问题进入 ArcOrbit 独立队列并复用来源 thread；Inspector 的“标记已验收”动作要求问题先解决，异常纠偏仍可从编辑 Sheet 提交完整七状态，并由 Workshop 权限、版本冲突和服务端确认决定，Automation 负责消费结果并对账问题执行。
 - Workshop 普通用户反馈仍由 Feedback 页面处理；Feedback 转成的 Task 在 Work 中按普通任务继续管理。
 
 ## 明确不作为核心阻塞项
@@ -97,10 +97,10 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 2. 筛选结果以单行、无操作按钮的可展开任务树呈现；每个任务标题把换行与连续空白折叠为空格，并在 64 个 Unicode grapheme clusters 内以 `…` 结束超长文本；用户从 Inspector 创建子任务、调整父任务且不能形成循环。
 3. 用户可在同屏详情中只阅读一次保留原始换行的完整内容和关键元数据，不在其上方重复展示同源标题；评论图片默认加载并可在独立窗口完成缩放、适配、实际大小、旋转、平移、重置和另存为，图片失败不阻塞其余时间线。
 4. 用户可完成评论/附件的新增及有权限的维护。
-5. 用户可在新建、编辑和 Inspector 详情三个入口选择或修改完整七状态，并可在编辑待办时把内容复制到当前产品集中另一个可写产品、再删除源 Task；切换产品会清空旧产品关联字段，Sheet 明确提示新 Task id 以及评论、附件、Run/thread 和详情引用不会迁移。Automation 可见性、活动 execution 和验收问题不隐藏或拒绝该输入，所有分步结果均来自 Workshop 确认。
+5. 用户可在新建和编辑 Sheet 选择完整七状态；Inspector 根据当前状态只提供明确、有限的下一步动作，异常状态可通过编辑 Sheet 自由纠偏。编辑待办可把内容复制到当前产品集中另一个可写产品、再删除源 Task；切换产品会清空旧产品关联字段，Sheet 明确提示新 Task id 以及评论、附件、Run/thread 和详情引用不会迁移。Automation 可见性、活动 execution 和验收问题不构成状态 mutation 的许可条件，所有分步结果均来自 Workshop 确认。
 6. Work 与 Automation 共享 Work Sync 发布的本地任务事实但不共享职责：Work 独占远端 mutation 与同步，Automation 只消费确认后的本地状态并对活动 execution、队列、Gate、验收问题和终态进行对账；筛选不授权执行，状态变化不释放人工 Gate。
 7. 权限变化、冲突、对象消失和网络失败均保留可恢复状态，不以本地乐观结果覆盖服务器事实。
-8. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖三入口七状态编辑、编辑待办跨产品受控替换、产品限定字段清空、目标创建失败不删除源 Task、源删除失败保留双 Task 并可恢复、新 Task 不继承评论附件和执行关联、Automation 对源删除安全停止、本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、标题边界、详情去重、任务树、评论与图片操作及跨产品隔离。
+8. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖新建/编辑完整七状态、Inspector 引导动作及其 Work-owned mutation 路由、编辑待办跨产品受控替换、产品限定字段清空、目标创建失败不删除源 Task、源删除失败保留双 Task 并可恢复、新 Task 不继承评论附件和执行关联、Automation 对源删除安全停止、本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、标题边界、详情去重、任务树、评论与图片操作及跨产品隔离。
 
 ## Source Basis
 

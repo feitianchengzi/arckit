@@ -21,5 +21,11 @@ test("a locally created pending-review task exposes controlled Work actions with
   assert.deepEqual(result.action_labels, ["确认可处理", "取消"]);
   assert.equal(result.manual_sync_used, false);
   assert.equal(result.create_call_count, 1);
+  assert.deepEqual(result.update_call, ["task.update", {
+    task_id: "W-LOCAL-1",
+    state: "pending",
+    expected_state: "pending_review"
+  }]);
+  assert.equal(result.automation_update_call_count, 0);
   assert.deepEqual(result.errors, []);
 });

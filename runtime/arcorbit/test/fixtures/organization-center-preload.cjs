@@ -310,7 +310,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   applySetupPlan: noOp, recoverSetupUpgrade: noOp, planSetupRemoval: noOp, removeManagedSetupPaths: noOp,
   submitAcceptanceFeedback: noOp, submitIntervention: noOp,
   resolveAutomationRecovery: async (input) => { calls.push(["resolveAutomationRecovery", input]); return {}; },
-  updateAutomationTaskState: noOp,
+  updateAutomationTaskState: async (input) => { calls.push(["updateAutomationTaskState", input]); return {}; },
   handoffAutomationToCli: noOp, reopenAutomationCli: noOp, resumeAutomationRuntime: noOp, stopAutomationRun: noOp,
   sendAuthVerification: noOp, loginWithCode: noOp, logoutAuth: noOp, updateSettings: noOp,
   setTestRecoveryItems: async (items) => { automation.recovery_items = items; },

@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-26T02:39:49.500Z",
-    "revision": 271
+    "updated_at": "2026-08-26T03:01:59.155Z",
+    "revision": 274
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "修复 Automation 人工介入工作台的三栏布局，使标题、消息列表、滚动区域和 Composer 始终只占中间列，不进入或延伸到右侧执行证据面板下方。",
+      "current_focus": "让 Work 编辑 Sheet 保留完整七状态自由修改作为异常兜底，同时让右侧 Inspector 恢复按当前状态提供明确下一步动作的正常流程引导；这些动作仍经 Work Sync 和 Workshop 确认，Automation 只消费结果。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,21 +147,16 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback 与 Work 能力和边界。Work 是 Workshop 待办同步与本地 Task Projection 的唯一客户端所有者，并允许在新建、编辑和 Inspector 中修改完整七状态。Work 编辑待办允许把内容复制到当前产品集内另一个可写产品，并在目标创建获 Workshop 确认后删除源 Task。目标 Task 获得新身份，仅复制正文、状态、优先级及目标产品内重新选择的关联字段，不继承评论、附件、Run、session、thread、Gate 或验收问题。Work 负责两阶段 mutation 和部分成功恢复；Automation 只消费服务器确认后的本地状态。Setup Readiness 同时提供 Codex CLI executable/version 检测、macOS/Linux/Windows 官方 standalone 安装与更新、独立登录状态检测、无默认值的显式认证方式选择、官方登录/logout 流程和操作后的自动重新验证；只有 Codex 与其它 readiness 条件全部通过才进入 ready。 Automation 支持通过 trusted ledger 的类型化 bind_closed_case 收据，把当前待办绑定到一个精确匹配的 closed/resolved Case；未绑定 terminal handoff 不进入完成或 closeout。",
-          "reason": "接受 Automation 已关闭 Case 可信复用、无绑定终态门禁和可恢复生命周期。",
+          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback 与 Work 能力和边界。Work 是 Workshop 待办同步与本地 Task Projection 的唯一客户端所有者；新建和编辑 Sheet 提供完整七状态，编辑 Sheet 是异常纠偏兜底，Inspector 按当前状态提供有限下一步动作。Work 编辑待办允许把内容复制到当前产品集内另一个可写产品，并在目标创建获 Workshop 确认后删除源 Task。目标 Task 获得新身份，仅复制正文、状态、优先级及目标产品内重新选择的关联字段，不继承评论、附件、Run、session、thread、Gate 或验收问题。Work 负责两阶段 mutation 和部分成功恢复；Automation 只消费服务器确认后的本地状态。Setup Readiness 同时提供 Codex CLI executable/version 检测、macOS/Linux/Windows 官方 standalone 安装与更新、独立登录状态检测、无默认值的显式认证方式选择、官方登录/logout 流程和操作后的自动重新验证；只有 Codex 与其它 readiness 条件全部通过才进入 ready。Automation 支持通过 trusted ledger 的类型化 bind_closed_case 收据，把当前待办绑定到一个精确匹配的 closed/resolved Case；未绑定 terminal handoff 不进入完成或 closeout。",
+          "reason": "接受编辑 Sheet 作为完整状态纠偏入口，并让 Inspector 通过有限下一步动作引导正常流转；Work/Automation 所有权边界不变。",
           "evidence": [
-            "runtime/arcorbit/test/runtime-case-control.test.mjs",
-            "runtime/arcorbit/test/state-driven-runner.test.mjs",
-            "runtime/arcorbit/test/automation-coordinator.test.mjs",
-            "Verification: 124 focused Runtime tests passed, 2026-08-26",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/runtime-recovery.html",
-            "arckit/tech/arcorbit/desktop-execution-solution.md"
+            "Current operator input, 2026-08-26",
+            "arckit/spec/agentic-software-development/arcorbit-work-management.md",
+            "runtime/arcorbit/desktop/renderer/renderer.js"
           ],
           "confidence": "high",
-          "resume_condition": "当官方 installer/auth CLI、外部安装迁移政策、支持平台或 ready 条件改变时重审。 当 closed Case 覆盖判定、绑定收据字段、terminal 门禁或恢复动作变化时重审。",
-          "revision": 32
+          "resume_condition": "当 Work 状态集合、编辑兜底、Inspector 下一步动作、Workshop 确认或 Automation 消费边界改变时重审。",
+          "revision": 33
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -193,17 +188,18 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 编辑 Sheet 显示当前产品集内可写产品；切换产品时清空旧产品限定的执行人、父待办和标签选择，并保留正文、状态及优先级草稿。确认界面明确说明将创建新 Task、删除旧 Task、生成新 id，且评论、附件和执行关系不会迁移。提交先创建目标 Task，确认成功后才删除源 Task；创建失败保留源 Task和草稿，删除失败则显示源、目标 Task 及可恢复状态，允许重试删除或明确保留两者。源删除确认后 Automation 安全停止旧 execution；目标 Task 不继承旧 execution。ArcOrbit 主窗口在所有平台只呈现一条应用标题栏并保留原生边缘缩放和空白区域拖动；macOS 使用原生 traffic lights，绿色按钮单击进入或退出系统全屏，悬停或系统支持的按住手势显示原生移动、缩放、排列和全屏面板；Windows/Linux 使用应用标题栏右侧可聚焦的最小化、最大化/还原和关闭按钮，双击标题区域切换最大化/还原并同步反映窗口状态。Setup Readiness 在 Codex 缺失、损坏、更新或未认证时原位提供恢复：安装/更新展示下载、执行、发现与复核进度；登录先选择无默认值的凭证类型，ChatGPT 再选择无默认值的浏览器或设备码流程，选择完成前继续按钮禁用。成功、取消、超时和失败都重新验证状态并提供明确反馈与重试；活动 Codex owner 阻止更新，外部安装显示所有权而不被静默替换。Case 绑定缺失恢复明确区分复用已有 Case、作为新事项继续、补充说明和标记阻塞，并保持原 task session 与 Agent thread。",
-          "reason": "用户明确要求窗口体验符合运行平台习惯，尤其要求 macOS 绿色按钮使用系统全屏和原生布局面板；生产实现和持久交互契约已兑现该要求。",
+          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 的新建和编辑 Sheet 保留完整七状态，编辑 Sheet 承担异常纠偏；右侧 Inspector 不提供任意状态 Picker，而按当前状态显示确认可处理、取消、查看运行、标记阻塞、审查结果、标记已验收或返回待处理等有限动作。Work 编辑 Sheet 显示当前产品集内可写产品；切换产品时清空旧产品限定的执行人、父待办和标签选择，并保留正文、状态及优先级草稿。确认界面明确说明将创建新 Task、删除旧 Task、生成新 id，且评论、附件和执行关系不会迁移。提交先创建目标 Task，确认成功后才删除源 Task；创建失败保留源 Task和草稿，删除失败则显示源、目标 Task 及可恢复状态，允许重试删除或明确保留两者。源删除确认后 Automation 安全停止旧 execution；目标 Task 不继承旧 execution。ArcOrbit 主窗口在所有平台只呈现一条应用标题栏并保留原生边缘缩放和空白区域拖动；macOS 使用原生 traffic lights，绿色按钮单击进入或退出系统全屏，悬停或系统支持的按住手势显示原生移动、缩放、排列和全屏面板；Windows/Linux 使用应用标题栏右侧可聚焦的最小化、最大化/还原和关闭按钮，双击标题区域切换最大化/还原并同步反映窗口状态。Setup Readiness 在 Codex 缺失、损坏、更新或未认证时原位提供恢复：安装/更新展示下载、执行、发现与复核进度；登录先选择无默认值的凭证类型，ChatGPT 再选择无默认值的浏览器或设备码流程，选择完成前继续按钮禁用。成功、取消、超时和失败都重新验证状态并提供明确反馈与重试；活动 Codex owner 阻止更新，外部安装显示所有权而不被静默替换。Case 绑定缺失恢复明确区分复用已有 Case、作为新事项继续、补充说明和标记阻塞，并保持原 task session 与 Agent thread。",
+          "reason": "接受正常路径由 Inspector 的有限动作引导、异常状态由编辑 Sheet 纠偏的交互分工。",
           "evidence": [
             "Current operator input, 2026-08-26",
-            "arckit/interaction/CONVENTIONS.md",
-            "runtime/arcorbit/desktop/renderer/window-controls.mjs",
-            "runtime/arcorbit/test/main-window-controls-electron.test.mjs"
+            "arckit/interaction/task-browser/interaction.md",
+            "arckit/interaction/task-browser/default.html",
+            "arckit/interaction/task-browser/daily-work.html",
+            "runtime/arcorbit/desktop/renderer/renderer.js"
           ],
           "confidence": "high",
-          "resume_condition": "当认证、Case 绑定恢复、跨产品替换，或任一平台的标题栏、原生按钮、拖动、缩放、全屏与窗口控制语义改变时重审。",
-          "revision": 49
+          "resume_condition": "当 Work Inspector 动作映射、编辑兜底、状态结果反馈、跨产品替换、认证、Case 绑定恢复或平台窗口语义改变时重审。",
+          "revision": 50
         },
         "gap_refs": []
       },

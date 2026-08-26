@@ -93,7 +93,7 @@ Work 页面所有状态、搜索、成员、标签、优先级、日期和分页
 
 WebSocket 事件、补取事件和本地成功 mutation 只向 Work Sync 提交项目或实体失效。Work Sync 在 300 毫秒窗口内合并同项目失效，读取必要的 Workshop 当前态并原子替换本地项目投影。事件 payload 只用于身份、诊断和失效范围，不直接写入 Task Projection Store。
 
-Work 新建、编辑和 Inspector 状态更新都调用同一个 Work Sync mutation 边界。新建默认 `pending_review` 但可显式提交任一七状态；同产品编辑使用 `updateTask`。产品改变时，Work Sync 先调用目标项目 `createTask`，复制正文、状态和优先级并提交目标产品限定字段；目标创建确认后才调用源项目 `deleteTask`。Automation 可见性、活动 execution 和验收问题不参与 mutation 许可。
+Work 新建、编辑和 Inspector 引导动作都调用同一个 Work Sync mutation 边界。新建默认 `pending_review` 但可显式提交任一七状态；编辑 Sheet 可提交完整七状态作为异常纠偏兜底，同产品编辑使用 `updateTask`。Inspector 从本地 Task 状态派生有限的下一步动作，状态动作通过 Platform Coordinator 的 `task.update` 调用同一 `updateTask`，只有查看 Runtime 或审查结果需要 Automation 投影上下文。产品改变时，Work Sync 先调用目标项目 `createTask`，复制正文、状态和优先级并提交目标产品限定字段；目标创建确认后才调用源项目 `deleteTask`。Automation 可见性、活动 execution 和验收问题不参与 mutation 许可。
 
 跨产品替换的两个远端请求不构成原子事务。目标创建失败时不删除源 Task；源删除失败时两个项目投影都保留服务器事实，并持久化 source/target task id 可恢复记录。用户重试源删除或确认保留两份后，Work Sync 分别对账两个项目；不得通过本地投影隐藏重复记录或自动删除目标 Task。
 
@@ -148,7 +148,7 @@ Work Sync snapshot 暴露聚合连接健康、聚合订阅模式、各项目连�
 - Work 测试证明七状态和多维筛选只读取本地 Task Projection Store，切换查询不调用 Workshop；WebSocket 失效、显式刷新和周期对账才触发受控远端读取。
 - Desktop main 与 Renderer 验证不存在一分钟同步计时器，Work-owned 十五分钟对账、生命周期同步和显式“立即同步”入口可用。
 - Automation 测试证明 Coordinator 没有 Workshop Task Source 或 Realtime Adapter 依赖，只响应 Work 发布的本地状态变化，并把状态动作提交给 Work；用户修改活动任务或验收问题来源状态时会安全停止对应 Runtime 并生成外部变化恢复。
-- Work 测试证明新建、编辑和 Inspector 提供完整七状态，编辑可从当前产品集选择目标产品并清空旧产品关联字段；Automation 可见任务不被隐藏或拒绝，同产品编辑保持单次 update mutation。
+- Work 测试证明新建和编辑提供完整七状态，Inspector 不提供任意状态 Picker 而按当前状态呈现有限动作；Inspector 状态动作使用 Platform Coordinator/Work Sync 的 `task.update`，Automation 上下文只控制查看运行或审查结果。编辑可从当前产品集选择目标产品并清空旧产品关联字段，同产品编辑保持单次 update mutation。
 - ArcOrbit 测试证明跨产品替换严格先创建后删除，创建失败不调用删除，删除失败持久化双 Task 恢复记录并可重试或接受保留两份；新 Task 不继承评论附件与执行关联，两个项目分别对账，源删除会安全停止活动 execution。
 - Automation 测试证明本地状态变化、重连、全量对账和启动恢复都不能解除目标 lane 的 `awaiting_human`，只有指向同一 `execution_id` 的显式 intervention 能继续任务，其他 workspace lane 可以继续运行。
 - 真实链路验收至少包含一次 Workshop mutation、WebSocket 通知、Work Sync 本地投影提交、Automation 候选变化和失败不推进本地状态，并保留可诊断事件证据。

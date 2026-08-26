@@ -1788,18 +1788,15 @@ function renderPlatformWorkInspector(task) {
     canManageTask: canManage,
     errors: state.platform.errors
   });
-  const automationActions = automationTask ? taskActions(automationTask).filter((action) => action.id === "review") : [];
+  const inspectorActions = workInspectorActions(task, automationTask, canManage);
   const replacement = (state.platform.task_replacements || []).find((item) => (
     String(item.source_task_id) === String(task.id) || String(item.target_task_id) === String(task.id)
   ));
   const replacementRecovery = replacement
     ? `<div class="feedback-link-recovery task-replacement-recovery"><span><strong>目标待办 ${escapeHtml(replacement.target_task_id)} 已创建，源待办 ${escapeHtml(replacement.source_task_id)} 尚未删除</strong><small>${escapeHtml(replacement.error || "可以安全重试删除源待办，或明确保留两条待办。重试不会再次创建目标待办。")}</small></span><span class="task-replacement-recovery-actions"><button class="primary-button" data-task-replacement-retry="${escapeHtml(replacement.id)}" type="button">重试删除源待办</button><button class="secondary-button" data-task-replacement-keep="${escapeHtml(replacement.id)}" type="button">保留两者</button></span></div>`
     : "";
-  const statusEditor = canManage
-    ? `<div class="work-task-status-editor"><label><span>状态</span><select data-work-inspector-state>${taskStateOptions().map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === task.state ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label><button class="secondary-button" data-work-inspector-state-save="${escapeHtml(task.id)}" type="button">更新状态</button><small>由 Work Sync 提交并等待服务器确认；Automation 只消费确认后的状态。</small></div>`
-    : "";
   const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${replacementRecovery}${renderInlineGuidance(eligibilityGuidance)}${statusEditor}${factRows([
+  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${replacementRecovery}${renderInlineGuidance(eligibilityGuidance)}${factRows([
     ["待办标识", task.id],
     ["所属产品", task.project_name],
     ["创建人", taskCreatorName(task)],
@@ -1812,7 +1809,7 @@ function renderPlatformWorkInspector(task) {
     ["完成时间", task.completion_at ? formatDateTime(task.completion_at) : "未完成"],
     ["本地工作区", automationTask?.local_project_path || workspace?.local_path || "未绑定"],
     ["自动执行资格", automationTask ? (automationTask.eligible ? `队列第 ${automationTask.queue_position} 项` : automationTask.eligibility_reason || "不适用于当前状态") : "不在当前用户 Automation 范围"]
-  ])}<div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}${automationActions.length ? `<div class="task-actions platform-work-automation">${automationActions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-work-task-action="${action.id}" type="button">${action.label}</button>`).join("")}</div>` : ""}${acceptanceFeedback}`;
+  ])}${inspectorActions.length ? `<div class="task-actions platform-work-state-actions">${inspectorActions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-work-task-action="${action.id}" type="button">${action.label}</button>`).join("")}</div>` : ""}<div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}${acceptanceFeedback}`;
   if (!updatePlatformWorkInspector(String(task.id), inspectorHtml)) {
     if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
     else loadMissingTaskAttachmentPreviews(task);
@@ -1820,7 +1817,6 @@ function renderPlatformWorkInspector(task) {
   }
   els.platformWorkInspector.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
   els.platformWorkInspector.querySelector("[data-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(eligibilityGuidance, { task, workspace })));
-  els.platformWorkInspector.querySelector("[data-work-inspector-state-save]")?.addEventListener("click", () => runAction(() => updateTaskStateFromInspector(task)));
   els.platformWorkInspector.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
   els.platformWorkInspector.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
   els.platformWorkInspector.querySelector("[data-work-inspector-subtask]")?.addEventListener("click", () => runAction(() => createSubtask(task.id)));
@@ -1830,7 +1826,7 @@ function renderPlatformWorkInspector(task) {
   els.platformWorkInspector.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
   els.platformWorkInspector.querySelector("[data-task-replacement-retry]")?.addEventListener("click", (event) => runAction(() => retryTaskProjectReplacement(event.currentTarget.dataset.taskReplacementRetry)));
   els.platformWorkInspector.querySelector("[data-task-replacement-keep]")?.addEventListener("click", (event) => runAction(() => keepTaskProjectReplacement(event.currentTarget.dataset.taskReplacementKeep)));
-  els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeTaskAction(automationTask, button.dataset.workTaskAction))));
+  els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeWorkTaskAction(task, automationTask, button.dataset.workTaskAction))));
   els.platformWorkInspector.querySelector("[data-task-comment-submit]")?.addEventListener("click", () => runAction(() => createTaskComment(task.id)));
   els.platformWorkInspector.querySelector("[data-task-comment-add-link]")?.addEventListener("click", () => runAction(() => addTaskCommentLink(task.id)));
   els.platformWorkInspector.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
@@ -2625,19 +2621,6 @@ async function createSubtask(taskId) {
   }));
   if (!values) return;
   await executeManagedAction("task.subtask.create", { ...values, project_id: parent.project_id, father_id: parent.id }, "子待办已创建");
-}
-
-async function updateTaskStateFromInspector(task) {
-  const nextState = els.platformWorkInspector.querySelector("[data-work-inspector-state]")?.value || "";
-  if (!nextState || nextState === task.state) {
-    showToast("待办状态没有变化。");
-    return;
-  }
-  await executeManagedAction("task.update", {
-    task_id: task.id,
-    state: nextState,
-    expected_state: task.state
-  }, `待办状态已更新为${STATE_LABELS[nextState] || nextState}`);
 }
 
 async function reparentTask(taskId) {
@@ -3502,18 +3485,26 @@ async function executeTaskAction(task, action) {
     const completion = state.snapshot.recent_completions.find((item) => String(item.task_id) === String(task.id));
     return openWorkbench("review", completion?.run_id || "", { task });
   }
-  const transitions = {
-    confirm: ["pending", "pending_review"],
-    accept: ["accepted", "completed"],
-    cancel: ["cancelled", task.state],
-    block: ["blocked", "in_progress"],
-    resume: ["pending", "blocked"]
-  };
-  const transition = transitions[action];
+  const transition = taskActionTransition(task, action);
   if (!transition) return;
   if (["cancel", "block", "resume"].includes(action) && !window.confirm(`确认将任务 ${task.id} 更新为${STATE_LABELS[transition[0]]}？`)) return;
   await api.updateAutomationTaskState({ taskId: task.id, state: transition[0], expectedState: transition[1] });
   await refreshSnapshot();
+}
+
+async function executeWorkTaskAction(task, automationTask, action) {
+  if (action === "review") {
+    if (!automationTask) return;
+    return executeTaskAction(automationTask, action);
+  }
+  const transition = taskActionTransition(task, action);
+  if (!transition) return;
+  if (["cancel", "block", "resume"].includes(action) && !window.confirm(`确认将任务 ${task.id} 更新为${STATE_LABELS[transition[0]]}？`)) return;
+  await executeManagedAction("task.update", {
+    task_id: task.id,
+    state: transition[0],
+    expected_state: transition[1]
+  }, `待办状态已更新为${STATE_LABELS[transition[0]] || transition[0]}`);
 }
 
 async function openWorkbench(mode = "review", runId = "", context = {}) {
@@ -4188,6 +4179,21 @@ function taskActions(task) {
   if (task.state === "accepted") return [{ id: "review", label: "查看验收结果", primary: true }];
   if (task.state === "blocked") return [{ id: "resume", label: "返回待处理", primary: true }, { id: "cancel", label: "取消" }];
   return [];
+}
+
+function workInspectorActions(task, automationTask, canManage) {
+  return taskActions({ ...task, acceptance_feedback_items: automationTask?.acceptance_feedback_items || [] })
+    .filter((action) => action.id === "review" ? Boolean(automationTask) : canManage);
+}
+
+function taskActionTransition(task, action) {
+  return {
+    confirm: ["pending", "pending_review"],
+    accept: ["accepted", "completed"],
+    cancel: ["cancelled", task.state],
+    block: ["blocked", "in_progress"],
+    resume: ["pending", "blocked"]
+  }[action] || null;
 }
 
 function runtimeStages(phase, run) {

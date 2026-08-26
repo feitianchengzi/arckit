@@ -148,3 +148,4 @@
 | [CASE-20260826-001](closed/CASE-20260826-001-arcorbit.md) | closed | 实现 ArcOrbit 新用户推进引导 | 2026-08-26T02:00:36.343Z |
 | [CASE-20260826-002](closed/CASE-20260826-002-arcorbit.md) | closed | 适配 ArcOrbit 跨平台窗口控制体验 | 2026-08-26T02:26:42.244Z |
 | [CASE-20260826-003](closed/CASE-20260826-003-automation.md) | closed | 修复 Automation 人工介入消息列越界 | 2026-08-26T02:39:49.500Z |
+| [CASE-20260826-004](closed/CASE-20260826-004-work-inspector.md) | closed | 收敛 Work Inspector 状态流转交互 | 2026-08-26T03:01:59.155Z |

@@ -39,14 +39,19 @@ app.whenReady().then(async () => {
       document.querySelector('#platformActionForm').requestSubmit(); await wait(160);
       click('[data-work-state="pending_review"]'); await wait(120);
       click('[data-platform-task-select="W-LOCAL-1"]'); await wait();
-      const labels = [...document.querySelectorAll('#platformWorkInspector [data-work-task-action]')].map((item) => item.textContent);
+      const actionButtons = [...document.querySelectorAll('#platformWorkInspector [data-work-task-action]')];
+      const labels = actionButtons.map((item) => item.textContent);
+      actionButtons.find((item) => item.textContent === '确认可处理').click(); await wait(160);
       const calls = await window.arckitDesktop.getTestCalls();
+      const updateCall = calls.find(([command, input]) => command === 'task.update' && input.task_id === 'W-LOCAL-1');
       return {
         task_visible: Boolean(document.querySelector('[data-platform-task-select="W-LOCAL-1"]')),
         task_selected: document.querySelector('#platformWorkInspector h2')?.textContent === '待办 W-LOCAL-1',
         action_labels: labels,
         manual_sync_used: calls.some(([command]) => command === 'syncAutomation'),
-        create_call_count: calls.filter(([command]) => command === 'task.create').length
+        create_call_count: calls.filter(([command]) => command === 'task.create').length,
+        update_call: updateCall || null,
+        automation_update_call_count: calls.filter(([command]) => command === 'updateAutomationTaskState').length
       };
     })()`);
     process.stdout.write(`${JSON.stringify({ ...result, errors })}\n`);

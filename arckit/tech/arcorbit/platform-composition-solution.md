@@ -230,7 +230,7 @@ Preload 新增以下产品动作：
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
-Automation IPC 保持执行控制语义，但任务状态命令在 main process 转交 Work Sync。Work 新建、编辑和 Inspector 的状态输入，以及 Automation 发起的生命周期动作，共用 Work Sync 的服务端写入和本地投影提交边界；两者都受本地预期状态、Workshop 权限、版本冲突和确认结果约束。Automation 只消费已发布状态，不是 Work mutation 的授权源，也不能通过活动 execution 或验收问题隐藏、拒绝 Work 状态输入。
+Automation IPC 保持执行控制语义，但任务状态命令在 main process 转交 Work Sync。Work 新建/编辑的完整状态输入、Inspector 按当前状态派生的有限下一步动作，以及 Automation 发起的生命周期动作，共用 Work Sync 的服务端写入和本地投影提交边界；它们都受本地预期状态、Workshop 权限、版本冲突和确认结果约束。Inspector 的查看 Runtime/审查结果动作可以读取 Automation 投影，但状态 mutation 不经 Automation 授权；活动 execution 或验收问题不能隐藏、拒绝编辑 Sheet 的状态兜底。
 
 ## 权限
 
