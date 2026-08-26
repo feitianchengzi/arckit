@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-26T02:00:36.343Z",
-    "revision": 266
+    "updated_at": "2026-08-26T02:26:42.244Z",
+    "revision": 269
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "按照正式交互稿，将 Today 建设为登录后的个人推进首页，并在 Organization、Work、Automation、Chat 中提供基于当前事实的就地解释、直接操作和操作后的 fresh-read。",
+      "current_focus": "让 ArcOrbit 的应用标题栏按运行平台采用符合系统习惯的窗口控制：macOS 使用原生 traffic lights，绿色按钮单击进入全屏并由系统在悬停或支持的按住手势下提供布局面板；Windows 与 Linux 保持应用标题栏，并提供符合对应平台习惯的最小化、最大化/还原和关闭控制。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -193,21 +193,17 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 编辑 Sheet 显示当前产品集内可写产品；切换产品时清空旧产品限定的执行人、父待办和标签选择，并保留正文、状态及优先级草稿。确认界面明确说明将创建新 Task、删除旧 Task、生成新 id，且评论、附件和执行关系不会迁移。提交先创建目标 Task，确认成功后才删除源 Task；创建失败保留源 Task和草稿，删除失败则显示源、目标 Task 及可恢复状态，允许重试删除或明确保留两者。源删除确认后 Automation 安全停止旧 execution；目标 Task 不继承旧 execution。ArcOrbit 主窗口只使用应用自定义标题栏；标题区域支持拖动和双击最大化/还原，原生边缘缩放继续可用，应用内最小化、最大化/还原和关闭按钮必须真实控制当前窗口、保持可聚焦，并同步反映当前窗口状态。Setup Readiness 在 Codex 缺失、损坏、更新或未认证时原位提供恢复：安装/更新展示下载、执行、发现与复核进度；登录先选择无默认值的凭证类型，ChatGPT 再选择无默认值的浏览器或设备码流程，选择完成前继续按钮禁用。成功、取消、超时和失败都重新验证状态并提供明确反馈与重试；活动 Codex owner 阻止更新，外部安装显示所有权而不被静默替换。 Case 绑定缺失恢复明确区分复用已有 Case、作为新事项继续、补充说明和标记阻塞，并保持原 task session 与 Agent thread。",
-          "reason": "接受 Automation 已关闭 Case 可信复用、无绑定终态门禁和可恢复生命周期。",
+          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 编辑 Sheet 显示当前产品集内可写产品；切换产品时清空旧产品限定的执行人、父待办和标签选择，并保留正文、状态及优先级草稿。确认界面明确说明将创建新 Task、删除旧 Task、生成新 id，且评论、附件和执行关系不会迁移。提交先创建目标 Task，确认成功后才删除源 Task；创建失败保留源 Task和草稿，删除失败则显示源、目标 Task 及可恢复状态，允许重试删除或明确保留两者。源删除确认后 Automation 安全停止旧 execution；目标 Task 不继承旧 execution。ArcOrbit 主窗口在所有平台只呈现一条应用标题栏并保留原生边缘缩放和空白区域拖动；macOS 使用原生 traffic lights，绿色按钮单击进入或退出系统全屏，悬停或系统支持的按住手势显示原生移动、缩放、排列和全屏面板；Windows/Linux 使用应用标题栏右侧可聚焦的最小化、最大化/还原和关闭按钮，双击标题区域切换最大化/还原并同步反映窗口状态。Setup Readiness 在 Codex 缺失、损坏、更新或未认证时原位提供恢复：安装/更新展示下载、执行、发现与复核进度；登录先选择无默认值的凭证类型，ChatGPT 再选择无默认值的浏览器或设备码流程，选择完成前继续按钮禁用。成功、取消、超时和失败都重新验证状态并提供明确反馈与重试；活动 Codex owner 阻止更新，外部安装显示所有权而不被静默替换。Case 绑定缺失恢复明确区分复用已有 Case、作为新事项继续、补充说明和标记阻塞，并保持原 task session 与 Agent thread。",
+          "reason": "用户明确要求窗口体验符合运行平台习惯，尤其要求 macOS 绿色按钮使用系统全屏和原生布局面板；生产实现和持久交互契约已兑现该要求。",
           "evidence": [
-            "runtime/arcorbit/test/runtime-case-control.test.mjs",
-            "runtime/arcorbit/test/state-driven-runner.test.mjs",
-            "runtime/arcorbit/test/automation-coordinator.test.mjs",
-            "Verification: 124 focused Runtime tests passed, 2026-08-26",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/runtime-recovery.html",
-            "arckit/tech/arcorbit/desktop-execution-solution.md"
+            "Current operator input, 2026-08-26",
+            "arckit/interaction/CONVENTIONS.md",
+            "runtime/arcorbit/desktop/renderer/window-controls.mjs",
+            "runtime/arcorbit/test/main-window-controls-electron.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当认证层级、可见方式、安装进度、取消/超时或外部安装恢复行为改变时重审。 当 closed Case 覆盖判定、绑定收据字段、terminal 门禁或恢复动作变化时重审。",
-          "revision": 48
+          "resume_condition": "当认证、Case 绑定恢复、跨产品替换，或任一平台的标题栏、原生按钮、拖动、缩放、全屏与窗口控制语义改变时重审。",
+          "revision": 49
         },
         "gap_refs": []
       },
@@ -218,19 +214,18 @@
         "evidence_expectation": "Durable visual evidence sufficient to recover the project visual language.",
         "decision": {
           "status": "settled",
-          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口使用单一 40px 应用自绘深色标题栏，提供 32px 命中区的红、黄、绿窗口控件及清晰的 hover、active、focus 和最大化状态反馈，不再叠加系统标题栏。",
-          "reason": "持久视觉 brief、tokens、AppShell catalog、preview 与生产样式已经共同定义并实现单一应用标题栏。",
+          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口使用单一 40px 深色应用标题栏：macOS 左侧保留系统原生 traffic lights 并为其预留稳定空间；Windows/Linux 右侧使用 46×40px 的最小化、最大化/还原和关闭轮廓矢量控件，提供清晰的 hover、active、focus、关闭破坏反馈和最大化/还原状态，不叠加可见系统标题栏。",
+          "reason": "平台原生性是窗口 chrome 视觉语言的一部分；持久视觉资产和生产样式已共同落实 macOS 与 Windows/Linux 的差异。",
           "evidence": [
             "arckit/visual/_library/brief.md",
             "arckit/visual/_library/design-tokens.yaml",
             "arckit/visual/_library/component-catalog.yaml",
             "arckit/visual/_library/style-preview.html",
-            "runtime/arcorbit/desktop/renderer/styles.css",
-            "runtime/arcorbit/test/main-window-controls-electron.test.mjs"
+            "runtime/arcorbit/desktop/renderer/styles.css"
           ],
           "confidence": "high",
-          "resume_condition": "当平台 chrome 策略、标题栏高度、窗口控件布局或状态反馈改变时重审。",
-          "revision": 3
+          "resume_condition": "当平台 chrome 策略、标题栏高度、traffic lights 位置、Windows/Linux 控件布局或状态反馈改变时重审。",
+          "revision": 4
         },
         "gap_refs": []
       },
@@ -400,15 +395,16 @@
         "evidence_expectation": "Durable validation evidence proportionate to the identified risks.",
         "decision": {
           "status": "settled",
-          "statement": "既有协议、Runtime、realtime、Work、Chat、Automation 和安全验证义务保持不变。Codex Setup 还必须以 resolver/manager 单元测试、typed main/preload/renderer 测试和 Electron 集成证据证明：macOS/Linux/Windows 固定官方 standalone installer；安装后无需重启即可 discovery/version 复核；standalone update 成功复核且活动 Codex owner 阻断；外部 npm/Homebrew/configured installation 不被静默替换；安装与认证状态、取消、超时、失败和重试正确；所有凭证/流程默认未选且未完成选择时不能继续；每个可见方式只物化固定 argv；API Key/Access Token 仅进入 stdin且不泄漏到 argv/environment/log/error/store/shared Renderer state；ArcOrbit 对 Codex credential file 零访问；login/logout 只由 `codex login status` 退出码复核；Codex/Workshop auth 独立；Setup、Chat 与 Automation 原有流程保持通过。",
-          "reason": "验证矩阵必须直接证明跨平台恢复能力和高风险凭证/进程边界，而不是仅检查文档或 happy path。",
+          "statement": "既有协议、Runtime、realtime、Work、Chat、Automation 和安全验证义务保持不变。Codex Setup 还必须以 resolver/manager 单元测试、typed main/preload/renderer 测试和 Electron 集成证据证明：macOS/Linux/Windows 固定官方 standalone installer；安装后无需重启即可 discovery/version 复核；standalone update 成功复核且活动 Codex owner 阻断；外部 npm/Homebrew/configured installation 不被静默替换；安装与认证状态、取消、超时、失败和重试正确；所有凭证/流程默认未选且未完成选择时不能继续；每个可见方式只物化固定 argv；API Key/Access Token 仅进入 stdin且不泄漏到 argv/environment/log/error/store/shared Renderer state；ArcOrbit 对 Codex credential file 零访问；login/logout 只由 `codex login status` 退出码复核；Codex/Workshop auth 独立；Setup、Chat 与 Automation 原有流程保持通过。跨平台窗口 chrome 还必须以 main/preload/Renderer 单元测试证明平台配置、状态同步和错误边界，以当前平台真实 Electron 证明原生窗口行为，并为其他平台保留显式、可重复的环境门禁入口。",
+          "reason": "平台窗口语义涉及原生 OS 行为与安全边界，必须同时具备确定性分支测试和可运行环境证据。",
           "evidence": [
-            "arckit/spec/arcorbit-distribution.md",
-            "arckit/tech/arcorbit/installer-supply-chain.md"
+            "runtime/arcorbit/test/main-window-controls.test.mjs",
+            "runtime/arcorbit/test/main-window-controls-electron.test.mjs",
+            "Verification: npm run check — 498 tests, 486 passed, 12 environment-gated skips, 0 failed, 2026-08-26"
           ],
           "confidence": "high",
-          "resume_condition": "当支持平台、installer/auth CLI、secret transport、状态模型或 Runtime consumers 改变时重审。",
-          "revision": 12
+          "resume_condition": "当支持平台、installer/auth CLI、secret transport、Runtime consumers，或窗口 chrome、全屏、布局面板、IPC 与真实环境门禁变化时重审。",
+          "revision": 13
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation",

@@ -3,7 +3,7 @@
 ✅ 已采用 | 🔬 调研中 | 📋 调研完成 | ❌ 已废弃 | ⚪ 待定
 
 - arcorbit/ ArcOrbit：Runtime Kernel、workspace lane 并行与项目内串行、持久单 thread、交互式 CLI 接力、Gate 与自动账本回写。✅
-  - solution.md ArcOrbit 技术方案：定义 frameless 主窗口、受限窗口 IPC、认证、Work-owned Task Source、workspace 仲裁与 trusted ledger。✅ (455行)
+  - solution.md ArcOrbit 技术方案：定义 macOS 原生 traffic lights、Windows/Linux frameless chrome、受限窗口 IPC、认证、Work-owned Task Source、workspace 仲裁与 trusted ledger。✅ (455行)
   - installer-supply-chain.md ArcOrbit 安装包供应链：定义 Codex setup manager、官方 installer/认证子进程、typed IPC、项目级 provider targets、bundle 恢复、utility Runtime host 和回滚。✅ (428行)
   - state-condition-ledger-solution.md Software Definition Ledger：定义 Project/Case 边界、stable candidate identity、fresh-fact invariant assessment、Transition v8 与 Closeout v2。✅ (263行)
   - desktop-execution-solution.md Desktop Codex 会话与执行方案：定义 workspace lane 并行、项目内单执行租约、共享 Conversation Surface、Run 投影与断电恢复。✅ (325行)

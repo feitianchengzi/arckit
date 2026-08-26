@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-26T02:00:36.343Z",
+  "updated_at": "2026-08-26T02:26:42.244Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -2590,6 +2590,42 @@
         "arckit/cases/active/CASE-20260825-011-automation-case.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260825-011-automation-case.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "Current operator input, 2026-08-26",
+        "arckit/interaction/CONVENTIONS.md",
+        "runtime/arcorbit/test/main-window-controls-electron.test.mjs",
+        "arckit/cases/active/CASE-20260826-002-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-002-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "visual_language",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/visual/_library/brief.md",
+        "arckit/visual/_library/component-catalog.yaml",
+        "runtime/arcorbit/desktop/renderer/styles.css",
+        "arckit/cases/active/CASE-20260826-002-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-002-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "quality_and_validation",
+      "outcome": "settled",
+      "evidence": [
+        "runtime/arcorbit/test/main-window-controls.test.mjs",
+        "runtime/arcorbit/test/main-window-controls-electron.test.mjs",
+        "Verification: real macOS Electron and full regression passed, 2026-08-26",
+        "arckit/cases/active/CASE-20260826-002-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260826-002-arcorbit.md"
     }
   ],
   "acceptance": {
@@ -2706,15 +2742,16 @@
     "arckit/cases/closed/CASE-20260825-012-automation-codex-output-schema-oneof.md",
     "arckit/cases/closed/CASE-20260825-013-arcorbit-case.md",
     "arckit/cases/closed/CASE-20260825-010-arcorbit-codex-cli.md",
-    "arckit/cases/closed/CASE-20260826-001-arcorbit.md"
+    "arckit/cases/closed/CASE-20260826-001-arcorbit.md",
+    "arckit/cases/closed/CASE-20260826-002-arcorbit.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260826-001-arcorbit.md",
+    "case_ref": "arckit/cases/closed/CASE-20260826-002-arcorbit.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260826-001-arcorbit.md"
+      "arckit/cases/closed/CASE-20260826-002-arcorbit.md"
     ],
-    "updated_at": "2026-08-26T02:00:36.343Z"
+    "updated_at": "2026-08-26T02:26:42.244Z"
   }
 }

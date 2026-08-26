@@ -24,7 +24,7 @@ import { checkCoordinatedDesktopSetupReadiness, combineDesktopSetupReadiness } f
 import { registerCodexSetupIpc } from "../src/desktop/codex-setup-ipc.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
 import { createWorkSyncCoordinator } from "../src/work-sync-coordinator.mjs";
-import { mainWindowState, observeMainWindowState, performMainWindowAction } from "../src/main-window-controls.mjs";
+import { mainWindowChromeOptions, mainWindowState, observeMainWindowState, performMainWindowAction } from "../src/main-window-controls.mjs";
 import feedbackV2Ipc from "./feedback-v2-ipc.cjs";
 
 const { settleFeedbackV2Ipc } = feedbackV2Ipc;
@@ -288,7 +288,7 @@ app.on("activate", () => {
 async function createWindow({ show = true } = {}) {
   mainWindow = new BrowserWindow({
     show,
-    frame: false,
+    ...mainWindowChromeOptions(process.platform),
     width: 1280,
     height: 820,
     minWidth: 1040,

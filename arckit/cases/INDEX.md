@@ -146,3 +146,4 @@
 | [CASE-20260825-012](closed/CASE-20260825-012-automation-codex-output-schema-oneof.md) | closed | 修复 Automation Codex output schema oneOf 回归 | 2026-08-25T16:44:16.483Z |
 | [CASE-20260825-013](closed/CASE-20260825-013-arcorbit-case.md) | closed | 修复 ArcOrbit Case 创建身份物化边界 | 2026-08-25T18:11:13.392Z |
 | [CASE-20260826-001](closed/CASE-20260826-001-arcorbit.md) | closed | 实现 ArcOrbit 新用户推进引导 | 2026-08-26T02:00:36.343Z |
+| [CASE-20260826-002](closed/CASE-20260826-002-arcorbit.md) | closed | 适配 ArcOrbit 跨平台窗口控制体验 | 2026-08-26T02:26:42.244Z |

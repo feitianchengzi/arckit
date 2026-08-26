@@ -29,6 +29,7 @@ function httpStatus(value) {
 const invokeFeedbackV2 = (channel, input) => ipcRenderer.invoke(channel, input).then(unwrapFeedbackV2Ipc);
 
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  windowControlMode: process.platform === "darwin" ? "native-macos" : "custom",
   getWindowState: () => ipcRenderer.invoke("arckit:window-state"),
   minimizeWindow: () => ipcRenderer.invoke("arckit:window-minimize"),
   toggleMaximizeWindow: () => ipcRenderer.invoke("arckit:window-toggle-maximize"),

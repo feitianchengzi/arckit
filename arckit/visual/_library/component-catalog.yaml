@@ -9,13 +9,14 @@ components:
     variants:
       command_center: { sidebar: "{colors.ink.900}", workspace: "{colors.ink.75}" }
       workbench: { sidebar: "{colors.ink.900}", workspace: "{colors.paper}" }
-      window_chrome: { surface: "{colors.ink.950}", controls: [close, minimize, maximize, restore], drag_region: remaining_titlebar }
+      window_chrome_macos: { surface: "{colors.ink.950}", controls: native_traffic_lights, green_action: system_full_screen, hover_panel: system_window_layout, drag_region: remaining_titlebar }
+      window_chrome_windows_linux: { surface: "{colors.ink.950}", controls: [minimize, maximize, restore, close], placement: right, drag_region: remaining_titlebar }
     sizes:
       desktop: { sidebar: "{layout.sidebar_width}", titlebar: "{layout.titlebar_height}", commandbar: "{layout.commandbar_height}" }
-    states: [loading, ready, degraded, maximized]
+    states: [loading, ready, degraded, maximized, full_screen]
     token_refs: [colors.ink.900, colors.ink.75, layout.sidebar_width, layout.titlebar_height, layout.commandbar_height]
     accessibility:
-      requirement: 唯一应用标题栏的关闭、最小化和最大化/还原控件各有 32px 操作容器及与当前动作一致的名称和提示；控件不参与拖动；最大化状态变化同步投影为还原动作
+      requirement: macOS 保留系统原生 traffic lights 和系统布局面板；Windows/Linux 右侧窗口控件各有 46×40px 操作容器及与当前动作一致的名称和提示；控件不参与拖动，最大化状态变化同步投影为还原动作
 
   NavigationRow:
     role: 表达项目范围、任务状态和本地 Runtime 入口

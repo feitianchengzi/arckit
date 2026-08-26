@@ -1,3 +1,17 @@
+export function mainWindowControlMode(platform = process.platform) {
+  return platform === "darwin" ? "native-macos" : "custom";
+}
+
+export function mainWindowChromeOptions(platform = process.platform) {
+  if (platform === "darwin") {
+    return {
+      titleBarStyle: "hidden",
+      trafficLightPosition: { x: 14, y: 13 }
+    };
+  }
+  return { frame: false };
+}
+
 export function mainWindowState(window) {
   return {
     maximized: Boolean(window?.isMaximized?.() || window?.isFullScreen?.()),

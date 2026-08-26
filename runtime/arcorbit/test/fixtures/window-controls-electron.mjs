@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mainWindowState, observeMainWindowState, performMainWindowAction } from "../../src/main-window-controls.mjs";
+import { mainWindowChromeOptions, mainWindowControlMode, mainWindowState, observeMainWindowState, performMainWindowAction } from "../../src/main-window-controls.mjs";
 
 const fixtureDir = dirname(fileURLToPath(import.meta.url));
 const userData = join(tmpdir(), `arcorbit-window-controls-${process.pid}`);
@@ -14,7 +14,7 @@ app.on("window-all-closed", () => {});
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     show: true,
-    frame: false,
+    ...mainWindowChromeOptions(process.platform),
     width: 720,
     height: 480,
     minWidth: 500,
@@ -49,25 +49,37 @@ app.whenReady().then(async () => {
     await waitFor(() => window.webContents.executeJavaScript("document.documentElement.dataset.ready").catch(() => ""), "renderer readiness");
     const bounds = window.getBounds();
     const contentBounds = window.getContentBounds();
-    await window.webContents.executeJavaScript("document.getElementById('windowMinimizeButton').click()");
-    await waitFor(() => window.isMinimized(), "minimize");
-    window.restore();
-    await waitFor(() => !window.isMinimized(), "restore from minimize");
-    await window.webContents.executeJavaScript("document.getElementById('windowMaximizeButton').click()");
-    await waitFor(() => window.isMaximized(), "maximize");
-    const maximizedLabel = await window.webContents.executeJavaScript("document.getElementById('windowMaximizeButton').getAttribute('aria-label')");
-    await window.webContents.executeJavaScript("document.getElementById('windowMaximizeButton').click()");
-    await waitFor(() => !window.isMaximized(), "restore from maximize");
-    const restoredLabel = await window.webContents.executeJavaScript("document.getElementById('windowMaximizeButton').getAttribute('aria-label')");
     const result = {
+      platform: process.platform,
+      control_mode: mainWindowControlMode(process.platform),
       frame_content_delta: { width: bounds.width - contentBounds.width, height: bounds.height - contentBounds.height },
       resizable: window.isResizable(),
-      movable: window.isMovable(),
-      maximized_label: maximizedLabel,
-      restored_label: restoredLabel
+      movable: window.isMovable()
     };
-    await window.webContents.executeJavaScript("document.getElementById('windowCloseButton').click()");
-    await waitFor(() => window.isDestroyed(), "close");
+    if (process.platform === "darwin") {
+      result.window_button_position = window.getWindowButtonPosition();
+      result.custom_controls_hidden = await window.webContents.executeJavaScript("document.getElementById('windowCloseButton').getAttribute('aria-hidden') === 'true' && document.getElementById('windowCloseButton').tabIndex === -1");
+      window.setFullScreen(true);
+      await waitFor(() => window.isFullScreen(), "native full screen");
+      result.entered_full_screen = mainWindowState(window).maximized;
+      window.setFullScreen(false);
+      await waitFor(() => !window.isFullScreen(), "leave native full screen");
+      result.left_full_screen = !mainWindowState(window).maximized;
+      window.destroy();
+    } else {
+      await window.webContents.executeJavaScript("document.getElementById('windowMinimizeButton').click()");
+      await waitFor(() => window.isMinimized(), "minimize");
+      window.restore();
+      await waitFor(() => !window.isMinimized(), "restore from minimize");
+      await window.webContents.executeJavaScript("document.getElementById('windowMaximizeButton').click()");
+      await waitFor(() => window.isMaximized(), "maximize");
+      result.maximized_label = await window.webContents.executeJavaScript("document.getElementById('windowMaximizeButton').getAttribute('aria-label')");
+      await window.webContents.executeJavaScript("document.getElementById('windowMaximizeButton').click()");
+      await waitFor(() => !window.isMaximized(), "restore from maximize");
+      result.restored_label = await window.webContents.executeJavaScript("document.getElementById('windowMaximizeButton').getAttribute('aria-label')");
+      await window.webContents.executeJavaScript("document.getElementById('windowCloseButton').click()");
+      await waitFor(() => window.isDestroyed(), "close");
+    }
     await new Promise((resolve, reject) => {
       process.stdout.write(`${JSON.stringify(result)}\n`, (error) => error ? reject(error) : resolve());
     });

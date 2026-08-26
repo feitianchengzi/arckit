@@ -24,6 +24,10 @@
       <symbol id="icon-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
       <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 4 3.5 19h17L12 4Z"></path><path d="M12 9v4M12 16h.01"></path></symbol>
       <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"></path></symbol>
+      <symbol id="icon-window-minimize" viewBox="0 0 16 16"><path d="M3 8.5h10"></path></symbol>
+      <symbol id="icon-window-maximize" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx=".5"></rect></symbol>
+      <symbol id="icon-window-restore" viewBox="0 0 16 16"><path d="M5.5 3.5h7v7M3.5 5.5h7v7h-7z"></path></symbol>
+      <symbol id="icon-window-close" viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"></path></symbol>
     </svg>
     <div id="authBootScreen" class="auth-boot-screen" role="status" aria-live="polite">
       <div class="auth-boot-card"><span class="brand-mark">A</span><strong>ArcOrbit</strong><p>正在恢复 Workshop 会话…</p><i aria-hidden="true"></i></div>
@@ -101,9 +105,9 @@
     <div class="desktop-app">
       <header class="titlebar">
         <div class="window-controls" role="group" aria-label="窗口控制">
-          <button id="windowCloseButton" class="window-control close" type="button" aria-label="关闭窗口" title="关闭窗口"><i aria-hidden="true"></i></button>
-          <button id="windowMinimizeButton" class="window-control minimize" type="button" aria-label="最小化窗口" title="最小化窗口"><i aria-hidden="true"></i></button>
-          <button id="windowMaximizeButton" class="window-control maximize" type="button" aria-label="最大化窗口" title="最大化窗口"><i aria-hidden="true"></i></button>
+          <button id="windowMinimizeButton" class="window-control minimize" type="button" aria-label="最小化窗口" title="最小化窗口"><svg aria-hidden="true"><use href="#icon-window-minimize"></use></svg></button>
+          <button id="windowMaximizeButton" class="window-control maximize" type="button" aria-label="最大化窗口" title="最大化窗口"><svg class="maximize-glyph" aria-hidden="true"><use href="#icon-window-maximize"></use></svg><svg class="restore-glyph" aria-hidden="true"><use href="#icon-window-restore"></use></svg></button>
+          <button id="windowCloseButton" class="window-control close" type="button" aria-label="关闭窗口" title="关闭窗口"><svg aria-hidden="true"><use href="#icon-window-close"></use></svg></button>
         </div>
         <div id="titlebarDrag" class="titlebar-drag">ArcOrbit</div>
         <div id="titlebarSync" class="sync-state"><i></i><span>准备同步</span></div>
