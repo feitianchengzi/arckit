@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import electron from "electron";
 import test from "node:test";
+import { electronFixtureArguments } from "./electron-fixture-launch.mjs";
 
 const execFileAsync = promisify(execFile);
 const fixturePath = fileURLToPath(new URL("./fixtures/task-replacement-sheet-electron.mjs", import.meta.url));
@@ -11,7 +12,11 @@ const fixturePath = fileURLToPath(new URL("./fixtures/task-replacement-sheet-ele
 test("task replacement keeps the edit Sheet and draft through both failure stages", async () => {
   const env = { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: "true" };
   delete env.ELECTRON_RUN_AS_NODE;
-  const { stdout } = await execFileAsync(electron, [fixturePath], { env, timeout: 20_000, maxBuffer: 1024 * 1024 });
+  const { stdout } = await execFileAsync(electron, electronFixtureArguments(fixturePath), {
+    env,
+    timeout: 20_000,
+    maxBuffer: 1024 * 1024
+  });
   const result = JSON.parse(stdout.trim());
 
   assert.deepEqual(result.createFailure, {
