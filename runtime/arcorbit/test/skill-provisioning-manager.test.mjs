@@ -61,7 +61,7 @@ test("post-operation readiness reuses the Codex manager probe instead of running
   }
 });
 
-test("ordinary readiness and preflight evidence use CodexSetupManager as the single executable authority", async () => {
+test("ordinary readiness establishes the Codex evidence reused by cached preflight", async () => {
   const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-codex-authority-"));
   const resourcesRoot = path.join(fixture, "resources");
   const fake = createFakeProvider();
@@ -104,14 +104,14 @@ test("ordinary readiness and preflight evidence use CodexSetupManager as the sin
     assert.equal(fallbackProbeCalls, 0);
 
     const authoritative = await codexManager.assertReady();
-    assert.equal(setupProbeCalls, 2);
+    assert.equal(setupProbeCalls, 1);
     const reused = await skillManager.check({
       quiet: true,
       codexProbeResult: codexProbeFromSetupSnapshot(authoritative)
     });
     assert.equal(reused.status, "ready");
     assert.equal(reused.codex.summary, "codex fixture");
-    assert.equal(setupProbeCalls, 2);
+    assert.equal(setupProbeCalls, 1);
     assert.equal(fallbackProbeCalls, 0);
   } finally {
     await rm(fixture, { recursive: true, force: true });

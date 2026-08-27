@@ -395,7 +395,7 @@ export function createCodexSetupManager(options = {}) {
   }
 
   async function assertReady() {
-    const current = await runExclusive(() => inspect({ announce: false }));
+    const current = structuredClone(snapshot);
     if (current.status !== "ready") throw setupError("CODEX_SETUP_NOT_READY", "Codex CLI 尚未安装并完成认证。", "preflight");
     return current;
   }

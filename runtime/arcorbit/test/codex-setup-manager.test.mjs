@@ -212,7 +212,35 @@ test("manager reports selection-required with no inferred auth method", async ()
   assert.equal(snapshot.authentication.capabilities.access_token, true);
 });
 
-test("preflight waits for the active mutation without replacing its operation projection", async () => {
+test("preflight consumes the cached ready snapshot without launching fresh probes", async () => {
+  let executableProbes = 0;
+  let processProbes = 0;
+  let setupEvents = 0;
+  const manager = createCodexSetupManager({
+    platform: "linux",
+    probeExecutable: async () => {
+      executableProbes += 1;
+      return executable;
+    },
+    processRunner: async ({ args }) => {
+      processProbes += 1;
+      return args.at(-1) === "--help"
+        ? { exitCode: 0, stdout: "--with-api-key", stderr: "" }
+        : { exitCode: 0, stdout: "", stderr: "" };
+    }
+  });
+  manager.onEvent(() => { setupEvents += 1; });
+
+  const checked = await manager.check();
+  assert.equal(checked.status, "ready");
+  const countsAfterCheck = { executableProbes, processProbes, setupEvents };
+
+  const preflight = await manager.assertReady();
+  assert.equal(preflight.status, "ready");
+  assert.deepEqual({ executableProbes, processProbes, setupEvents }, countsAfterCheck);
+});
+
+test("preflight fails closed from the cached snapshot while a setup mutation is active", async () => {
   let installed = false;
   let installerStarted;
   let releaseInstaller;
@@ -238,22 +266,20 @@ test("preflight waits for the active mutation without replacing its operation pr
   assert.equal(Boolean(beforePreflight.operation?.id), true);
   assert.equal(beforePreflight.operation?.cancellable, true);
 
-  let preflightSettled = false;
-  const preflight = manager.assertReady().finally(() => { preflightSettled = true; });
-  await new Promise((resolve) => setImmediate(resolve));
-
-  const whilePreflightQueued = manager.getSnapshot();
-  assert.equal(preflightSettled, false);
-  assert.equal(whilePreflightQueued.status, "installing");
-  assert.equal(whilePreflightQueued.operation?.id, beforePreflight.operation.id);
-  assert.equal(whilePreflightQueued.operation?.cancellable, true);
+  await assert.rejects(
+    manager.assertReady(),
+    (error) => error.code === "CODEX_SETUP_NOT_READY" && error.stage === "preflight"
+  );
+  const whileInstallActive = manager.getSnapshot();
+  assert.equal(whileInstallActive.status, "installing");
+  assert.equal(whileInstallActive.operation?.id, beforePreflight.operation.id);
+  assert.equal(whileInstallActive.operation?.cancellable, true);
 
   releaseInstaller();
-  const [installedSnapshot, preflightSnapshot] = await Promise.all([install, preflight]);
+  const installedSnapshot = await install;
   assert.equal(installedSnapshot.status, "ready");
   assert.equal(installedSnapshot.operation, null);
-  assert.equal(preflightSnapshot.status, "ready");
-  assert.equal(preflightSnapshot.operation, null);
+  assert.equal((await manager.assertReady()).status, "ready");
 });
 
 test("fresh login-status distinguishes expired authentication and normalizes probe failures", async () => {
