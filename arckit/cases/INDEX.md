@@ -157,3 +157,8 @@
 | [CASE-20260826-010](closed/CASE-20260826-010-arcorbit.md) | closed | 收敛 ArcOrbit 本地能力检查触发边界 | 2026-08-26T15:47:47.707Z |
 | [CASE-20260826-011](closed/CASE-20260826-011-work.md) | closed | 优化窄窗口下 Work 筛选弹层 | 2026-08-26T16:04:43.334Z |
 | [CASE-20260826-012](closed/CASE-20260826-012-development-case.md) | closed | 修复待办详情页验收问题文字越界 | 2026-08-26T16:16:50.117Z |
+| [CASE-20260826-013](closed/CASE-20260826-013-development-case.md) | closed | 恢复已忽略的反馈为待处理 | 2026-08-27T07:56:45.199Z |
+| [CASE-20260827-001](closed/CASE-20260827-001-preserve-external-wait-in-automation.md) | closed | Preserve external wait in Automation | 2026-08-27T03:56:07.634Z |
+| [CASE-20260827-002](closed/CASE-20260827-002-make-project-availability-self-healing-across-upgrades.md) | closed | Make project availability self-healing across upgrades | 2026-08-27T04:21:53.274Z |
+| [CASE-20260827-003](closed/CASE-20260827-003-today.md) | closed | 修复 Today 首项目任务执行人身份映射 | 2026-08-27T04:27:42.168Z |
+| [CASE-20260827-004](closed/CASE-20260827-004-unify-non-automatable-work-as-human-intervention.md) | closed | Unify non-automatable work as human intervention | 2026-08-27T06:34:45.808Z |

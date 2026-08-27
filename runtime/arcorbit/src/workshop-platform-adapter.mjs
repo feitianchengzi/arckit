@@ -203,6 +203,13 @@ export function createWorkshopPlatformAdapter({
       return normalizeFeedbackV2(payload?.feedback ?? payload, projectId);
     },
 
+    async restoreFeedbackV2(projectId, feedbackId) {
+      enabledV2Project(projectId, v2Projects);
+      const id = requiredId(feedbackId, "Feedback");
+      const payload = await v2Request(`/feedbacks/${encodeURIComponent(id)}/restore`, { method: "POST" });
+      return normalizeFeedbackV2(payload?.feedback ?? payload, projectId);
+    },
+
     async updateFeedbackV2(projectId, feedbackId, input = {}) {
       enabledV2Project(projectId, v2Projects);
       const id = requiredId(feedbackId, "Feedback");

@@ -90,6 +90,23 @@
             </div>
         </details>
         <details>
+            <summary>Feedback · 已忽略重新进入待处理</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>开发者在已忽略筛选或全部状态中选择一条已忽略且未关联待办的反馈。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="desktop-titlebar"><strong>ArcOrbit · Feedback</strong><span>项目集全部 · 已忽略</span></div>
+                        <div class="page-content">
+                            <div class="command-bar"><strong>Feedback</strong><input class="command-search" aria-label="搜索反馈" placeholder="搜索正文、编号或用户"><select aria-label="处理状态"><option>已忽略</option><option>全部状态</option></select><div class="command-spacer"></div><button class="compact-action">刷新</button></div>
+                            <div class="split-h"><section class="surface split-v"><div class="surface-header"><strong>反馈列表</strong><span>2 条 · 保持当前选择</span></div><div class="surface-body"><div class="activity-row"><span>F</span><strong>登录状态偶尔失效 · Feedback Portal · P2 · 待处理 · 周一</strong></div><div class="activity-row"><span>F</span><strong>旧版导出字段缺失 · ArcOrbit · P3 · 已忽略 · 上周</strong></div></div></section><aside class="surface split-v"><div class="surface-header"><strong>#FB09 · 登录状态偶尔失效</strong><span>待处理</span></div><div class="surface-body"><div class="page-actions"><select aria-label="反馈优先级"><option>P2 · 中</option><option>P1 · 高</option><option>P3 · 低</option></select><button class="compact-action">忽略</button><button class="compact-action">刷新</button><button class="compact-action">删除</button></div><p><strong>用户</strong> user-2041 · user@example.com</p><p>重新打开应用后偶尔需要再次登录。</p><div class="card"><div class="card-title">#FB09 已恢复为待处理</div><p>服务器已在同一反馈记录上确认 pending；原消息、附件和无关 metadata 保持不变。</p></div></div></aside></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>已忽略反馈列表与当前选择</li><li>恢复为待处理主动作</li><li>服务端确认后的待处理状态</li><li>失败时保留原状态和阅读上下文</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>恢复为待处理</code> → V1 兼容更新；V2 调用同记录 restore 领域动作，提交期间锁定自身</div><div class="interaction-item"><code>服务端确认 pending</code> → 保持当前反馈身份、选择和阅读位置，替换状态与可用动作</div><div class="interaction-item"><code>状态冲突</code> → 保留已加载事实并提示当前反馈已不是可恢复的 ignored 状态</div><div class="interaction-item"><code>恢复失败</code> → 保持已忽略、筛选、选择和两栏滚动位置，并显示真实错误</div></div>
+            </div>
+        </details>
+        <details>
             <summary>Feedback · 消息、附件与未读处理</summary>
             <div class="state-content">
                 <div class="state-description"><strong>触发条件：</strong>当前项目的受限 V2 开发者能力探测成功，开发者选择一条含未读用户更新的反馈。</div>

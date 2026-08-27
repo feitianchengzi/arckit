@@ -537,6 +537,7 @@ test("platform coordinator exposes project-gated Feedback V2 facts and dedicated
     createFeedbackV2DeveloperMessage: async (projectId, input) => { calls.push(["reply", projectId, input]); return { id: "72", ...input }; },
     markFeedbackV2NotificationsRead: async (projectId, input) => { calls.push(["read", projectId, input]); return { marked_count: 1 }; },
     ignoreFeedbackV2: async (projectId, feedbackId) => { calls.push(["ignore", projectId, feedbackId]); return { id: feedbackId }; },
+    restoreFeedbackV2: async (projectId, feedbackId) => { calls.push(["restore", projectId, feedbackId]); return { id: feedbackId, triage_status: "pending" }; },
     convertFeedbackV2ToTask: async (projectId, input) => { calls.push(["convert", projectId, input]); return { task: { id: 42 } }; },
     getFeedbackV2AttachmentUrl: async (projectId, input) => { calls.push(["attachment", projectId, input]); return "https://oss.example.test/file"; }
   }, { get: (target, key) => target[key] || (async () => []) });
@@ -562,9 +563,10 @@ test("platform coordinator exposes project-gated Feedback V2 facts and dedicated
   await coordinator.sendFeedbackV2Reply({ project_id: 11, feedback_id: 51, content: "Fixed", file: { file_name: "log.txt", mime_type: "text/plain", size: 1, bytes: new Uint8Array([1]) } });
   await coordinator.markFeedbackV2Read({ project_id: 11, feedback_id: 51 });
   await coordinator.ignoreFeedbackV2({ project_id: 11, feedback_id: 51 });
+  await coordinator.restoreFeedbackV2({ project_id: 11, feedback_id: 51 });
   await coordinator.convertFeedbackV2ToTask({ project_id: 11, feedback_id: 51, content: "Task" });
   assert.equal(await coordinator.getFeedbackV2AttachmentUrl({ project_id: 11, feedback_id: 51, attachment_id: 91, object_key: "feedback/log.txt" }), "https://oss.example.test/file");
-  assert.deepEqual(calls.map(([kind]) => kind), ["messages", "reply", "read", "ignore", "convert", "attachment"]);
+  assert.deepEqual(calls.map(([kind]) => kind), ["messages", "reply", "read", "ignore", "restore", "convert", "attachment"]);
   assert.equal(calls[1][2].attachments[0].object_key, "feedback/log.txt");
   await assert.rejects(coordinator.getFeedbackV2Messages({ project_id: 12, feedback_id: 52 }), /未启用/);
 });

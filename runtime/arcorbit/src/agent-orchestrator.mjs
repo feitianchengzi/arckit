@@ -519,7 +519,7 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
     agent_continuation_available: responsibility === "agent", human_decision_required: responsibility === "human",
     trigger_mode: responsibility === "none" ? "none" : responsibility === "human" ? "user_decision" : responsibility === "external" ? "external_wait" : "auto_bridge",
     responsibility_reason: handoff.reason || agentLoopResult.summary,
-    next_prompt: responsibility === "agent" ? handoff.next_prompt : "",
+    next_prompt: ["agent", "external"].includes(responsibility) ? handoff.next_prompt : "",
     agent_instruction: {
       goal: responsibility === "agent" ? handoff.next_prompt || "Reload fresh state and advance one gap." : "No automatic continuation.",
       required_context_refs: round.required_context_refs || [], required_actions: responsibility === "agent" ? ["Reload fresh Project/Case State and advance the most important candidate or fresh gap."] : [],

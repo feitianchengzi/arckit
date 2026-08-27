@@ -181,6 +181,24 @@
         </details>
 
         <details>
+            <summary>覆盖安装重建 / 项目同步降级</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>受支持旧版本覆盖安装后首次启动，或统一 Project Catalog 已确认项目但该项目任务/标签就绪状态尚未恢复。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit</strong><span>升级数据正在自动恢复</span></div>
+                        <div class="workspace-shell">
+                            <aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">项目绑定</div><div class="nav-row active"><span class="nav-glyph">A</span><span>Atlas</span><span class="count">!</span></div><div class="nav-row"><span class="nav-glyph">B</span><span>Borealis</span><span class="count">8</span></div></div><div class="sidebar-status"><strong>项目已恢复</strong><div class="status-line"><i class="status-dot"></i><span>逐项目重建待办</span></div></div></aside>
+                            <section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>自动化</strong><span>/</span><span>项目绑定</span></div><div class="command-spacer"></div><button class="compact-action">立即同步</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Upgrade Rehydration</div><h2>项目和原绑定已保留</h2><p>新版正在自动重建可派生的任务与标签状态；不需要退出登录、清缓存或重新添加项目。</p></div></div><div class="attention-strip quiet"><div class="run-orb">↻</div><div><strong>Atlas 的任务同步暂时失败</strong><small>项目仍可见，原本地绑定与自动领取授权已保留；该项目领取暂时冻结。</small></div><button class="compact-action">立即同步</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>项目绑定</strong><span>2 个项目</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">A</span><div><strong>Atlas</strong><small>~/Projects/atlas · 自动领取已允许</small></div><span class="badge">同步异常</span></div><div class="activity-row"><span class="run-orb">B</span><div><strong>Borealis</strong><small>~/Projects/borealis · 8 项任务已确认</small></div><span class="badge active">可执行</span></div></div></section><aside class="surface"><div class="surface-header"><strong>恢复边界</strong><span>按项目</span></div><div class="surface-body"><dl class="key-value-list"><dt>Project Catalog</dt><dd>已确认</dd><dt>绑定与授权</dt><dd>已保留</dd><dt>Atlas 任务</dt><dd>等待重试</dd><dt>Borealis lane</dt><dd>正常开放</dd></dl></div></aside></div></div></section>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>升级重建状态与无需人工修复说明</li><li>始终可见的 Project Catalog 项目绑定行</li><li>逐项目 Task Readiness 和错误边界</li><li>保留的本地绑定与自动领取授权</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>覆盖安装启动</code> → 自动刷新项目目录并逐项目重建派生状态，不要求重新登录或重建绑定</div><div class="interaction-item"><code>单项目失败</code> → 保留项目行，只冻结该项目领取；其他健康 lane 继续</div><div class="interaction-item"><code>立即同步</code> → 重试受影响项目并在成功后沿用原绑定与授权恢复执行</div></div>
+            </div>
+        </details>
+
+        <details>
             <summary>自动执行中</summary>
             <div class="state-content">
                 <div class="state-description"><strong>触发条件：</strong>远端任务已确认更新为进行中，Runtime 正在执行一个有界 Loop。</div>
@@ -231,7 +249,7 @@
         <details>
             <summary>人工介入入口</summary>
             <div class="state-content">
-                <div class="state-description"><strong>触发条件：</strong>Agent 明确请求授权、补充事实或产品判断；主页面提升 attention item，但不自动打开 Intervention Workbench 或 Personal / Chat。</div>
+                <div class="state-description"><strong>触发条件：</strong>Automation 遇到自己无法推进的授权、事实、产品判断或外部依赖；主页面统一提升 attention item，但不自动打开 Intervention Workbench 或 Personal / Chat。外部依赖显示“需要人工介入 · 外部依赖”、原因与恢复条件，不再形成独立责任方。</div>
                 <div class="wireframe-canvas">
                     <div class="device-frame desktop" data-kit="NavigationSplitView">
                         <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit</strong><span>需要你的处理</span></div>
@@ -241,8 +259,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="component-list"><h3>组件清单</h3><ul><li>高优先级 attention strip</li><li>服务器状态与 Runtime 子状态分离</li><li>请求摘要、建议与影响范围</li><li>Intervention Workbench 入口</li></ul></div>
-                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>进入处理工作台</code> → 打开 intervention-workbench.html 的人工处理模式</div><div class="interaction-item"><code>稍后处理</code> → 保持进行中和队列冻结</div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>高优先级 attention strip</li><li>服务器状态与 Runtime 子状态分离</li><li>介入原因、建议或恢复条件</li><li>Intervention Workbench 入口或外部依赖确认动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>进入处理工作台</code> → 授权、事实或决策类事项打开 intervention-workbench.html 的人工处理模式</div><div class="interaction-item"><code>已处理，重新检查</code> → 外部依赖类事项由用户确认协调完成，再以同一 task session/thread 启动 fresh Runtime</div><div class="interaction-item"><code>稍后处理</code> → 保持进行中和队列冻结</div></div>
             </div>
         </details>
 

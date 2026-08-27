@@ -337,6 +337,7 @@ export function createAutomationCoordinator(options) {
     handoffToCodexCli(input = "") { return routeByExecution("handoffToCodexCli", typeof input === "object" ? input.execution_id : input); },
     reopenCodexCli(input = "") { return routeByExecution("reopenCodexCli", typeof input === "object" ? input.execution_id : input); },
     resumeRuntimeFromCodexCli(input = "") { return routeByExecution("resumeRuntimeFromCodexCli", typeof input === "object" ? input.execution_id : input); },
+    confirmExternalDependency(input = "") { return routeByExecution("confirmExternalDependency", typeof input === "object" ? input.execution_id : input); },
     resolveRecovery,
     maybeStartNext
   };
@@ -511,8 +512,8 @@ function automationItemIdentity(item = {}) {
 }
 
 function deriveSupervisorHealth(baseHealth, automation, executions) {
-  if ((automation.recovery_items || []).some((item) => item.freeze_scope === "global")) return { state: "recovery", label: "全局恢复", tone: "danger" };
-  if (executions.some((item) => item.phase === "awaiting_human")) return { state: "running_attention", label: "并行执行 · 部分待人工", tone: "warning" };
+  if ((automation.recovery_items || []).some((item) => item.freeze_scope === "global")) return { state: "recovery", label: "需要人工介入 · 全局恢复", tone: "danger" };
+  if (executions.some((item) => item.phase === "awaiting_human")) return { state: "running_attention", label: "并行执行 · 部分需人工介入", tone: "warning" };
   if (executions.length > 0) return { state: "running", label: `自动执行中 ${executions.length}/${automation.concurrency_limit || 3}`, tone: "accent" };
   return baseHealth;
 }
@@ -552,20 +553,33 @@ function createLaneAutomationCoordinator({
     const taskCounts = countTasks(automation.snapshot.tasks);
     const projectIndex = new Map(automation.snapshot.projects.map((project) => [String(project.id), project]));
     const localIndex = new Map(localProjects.map((project) => [String(project.id), project]));
+    const globalProjectionUnavailable = taskProjectionUnavailable(automation.snapshot);
     const projects = automation.snapshot.projects.map((project) => {
       const remoteId = String(project.id);
       const localId = automation.project_bindings[remoteId] || "";
       const localProject = localIndex.get(localId) || null;
       const participating = automation.project_participation[remoteId] === true;
       const errors = automation.snapshot.errors.filter((error) => String(error.project_id || "") === remoteId);
+      const blockingErrors = errors.filter((error) => error.section !== "tags");
+      const hasReadinessProjection = automation.snapshot.project_states && typeof automation.snapshot.project_states === "object";
+      const readiness = hasReadinessProjection ? automation.snapshot.project_states[remoteId] || null : null;
+      const taskReady = !globalProjectionUnavailable && (hasReadinessProjection ? readiness?.trusted === true : blockingErrors.length === 0);
+      const sourceStatus = globalProjectionUnavailable
+        ? automation.snapshot.source_status
+        : blockingErrors.length > 0
+        ? "error"
+        : taskReady
+          ? "healthy"
+          : automation.snapshot.source_status === "syncing" ? "syncing" : "degraded";
       return {
         ...project,
         local_project_id: localId,
         local_project_name: localProject?.name || "",
         local_project_path: localProject?.path || "",
         participating,
-        source_status: errors.length > 0 ? "error" : "healthy",
-        eligible: Boolean(localProject && participating && errors.length === 0),
+        source_status: sourceStatus,
+        supplemental_status: errors.some((error) => error.section === "tags") ? "degraded" : "healthy",
+        eligible: Boolean(localProject && participating && taskReady && blockingErrors.length === 0),
         task_counts: taskCounts.byProject[remoteId] || emptyStateCounts()
       };
     });
@@ -802,6 +816,10 @@ function createLaneAutomationCoordinator({
       await runManager.controlRun(run.id, { type: "steer", message: text });
       await patchAutomation((automation) => {
         automation.active_task.phase = "running";
+        automation.active_task.intervention_kind = "";
+        automation.active_task.intervention_reason = "";
+        automation.active_task.intervention_resume_condition = "";
+        automation.active_task.intervention_started_at = "";
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
       });
     } else {
@@ -838,6 +856,10 @@ function createLaneAutomationCoordinator({
       await patchAutomation((automation) => {
         automation.active_task.phase = "running";
         automation.active_task.run_id = nextRun.id;
+        automation.active_task.intervention_kind = "";
+        automation.active_task.intervention_reason = "";
+        automation.active_task.intervention_resume_condition = "";
+        automation.active_task.intervention_started_at = "";
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
         if (automation.active_task.execution_kind === "acceptance_feedback") {
           const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
@@ -967,7 +989,7 @@ function createLaneAutomationCoordinator({
     const store = await readStore();
     const active = store.automation.active_task;
     if (!active) throw new Error("No active task to hand off to Codex CLI.");
-    if (["closeout_running", "completing", "awaiting_human"].includes(active.phase)) {
+    if (["closeout_running", "completing", "awaiting_human", "external_wait"].includes(active.phase)) {
       throw new Error(`The active task cannot switch to Codex CLI while phase=${active.phase}.`);
     }
     if (active.phase === "cli_handoff") return reopenCodexCli();
@@ -1038,6 +1060,38 @@ function createLaneAutomationCoordinator({
     if (outcome === "agent_resumed" || outcome === "resolved" || outcome === "human") {
       return getSnapshot();
     }
+    return getSnapshot();
+  }
+
+  async function confirmExternalDependency() {
+    const store = await readStore();
+    const active = store.automation.active_task;
+    const attention = store.automation.attention_items.find((item) => String(item.task_id) === String(active?.task_id));
+    if (!active || active.phase !== "awaiting_human" || (active.intervention_kind !== "external_dependency" && attention?.kind !== "external_dependency")) {
+      throw new Error("The active task is not awaiting confirmation for an external dependency.");
+    }
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id) return;
+      automation.active_task.phase = "starting";
+      automation.active_task.intervention_kind = "";
+      automation.active_task.intervention_reason = "";
+      automation.active_task.intervention_resume_condition = "";
+      automation.active_task.intervention_started_at = "";
+      automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
+      if (automation.active_task.execution_kind === "acceptance_feedback") {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
+        if (item) {
+          item.status = "running";
+          item.progress = "人工已确认处理，正在重新检查外部依赖";
+          item.blocking_reason = "";
+          item.intervention_kind = "";
+          item.updated_at = now();
+        }
+      }
+    });
+    const run = await startRuntimeForActiveTask();
+    if (!run) return getSnapshot();
+    emit("automation.changed", { reason: "external-dependency-confirmed", taskId: active.task_id, runId: run.id });
     return getSnapshot();
   }
 
@@ -1338,6 +1392,10 @@ function createLaneAutomationCoordinator({
             local_project_path: candidate.local_project_path,
             server_version: claimed.version,
             phase: "starting",
+            intervention_kind: "",
+            intervention_reason: "",
+            intervention_resume_condition: "",
+            intervention_started_at: "",
             case_id: "",
             case_status: "unbound",
             case_resolved_at: "",
@@ -1628,6 +1686,10 @@ function createLaneAutomationCoordinator({
     }
     if (handoff.next_responsibility === "human" || handoff.human_decision_required === true) {
       await setAwaitingHuman({ active, runId: event.runId, handoff });
+      return;
+    }
+    if (handoff.next_responsibility === "external" || handoff.status === "external_wait") {
+      await setAwaitingExternalIntervention({ active, runId: event.runId, handoff });
       return;
     }
     const caseComplete = handoff.next_responsibility === "none" || handoff.status === "complete";
@@ -1939,6 +2001,10 @@ function createLaneAutomationCoordinator({
       await setAwaitingHuman({ active, runId: latest.id, handoff });
       return null;
     }
+    if (handoff.next_responsibility === "external" || handoff.status === "external_wait") {
+      await setAwaitingExternalIntervention({ active, runId: latest.id, handoff });
+      return "human";
+    }
     const caseComplete = handoff.next_responsibility === "none"
       || handoff.status === "done"
       || handoff.status === "complete";
@@ -2067,6 +2133,10 @@ function createLaneAutomationCoordinator({
       await setAwaitingHuman({ active: { ...active, case_id: caseId }, runId: active.run_id, handoff });
       return "human";
     }
+    if (handoff.next_responsibility === "external" || handoff.status === "external_wait") {
+      await setAwaitingExternalIntervention({ active: { ...active, case_id: caseId }, runId: active.run_id, handoff });
+      return "human";
+    }
 
     // A human handoff can be newer than canonical Case state because handoff-only
     // turns do not write the ledger. Only an explicit operator-owned resume path
@@ -2076,6 +2146,10 @@ function createLaneAutomationCoordinator({
         if (automation.active_task?.task_id !== active.task_id) return;
         automation.active_task.case_id = caseId;
         automation.active_task.phase = "starting";
+        automation.active_task.intervention_kind = "";
+        automation.active_task.intervention_reason = "";
+        automation.active_task.intervention_resume_condition = "";
+        automation.active_task.intervention_started_at = "";
         automation.active_task.cli_handoff_ended_at = now();
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
         automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
@@ -2158,6 +2232,10 @@ function createLaneAutomationCoordinator({
       if (automation.active_task?.task_id !== active.task_id) return;
       automation.active_task.run_id = runId;
       automation.active_task.phase = "awaiting_human";
+      automation.active_task.intervention_kind = "human_decision";
+      automation.active_task.intervention_reason = handoff.responsibility_reason || "Runtime requires a human decision.";
+      automation.active_task.intervention_resume_condition = handoff.human_gate?.decision_needed || handoff.next_prompt || "Review the Runtime request and provide direction.";
+      automation.active_task.intervention_started_at ||= now();
       automation.recovery_items = automation.recovery_items.filter((item) => (
         item.task_id !== active.task_id
         || !["runtime_incomplete", "runtime_process_missing"].includes(item.type)
@@ -2168,6 +2246,7 @@ function createLaneAutomationCoordinator({
         project_id: automation.active_task.project_id,
         run_id: runId,
         feedback_id: active.feedback_id || "",
+        kind: "human_decision",
         reason: handoff.responsibility_reason || "Runtime requires a human decision.",
         question: handoff.human_gate?.decision_needed || handoff.next_prompt || "Review the Runtime request and provide direction.",
         created_at: now()
@@ -2183,6 +2262,44 @@ function createLaneAutomationCoordinator({
       }
     });
     emit("automation.changed", { reason: "awaiting-human", taskId: active.task_id });
+  }
+
+  async function setAwaitingExternalIntervention({ active, runId, handoff }) {
+    const reason = String(handoff.responsibility_reason || "存在 Automation 无法自行完成的外部依赖。");
+    const resumeCondition = String(handoff.next_prompt || "请协调依赖完成后确认，Automation 将重新检查并继续。");
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id) return;
+      automation.active_task.run_id = runId;
+      automation.active_task.phase = "awaiting_human";
+      automation.active_task.intervention_kind = "external_dependency";
+      automation.active_task.intervention_reason = reason;
+      automation.active_task.intervention_resume_condition = resumeCondition;
+      automation.active_task.intervention_started_at ||= now();
+      automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
+      automation.attention_items = upsertById(automation.attention_items, {
+        id: `ATTENTION-${automation.active_task.task_id}`,
+        task_id: automation.active_task.task_id,
+        project_id: automation.active_task.project_id,
+        run_id: runId,
+        feedback_id: active.feedback_id || "",
+        kind: "external_dependency",
+        reason,
+        question: resumeCondition,
+        created_at: now()
+      });
+      if (active.execution_kind === "acceptance_feedback") {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
+        if (item) {
+          item.status = "awaiting_human";
+          item.progress = reason;
+          item.blocking_reason = reason;
+          item.intervention_kind = "external_dependency";
+          item.current_run_id = runId;
+          item.updated_at = now();
+        }
+      }
+    });
+    emit("automation.changed", { reason: "awaiting-human-external-dependency", taskId: active.task_id });
   }
 
   async function markCloseoutCompleted(active, runId, result) {
@@ -2458,6 +2575,7 @@ function createLaneAutomationCoordinator({
     handoffToCodexCli,
     reopenCodexCli,
     resumeRuntimeFromCodexCli,
+    confirmExternalDependency,
     resolveRecovery,
     handleRunEvent,
     maybeStartNext
@@ -2479,7 +2597,8 @@ export function buildPendingCandidates(tasks, automation, projectIndex, localInd
       const localProjectId = automation.project_bindings[remoteId] || "";
       const localProject = localIndex.get(localProjectId) || null;
       const project = projectIndex.get(remoteId) || null;
-      const projectError = automation.snapshot.errors.some((error) => String(error.project_id || "") === remoteId);
+      const projectError = taskProjectionUnavailable(automation.snapshot)
+        || automation.snapshot.errors.some((error) => String(error.project_id || "") === remoteId && error.section !== "tags");
       return {
         ...task,
         project_name: project?.name || remoteId,
@@ -2583,15 +2702,15 @@ function enrichTask(task, { automation, project, localProject, queue, pendingCan
 }
 
 function deriveHealth(automation, queue, blockedPendingTasks = [], acceptanceFeedbackQueue = []) {
-  if (automation.recovery_items.length > 0) return { state: "recovery", label: "需要恢复", tone: "danger" };
-  if (automation.attention_items.length > 0) return { state: "attention", label: "等待人工", tone: "warning" };
+  if (automation.recovery_items.length > 0) return { state: "recovery", label: "需要人工介入", tone: "danger" };
+  if (automation.attention_items.length > 0) return { state: "attention", label: "需要人工介入", tone: "warning" };
   if (automation.snapshot.source_status === "logged_out") return { state: "logged_out", label: "Workshop 未登录", tone: "neutral" };
   if (automation.snapshot.source_status === "unauthenticated") return { state: "unauthenticated", label: "认证已失效", tone: "danger" };
   if (automation.snapshot.source_status !== "healthy") return { state: automation.snapshot.source_status, label: "任务源异常", tone: "warning" };
   if (!automation.enabled) return { state: "disabled", label: "自动领取已关闭", tone: "neutral" };
   if (automation.queue_paused) return { state: "paused", label: "领取已暂停", tone: "neutral" };
   if (automation.active_task) return { state: "running", label: "自动执行中", tone: "accent" };
-  if (blockedPendingTasks.length > 0) return { state: "configuration_required", label: "待处理任务尚不可领取", tone: "warning" };
+  if (blockedPendingTasks.length > 0) return { state: "configuration_required", label: "需要人工介入", tone: "warning" };
   if (queue.length === 0 && acceptanceFeedbackQueue.length === 0) return { state: "idle", label: "队列已清空", tone: "success" };
   return { state: "ready", label: "准备领取", tone: "success" };
 }
@@ -2655,12 +2774,16 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
     "multiple_active_tasks",
     "discovered_in_progress"
   ].includes(item.type));
-  const projectErrors = new Set(automation.snapshot.errors.map((error) => String(error.project_id || "")).filter(Boolean));
+  const projectErrors = new Set(automation.snapshot.errors
+    .filter((error) => error.section !== "tags")
+    .map((error) => String(error.project_id || ""))
+    .filter(Boolean));
   const candidates = automation.snapshot.tasks.filter((task) => {
     const projectId = String(task.project_id);
     return task.state === "in_progress"
       && Boolean(automation.project_bindings[projectId])
       && automation.project_participation[projectId] === true
+      && !taskProjectionUnavailable(automation.snapshot)
       && !projectErrors.has(projectId);
   });
   if (candidates.length === 0) return;
@@ -2708,6 +2831,10 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
   });
 }
 
+function taskProjectionUnavailable(snapshot = {}) {
+  return ["logged_out", "unauthenticated", "unconfigured", "error"].includes(String(snapshot.source_status || ""));
+}
+
 function upsertById(items, item) {
   const filtered = items.filter((candidate) => candidate.id !== item.id);
   return [item, ...filtered].slice(0, 50);
@@ -2753,6 +2880,7 @@ function createStoreBackedTaskStateBoundary(runManager) {
     store.automation.snapshot = {
       user: projection.user,
       projects: projection.projects,
+      project_states: projection.project_states,
       tasks: projection.tasks,
       synced_at: projection.synced_at,
       source_status: projection.source_status,
@@ -2876,6 +3004,10 @@ function feedbackActiveExecution(item, project, { phase = "starting" } = {}) {
     local_project_id: item.local_project_id,
     local_project_path: project?.path || "",
     phase,
+    intervention_kind: "",
+    intervention_reason: "",
+    intervention_resume_condition: "",
+    intervention_started_at: "",
     case_id: "",
     case_status: "unbound",
     case_resolved_at: "",

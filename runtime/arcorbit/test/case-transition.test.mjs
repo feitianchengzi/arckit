@@ -367,7 +367,9 @@ test('human questions pause while external handoffs wait only when no Agent gap 
   assert.equal(auditCaseRecord(external).loop_handoff.next_responsibility, 'agent');
   external.gaps[0].status = 'resolved';
   external.gaps[0].resolution = { status: 'resolved', outcome: 'Diagnosis complete.', reason: 'Evidence agrees.', evidence: ['debug/root-cause.md'], occurred_at: new Date().toISOString() };
-  assert.equal(auditCaseRecord(external).loop_handoff.next_responsibility, 'external');
+  const externalHandoff = auditCaseRecord(external).loop_handoff;
+  assert.equal(externalHandoff.next_responsibility, 'external');
+  assert.match(externalHandoff.next_prompt, /Wait for deployment evidence/);
 });
 
 test('Runtime exposes all active Cases for Agent selection without preselecting a gap type', () => {

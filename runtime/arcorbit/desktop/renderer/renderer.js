@@ -2357,7 +2357,7 @@ function renderFeedbackInspector(feedback) {
   const recoveryNotice = linkRecovery && !feedback.linked_task_id
     ? `<div class="feedback-link-recovery"><span><strong>待办 ${escapeHtml(linkRecovery.task_id)} 已创建，但尚未关联</strong><small>重试只会保存当前反馈与该待办的关联，不会创建新待办。</small></span><button class="primary-button" data-feedback-link-retry type="button">仅重试关联</button></div>`
     : "";
-  els.feedbackInspector.innerHTML = `<div class="feedback-inspector-scroll" data-feedback-id="${escapeHtml(feedback.id)}"><div class="feedback-inspector-header"><div><p class="eyebrow">${escapeHtml(feedback.short_id || feedback.id)}</p><h2>${escapeHtml(feedback.title || "用户反馈")}</h2><p>${escapeHtml(feedback.project_name || "未知产品")}</p></div><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span></div>${recoveryNotice}<div class="feedback-processing-actions">${priorityAction}${!feedback.ignored && !feedback.linked_task_id ? `<button class="secondary-button" data-feedback-ignore="${escapeHtml(feedback.id)}" type="button">忽略</button>` : ""}<button class="secondary-button" data-feedback-refresh type="button">刷新</button>${!feedback.linked_task_id && !linkRecovery ? `<button class="primary-button" data-feedback-task="${escapeHtml(feedback.id)}" type="button">转为待办</button>` : ""}${canDelete ? `<button class="secondary-button danger-action" data-feedback-delete="${escapeHtml(feedback.id)}" type="button">删除</button>` : ""}</div><section class="feedback-content-card"><h3>反馈原文</h3><p>${escapeHtml(feedback.content || "用户没有提供正文。")}</p>${attachment}</section>${factRows([
+  els.feedbackInspector.innerHTML = `<div class="feedback-inspector-scroll" data-feedback-id="${escapeHtml(feedback.id)}"><div class="feedback-inspector-header"><div><p class="eyebrow">${escapeHtml(feedback.short_id || feedback.id)}</p><h2>${escapeHtml(feedback.title || "用户反馈")}</h2><p>${escapeHtml(feedback.project_name || "未知产品")}</p></div><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span></div>${recoveryNotice}<div class="feedback-processing-actions">${priorityAction}${!feedback.ignored && !feedback.linked_task_id ? `<button class="secondary-button" data-feedback-ignore="${escapeHtml(feedback.id)}" type="button">忽略</button>` : ""}${feedback.ignored && !feedback.linked_task_id ? `<button class="secondary-button" data-feedback-restore="${escapeHtml(feedback.id)}" type="button">恢复为待处理</button>` : ""}<button class="secondary-button" data-feedback-refresh type="button">刷新</button>${!feedback.linked_task_id && !linkRecovery ? `<button class="primary-button" data-feedback-task="${escapeHtml(feedback.id)}" type="button">转为待办</button>` : ""}${canDelete ? `<button class="secondary-button danger-action" data-feedback-delete="${escapeHtml(feedback.id)}" type="button">删除</button>` : ""}</div><section class="feedback-content-card"><h3>反馈原文</h3><p>${escapeHtml(feedback.content || "用户没有提供正文。")}</p>${attachment}</section>${factRows([
     ["反馈标识", feedback.id],
     ["所属产品", feedback.project_name || feedback.project_id],
     ["用户 ID", feedback.custom_user_id || "未提供"],
@@ -2369,6 +2369,7 @@ function renderFeedbackInspector(feedback) {
   ])}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}</div>`;
   els.feedbackInspector.querySelector("[data-feedback-priority]")?.addEventListener("change", (event) => runAction(() => updateFeedbackPriority(feedback.id, event.currentTarget.value)));
   els.feedbackInspector.querySelector("[data-feedback-ignore]")?.addEventListener("click", () => runAction(() => ignoreFeedback(feedback.id)));
+  els.feedbackInspector.querySelector("[data-feedback-restore]")?.addEventListener("click", (event) => runAction(() => restoreFeedback(feedback.id, event.currentTarget)));
   els.feedbackInspector.querySelector("[data-feedback-refresh]")?.addEventListener("click", () => runAction(refreshSnapshot));
   els.feedbackInspector.querySelector("[data-feedback-task]")?.addEventListener("click", () => runAction(() => feedbackToTask(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-link-retry]")?.addEventListener("click", () => runAction(() => retryFeedbackTaskLink(feedback.id)));
@@ -2974,6 +2975,35 @@ async function ignoreFeedback(feedbackId) {
   await executeManagedAction("feedback.update", { feedback_id: feedback.id, data: { ...feedback.metadata, ignored: true } }, "反馈已忽略");
 }
 
+async function restoreFeedback(feedbackId, button) {
+  const feedback = findFeedback(feedbackId);
+  if (!feedback.ignored || feedback.linked_task_id) throw new Error("只有已忽略且未关联待办的反馈可以恢复为待处理。");
+  const previousLabel = button?.textContent || "恢复为待处理";
+  if (button) {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.textContent = "恢复中…";
+  }
+  try {
+    if (feedback.feedback_source === "v2") {
+      await runFeedbackV2Request(() => api.restoreFeedbackV2({ project_id: feedback.project_id, feedback_id: feedback.id }));
+      await refreshSnapshot();
+      showToast("反馈已恢复为待处理");
+      return;
+    }
+    await executeManagedAction("feedback.update", {
+      feedback_id: feedback.id,
+      data: { ...feedback.metadata, ignored: false, feedback_state: "pending", status: "analyzing" }
+    }, "反馈已恢复为待处理");
+  } finally {
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      button.textContent = previousLabel;
+    }
+  }
+}
+
 async function feedbackToTask(feedbackId) {
   const feedback = findFeedback(feedbackId);
   if (feedback.linked_task_id) throw new Error(`该反馈已关联待办 ${feedback.linked_task_id}，请在 Work 中继续处理。`);
@@ -3491,9 +3521,9 @@ function renderCommandCenter() {
   const metrics = [
     metric("自动领取", snapshot.health?.label || "待命", sourceStatusLabel(snapshot.source_status), snapshot.health?.tone === "success" ? "healthy" : ""),
     metric("待处理事项", attentionCount, humanAttentionCount
-      ? `${humanAttentionCount} 项需要人工决策`
+      ? `${humanAttentionCount} 项需要人工介入`
       : recoveryCount
-        ? `${recoveryCount} 项需要恢复自动化`
+        ? `${recoveryCount} 项需要人工恢复自动化`
         : "没有待处理事项", attentionCount ? "attention" : ""),
     metric("运行中", runningCount, runningCount ? `${snapshot.concurrency?.available ?? 0} 个并行槽位可用` : "没有活动任务", runningCount ? "running" : ""),
     ...(!state.acceptanceFeedbackOnly ? [metric("普通待办队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : scopedBlockedPending.length ? `${scopedBlockedPending.length} 项尚未启用` : "没有可执行任务", scopedBlockedPending.length ? "attention" : "")] : []),
@@ -3566,8 +3596,18 @@ function renderAttention(blockedPendingTasks = []) {
     document.getElementById("openRecoveryButton").addEventListener("click", () => showPage("recovery"));
     return;
   }
-  els.attentionHost.innerHTML = `<div class="attention-strip"><span>?</span><div class="attention-copy"><strong>${escapeHtml(attention.reason || "Runtime 需要人工判断")}</strong><p>${escapeHtml(attention.question || "查看请求并提供处理结果。")}</p></div><button id="openAttentionButton" class="primary-button" type="button">处理</button></div>`;
-  document.getElementById("openAttentionButton").addEventListener("click", () => openWorkbench("intervention"));
+  const externalDependency = attention.kind === "external_dependency";
+  els.attentionHost.innerHTML = `<div class="attention-strip"><span>?</span><div class="attention-copy"><strong>${externalDependency ? "需要人工介入 · 外部依赖" : escapeHtml(attention.reason || "Runtime 需要人工判断")}</strong><p>${escapeHtml(externalDependency ? `${attention.reason || "存在 Automation 无法自行完成的外部依赖。"} 恢复条件：${attention.question || "请协调依赖完成后确认。"}` : attention.question || "查看请求并提供处理结果。")}</p></div><button id="openAttentionButton" class="primary-button" type="button">${externalDependency ? "已处理，重新检查" : "处理"}</button></div>`;
+  document.getElementById("openAttentionButton").addEventListener("click", () => {
+    if (!externalDependency) {
+      openWorkbench("intervention");
+      return;
+    }
+    runAction(async () => {
+      await api.confirmAutomationExternalDependency({ execution_id: state.snapshot.selected_execution_id });
+      await refreshSnapshot();
+    });
+  });
 }
 
 function renderCurrentRun(blockedPendingTasks = []) {
@@ -3584,7 +3624,11 @@ function renderCurrentRun(blockedPendingTasks = []) {
   const executionSelector = executions.length > 1
     ? `<div class="execution-lane-list" aria-label="活动项目执行">${executions.map((execution) => `<button class="execution-lane ${execution.execution_id === state.snapshot.selected_execution_id ? "is-active" : ""}" data-automation-execution="${escapeHtml(execution.execution_id)}" type="button"><span><strong>${escapeHtml(projectName(execution.project_id))}</strong><small>${escapeHtml(taskDisplayTitle(execution.task_title, execution.task_id))}</small></span><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(execution.phase))}</span></button>`).join("")}</div>`
     : "";
-  els.currentRunPanel.innerHTML = `${executionSelector}<div class="run-heading"><div><h3>${escapeHtml(taskDisplayTitle(active.task_title, active.task_id))}</h3><p>${escapeHtml(projectName(active.project_id))} · ${escapeHtml(active.workspace_key || active.local_project_id || "未绑定工作区")} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
+  const externalDependency = active.phase === "awaiting_human" && active.intervention_kind === "external_dependency";
+  const externalDependencyNotice = externalDependency
+    ? `<div class="empty-state"><strong>需要人工介入 · 外部依赖</strong><br>${escapeHtml(active.intervention_reason || "存在 Automation 无法自行完成的外部依赖。")}${active.intervention_resume_condition ? `<br><small>恢复条件：${escapeHtml(active.intervention_resume_condition)}</small>` : ""}</div>`
+    : "";
+  els.currentRunPanel.innerHTML = `${executionSelector}<div class="run-heading"><div><h3>${escapeHtml(taskDisplayTitle(active.task_title, active.task_id))}</h3><p>${escapeHtml(projectName(active.project_id))} · ${escapeHtml(active.workspace_key || active.local_project_id || "未绑定工作区")} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>${externalDependencyNotice}`;
   els.currentRunPanel.querySelectorAll("[data-automation-execution]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
     state.snapshot = await api.selectAutomationExecution(button.dataset.automationExecution);
     renderCommandCenter();
@@ -3595,6 +3639,8 @@ function renderCurrentRun(blockedPendingTasks = []) {
     els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button class="secondary-button" type="button" disabled>正在安全切换…</button>`;
   } else if (["starting", "running", "continuing"].includes(active.phase)) {
     els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="handoffCliButton" class="primary-button" type="button">切换到 Codex CLI</button><button id="stopRunButton" class="secondary-button" type="button">停止当前运行</button>`;
+  } else if (externalDependency) {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="confirmExternalDependencyButton" class="primary-button" type="button">已处理，重新检查</button>`;
   } else {
     els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button>`;
   }
@@ -3609,6 +3655,10 @@ function renderCurrentRun(blockedPendingTasks = []) {
   }));
   document.getElementById("resumeRuntimeButton")?.addEventListener("click", () => runAction(async () => {
     await api.resumeAutomationRuntime({ execution_id: state.snapshot.selected_execution_id });
+    await refreshSnapshot();
+  }));
+  document.getElementById("confirmExternalDependencyButton")?.addEventListener("click", () => runAction(async () => {
+    await api.confirmAutomationExternalDependency({ execution_id: state.snapshot.selected_execution_id });
     await refreshSnapshot();
   }));
   document.getElementById("stopRunButton")?.addEventListener("click", () => runAction(async () => {
@@ -3655,9 +3705,11 @@ function renderCommandInspector(projects) {
     ["活动执行", String(snapshot.active_executions?.length || 0)],
     ["当前选择", snapshot.active_task?.task_id || "无"],
     ["当前责任方", snapshot.attention_items.length
-      ? "Human"
+      ? snapshot.active_task?.intervention_kind === "external_dependency" ? "Human · 外部依赖" : "Human"
+      : snapshot.recovery_items.length
+        ? "Human · 恢复自动化"
       : snapshot.active_task?.phase === "cli_handoff"
-        ? "Codex CLI"
+        ? "Human · Codex CLI"
         : snapshot.active_task?.phase === "remote_completion_pending"
           ? "Automation Coordinator / 任务源"
           : snapshot.active_task ? "Runtime" : "Automation Coordinator"],
@@ -3669,7 +3721,12 @@ function renderCommandInspector(projects) {
       ...snapshot.local_projects.map((local) => `<option value="${escapeHtml(local.id)}" ${local.id === project.local_project_id ? "selected" : ""}>${escapeHtml(local.name)}</option>`),
       `<option value="__add_local_project__">＋ 添加本地项目…</option>`
     ].join("");
-    const qualification = !project.local_project_id ? "先绑定工作区" : project.participating ? project.source_status === "healthy" ? "已具备资格" : project.source_status : "尚未允许";
+    const readinessLabel = project.source_status === "healthy"
+      ? project.supplemental_status === "degraded" ? "已具备资格 · 标签同步降级" : "已具备资格"
+      : project.source_status === "syncing" ? "正在恢复任务"
+        : project.source_status === "error" ? "任务同步异常"
+          : "任务尚未就绪";
+    const qualification = !project.local_project_id ? "先绑定工作区" : project.participating ? readinessLabel : "尚未允许";
     return `<div class="binding-row" data-binding-project="${escapeHtml(project.id)}"><strong>${escapeHtml(project.name)}</strong><select aria-label="${escapeHtml(project.name)} 本地工作区">${options}</select><label class="participation-row"><input type="checkbox" ${project.participating ? "checked" : ""} ${project.local_project_id ? "" : "disabled"}>允许自动领取 · ${escapeHtml(qualification)}</label></div>`;
   }).join("") : `<div class="empty-state">同步后可绑定远端项目。</div>`;
   els.projectBindingList.querySelectorAll("[data-binding-project]").forEach((row) => {
@@ -4544,6 +4601,14 @@ function runtimeStages(phase, run) {
       { label: "4 远端收尾", state: "" }
     ];
   }
+  if (phase === "awaiting_human") {
+    return [
+      { label: "1 Automation 已暂停", state: "complete" },
+      { label: "2 介入原因已记录", state: "complete" },
+      { label: "3 需要人工介入", state: "active" },
+      { label: "4 恢复同线程执行", state: "" }
+    ];
+  }
   const labels = ["1 同步并领取", "2 Agent Gap Loop", "3 Ledger 与上下文", "4 同线程收尾"];
   const closeout = ["closeout_starting", "closeout_running", "remote_completion_pending", "completing"].includes(phase);
   const failed = phase === "recovery";
@@ -4566,12 +4631,12 @@ function automationPhaseLabel(phase) {
     continuing: "自动续轮",
     switching_to_cli: "正在切换到 CLI",
     cli_handoff: "Codex CLI 接管",
-    awaiting_human: "等待人工",
+    awaiting_human: "需要人工介入",
     closeout_starting: "准备同线程收尾",
     closeout_running: "同线程 Git 收尾",
     remote_completion_pending: "Case 已完成，等待远端收尾",
     completing: "完成写回",
-    recovery: "需要恢复"
+    recovery: "需要人工介入 · 恢复自动化"
   }[phase] || phase || "进行中";
 }
 

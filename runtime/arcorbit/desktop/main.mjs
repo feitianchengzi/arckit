@@ -487,6 +487,7 @@ function registerIpc() {
   ipcMain.handle("arckit:automation-handoff-cli", async (_event, input) => automationCoordinator.handoffToCodexCli(input));
   ipcMain.handle("arckit:automation-reopen-cli", async (_event, input) => automationCoordinator.reopenCodexCli(input));
   ipcMain.handle("arckit:automation-resume-runtime", async (_event, input) => automationCoordinator.resumeRuntimeFromCodexCli(input));
+  ipcMain.handle("arckit:automation-confirm-external-dependency", async (_event, input) => automationCoordinator.confirmExternalDependency(input));
   ipcMain.handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
   ipcMain.handle("arckit:platform-snapshot", async (_event, input) => platformCoordinator.getSnapshot(input));
   ipcMain.handle("arckit:platform-work-query", async (_event, input) => platformCoordinator.queryWork(input));
@@ -516,6 +517,10 @@ function registerIpc() {
   ipcMain.handle("arckit:feedback-v2-ignore", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.ignoreFeedbackV2(input));
+  });
+  ipcMain.handle("arckit:feedback-v2-restore", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.restoreFeedbackV2(input));
   });
   ipcMain.handle("arckit:feedback-v2-update", async (event, input) => {
     assertMainRenderer(event);

@@ -19,7 +19,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 5. 用户开启顶部“自动领取”总闸。系统按可用全局槽位从已经绑定工作区且明确允许自动领取的项目中为不同 workspace lane 领取任务；同一 lane 的下一项必须等待当前普通待办或验收问题收束。
 6. 某条 Runtime lane 需要授权、补充事实或产品判断。Command Center 把该 lane 的人工事项提升到首要关注区；用户选择对应执行进入 Intervention Workbench，其他健康 lane 继续推进。
 7. 用户主动审查某个任务的执行消息与证据。Intervention Workbench 以只读审查模式打开，中间区域使用与 Chat 完全相同的消息浏览体验呈现 Agent、工具摘要和人工输入；Automation 的 Runtime、Round、Gap、ledger 与证据全貌固定在左右面板，用户显式选择介入后才出现可提交输入。
-8. 项目、待办、状态写回或 Runtime 收束失败。系统保留已知事实与本地证据，只冻结受影响的 workspace lane，并明确展示恢复责任和下一动作；已有持久 Agent 对话时，用户可以在恢复卡直接补充说明并继续。认证、目录、Store、Runtime host 或应用退出等全局故障才冻结全部 lane。
+8. 项目、待办、状态写回或 Runtime 收束失败。系统保留已知事实与本地证据，把无法自动恢复的事项统一标为需要人工介入，并在 Recovery Center 展示具体原因和下一动作；已有持久 Agent 对话时，用户可以在恢复卡直接补充说明并继续。认证、目录、Store、Runtime host 或应用退出等全局故障才冻结全部 lane。
 9. 用户判断某次执行是否完整或存在不合理消耗。Workbench 一次展示 task session 从首次 Runtime 启动到当前或最终终态的完整墙钟时间、实际 gap 轮数和每个 gap 的目标/工作/结果，并继续提供 Run、round、turn 的 Token 构成、上下文增长与耗时；重复命令和无状态进展的上下文膨胀只形成可审查提示，不自动终止。
 10. 用户从已完成任务的右侧详情面板查看全部验收问题、状态和最近进展，选择某一项进入其同一待办对话，或提出新的非空验收问题；已验收任务只显示验收通过。
 11. Work Sync 的实时连接中断或应用从休眠恢复。Command Center 保留本地队列并显示来自 Work 的“正在补取”“实时兼容连接”或“可立即同步”摘要；Work 自动恢复，只有认证失效或本地投影不再可信时才冻结受影响候选。
@@ -27,12 +27,14 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 13. 用户在项目绑定选择器内没有合适的本地项目时，直接选择“添加本地项目”，完成目录选择后继续当前绑定流程。
 14. 用户通过全局侧栏底部的头像打开原账号页面，查看 Workshop 连接、会话和 Runtime 设置；Workshop 账户标题显示平台 current-user 的名称。
 15. 用户希望亲自观察和参与当前任务时，从当前运行直接切换到交互式 Codex CLI；Desktop 安全停止 Runtime 后打开终端，用户在同一 Case 上继续，返回时再显式交还执行权或由已关闭 Case 自动进入收尾。
+16. Runtime 已完成本地工作并由 accepted ledger handoff 明确交给外部责任方。因为 Automation 无法自行完成该依赖，Command Center 将该 lane 统一列为“需要人工介入 · 外部依赖”，展示原因和恢复条件；用户协调完成后选择“已处理，重新检查”，系统用同一任务、session 和 thread fresh-read Case 后继续。
+17. 用户从受支持的旧版本直接覆盖安装新版。应用保留原 Workset、项目绑定、项目级自动领取授权和活动执行身份，先从统一 Project Catalog 恢复项目行，再逐项目重建待办就绪状态；用户不需要退出登录、清缓存或重新添加项目。
 
 ### 主路径
 
 1. 应用先逐 lane 恢复本地活动执行、Run 与 canonical Case 检查点，再恢复 Workshop 认证与 Work Sync；未登录时 Work 停止远端操作且 Automation 停止新任务领取，但仍呈现已关闭 Case、本地 commit 与等待 Work 同步状态。已登录或最近七天内会话可刷新时静默续期并进入 Automation Workspace。
-2. 用户在 Login 页面请求验证码并登录；成功后 Work Sync 拉取当前用户、可访问项目和待办，原子建立本地 Task Projection；Automation 不参与远端读取。
-3. Work Sync 对 active Workset、参与自动化项目和当前活动任务项目的并集建立实时订阅并维护本地状态。Automation 从该状态派生各项目数量与跨项目执行资格，消费顶部产品集的观察范围，不自行维护第二套项目筛选或远端快照。
+2. 用户在 Login 页面请求验证码并登录；成功后 Work Sync 先刷新当前用户可访问的 Project Catalog，再按项目独立重建任务与标签就绪状态；Automation 不参与远端读取。
+3. Work Sync 对 active Workset、参与自动化项目和当前活动任务项目的并集建立实时订阅并维护本地状态。Automation 的项目行只由统一 Project Catalog 与 Workset 派生，任务数量和跨项目执行资格再叠加逐项目就绪状态，不自行维护第二套项目筛选或远端快照。
 4. Command Center 展示当前顶部项目范围、自动化健康、需人工处理数量、活动执行、普通待办队列、验收问题队列、“仅看验收问题”和最近完成结果。
 5. “自动领取”开启时，系统在全局仍有空闲槽位且候选 workspace lane 没有未收束工作时，按确定性规则为不同 lane 选择符合条件的队首项；存在待处理任务但没有符合资格的 lane 时，Command Center 显示具体阻断原因、槽位状态和直接配置动作。
 6. Automation 向 Work Sync 提交 `待处理 → 进行中` 动作；Work 负责服务器版本、条件式更新、冲突和对账。失败时本地任务状态不变，Automation 不启动 Runtime。
@@ -42,11 +44,14 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 10. CLI 接管期间 Command Center 显示执行权所在、Case 和“恢复自动执行”；同步发现 Case 已关闭时直接进入 commit 与远端完成写回，未关闭时只有用户显式交还执行权才启动 fresh Runtime run。
 11. Runtime 与 ledger 均收束后，Automation 向 Work Sync 提交完成动作；Work 发布本地 `completed` 后才领取下一项。
 12. 需要人工时，系统暂停当前推进并创建 attention item；用户在 Intervention Workbench 提交处理说明后，系统恢复当前任务并返回 Command Center。
-13. Work Sync 连接断开时自动重连但不启用分钟级轮询；现代服务重连后补取事件，旧服务重连后直接对账当前态。页面可展示或触发 Work 的“立即同步”，Automation 不拥有该网络动作。
+13. accepted ledger handoff 把责任交给 external 时，Automation 将其投影为“需要人工介入”，以 `external_dependency` 记录原因和恢复条件并创建 attention item；用户协调依赖完成后点击“已处理，重新检查”，系统恢复同一 task session/thread 进行 fresh Case 对账。
+14. Work Sync 连接断开时自动重连但不启用分钟级轮询；现代服务重连后补取事件，旧服务重连后直接对账当前态。页面可展示或触发 Work 的“立即同步”，Automation 不拥有该网络动作。
 
 ### 决策点
 
 - 项目是待办的一级来源。任务必须保留有效 `project_id`；无法解析项目归属的任务不进入队列，并进入数据异常提示。
+- Project Catalog 是 Today、Work、Automation 与 Organization 唯一的项目身份和可见性来源。任务同步尚未完成或失败只能把对应项目标记为“正在恢复”或“同步异常”并冻结其领取资格，不能从项目绑定区域移除项目。
+- 项目存在、项目绑定、项目级自动领取授权与任务就绪是四个独立事实。覆盖安装升级只重建可派生的任务、标签、游标和同步健康状态，不删除或要求用户重建前述控制事实。
 - 顶部“项目集全部”是当前 Workset 的聚合观察范围。选择单个项目只过滤指标、列表和历史，不隐式开启、暂停或重排自动化；Automation 不提供面板内项目范围选择器。
 - 每个项目独立展示 Work Sync 本地投影状态、本地工作区绑定和“允许自动领取”状态。只有当前登录代际投影可用、工作区已绑定且项目允许自动领取时，其待处理任务才有执行资格。
 - 跨项目队列先按服务器优先级从高到低，再按确认进入待处理的时间从早到晚，最后按项目 ID 与任务 ID 稳定排序。同步引起的顺序变化只影响下一次领取，不改变当前运行。
@@ -63,8 +68,11 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - “切换到 Codex CLI”转移当前 Case 的本地执行权，不改变远端任务状态、队列顺序或 Case State。动作必须先确认 Runtime 已停止，再打开交互式终端；启动失败时保留当前任务并进入恢复状态。
 - CLI 接管不是人工 Gate，也不表示 Case 停止推进。CLI 会话由用户直接观察和输入；Desktop 不复制 Runtime 内部 thread，只显示接管状态、Case 标识以及“恢复自动执行”。
 - “恢复自动执行”先读取 fresh Case State：active/Agent Case 启动 fresh Runtime run，需要 human 的 Case 进入人工事项，closed/resolved Case 直接进入 commit 与远端完成写回。关闭终端本身不触发任何一种结果。
+- Automation 顶层只区分“可以自行继续”和“需要人工介入”。accepted handoff 的下一责任是 external 时，`external` 只作为 `external_dependency` 介入原因，不成为第三个用户责任方；活动 execution 统一进入 `awaiting_human`，创建 attention item，并释放 Runtime 进程但继续持有 lane。
+- 外部依赖的原因与恢复条件来自 accepted ledger handoff；条件缺失时显示稳定兜底说明。应用重启、detached Run 完成与 canonical Case 对账都必须收敛到同一人工介入状态，不能生成“Runtime 丢失”恢复项或自动重试依赖。用户点击“已处理，重新检查”后，系统才以同一 task session/thread 启动 fresh Runtime。
+- Recovery、配置缺口和交互式 CLI 接管可继续保留为内部原因或处理场所，但只要下一步必须由用户动作触发，Command Center 的当前责任方统一为 Human；可由 Coordinator 自动重试或监听完成的远端收尾仍归 Automation。
 - 全局自动领取已开启但待处理任务均因未绑定或未授权而不可执行时，页面显示“待处理任务尚不可领取”，列出首要原因并提供“允许此项目自动领取”或“配置项目”动作，不显示“队列已清空”。
-- 人工介入是 Runtime 子状态，不直接等同于远端已阻塞。可恢复的人工等待保持任务为进行中；无法继续或依赖外部条件时才更新为已阻塞。
+- 人工介入是所有 Automation 无法自行推进事项的统一 Runtime 子状态，不直接等同于远端已阻塞。授权、事实、决策与外部依赖均保持任务为进行中并标明具体原因；只有 Work 任务事实要求时才更新远端为已阻塞。
 - Work Sync 发布的本地状态变化、补取、后台对账、应用重启和网络恢复不能把“等待人工”改为“执行中”，也不能替代用户提交介入说明。
 - 人工事项存在时，Automation 继续观察 Work 发布的本地任务状态；取消、改派、阻塞或权限撤销等终止性变化进入 Recovery Center，无冲突变化保持原人工事项，两种情况都不自动继续 Agent。
 - 状态写回失败时，系统不推断服务器结果，不领取下一任务。
@@ -158,6 +166,10 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 
 `已登录 → 连续超过七天无活动或 refresh token 被明确拒绝 → Command Center 只读 → 重新登录 → 自动同步`
 
+`覆盖安装新版 → 规范化旧 Store → 保留 Workset / 绑定 / 授权 / 活动执行 → 刷新 Project Catalog → 项目行立即恢复 → 逐项目重建任务就绪 → 仅开放健康 lane`
+
+`项目任务同步失败 → 项目行保留并显示同步异常 → 该项目领取冻结 → 自动重试或立即同步成功 → 原绑定和授权继续生效`
+
 `已登录 → 退出确认 → Work 清除远端身份与本地 Task Projection → Login`
 
 `任意 ADVANCE 页面 → 顶部产品集范围 → 选择 Workset 项目 → Automation 项目范围视图 → 返回项目集全部`
@@ -167,6 +179,8 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 `Command Center → 选择任务状态 → Task Browser → 返回原项目范围`
 
 `自动执行中 → 需要人工处理 → Intervention Workbench → 恢复自动执行`
+
+`自动执行中 → accepted external handoff → 需要人工介入（外部依赖）→ 用户确认已处理并重新检查 → 同一 thread fresh Runtime → 再次介入或完成收尾`
 
 `自动执行中 → 切换到 Codex CLI → 安全停止 Runtime → CLI 接管 → 交还执行权或 Case 已关闭 → fresh Runtime 或完成收尾`
 
@@ -213,10 +227,13 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - 人工事项通过 attention strip、侧栏数量、任务行和桌面通知共同提示，但不自动打开 Intervention Workbench 或 Personal / Chat。
 - 用户提交人工处理后，原文立即作为“你”的消息进入当前时间线，Workbench 显示“正在交给 Controller”，确认 Runtime 接受后返回 Command Center。
 - Work Sync 对账失败时保留最近一次成功列表并标记数据时间；用户可请求 Work 重试同步。
+- 覆盖安装后的首次启动自动执行确定性重建：旧 Store 中的 Workset、绑定、授权、session/thread、Run 与恢复检查点继续有效，旧任务/标签/游标只作为待重建派生状态，不能成为用户手工修复前置条件。
+- Project Catalog 已确认但某项目任务拉取失败时，Automation 保留该项目绑定行、原绑定和授权，显示逐项目错误并只冻结该项目候选；标签拉取失败不能使已确认的任务投影失效。
 - Work Sync 未发布 `in_progress` 时不启动 Runtime。
 - Work Sync 返回条件式领取冲突时，候选任务保持原本地状态并显示恢复原因；Automation 从后续本地状态重新计算队列。
 - `待处理 → 进行中` 已成功但 Runtime 启动失败时保留任务与启动意图关联，冻结下一任务并提供重试启动。
 - Runtime result validation、trusted ledger Gate 或 transition 拒绝时，Runtime 不展示 Case 完成、不启动 Git closeout；可修正拒绝先在同一 Agent thread 上进入可见的“Agent repair n/N”状态，向 Agent 提供具体 issue path、reason、被拒 claim 和 fresh canonical state，要求只替换无效 claim 而不重复实现。repair 成功后继续原待办；仅预算耗尽或错误不可修正时进入恢复卡，恢复卡优先展示最终 rejection 原因，不使用未接受的成功 handoff 文案。
+- accepted ledger handoff 明确交给 external 时，当前运行进入统一人工介入并以“外部依赖”标明原因子类；它创建 attention item、不进入 Recovery Center、不要求用户填写反馈，也不自动启动替代 Runtime。用户协调完成后选择“已处理，重新检查”。
 - Runtime 已返回 terminal handoff、但 Run activity 没有 accepted task-to-Case receipt 时，恢复卡显示“需要确认任务对应的 Case”，且不投影完成或 closeout。卡片提供“复用已有 Case”“作为新事项继续”“补充说明并继续”和“标记为已阻塞”；前两项恢复当前 task session 与持久 Agent thread，分别要求 fresh-read 后提交精确 closed/resolved Case 的类型化复用主张，或创建独立 Case。替代 Run 建立后才消费原恢复项。
 - 已绑定持久 Agent thread 的 Runtime 失败卡展示说明输入与“补充说明并继续”；空白说明不提交。提交成功后原文进入当前待办时间线并打开只读审查，新 Run 继续同一 thread；启动失败则保留输入场景和恢复项。
 - Work Sync 未发布 `completed` 时保留本地完成证据并冻结下一任务，直到 Work 完成服务器同步。
@@ -234,7 +251,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 
 ### 线框投影要求
 
-- `default.html` 投影应用壳、顶部产品集观察范围、管理项目集、Automation 的“仅看验收问题”、项目绑定内添加本地项目、头像账号入口、Command Center 待命、自动领取配置缺口、启动同步、自动执行中、交互式 Codex CLI 接管、人工介入入口、完成续接、空队列和异常恢复。
+- `default.html` 投影应用壳、顶部产品集观察范围、管理项目集、Automation 的“仅看验收问题”、项目绑定内添加本地项目、头像账号入口、Command Center 待命、自动领取配置缺口、启动同步、自动执行中、交互式 Codex CLI 接管、包含外部依赖原因的统一人工介入入口、完成续接、空队列和异常恢复。
 - `default.html` 还投影普通待办与验收问题双队列总览，以及验收问题等待执行、执行中和需人工状态。
 - `../login/default.html` 投影应用启动时的会话恢复、未登录、验证码已发送和登录失败状态。
 - `authentication.html` 投影 Automation Workspace 账号设置覆盖层的已登录与会话失效状态。
@@ -254,9 +271,12 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 | 仅看验收问题 | 用户开启 Automation 面板筛选 | Toggle、问题表格、进展徽标 | 查看问题进展或关闭筛选 |
 | 项目绑定 | 用户为 Workshop Project 选择本地工作区 | Sheet、Picker、目录选择 | 选择已有本地项目或添加后直接绑定 |
 | Work 投影初始化 | 应用启动、账号切换、手动立即同步 | ProgressView、toolbar | 等待 Work Sync 或打开设置 |
+| 覆盖安装重建 | 受支持旧 Store 首次由新版打开 | 分阶段恢复时间线、项目行就绪状态 | 无需用户操作；按项目自动恢复并只开放健康 lane |
+| 项目同步降级 | Catalog 已确认但某项目任务或标签同步失败 | 项目绑定行、同步异常标记、最近数据时间 | 保留绑定与授权，自动重试或立即同步 |
 | 自动执行中 | 任务已确认更新为进行中 | ProgressView、DisclosureGroup | 观察、切换到 Codex CLI、停止当前运行 |
+| 人工介入：外部依赖 | accepted ledger handoff 的下一责任为 external，Automation 无法自行推进 | attention、依赖原因、恢复条件、同一执行标识 | 查看对话或协调完成后选择“已处理，重新检查” |
 | Codex CLI 接管 | Runtime 已安全停止且交互式终端已打开 | 当前 Case、执行权提示、Button | 在 CLI 参与或恢复自动执行 |
-| 人工介入入口 | Runtime 声明 requires_human | attention strip、Inspector | 进入 Intervention Workbench |
+| 人工介入入口 | Runtime 声明 requires_human，或 Automation 遇到 external dependency | attention strip、原因子类、Inspector | 进入 Intervention Workbench，或确认依赖已处理后重新检查 |
 | 完成并续接 | ledger 和远端完成写回成功 | stage strip、Table | 观察下一项领取 |
 | Case 绑定待确认 | terminal handoff 无 accepted task-to-Case receipt | Recovery Center、绑定说明、四个定向动作 | 复用已有 Case、作为新事项继续、补充说明或标记阻塞 |
 | 无可执行任务 | 没有进行中或待处理任务 | ContentUnavailableView | 查看待评审或刷新 |
@@ -360,6 +380,8 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 | Work Sync 会话失效 | Work 同步返回未认证 | Alert | 账号状态和设置入口 |
 | 活动任务期间退出 | 用户在已登录设置中退出 | ConfirmationDialog | 当前任务、远端状态、队列冻结影响与取消/继续退出 |
 | 项目列表拉取失败 | 无法确认当前用户的项目范围 | 恢复中心 | 冻结新任务领取并重试项目同步 |
+| 单项目任务拉取失败 | Project Catalog 仍确认项目可访问 | 项目绑定行的同步异常与最近数据时间 | 保留项目、绑定和授权，只冻结该项目并自动重试 |
+| 单项目标签拉取失败 | 任务事实已确认但标签补充信息不可用 | 项目绑定行的降级提示 | 保留已确认任务资格并后台重试标签 |
 | 单项目待办拉取失败 | 其他项目仍可确认 | 项目行与队列提示 | 排除该项目并重试，不影响已确认项目 |
 | 实时连接中断 | 已有快照仍可展示 | 命令栏连接状态、项目行提示与“立即同步” | 自动重连；需要时可主动同步，不启动分钟级轮询 |
 | 旧服务兼容连接 | 握手没有事件版本与最新 ID | 命令栏“实时兼容连接”与最近刷新时间 | 在线通知触发刷新；重连读取当前态，不补历史消息 |
@@ -396,6 +418,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 | 场景 | 策略 |
 |------|------|
 | 首次加载 | Login 先恢复账号；认证有效后再显示应用壳并恢复项目、各项目待办和 Runtime |
+| 覆盖安装首次加载 | 先规范化旧 Store 并保留控制事实，再刷新统一 Project Catalog 和逐项目 Task Readiness；无需退出登录、清缓存或重建绑定 |
 | 登录提交 | 保留设置覆盖层和表单内容，只锁定认证动作 |
 | token 刷新 | 后台刷新，不替换当前内容；临时失败保留会话并进入同步恢复，凭据失效或超过七天无活动才进入认证失效态 |
 | Work 后台同步 | Automation 保留本地内容，只显示 Work Sync 提供的同步状态和数据时间 |

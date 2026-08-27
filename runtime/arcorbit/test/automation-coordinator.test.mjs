@@ -12,6 +12,7 @@ import {
   selectTaskCloseoutResult,
   selectNextExecution
 } from "../src/automation-coordinator.mjs";
+import { DESKTOP_STORE_VERSION, normalizeStore } from "../src/desktop/desktop-store.mjs";
 
 const automationCoordinatorPath = new URL("../src/automation-coordinator.mjs", import.meta.url);
 
@@ -41,6 +42,39 @@ test("queue remains deterministic and excludes ineligible tasks", () => {
     snapshot: { projects: [{ id: "p" }], errors: [] }
   }, new Map([["p", { id: "p" }]]), new Map([["local", { id: "local", path: "/workspace" }]]));
   assert.deepEqual(queue.map((item) => item.id), ["1", "2"]);
+});
+
+test("Automation projects come from the Catalog even before task readiness exists", async () => {
+  const store = normalizeStore({
+    version: DESKTOP_STORE_VERSION,
+    projects: [{ id: "LOCAL-12", name: "Atlas local", path: "/workspace/atlas" }],
+    automation: {
+      project_bindings: { "12": "LOCAL-12" },
+      project_participation: { "12": true }
+    },
+    platform: {
+      active_workset_id: "WORKSET-DEFAULT",
+      worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["12"] }],
+      task_sync: {
+        identity_key: "7",
+        user: { id: "7", name: "tester" },
+        project_catalog: [{ id: "12", name: "Atlas", current_user_id: "7" }],
+        projects: {},
+        source_status: "degraded",
+        errors: [{ code: "forbidden", status: 403, message: "tasks forbidden", project_id: "12", section: "tasks" }]
+      }
+    }
+  });
+  const coordinator = createAutomationCoordinator({ runManager: fakeRunManager(store, []) });
+
+  const snapshot = await coordinator.getSnapshot();
+
+  assert.deepEqual(snapshot.projects.map((project) => project.id), ["12"]);
+  assert.equal(snapshot.projects[0].local_project_id, "LOCAL-12");
+  assert.equal(snapshot.projects[0].participating, true);
+  assert.equal(snapshot.projects[0].source_status, "error");
+  assert.equal(snapshot.projects[0].eligible, false);
+  coordinator.dispose();
 });
 
 test("automation snapshot reads bounded run summaries and only hydrates the active run", async () => {
@@ -1423,6 +1457,120 @@ test("live accepted ledger handoff overrides a stale pre-commit Runtime handoff"
   assert.equal(store.automation.attention_items.length, 1);
   assert.equal(store.automation.attention_items[0].reason, "The review budget is exhausted.");
   assert.equal(store.automation.attention_items[0].question, "Choose how to continue review.");
+  coordinator.dispose();
+});
+
+test("live external handoff becomes actionable human intervention and resumes the same thread after confirmation", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts);
+  const coordinator = unconfiguredCoordinator(runManager);
+  const externalHandoff = {
+    version: "loop-handoff/v2",
+    status: "external_wait",
+    next_responsibility: "external",
+    agent_continuation_available: false,
+    human_decision_required: false,
+    trigger_mode: "external_wait",
+    responsibility_reason: "Provider restore route is not available yet.",
+    next_prompt: "Resume after the provider restore contract is deployed."
+  };
+
+  await runManager.emitEvent({
+    type: "run.finished",
+    runId: "RUN-OLD",
+    status: "completed",
+    activity: {
+      ledger_write_result: {
+        parsed: {
+          written: true,
+          case_transition_result: {
+            case_id: "CASE-20260827-001",
+            case_resolution: { loop_handoff: externalHandoff }
+          }
+        }
+      }
+    },
+    result: {
+      runtime_result: {
+        ledger_stage: { writeback_required: true },
+        loop_handoff: externalHandoff
+      }
+    }
+  });
+
+  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.active_task.intervention_kind, "external_dependency");
+  assert.equal(store.automation.active_task.intervention_reason, "Provider restore route is not available yet.");
+  assert.equal(store.automation.active_task.intervention_resume_condition, "Resume after the provider restore contract is deployed.");
+  assert.equal(store.automation.recovery_items.length, 0);
+  assert.equal(store.automation.attention_items.length, 1);
+  assert.equal(store.automation.attention_items[0].kind, "external_dependency");
+  assert.match((await coordinator.getSnapshot()).health.label, /需.*人工介入/);
+
+  await coordinator.confirmExternalDependency();
+
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].threadId, "THREAD-PERSISTED");
+  assert.equal(store.automation.active_task.phase, "running");
+  assert.equal(store.automation.active_task.intervention_kind, "");
+  assert.equal(store.automation.attention_items.length, 0);
+  coordinator.dispose();
+});
+
+test("startup reconciliation projects detached external wait as human intervention without retrying Runtime", async () => {
+  const starts = [];
+  const externalHandoff = {
+    version: "loop-handoff/v2",
+    status: "external_wait",
+    next_responsibility: "external",
+    agent_continuation_available: false,
+    human_decision_required: false,
+    trigger_mode: "external_wait",
+    responsibility_reason: "Wait for provider deployment.",
+    next_prompt: "Resume after deployment evidence is available."
+  };
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{
+        id: "RUN-OLD",
+        project_id: "local",
+        status: "completed",
+        activity: {
+          ledger_write_result: {
+            parsed: {
+              written: true,
+              case_transition_result: {
+                case_id: "CASE-20260827-001",
+                case_resolution: { loop_handoff: externalHandoff }
+              }
+            }
+          }
+        }
+      }];
+    },
+    async getProjectCaseState() {
+      return {
+        location: "active",
+        record: {
+          id: "CASE-20260827-001",
+          status: "active",
+          case_resolution: { status: "unresolved", loop_handoff: externalHandoff }
+        }
+      };
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.active_task.intervention_kind, "external_dependency");
+  assert.equal(store.automation.recovery_items.length, 0);
+  assert.equal(store.automation.attention_items.length, 1);
+  assert.equal(store.automation.attention_items[0].kind, "external_dependency");
   coordinator.dispose();
 });
 

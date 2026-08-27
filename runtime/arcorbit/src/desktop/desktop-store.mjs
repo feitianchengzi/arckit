@@ -6,6 +6,8 @@ import { authProjection, DEFAULT_WORKSHOP_BASE_URL, normalizeTaskSourceSettings 
 import { taskDisplayTitle } from "../task-display-title.mjs";
 import { normalizeWorkInspectorWidth, WORK_INSPECTOR_DEFAULT_WIDTH } from "./work-inspector-preference.mjs";
 
+export const DESKTOP_STORE_VERSION = 16;
+
 export function createDesktopStore({ dataDir, runsDir, storePath }) {
   let storeQueue = Promise.resolve();
 
@@ -14,7 +16,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 15,
+        version: DESKTOP_STORE_VERSION,
         projects: [],
         runs: [],
         sessions: {},
@@ -58,18 +60,19 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 }
 
 export function normalizeStore(store) {
+  const requiresTaskRehydration = Number(store?.version || 0) < DESKTOP_STORE_VERSION;
   const automation = normalizeAutomationState(store.automation || {});
   const hasPersistedChatSelection = Boolean(store.chat)
     && Object.prototype.hasOwnProperty.call(store.chat, "selected_session_id");
   const normalized = {
-    version: 15,
+    version: DESKTOP_STORE_VERSION,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
     messages: store.messages && typeof store.messages === "object" ? store.messages : {},
     settings: normalizeSettings(store.settings || {}),
     automation,
-    platform: normalizePlatformState(store.platform || {}, automation, store.automation || {}),
+    platform: normalizePlatformState(store.platform || {}, automation, store.automation || {}, { requiresTaskRehydration }),
     chat: normalizeChatState(store.chat || {})
   };
   for (const [projectIdValue, sessions] of Object.entries(normalized.sessions)) {
@@ -182,7 +185,7 @@ function normalizeAutomationSessionTitle(value) {
     : taskDisplayTitle(title, "Automation");
 }
 
-export function normalizePlatformState(value = {}, automation = defaultAutomationState(), legacyAutomation = automation) {
+export function normalizePlatformState(value = {}, automation = defaultAutomationState(), legacyAutomation = automation, { requiresTaskRehydration = false } = {}) {
   const defaults = defaultPlatformState();
   const migratedProjectIds = Object.keys(automation.project_bindings || {}).sort(compareScalarIds);
   const inputWorksets = Array.isArray(value.worksets) ? value.worksets : [];
@@ -221,7 +224,7 @@ export function normalizePlatformState(value = {}, automation = defaultAutomatio
     ui_preferences: {
       work_inspector_width_px: normalizeWorkInspectorWidth(uiPreferences.work_inspector_width_px)
     },
-    task_sync: normalizeTaskSyncState(value.task_sync, legacyAutomation),
+    task_sync: normalizeTaskSyncState(value.task_sync, legacyAutomation, { requiresRehydration: requiresTaskRehydration }),
     feedback_v2: {
       status: feedbackStatuses.has(feedbackV2.status) ? feedbackV2.status : defaults.feedback_v2.status,
       endpoint_origin: String(feedbackV2.endpoint_origin || ""),
@@ -241,12 +244,13 @@ export function defaultTaskSyncState() {
     projects: {},
     task_replacements: {},
     source_status: "logged_out",
+    rehydration_required: false,
     last_reconciled_at: "",
     errors: []
   };
 }
 
-export function normalizeTaskSyncState(value = {}, legacyAutomation = {}) {
+export function normalizeTaskSyncState(value = {}, legacyAutomation = {}, { requiresRehydration = false } = {}) {
   const current = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const legacySnapshot = legacyAutomation?.snapshot && typeof legacyAutomation.snapshot === "object"
     ? legacyAutomation.snapshot
@@ -280,7 +284,9 @@ export function normalizeTaskSyncState(value = {}, legacyAutomation = {}) {
   }).filter(Boolean));
   const projects = Object.fromEntries(Object.entries({ ...migratedProjects, ...inputProjects }).map(([projectId, item]) => {
     const project = item && typeof item === "object" && !Array.isArray(item) ? item : {};
-    return [String(projectId), normalizeTaskSyncProject(project, projectId)];
+    const normalized = normalizeTaskSyncProject(project, projectId);
+    if (requiresRehydration) normalized.trusted = false;
+    return [String(projectId), normalized];
   }));
   const projectCatalogInput = Array.isArray(current.project_catalog) && current.project_catalog.length > 0
     ? current.project_catalog
@@ -301,9 +307,12 @@ export function normalizeTaskSyncState(value = {}, legacyAutomation = {}) {
         return normalized ? [normalized.id, normalized] : null;
       })
       .filter(Boolean)),
-    source_status: sourceStatuses.has(current.source_status)
-      ? current.source_status
-      : sourceStatuses.has(legacySnapshot.source_status) ? legacySnapshot.source_status : "logged_out",
+    source_status: requiresRehydration && (current.identity_key || current.user || projectCatalogInput.length > 0 || Object.keys(projects).length > 0)
+      ? "syncing"
+      : sourceStatuses.has(current.source_status)
+        ? current.source_status
+        : sourceStatuses.has(legacySnapshot.source_status) ? legacySnapshot.source_status : "logged_out",
+    rehydration_required: Boolean(requiresRehydration || current.rehydration_required),
     last_reconciled_at: String(current.last_reconciled_at || legacySnapshot.synced_at || ""),
     errors: Array.isArray(current.errors)
       ? current.errors.map(normalizeAutomationError).slice(0, 50)
@@ -487,6 +496,22 @@ export function normalizeAutomationState(value = {}) {
       item.ready_at ||= item.updated_at || item.created_at;
     }
   }
+  const attentionItems = Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [];
+  for (const execution of Object.values(activeExecutions)) {
+    if (execution.intervention_kind !== "external_dependency") continue;
+    if (attentionItems.some((item) => String(item.task_id) === String(execution.task_id))) continue;
+    attentionItems.push({
+      id: `ATTENTION-${execution.task_id}`,
+      task_id: execution.task_id,
+      project_id: execution.project_id,
+      run_id: execution.run_id || "",
+      feedback_id: execution.feedback_id || "",
+      kind: "external_dependency",
+      reason: execution.intervention_reason || "存在 Automation 无法自行完成的外部依赖。",
+      question: execution.intervention_resume_condition || "请协调依赖完成后确认，Automation 将重新检查并继续。",
+      created_at: execution.intervention_started_at || ""
+    });
+  }
   return {
     enabled: Boolean(value.enabled),
     queue_paused: Boolean(value.queue_paused),
@@ -496,7 +521,7 @@ export function normalizeAutomationState(value = {}) {
     active_executions: activeExecutions,
     selected_execution_id: selectExecutionId(value.selected_execution_id, activeExecutions),
     acceptance_feedback_items: feedbackItems,
-    attention_items: Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [],
+    attention_items: attentionItems.slice(0, 50),
     recovery_items: Array.isArray(value.recovery_items)
       ? value.recovery_items.slice(0, 50).map((item) => ({ ...item, responsibility: "operator" }))
       : [],
@@ -530,8 +555,10 @@ function normalizeActiveTask(value, persistedLaneKey = "") {
   const workspaceKey = String(value.workspace_key || value.local_project_id || value.local_project_path || persistedLaneKey || value.project_id || "").trim();
   if (!workspaceKey) return null;
   const executionId = String(value.execution_id || legacyExecutionId(value, workspaceKey));
+  const legacyExternalWait = value.phase === "external_wait";
   return {
     ...value,
+    phase: legacyExternalWait ? "awaiting_human" : value.phase,
     execution_id: executionId,
     workspace_key: workspaceKey,
     task_title: taskDisplayTitle(value.task_title, value.task_id),
@@ -545,6 +572,10 @@ function normalizeActiveTask(value, persistedLaneKey = "") {
     case_bound_at: String(value.case_bound_at || ""),
     thread_id: String(value.thread_id || ""),
     thread_bound_at: String(value.thread_bound_at || ""),
+    intervention_kind: String(value.intervention_kind || (legacyExternalWait ? "external_dependency" : "")),
+    intervention_reason: String(value.intervention_reason || (legacyExternalWait ? value.external_wait_reason : "") || ""),
+    intervention_resume_condition: String(value.intervention_resume_condition || (legacyExternalWait ? value.external_wait_resume_condition : "") || ""),
+    intervention_started_at: String(value.intervention_started_at || (legacyExternalWait ? value.external_wait_started_at : "") || ""),
     last_compaction_turn_id: String(value.last_compaction_turn_id || ""),
     closeout_status: closeoutStatuses.has(value.closeout_status)
       ? value.closeout_status
@@ -574,12 +605,13 @@ export function normalizeAcceptanceFeedbackItem(value) {
   const taskId = String(value.source_task_id || "").trim();
   if (!feedbackId || !taskId) return null;
   const statuses = new Set(["queued", "running", "awaiting_human", "blocked", "resolved", "cancelled"]);
+  const status = value.status === "external_wait" ? "awaiting_human" : value.status;
   return {
     feedback_id: feedbackId,
     idempotency_key: String(value.idempotency_key || ""),
     message_id: String(value.message_id || ""),
     original_feedback: String(value.original_feedback || ""),
-    status: statuses.has(value.status) ? value.status : "queued",
+    status: statuses.has(status) ? status : "queued",
     progress: String(value.progress || "等待执行"),
     source_project_id: String(value.source_project_id || ""),
     source_task_id: taskId,
@@ -597,6 +629,7 @@ export function normalizeAcceptanceFeedbackItem(value) {
     evidence: Array.isArray(value.evidence) ? value.evidence.map(String).filter(Boolean).slice(0, 50) : [],
     result: String(value.result || ""),
     blocking_reason: String(value.blocking_reason || ""),
+    intervention_kind: String(value.intervention_kind || (value.status === "external_wait" ? "external_dependency" : "")),
     created_at: String(value.created_at || ""),
     updated_at: String(value.updated_at || value.created_at || ""),
     resolved_at: String(value.resolved_at || "")
@@ -771,13 +804,15 @@ function normalizeAutomationError(value) {
       code: "task_source_error",
       status: 0,
       message: String(value || "Task source error"),
-      project_id: ""
+      project_id: "",
+      section: ""
     };
   }
   return {
     code: String(value.code || "task_source_error"),
     status: Number(value.status || 0),
     message: String(value.message || "Task source error"),
-    project_id: String(value.project_id || "")
+    project_id: String(value.project_id || ""),
+    section: String(value.section || "")
   };
 }

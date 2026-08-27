@@ -166,7 +166,11 @@ function loopHandoff(record, status, stage, candidateGaps) {
     human_decision_required: next === 'human',
     trigger_mode: next === 'none' ? 'none' : next === 'human' ? 'user_decision' : next === 'external' ? 'external_wait' : 'automatic',
     responsibility_reason: status === 'resolved' ? 'The current Case revision passed completion review.' : (human || agent || external)?.reason || 'No ready gap is currently available.',
-    next_prompt: next === 'agent' ? `Continue ${record.id}: compare the ready dynamic gaps and advance one evidence-backed transition.` : '',
+    next_prompt: next === 'agent'
+      ? `Continue ${record.id}: compare the ready dynamic gaps and advance one evidence-backed transition.`
+      : next === 'external'
+        ? `Resume ${record.id} after the external responsibility is satisfied: ${external.goal}`
+        : '',
     human_gate: { required: next === 'human', reason: human?.reason || '', decision_needed: human?.goal || '' },
   };
 }

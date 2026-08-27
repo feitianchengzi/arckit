@@ -79,7 +79,7 @@ Workshop Platform Adapter 暴露业务语义方法，不暴露 HTTP passthrough�
 - TaskAttachment 资源访问先重新读取目标任务的附件记录并确认 object key 属于该记录，再使用短期 STS 生成 HTTPS 签名 URL。文件 URL 只交给 main 进程的系统打开动作；图片由 main 进程限制类型和大小后转换为 data URL 供当前 Renderer 预览。
 - Project Tag 的 list、create、update、delete 显式方法；Task 的逗号分隔 `tags` 字段保持原样。
 - `listFeedbackV1(projectId, filters)`：读取普通用户反馈 V1。
-- Feedback V1 的 create、update、delete 显式方法；priority、ignored 和 task 关联继续合并在 `data` JSON 中。
+- Feedback V1 的 create、update、delete 显式方法；priority、ignored 和 task 关联继续合并在 `data` JSON 中。已忽略恢复通过 update 保留无关 metadata，同时写入 `ignored=false`、`feedback_state=pending` 与 `status=analyzing`，避免只清除布尔标记后仍被旧状态字段投影为已忽略。
 - Coordinator 的 `feedback.to_task`：编排“创建 Task，再把 task id/state 写入 Feedback data”的非原子流程；关联失败的错误必须携带已创建 task id。
 
 所有列表方法使用 `page_size=200` 逐页读取，以响应 `total`/`meta.total` 或短页作为终止条件，并按 ID 去重。第一生产实现不调用没有服务端证据的邀请列表、邀请撤销和任务历史接口。
@@ -237,7 +237,7 @@ Preload 新增以下产品动作：
 - `previewImage(input)` / `openImageViewer(input)`：只接受 `work-task`、`feedback-file` 或 `feedback-v2` 来源及其领域身份。main 进程重新验证记录归属、受信 URL、响应类型和大小；前者返回受限 data URL，后者创建或聚焦 Work 与 Feedback 共用的独立图片窗口。Renderer 不能提交 data URL、任意下载 URL 或本地路径作为图片来源。
 - 图片窗口使用独立静态 Renderer 和最小 preload，启用 context isolation、sandbox、禁用 Node integration 与任意导航。缩放、适合窗口、实际大小、旋转、平移和重置只改变窗口内视图状态；另存为通过仅对受管图片窗口开放的 main-process 保存动作写入用户明确选择的位置。
 
-当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。Task create 与 update 接受显式七状态；Platform Coordinator 还提供受限的 `replaceTaskProject` 领域动作，由 Work Sync 使用既有 `createTask` 和 `deleteTask` 完成跨产品受控替换。Renderer 只能提交源 Task id、目标产品和目标产品限定字段，不能选择调用顺序或注入服务端拥有字段。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
+当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、创建、专用忽略、专用恢复和原子转待办。V2 的 `restoreFeedbackV2` 固定调用 `POST /feedbacks/{id}/restore`；main IPC 与 preload 只暴露 project id 与 feedback id，Renderer 不能传入 URL、header、凭据或 triage 字段。Workshop Todo 服务在事务内锁定反馈记录，重新校验其仍为 `ignored` 且不存在主待办关系，再把同一记录的 `triage_status`、状态和兼容 metadata 原子恢复为 `pending`，并返回更新后的 Feedback。Task create 与 update 接受显式七状态；Platform Coordinator 还提供受限的 `replaceTaskProject` 领域动作，由 Work Sync 使用既有 `createTask` 和 `deleteTask` 完成跨产品受控替换。Renderer 只能提交源 Task id、目标产品和目标产品限定字段，不能选择调用顺序或注入服务端拥有字段。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
@@ -277,7 +277,7 @@ V1 convert-to-task 是可恢复但非原子的客户端编排：
 3. 第二步失败时返回 `task_created_feedback_link_failed`，包含新 Task id，并提供“重试关联”动作。
 4. 重试只更新 Feedback，不重复创建 Task。
 
-V2 客户端契约的 triage status、customer status、消息、回复附件、通知/已读、专用忽略和原子 convert-to-task 在项目 capability 探测为 `available` 时进入 Renderer。该契约直接来自 Workshop Feedback SDK 用户端与 Console 开发者端，不以真实环境预验证或安装包环境开关作为实现门禁。请求失败时对应 capability 进入 `degraded`；已取得的 V1 或 V2 列表、详情和消息保持可见，不生成兼容性假数据。
+V2 客户端契约的 triage status、customer status、消息、回复附件、通知/已读、创建、专用忽略、专用恢复和原子 convert-to-task 在项目 capability 探测为 `available` 时进入 Renderer。ArcOrbit 不通过通用 update 注入 triage 字段，也不在 Renderer 乐观改写状态。恢复只调用服务端固定 route；服务端确认同一记录为 `pending` 后才刷新投影。非 ignored、已关联待办、无权限和对象不存在分别失败关闭；请求失败时对应 capability 进入 `degraded`，已取得的 V1 或 V2 列表、详情和消息保持可见，不生成兼容性假数据。
 
 开发者管理 V2 复用 Workshop 登录身份和 main 进程认证边界，不调用 ArcOrbit 产品反馈中心的 SDK WebView、Project 107 或 bundled API Key。两条集成不共享窗口、凭据、未读状态或命令入口。
 
@@ -356,7 +356,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - `task_project_replace_partial`：目标 Task 已创建但源删除失败；保留两个服务器事实和恢复记录，只允许重试源删除或确认保留两份。
 - `feedback_link_failed`：保留已创建 Task id，只重试 V1 Feedback 关联。
 - `feedback_v2_unavailable`：受限 V2 adapter 本身不可构造时继续使用 V1 能力，不改变 V1 数据。
-- `feedback_v2_degraded`：某项目 V2 列表真实失败时回退该项目 V1；消息、附件、通知、忽略或原子转待办请求失败时只降级对应动作，保留已取得事实并返回脱敏错误。通知失败不关闭消息读取和回复。
+- `feedback_v2_degraded`：某项目 V2 列表真实失败时回退该项目 V1；消息、附件、通知、忽略、恢复或原子转待办请求失败时只降级对应动作，保留已取得事实并返回脱敏错误。恢复失败保留 `ignored` 与当前选择，通知失败不关闭消息读取和回复。
 - `automation_recovery`：继续由既有 Coordinator actions 处理，Platform Coordinator 不复制恢复动作。
 
 ## 安全
@@ -395,12 +395,13 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - main IPC 参数拒绝、未认证、权限保守 gate 和错误投影。
 - V1 convert-to-task 成功、创建失败、关联失败和只重试关联。
 - V2 每项目探测、成功采用与 V1 fallback；列表失败时不渲染 V2-only 动作，通知失败时仍保留消息和回复。
+- V1 已忽略恢复覆盖无关 metadata 保留、`ignored=false`、`feedback_state=pending` 与 `status=analyzing` 的一致写入；V2 同记录恢复覆盖固定 route 与 typed IPC、事务行锁、ignored 状态前置校验、待办关联冲突、服务器 `pending` 确认、权限拒绝、对象不存在和网络失败，并证明失败时 Renderer 不改写原状态。
 - V2 消息读取与回复、附件上传策略与受限读取、通知已读、专用忽略和原子转待办的成功、权限拒绝、对象不存在及网络失败。
 - V2 某一动作失败时保留已加载列表、详情、消息与回复草稿，且 Renderer 无法传入 URL、header、token 或 API key。
 - 平台 partial sync 不阻断健康项目和既有 Automation。
 - 既有单全局 execution、persistent thread、双队列和 closeout 测试全部通过。
 
-Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo 当前 Go 包缺少业务测试，`go test ./...` 只证明编译通过；平台适配器测试使用记录下来的实际响应形状与服务错误码，但不替代服务端授权和并发测试。
+Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo 的 Feedback V2 restore 由路由、状态投影和权限拒绝测试覆盖；`go test ./...` 还验证全部现有 Go 包，但真实 PostgreSQL 并发与网关身份仍需部署环境验收。平台适配器测试使用记录下来的实际响应形状与服务错误码，不能替代真实环境验证。
 
 ## 已知外部契约缺口
 
@@ -410,7 +411,6 @@ Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo �
 - Workshop 项目查询响应不包含 `organization_id`；平台从组织范围请求上下文补全归属，并从项目成员的 `is_external` 标记识别外部参与，不修改服务端响应契约。
 - Workshop 项目邀请缺少列表和撤销接口，ArcOrbit 只显示创建响应的一次性结果。
 - Task history 缺少服务端实现，ArcOrbit 不展示伪历史。
-- Feedback V2 服务端实现仓库不在当前本地源码集合中；Workshop Feedback SDK 用户会话、Console 开发者会话和两端 V2 client 共同构成 ArcOrbit 采用的双向沟通契约，具体项目是否可用由受限运行时探测、capability 降级和失败关闭表达。
 - V1 convert-to-task 非原子，需要显式恢复状态。
 - Web 前端验证环境缺少已安装 TypeScript 工具链，不能把未运行 build 视为通过。
 

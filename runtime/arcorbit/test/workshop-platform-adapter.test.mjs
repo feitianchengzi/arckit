@@ -58,8 +58,10 @@ test("Workshop platform adapter keeps Feedback V2 in fixed project-scoped routes
   assert.equal(message.sender_type, "developer");
   assert.equal(await adapter.getFeedbackV2AttachmentUrl(11, { feedback_id: 51, attachment_id: 91, object_key: "feedback/51/log.txt" }), "https://oss.example.test/feedback/51/log.txt?id=id");
   await adapter.ignoreFeedbackV2(11, 51);
+  await adapter.restoreFeedbackV2(11, 51);
   await adapter.convertFeedbackV2ToTask(11, { feedback_id: 51, content: "Follow up", state: "pending_review", executor_id: 7 });
   assert.equal(calls.some((call) => call.path === "/feedbacks/51/ignore" && call.options.method === "POST"), true);
+  assert.equal(calls.some((call) => call.path === "/feedbacks/51/restore" && call.options.method === "POST"), true);
   assert.equal(calls.some((call) => call.path === "/feedbacks/51/convert-to-task" && call.options.body.executor_id === 7), true);
   await assert.rejects(adapter.listFeedbackV2(12), /not enabled/);
   await assert.rejects(adapter.createFeedbackV2DeveloperMessage(11, { feedback_id: 51, content: "", attachments: [] }), /requires text or an attachment/);
@@ -71,6 +73,26 @@ test("Feedback V2 normalization preserves V1 compatibility and explicit statuses
   assert.equal(value.ignored, true);
   assert.equal(value.customer_status, "released");
   assert.equal(value.priority, "P2");
+});
+
+test("Feedback V2 restore preserves provider failure status without a fallback mutation", async () => {
+  for (const [status, code] of [[403, "forbidden"], [404, "not_found"], [409, "conflict"], [0, "network_error"]]) {
+    const calls = [];
+    const expected = Object.assign(new Error(code), { status, code });
+    const adapter = createWorkshopPlatformAdapter({
+      request: async () => ({}),
+      requestV2: async (path, options = {}) => {
+        calls.push({ path, options });
+        throw expected;
+      },
+      listProjects: async () => [],
+      normalizeTask: (value) => value,
+      feedbackV2ProjectIds: "11"
+    });
+
+    await assert.rejects(adapter.restoreFeedbackV2(11, 51), (error) => error === expected);
+    assert.deepEqual(calls, [{ path: "/feedbacks/51/restore", options: { method: "POST" } }]);
+  }
 });
 
 test("Workshop platform management uses the existing bounded service routes and fields", async () => {

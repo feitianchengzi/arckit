@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeStore } from "../src/desktop/desktop-store.mjs";
+import { DESKTOP_STORE_VERSION, normalizeStore } from "../src/desktop/desktop-store.mjs";
 import { createWorkSyncCoordinator } from "../src/work-sync-coordinator.mjs";
 
 test("Work Sync reconciles the Workset, Automation participation, and active-task demand union", async () => {
@@ -48,6 +48,163 @@ test("Work Sync reconciles the Workset, Automation participation, and active-tas
   assert.deepEqual(automation.tasks.map((task) => task.id), ["ME-1", "ME-2", "ME-3"]);
   assert.equal(state.store.automation.snapshot, undefined);
   assert.equal(state.store.automation.realtime, undefined);
+});
+
+test("Automation keeps a Catalog project visible when its first task sync fails", async () => {
+  const state = createState({
+    platform: {
+      active_workset_id: "WORKSET-DEFAULT",
+      worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["12"] }]
+    }
+  });
+  const projects = [{ id: "12", name: "Atlas", current_user_id: "7" }];
+  const platformSource = {
+    async listProjectTasks() { throw Object.assign(new Error("tasks forbidden"), { code: "forbidden", status: 403 }); },
+    async listProjectTags() { return []; },
+    async updateTask() { throw new Error("unused"); }
+  };
+  const coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(projects, platformSource),
+    platformSource
+  });
+
+  await coordinator.reconcile();
+  const automation = await coordinator.getSnapshot({ automationOnly: true });
+
+  assert.deepEqual(automation.projects.map((project) => project.id), ["12"]);
+  assert.deepEqual(automation.tasks, []);
+  assert.equal(automation.project_states["12"].trusted, false);
+  assert.deepEqual(automation.errors.map((error) => [error.project_id, error.section, error.code]), [["12", "tasks", "forbidden"]]);
+  assert.equal(state.store.platform.task_sync.rehydration_required, true);
+});
+
+test("a tag failure does not invalidate confirmed project tasks", async () => {
+  const state = createState({
+    platform: {
+      active_workset_id: "WORKSET-DEFAULT",
+      worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["12"] }]
+    }
+  });
+  const projects = [{ id: "12", name: "Atlas", current_user_id: "7" }];
+  const platformSource = {
+    async listProjectTasks() { return [{ id: "T-12", project_id: "12", executor_id: "7", state: "pending", content: "ready" }]; },
+    async listProjectTags() { throw Object.assign(new Error("tags forbidden"), { code: "forbidden", status: 403 }); },
+    async updateTask() { throw new Error("unused"); }
+  };
+  const coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(projects, platformSource),
+    platformSource
+  });
+
+  await coordinator.reconcile();
+  const automation = await coordinator.getSnapshot({ automationOnly: true });
+
+  assert.deepEqual(automation.tasks.map((task) => task.id), ["T-12"]);
+  assert.equal(automation.project_states["12"].trusted, true);
+  assert.deepEqual(automation.errors.map((error) => [error.section, error.code]), [["tags", "forbidden"]]);
+  assert.equal(state.store.platform.task_sync.rehydration_required, false);
+});
+
+test("the first v16 reconciliation rehydrates a v15 store without changing bindings or participation", async () => {
+  const state = createState({
+    version: 15,
+    projects: [{ id: "LOCAL-12", name: "Atlas local", path: "/workspace/atlas" }],
+    automation: {
+      project_bindings: { "12": "LOCAL-12" },
+      project_participation: { "12": true }
+    },
+    platform: {
+      active_workset_id: "WORKSET-DEFAULT",
+      worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["12"] }],
+      task_sync: {
+        identity_key: "7",
+        user: { id: "7" },
+        project_catalog: [{ id: "12", name: "Old Atlas", current_user_id: "7" }],
+        projects: {
+          "12": {
+            project: { id: "12", name: "Old Atlas", current_user_id: "7" },
+            tasks: [{ id: "OLD", project_id: "12", executor_id: "7", state: "pending" }],
+            tags: [],
+            trusted: true
+          }
+        },
+        source_status: "healthy"
+      }
+    }
+  });
+  const projects = [{ id: "12", name: "Atlas", current_user_id: "7" }];
+  const platformSource = {
+    async listProjectTasks() { return [{ id: "CURRENT", project_id: "12", executor_id: "7", state: "pending" }]; },
+    async listProjectTags() { return []; },
+    async updateTask() { throw new Error("unused"); }
+  };
+  const coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(projects, platformSource),
+    platformSource
+  });
+
+  assert.equal(state.store.platform.task_sync.projects["12"].trusted, false);
+  await coordinator.reconcile({ reason: "startup-rehydration" });
+  const automation = await coordinator.getSnapshot({ automationOnly: true });
+
+  assert.equal(state.store.version, DESKTOP_STORE_VERSION);
+  assert.deepEqual(state.store.platform.worksets[0].project_ids, ["12"]);
+  assert.deepEqual(state.store.automation.project_bindings, { "12": "LOCAL-12" });
+  assert.deepEqual(state.store.automation.project_participation, { "12": true });
+  assert.equal(state.store.platform.task_sync.rehydration_required, false);
+  assert.deepEqual(automation.projects.map((project) => project.name), ["Atlas"]);
+  assert.deepEqual(automation.tasks.map((task) => task.id), ["CURRENT"]);
+});
+
+test("a reconcile demand added during an in-flight pass is processed by a following generation", async () => {
+  const state = createState({
+    platform: {
+      active_workset_id: "WORKSET-DEFAULT",
+      worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["1"] }]
+    }
+  });
+  const projects = [
+    { id: "1", name: "One", current_user_id: "7" },
+    { id: "2", name: "Two", current_user_id: "7" }
+  ];
+  let releaseFirst;
+  let firstStarted;
+  const started = new Promise((resolve) => { firstStarted = resolve; });
+  const calls = [];
+  const platformSource = {
+    async listProjectTasks(projectId) {
+      calls.push(String(projectId));
+      if (String(projectId) === "1" && calls.length === 1) {
+        firstStarted();
+        await new Promise((resolve) => { releaseFirst = resolve; });
+      }
+      return [{ id: `T-${projectId}`, project_id: String(projectId), executor_id: "7", state: "pending" }];
+    },
+    async listProjectTags() { return []; },
+    async updateTask() { throw new Error("unused"); }
+  };
+  const coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(projects, platformSource),
+    platformSource
+  });
+
+  const first = coordinator.reconcile({ reason: "startup" });
+  await started;
+  await state.runManager.updateDesktopStore((store) => {
+    store.platform.worksets[0].project_ids.push("2");
+    return store;
+  });
+  const second = coordinator.reconcile({ reason: "workset-changed" });
+  releaseFirst();
+  await Promise.all([first, second]);
+
+  assert.equal(calls.filter((id) => id === "1").length, 2);
+  assert.equal(calls.filter((id) => id === "2").length, 1);
+  assert.deepEqual((await coordinator.getSnapshot({ automationOnly: true })).projects.map((project) => project.id), ["1", "2"]);
 });
 
 test("Work Sync keeps the local task state unchanged when a mutation fails", async () => {
@@ -406,7 +563,7 @@ function authenticatedTaskSource(projects, platform) {
 }
 
 function createState(input) {
-  let store = normalizeStore(input || {});
+  let store = normalizeStore({ version: DESKTOP_STORE_VERSION, ...(input || {}) });
   return {
     get store() { return store; },
     runManager: {

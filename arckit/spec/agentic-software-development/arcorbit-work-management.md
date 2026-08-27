@@ -14,6 +14,8 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 - ArcOrbit 从完整正文生成只读展示标题：先去除首尾空白并把连续 Unicode 空白折叠为一个半角空格，再按 Unicode grapheme cluster 计数；结果不超过 64 个 grapheme clusters，超限时保留前 63 个并追加单字符省略号 `…`。完整正文不因标题生成而改变。
 - 展示标题只用于列表行、队列、当前运行、人工介入页顶部、确认对话以及 session/CLI 的可读标签。它不是可编辑业务字段；历史运行可以保存生成时的展示标题快照，但该快照不参与任务读取、搜索、编辑或服务端写回。
 - ArcOrbit Product Workspace 提供远端 Project 与本地 repository、Automation participation 和执行上下文的组合投影。
+- 当前登录身份可访问的 Workshop Project Catalog 是 ArcOrbit 项目身份与可见性的唯一来源。Today、Work、Automation 项目绑定和 Organization 中的同一 `project_id` 始终表示同一个项目；项目任务、标签或实时同步失败只改变该项目的数据新鲜度和执行资格，不使项目从任一产品集页面消失。
+- Product Workspace 把 Project Catalog 身份、持久 Workset 归属、本地 repository binding、Automation participation 和按项目派生的 Task Readiness 组合为一个投影。项目存在、本地连接、任务同步健康和可自动执行是四项独立事实，界面不以其中任一派生事实代替项目存在性。
 - 顶部产品集范围限定当前可见项目；Work 页面内筛选继续限定任务结果。两类筛选都不改变项目成员关系、Automation participation、任务状态或队列顺序。
 - 跨产品结果始终保留 `project_id` 和产品名称。创建与编辑操作始终绑定一个明确产品；编辑允许把既有待办转移到当前产品集中另一个有写入权限的产品。
 
@@ -72,6 +74,9 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 - 目标创建成功但源删除失败时，两个 Task 都作为服务器事实保留。Work 显示新旧 Task id 和分步结果，允许用户重试删除源 Task 或保留两份；不得删除新 Task、伪造回滚或把操作显示为完整成功。
 - 401、403、404、409/412 和传输错误分别呈现认证、权限、对象消失、冲突和可重试服务错误；失败动作不在本地伪造成功。
 - 同步失败时可以保留最近成功结果并明确标记过期；Automation 只消费 Work Sync 已完成当前登录代际初始对账且仍具备权限的本地任务状态。
+- 当前项目首次任务对账失败时，Today、Work 和 Automation 项目绑定仍显示该项目，并显示项目级初始化失败或降级状态；该项目不产生 Automation 候选，其他健康项目继续工作。任务读取成功而标签读取失败时，已确认任务继续形成可信任务投影，标签能力单独降级。
+- 覆盖安装保留 Workset、本地项目、本地 binding、Automation participation、session、thread、Run 和恢复记录，并把项目任务、标签、连接、游标和聚合健康视为可重建派生状态。应用第一次启动自动规范化旧 store、读取当前登录身份的 Project Catalog，并对当前需求项目完成 fresh rehydration；用户不需要退出登录、删除缓存、重新添加项目或重新建立已有 binding。
+- 覆盖安装后的 rehydration 在 Automation 领取前完成。无法确认当前身份或项目任务事实时只关闭对应项目的新领取，并保留可见的恢复状态；它不删除持久控制事实，也不把旧登录代际的任务投影当作可信结果。
 - 评论图片自动加载或独立窗口打开失败时，保留评论正文和已成功图片，在对应图片位置显示脱敏错误与重试；另存为取消不视为错误，写入失败时浏览窗口保持打开。
 - 登录身份变化、退出、权限撤销或项目删除会清除对应可信任务投影和 Automation 可见状态；Workset、本地绑定、Run 和 thread 按各自既有生命周期保留。
 
@@ -100,7 +105,8 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 5. 用户可在新建和编辑 Sheet 选择完整七状态；Inspector 根据当前状态只提供明确、有限的下一步动作，异常状态可通过编辑 Sheet 自由纠偏。编辑待办可把内容复制到当前产品集中另一个可写产品、再删除源 Task；切换产品会清空旧产品关联字段，Sheet 明确提示新 Task id 以及评论、附件、Run/thread 和详情引用不会迁移。Automation 可见性、活动 execution 和验收问题不构成状态 mutation 的许可条件，所有分步结果均来自 Workshop 确认。
 6. Work 与 Automation 共享 Work Sync 发布的本地任务事实但不共享职责：Work 独占远端 mutation 与同步，Automation 只消费确认后的本地状态并对活动 execution、队列、Gate、验收问题和终态进行对账；筛选不授权执行，状态变化不释放人工 Gate。
 7. 权限变化、冲突、对象消失和网络失败均保留可恢复状态，不以本地乐观结果覆盖服务器事实。
-8. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖新建/编辑完整七状态、Inspector 引导动作及其 Work-owned mutation 路由、编辑待办跨产品受控替换、产品限定字段清空、目标创建失败不删除源 Task、源删除失败保留双 Task 并可恢复、新 Task 不继承评论附件和执行关联、Automation 对源删除安全停止、本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、标题边界、详情去重、任务树、评论与图片操作及跨产品隔离。
+8. 从任一受支持旧 store 覆盖安装后，应用首次启动无需用户修复即可让当前 Project Catalog 与 Workset 在 Today、Work 和 Automation 项目绑定中一致出现；项目明细首次同步失败时项目保持可见并仅关闭该项目执行，恢复成功后原有 binding 和 participation 自动重新生效。
+9. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖新建/编辑完整七状态、Inspector 引导动作及其 Work-owned mutation 路由、编辑待办跨产品受控替换、产品限定字段清空、目标创建失败不删除源 Task、源删除失败保留双 Task 并可恢复、新 Task 不继承评论附件和执行关联、Automation 对源删除安全停止、本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、覆盖安装 rehydration、部分项目明细失败、标题边界、详情去重、任务树、评论与图片操作及跨产品隔离。
 
 ## Source Basis
 

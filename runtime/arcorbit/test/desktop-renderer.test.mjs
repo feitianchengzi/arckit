@@ -712,6 +712,14 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(feedbackPriorityHandler, /if \(feedback\.linked_task_id\) throw new Error/);
   assert.match(feedbackPriorityHandler, /\["P1", "P2", "P3"\]\.includes\(priority\)/);
   assert.match(source, /async function ignoreFeedback/);
+  assert.match(source, /async function restoreFeedback/);
+  assert.match(source, /feedback\.ignored && !feedback\.linked_task_id[\s\S]*data-feedback-restore[\s\S]*恢复为待处理/);
+  const feedbackRestoreHandler = source.slice(source.indexOf("async function restoreFeedback"), source.indexOf("async function feedbackToTask"));
+  assert.match(feedbackRestoreHandler, /if \(!feedback\.ignored \|\| feedback\.linked_task_id\) throw new Error/);
+  assert.match(feedbackRestoreHandler, /ignored: false, feedback_state: "pending", status: "analyzing"/);
+  assert.match(feedbackRestoreHandler, /api\.restoreFeedbackV2/);
+  assert.match(feedbackRestoreHandler, /button\.disabled = true/);
+  assert.match(feedbackRestoreHandler, /await refreshSnapshot\(\)/);
   assert.doesNotMatch(source, /async function createFeedback|async function editFeedback|data-feedback-edit/);
   assert.match(styles, /\.feedback-workbench-layout \{ display: grid; grid-template-columns: minmax\(300px, \.72fr\) minmax\(440px, 1\.28fr\)/);
   assert.match(html, /id="platformActionOverlay"/);
@@ -925,6 +933,7 @@ test("Desktop keeps developer Feedback V2 conversation behind dedicated typed IP
     "arckit:feedback-v2-reply",
     "arckit:feedback-v2-read",
     "arckit:feedback-v2-ignore",
+    "arckit:feedback-v2-restore",
     "arckit:feedback-v2-update",
     "arckit:feedback-v2-delete",
     "arckit:feedback-v2-convert",
@@ -980,6 +989,80 @@ test("Feedback V2 typed IPC preserves status and Renderer executes 401 and 404 r
   await assert.rejects(context.runFeedbackV2Request(async () => unwrapFeedbackV2Ipc(envelope404)), /missing/);
   assert.deepEqual(calls, { auth: 1, gate: 1, refresh: 1 });
 });
+
+test("Feedback restore writes the complete V1 mapping and keeps V2 failures non-optimistic", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const start = source.indexOf("async function restoreFeedback");
+  const end = source.indexOf("\nasync function feedbackToTask", start);
+  const restoreSource = source.slice(start, end);
+  const feedback = {
+    id: "51",
+    project_id: "11",
+    feedback_source: "v1",
+    ignored: true,
+    linked_task_id: "",
+    processing_state: "ignored",
+    metadata: { unrelated: "preserved", ignored: true, feedback_state: "ignored", status: "ignored" }
+  };
+  const calls = { managed: [], restore: [], refresh: 0, toast: [] };
+  const context = {
+    findFeedback: () => feedback,
+    executeManagedAction: async (...args) => { calls.managed.push(args); },
+    runFeedbackV2Request: async (action) => action(),
+    api: { restoreFeedbackV2: async (input) => { calls.restore.push(input); return { triage_status: "pending" }; } },
+    refreshSnapshot: async () => { calls.refresh += 1; },
+    showToast: (message) => { calls.toast.push(message); },
+    Error
+  };
+  vm.runInNewContext(`${restoreSource}\nglobalThis.restoreFeedback = restoreFeedback;`, context);
+  const button = feedbackRestoreButton();
+
+  await context.restoreFeedback("51", button);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.managed[0])), [
+    "feedback.update",
+    {
+      feedback_id: "51",
+      data: { unrelated: "preserved", ignored: false, feedback_state: "pending", status: "analyzing" }
+    },
+    "反馈已恢复为待处理"
+  ]);
+  assert.deepEqual(feedback.metadata, { unrelated: "preserved", ignored: true, feedback_state: "ignored", status: "ignored" });
+  assert.equal(feedback.processing_state, "ignored");
+  assert.equal(button.disabled, false);
+  assert.equal(button.textContent, "恢复为待处理");
+  assert.equal(button.attributes.has("aria-busy"), false);
+
+  feedback.feedback_source = "v2";
+  for (const [status, code] of [[403, "forbidden"], [404, "not_found"], [409, "conflict"], [0, "network_error"]]) {
+    const expected = Object.assign(new Error(code), { status, code });
+    context.api.restoreFeedbackV2 = async () => { throw expected; };
+    const failedButton = feedbackRestoreButton();
+    await assert.rejects(context.restoreFeedback("51", failedButton), (error) => error === expected);
+    assert.equal(calls.refresh, 0);
+    assert.equal(calls.toast.length, 0);
+    assert.equal(feedback.ignored, true);
+    assert.equal(feedback.processing_state, "ignored");
+    assert.equal(failedButton.disabled, false);
+    assert.equal(failedButton.textContent, "恢复为待处理");
+  }
+
+  context.api.restoreFeedbackV2 = async (input) => { calls.restore.push(input); return { triage_status: "pending" }; };
+  await context.restoreFeedback("51", feedbackRestoreButton());
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.restore)), [{ project_id: "11", feedback_id: "51" }]);
+  assert.equal(calls.refresh, 1);
+  assert.deepEqual(calls.toast, ["反馈已恢复为待处理"]);
+});
+
+function feedbackRestoreButton() {
+  return {
+    disabled: false,
+    isConnected: true,
+    textContent: "恢复为待处理",
+    attributes: new Set(),
+    setAttribute(name) { this.attributes.add(name); },
+    removeAttribute(name) { this.attributes.delete(name); }
+  };
+}
 
 test("Feedback list keeps every feedback on one compact visual row", async () => {
   const [source, styles] = await Promise.all([
@@ -1787,6 +1870,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:automation-handoff-cli",
     "arckit:automation-reopen-cli",
     "arckit:automation-resume-runtime",
+    "arckit:automation-confirm-external-dependency",
     "arckit:automation-recovery",
     "arckit:auth-status",
     "arckit:auth-send-verification",
@@ -1809,8 +1893,14 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(preload, /logoutAuth: \(input\)/);
   assert.match(preload, /handoffAutomationToCli/);
   assert.match(preload, /resumeAutomationRuntime/);
+  assert.match(preload, /confirmAutomationExternalDependency/);
   assert.match(source, /切换到 Codex CLI/);
   assert.match(source, /Codex CLI 接管/);
+  assert.match(source, /需要人工介入 · 外部依赖/);
+  assert.match(source, /已处理，重新检查/);
+  assert.match(source, /Human · 恢复自动化/);
+  assert.match(source, /Human · Codex CLI/);
+  assert.doesNotMatch(source, /当前责任方[\s\S]{0,200}External/);
   assert.match(source, /Arckit skills <strong>\$\{availability\.arckit_total\}/);
   assert.match(source, /user-ambient \$\{availability\.user_ambient\}/);
   assert.match(source, /shared assets \$\{availability\.shared_assets\}/);

@@ -222,7 +222,7 @@ trusted snapshot -> visible candidate comparison -> one coherent Agent turn
 
 每次 ledger 写回后先把 ledger 生成的独立 closeout 投影给用户，再由 State Store 携带 `post_commit_snapshot_token` 调 trusted `loop_snapshot`；只有 receipt 确认 `observed_after_commit=true` 后才能发起下一轮。内存中的旧 snapshot、writeback candidate 与 selected gap 不可跨写回复用，但同一 active Agent thread 继续提供对话连续性。Case 创建也遵循同一规则：可信入口注册新 Case 后，下一 turn 从 post-commit snapshot 选择该 Case gap。
 
-Runtime 仅在 handoff 明确要求 human responsibility 时标记 `paused_for_human=true`。Agent responsibility 无论是 `auto_bridge` 还是受自动策略允许的 `manual_bridge` 都在当前进程继续。External responsibility 以 `external_wait` 终止当前执行而不伪装人工决策；连续无 ledger 进展达到恢复预算时安全停止。生产性 ledger 写回会重置该计数，因此它不是总墙钟或生产性 Round 上限；长命令自然运行到完成或显式 interrupt。
+Runtime 仅在 handoff 明确要求 human responsibility 时标记 `paused_for_human=true`。Agent responsibility 无论是 `auto_bridge` 还是受自动策略允许的 `manual_bridge` 都在当前进程继续。External responsibility 仍以协议内部 `external_wait` 终止当前 Runtime 执行，不伪造 human decision；上层 Automation Coordinator 必须把这一“自身无法继续”的原因投影为带 `external_dependency` 的人工介入事项。连续无 ledger 进展达到恢复预算时安全停止。生产性 ledger 写回会重置该计数，因此它不是总墙钟或生产性 Round 上限；长命令自然运行到完成或显式 interrupt。
 
 统一 adapter 语义是：
 

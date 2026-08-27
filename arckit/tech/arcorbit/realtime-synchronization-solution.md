@@ -89,6 +89,16 @@ token 刷新、登录、退出和账户切换都会轮换连接代际。连接�
 
 Work Sync 按登录 session epoch 和 project id 维护唯一的本地 Task Projection Store。每个项目保存可访问的七状态任务、父子关系、版本、执行人、标签引用、最近确认时间、confirmed cursor 和同步代际。投影写入以项目为原子边界；旧登录代际、旧连接代际或早于当前项目 revision 的结果不得覆盖较新投影。
 
+项目状态分为三层，三层使用同一个规范化 `project_id`，但生命周期和可信门禁彼此独立：
+
+- Project Catalog 层保存当前登录身份可访问的远端项目身份，是 Today、Work、Automation 项目绑定和 Organization 的唯一项目集合来源。
+- Workspace Control 层保存 Workset、本地 project binding、Automation participation 及执行关联。这些用户控制事实跨覆盖安装保留，不由远端明细同步成功与否创建或删除。
+- Task Readiness 层保存按项目分区的任务、标签、实时状态、游标、错误和登录代际，是可以从 Workshop 重建的派生状态。只有当前登录代际已确认的任务分区进入 Automation 候选；Task Readiness 缺失或降级不删除 Catalog 或 Workspace Control 项目。
+
+Work Sync snapshot 先从 Project Catalog 构造完整项目集合，再把现有 Task Readiness 叠加到对应项目。`automationOnly` 只过滤任务事实和执行资格，不过滤项目身份。首次项目明细读取失败时，snapshot 仍包含项目和结构化错误；Renderer 因而显示不可执行的降级项目，而不是把错误解释为空项目集合。
+
+任务与标签明细分别确认。任务读取成功即可提交当前登录代际的可信任务分区；标签读取失败只降级标签能力并保留项目任务。任务读取失败时保留项目身份和最近成功 UI 数据，但不向 Automation 发布未确认任务。单项目任一错误不阻止其他项目提交各自成功结果。
+
 Work 页面所有状态、搜索、成员、标签、优先级、日期和分页/窗口选择都从本地投影派生。切换状态或筛选只改变本地查询键，不触发 REST。没有对应本地数据时，页面显示由 Work Sync 管理的初始化或恢复状态；显式刷新只向 Work Sync 请求对账，不由 Renderer 构造远端查询。
 
 WebSocket 事件、补取事件和本地成功 mutation 只向 Work Sync 提交项目或实体失效。Work Sync 在 300 毫秒窗口内合并同项目失效，读取必要的 Workshop 当前态并原子替换本地项目投影。事件 payload 只用于身份、诊断和失效范围，不直接写入 Task Projection Store。
@@ -98,6 +108,14 @@ Work 新建、编辑和 Inspector 引导动作都调用同一个 Work Sync mutat
 跨产品替换的两个远端请求不构成原子事务。目标创建失败时不删除源 Task；源删除失败时两个项目投影都保留服务器事实，并持久化 source/target task id 可恢复记录。用户重试源删除或确认保留两份后，Work Sync 分别对账两个项目；不得通过本地投影隐藏重复记录或自动删除目标 Task。
 
 Task Projection Store 可以保留 UI 最近成功数据并标记 stale，但只把已经完成当前登录代际初始对账、且未被权限撤销的任务发布到 Automation 消费投影。登录退出、账户切换、项目权限撤销和项目删除会关闭连接并清除对应 Automation 可见的本地任务状态；UI 缓存不得越过身份代际继续显示为可信状态。
+
+## 覆盖安装与确定性 Rehydration
+
+Desktop Store 使用显式 schema version 区分持久控制事实与可重建派生事实。当前 `v16` normalization 对任意较旧 store 设置 `rehydration_required` 并撤销旧项目分区的 `trusted`，同时保留本地 projects、Worksets、project bindings、participation、sessions、threads、Runs、active executions 和 recovery；旧 Automation snapshot、旧 Task Readiness、连接状态、游标聚合和健康摘要不作为升级后的可执行授权。
+
+应用启动在 Automation dispatch 之前执行同一条 coordinated rehydration：规范化 store，确认登录身份，fresh-read Project Catalog，按 active Workset、participation 和 active executions 的需求并集对账项目，再原子发布当前登录代际的 Task Readiness。历史 store 是否经历中间版本不改变该路径；迁移不依赖来源版本逐跳执行，也不要求用户退出登录或删除 user data。
+
+需求集合在一次 reconcile 进行中发生变化时，Work Sync 记录比该轮输入更新的 demand generation，并在当前轮结束后立即执行后续轮；调用者不会因为复用旧 in-flight promise 而把新增 Workset 项目永久留在未对账状态。成功 rehydration 复用原有 binding 和 participation；失败 rehydration 保留这些控制事实，发布项目级恢复状态并关闭该项目的新领取。
 
 ## Automation Coordinator
 
@@ -145,6 +163,8 @@ Work Sync snapshot 暴露聚合连接健康、聚合订阅模式、各项目连�
 - 补取接口覆盖顺序、分页、重复请求、无权限、低水位过期、未来游标过期，以及跨项目合法全局游标不被误判。
 - Website 测试覆盖断线期间事件、重连补取、重复/乱序事件、过期及未来游标全量失效、旧握手分类与旧模式读取 cursor 前短路。
 - ArcOrbit 测试覆盖 Workset 与 Automation 本地需求并集的订阅调整、退避、token 代际、项目去抖刷新、现代 cursor checkpoint、未来 cursor 重置、旧握手识别、歧义握手关闭、无 ID 通知刷新以及旧模式不读写 cursor。
+- Store migration 与启动测试从受支持历史 fixture 直接覆盖安装到当前 schema，证明控制事实无损、旧派生授权失效、Project Catalog fresh-read、需求项目自动 rehydrate，且 Automation 只在当前代际任务确认后恢复领取。
+- Work Sync 测试覆盖 reconcile 期间新增 Workset 项目的 demand generation 补跑、首次任务读取失败仍发布项目身份、标签单独失败仍发布可信任务、单项目失败不阻塞健康项目，以及恢复成功后既有 binding/participation 无需用户操作重新生效。
 - Work 测试证明七状态和多维筛选只读取本地 Task Projection Store，切换查询不调用 Workshop；WebSocket 失效、显式刷新和周期对账才触发受控远端读取。
 - Desktop main 与 Renderer 验证不存在一分钟同步计时器，Work-owned 十五分钟对账、生命周期同步和显式“立即同步”入口可用。
 - Automation 测试证明 Coordinator 没有 Workshop Task Source 或 Realtime Adapter 依赖，只响应 Work 发布的本地状态变化，并把状态动作提交给 Work；用户修改活动任务或验收问题来源状态时会安全停止对应 Runtime 并生成外部变化恢复。

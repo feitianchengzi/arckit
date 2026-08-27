@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createDesktopStore, deleteProjectSession, normalizeStore, publicSettings } from "../src/desktop/desktop-store.mjs";
+import { createDesktopStore, deleteProjectSession, DESKTOP_STORE_VERSION, normalizeStore, publicSettings } from "../src/desktop/desktop-store.mjs";
 
 test("desktop store serializes concurrent reads and updates", async () => {
   const root = await mkdtemp(join(tmpdir(), "arckit-store-"));
@@ -102,7 +102,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 15);
+  assert.equal(store.version, DESKTOP_STORE_VERSION);
   assert.equal("realtime" in store.automation, false);
   assert.equal("snapshot" in store.automation, false);
   assert.equal(store.platform.task_sync.source_status, "degraded");
@@ -124,7 +124,8 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     code: "request_failed",
     status: 500,
     message: "Project tasks unavailable",
-    project_id: "12"
+    project_id: "12",
+    section: ""
   });
 });
 
@@ -153,6 +154,39 @@ test("desktop store bounds historical task labels without changing task content"
   assert.equal(store.automation.recent_completions[0].title.endsWith("…"), true);
   assert.equal(store.sessions.local[0].title.startsWith("待办 · legacy "), true);
   assert.equal(store.sessions.local[0].title.endsWith("…"), true);
+});
+
+test("desktop store migrates legacy external wait into actionable human intervention", () => {
+  const store = normalizeStore({
+    automation: {
+      active_task: {
+        task_id: "t",
+        project_id: "p",
+        local_project_id: "local",
+        phase: "external_wait",
+        external_wait_reason: "Provider route is unavailable.",
+        external_wait_resume_condition: "Confirm after provider deployment.",
+        external_wait_started_at: "2026-08-27T00:00:00Z"
+      },
+      acceptance_feedback_items: [{
+        feedback_id: "AF-1",
+        source_task_id: "t",
+        source_project_id: "p",
+        local_project_id: "local",
+        status: "external_wait"
+      }]
+    }
+  });
+
+  const execution = store.automation.active_executions.local;
+  assert.equal(execution.phase, "awaiting_human");
+  assert.equal(execution.intervention_kind, "external_dependency");
+  assert.equal(execution.intervention_reason, "Provider route is unavailable.");
+  assert.equal(store.automation.attention_items.length, 1);
+  assert.equal(store.automation.attention_items[0].kind, "external_dependency");
+  assert.equal(store.automation.attention_items[0].question, "Confirm after provider deployment.");
+  assert.equal(store.automation.acceptance_feedback_items[0].status, "awaiting_human");
+  assert.equal(store.automation.acceptance_feedback_items[0].intervention_kind, "external_dependency");
 });
 
 test("desktop store preserves realtime diagnostics and ignores idle subscriptions in aggregate health", () => {
@@ -215,7 +249,7 @@ test("desktop store migrates v9 bindings into a local workset without changing a
     }
   });
 
-  assert.equal(store.version, 15);
+  assert.equal(store.version, DESKTOP_STORE_VERSION);
   assert.equal(store.platform.active_workset_id, "WORKSET-DEFAULT");
   assert.deepEqual(store.platform.worksets[0].project_ids, ["3", "12"]);
   assert.deepEqual(store.automation.project_participation, { "12": true, "3": false });
@@ -223,6 +257,51 @@ test("desktop store migrates v9 bindings into a local workset without changing a
   const normalizedAgain = normalizeStore(store);
   assert.deepEqual(normalizedAgain.platform, store.platform);
   assert.deepEqual(normalizedAgain.automation.project_participation, store.automation.project_participation);
+});
+
+test("desktop store v16 preserves user control facts and invalidates only derived task readiness", () => {
+  const legacy = normalizeStore({
+    version: 15,
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace" }],
+    sessions: { "LOCAL-1": [{ id: "SESSION-1", project_id: "LOCAL-1", kind: "automation-task" }] },
+    automation: {
+      project_bindings: { "12": "LOCAL-1" },
+      project_participation: { "12": true }
+    },
+    platform: {
+      active_workset_id: "WORKSET-UPGRADE",
+      worksets: [{ id: "WORKSET-UPGRADE", name: "Upgrade", project_ids: ["12"] }],
+      task_sync: {
+        identity_key: "user-7",
+        user: { id: "7" },
+        project_catalog: [{ id: "12", name: "Atlas", current_user_id: "7" }],
+        projects: {
+          "12": {
+            project: { id: "12", name: "Atlas", current_user_id: "7" },
+            tasks: [{ id: "T-1", project_id: "12", executor_id: "7", state: "pending" }],
+            tags: [{ id: "TAG-1" }],
+            trusted: true,
+            revision: 9
+          }
+        },
+        source_status: "healthy"
+      }
+    }
+  });
+
+  assert.equal(legacy.version, DESKTOP_STORE_VERSION);
+  assert.deepEqual(legacy.platform.worksets[0].project_ids, ["12"]);
+  assert.deepEqual(legacy.automation.project_bindings, { "12": "LOCAL-1" });
+  assert.deepEqual(legacy.automation.project_participation, { "12": true });
+  assert.equal(legacy.sessions["LOCAL-1"][0].id, "SESSION-1");
+  assert.deepEqual(legacy.platform.task_sync.project_catalog.map((project) => project.id), ["12"]);
+  assert.equal(legacy.platform.task_sync.projects["12"].trusted, false);
+  assert.equal(legacy.platform.task_sync.rehydration_required, true);
+  assert.equal(legacy.platform.task_sync.source_status, "syncing");
+
+  const normalizedAgain = normalizeStore(legacy);
+  assert.equal(normalizedAgain.platform.task_sync.rehydration_required, true);
+  assert.equal(normalizedAgain.platform.task_sync.projects["12"].trusted, false);
 });
 
 test("desktop store migrates a missing Chat selection without replacing an explicit new-chat selection", () => {
@@ -252,7 +331,7 @@ test("desktop store migrates v14 Work Inspector width into a normalized global U
   const clampedHigh = normalizeStore({ version: 15, platform: { ui_preferences: { work_inspector_width_px: 900 } } });
   const invalid = normalizeStore({ version: 15, platform: { ui_preferences: { work_inspector_width_px: "invalid" } } });
 
-  assert.equal(migrated.version, 15);
+  assert.equal(migrated.version, DESKTOP_STORE_VERSION);
   assert.equal(migrated.platform.ui_preferences.work_inspector_width_px, 440);
   assert.equal(clampedLow.platform.ui_preferences.work_inspector_width_px, 360);
   assert.equal(clampedHigh.platform.ui_preferences.work_inspector_width_px, 640);

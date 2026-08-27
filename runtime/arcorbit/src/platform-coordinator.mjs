@@ -593,6 +593,10 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     return runFeedbackV2Action(input.project_id, "ignore", () => platformSource.ignoreFeedbackV2(input.project_id, input.feedback_id));
   }
 
+  async function restoreFeedbackV2(input = {}) {
+    return runFeedbackV2Action(input.project_id, "restore", () => platformSource.restoreFeedbackV2(input.project_id, input.feedback_id));
+  }
+
   async function updateFeedbackV2(input = {}) {
     return runFeedbackV2Action(input.project_id, "update", () => platformSource.updateFeedbackV2(input.project_id, input.feedback_id, input));
   }
@@ -683,6 +687,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     sendFeedbackV2Reply,
     markFeedbackV2Read,
     ignoreFeedbackV2,
+    restoreFeedbackV2,
     updateFeedbackV2,
     deleteFeedbackV2,
     convertFeedbackV2ToTask,

@@ -17,6 +17,10 @@ export function createWorkSyncCoordinator({
   const projectRefreshes = new Map();
   const invalidations = new Map();
   let reconcilePromise = null;
+  let requestedReconcileGeneration = 0;
+  let completedReconcileGeneration = 0;
+  let pendingReconcileDispatch = false;
+  const pendingReconcileReasons = new Set();
   let sessionEpoch = 0;
 
   async function getSnapshot({ automationOnly = false } = {}) {
@@ -28,6 +32,7 @@ export function createWorkSyncCoordinator({
     store.automation.snapshot = {
       user: projection.user,
       projects: projection.projects,
+      project_states: projection.project_states,
       tasks: projection.tasks,
       synced_at: projection.synced_at,
       source_status: projection.source_status,
@@ -38,8 +43,30 @@ export function createWorkSyncCoordinator({
   }
 
   async function reconcile({ dispatch = true, reason = "reconcile" } = {}) {
-    if (reconcilePromise) return reconcilePromise;
-    reconcilePromise = (async () => {
+    requestedReconcileGeneration += 1;
+    pendingReconcileDispatch ||= dispatch;
+    pendingReconcileReasons.add(reason);
+    if (!reconcilePromise) {
+      reconcilePromise = (async () => {
+        let snapshot = null;
+        while (completedReconcileGeneration < requestedReconcileGeneration) {
+          const targetGeneration = requestedReconcileGeneration;
+          const nextDispatch = pendingReconcileDispatch;
+          const nextReason = [...pendingReconcileReasons].join(",") || "reconcile";
+          pendingReconcileDispatch = false;
+          pendingReconcileReasons.clear();
+          snapshot = await reconcileOnce({ dispatch: nextDispatch, reason: nextReason });
+          completedReconcileGeneration = targetGeneration;
+        }
+        return snapshot || getSnapshot();
+      })().finally(() => {
+        reconcilePromise = null;
+      });
+    }
+    return reconcilePromise;
+  }
+
+  async function reconcileOnce({ dispatch, reason }) {
       const epoch = sessionEpoch;
       await patchTaskSync((sync) => {
         sync.source_status = "syncing";
@@ -70,7 +97,7 @@ export function createWorkSyncCoordinator({
         const projectIds = demandedProjectIds(store, projects);
         const results = await mapWithConcurrency(projectIds, 4, async (projectId) => loadProject(projectId, projects));
         if (epoch !== sessionEpoch) return getSnapshot();
-        const errors = results.filter((result) => result.error).map((result) => errorRecord(result.error, result.projectId));
+        const errors = results.flatMap(projectResultErrors);
         const accessibleIds = new Set(projects.map((project) => String(project.id)));
         const identityKey = stableIdentityKey(user, authentication);
         await patchTaskSync((sync) => {
@@ -84,20 +111,26 @@ export function createWorkSyncCoordinator({
           sync.last_reconciled_at = now();
           sync.errors = errors;
           sync.source_status = errors.length > 0 ? "degraded" : "healthy";
+          sync.rehydration_required = results.some((result) => Boolean(result.taskError));
           for (const projectId of Object.keys(sync.projects)) {
             if (!accessibleIds.has(projectId)) delete sync.projects[projectId];
           }
           for (const result of results) {
-            if (result.error) {
+            if (result.taskError) {
               const previous = sync.projects[result.projectId];
               if (previous) {
                 previous.state = "degraded";
-                previous.error = String(result.error?.message || result.error);
+                previous.error = String(result.taskError?.message || result.taskError);
                 previous.updated_at = now();
               }
               continue;
             }
-            commitProject(sync, result.project, result.tasks, result.tags, { trusted: true, timestamp: now() });
+            const previousTags = sync.projects[result.projectId]?.tags || [];
+            commitProject(sync, result.project, result.tasks, result.tags ?? previousTags, { trusted: true, timestamp: now() });
+            if (result.tagError) {
+              sync.projects[result.projectId].state = "degraded";
+              sync.projects[result.projectId].updated_at = now();
+            }
           }
         });
         emit("work.changed", { reason, projectIds, dispatch });
@@ -112,12 +145,6 @@ export function createWorkSyncCoordinator({
         emit("work.error", { reason, message: String(error?.message || error) });
         return getSnapshot();
       }
-    })();
-    try {
-      return await reconcilePromise;
-    } finally {
-      reconcilePromise = null;
-    }
   }
 
   async function refreshProject(projectId, { reason = "project-refresh" } = {}) {
@@ -132,12 +159,19 @@ export function createWorkSyncCoordinator({
       if (!project) return reconcile({ reason });
       try {
         const loaded = await loadProject(id, sync.project_catalog);
-        if (loaded.error) throw loaded.error;
         if (epoch !== sessionEpoch) return getSnapshot();
-        await patchTaskSync((next) => {
-          commitProject(next, loaded.project, loaded.tasks, loaded.tags, { trusted: true, timestamp: now() });
+        await patchTaskSync((next, currentStore) => {
+          if (loaded.taskError) throw loaded.taskError;
+          const previousTags = next.projects[id]?.tags || [];
+          commitProject(next, loaded.project, loaded.tasks, loaded.tags ?? previousTags, { trusted: true, timestamp: now() });
           next.errors = next.errors.filter((item) => String(item.project_id || "") !== id);
+          if (loaded.tagError) {
+            next.errors.push(errorRecord(loaded.tagError, id, "tags"));
+            next.projects[id].state = "degraded";
+          }
           next.source_status = next.errors.length > 0 ? "degraded" : "healthy";
+          next.rehydration_required = demandedProjectIds(currentStore, next.project_catalog)
+            .some((projectId) => next.projects[projectId]?.trusted !== true);
         });
         emit("work.changed", { reason, projectIds: [id] });
         return getSnapshot();
@@ -401,15 +435,18 @@ export function createWorkSyncCoordinator({
   async function loadProject(projectId, projects) {
     const id = String(projectId);
     const project = projects.find((item) => String(item.id) === id) || { id, name: id };
-    try {
-      const [tasks, tags] = await Promise.all([
-        platformSource.listProjectTasks(id, { states: TASK_STATES, tree: false }),
-        platformSource.listProjectTags(id)
-      ]);
-      return { projectId: id, project, tasks, tags, error: null };
-    } catch (error) {
-      return { projectId: id, project, tasks: [], tags: [], error };
-    }
+    const [tasks, tags] = await Promise.allSettled([
+      platformSource.listProjectTasks(id, { states: TASK_STATES, tree: false }),
+      platformSource.listProjectTags(id)
+    ]);
+    return {
+      projectId: id,
+      project,
+      tasks: tasks.status === "fulfilled" ? tasks.value : [],
+      tags: tags.status === "fulfilled" ? tags.value : null,
+      taskError: tasks.status === "rejected" ? tasks.reason : null,
+      tagError: tags.status === "rejected" ? tags.reason : null
+    };
   }
 
   async function commitTaskResponse(task, { reason }) {
@@ -475,7 +512,11 @@ export function snapshotFromStore(store, { automationOnly = false } = {}) {
   const projectRecords = Object.values(sync.projects || {});
   const records = automationOnly ? projectRecords.filter((item) => item.trusted) : projectRecords;
   const catalogIndex = new Map((sync.project_catalog || []).map((project) => [String(project.id), project]));
-  const projects = records.map((item) => item.project || catalogIndex.get(String(item.project?.id || ""))).filter(Boolean);
+  const demandedIds = new Set(demandedProjectIds(store, sync.project_catalog || []));
+  const catalogProjects = (sync.project_catalog || []).filter((project) => demandedIds.has(String(project.id)));
+  const projects = (sync.project_catalog || []).length > 0
+    ? catalogProjects
+    : records.map((item) => item.project || catalogIndex.get(String(item.project?.id || ""))).filter(Boolean);
   const tasks = records.flatMap((item) => automationOnly
     ? item.tasks.filter((task) => isCurrentExecutorTask(task, item.project, sync.user))
     : item.tasks);
@@ -491,7 +532,19 @@ export function snapshotFromStore(store, { automationOnly = false } = {}) {
     source_status: String(sync.source_status || "logged_out"),
     errors,
     realtime: realtimeProjection(sync.projects || {}),
-    project_states: Object.fromEntries(records.map((item) => [String(item.project?.id || ""), item]))
+    project_states: Object.fromEntries(projects.map((project) => {
+      const id = String(project.id);
+      return [id, sync.projects?.[id] || {
+        project,
+        tasks: [],
+        tags: [],
+        trusted: false,
+        revision: 0,
+        synced_at: "",
+        state: sync.rehydration_required || sync.source_status === "syncing" ? "recovering" : "degraded",
+        error: ""
+      }];
+    }))
   };
 }
 
@@ -545,8 +598,16 @@ function clearTaskSyncIdentity(sync, status) {
   sync.projects = {};
   sync.task_replacements = {};
   sync.source_status = status;
+  sync.rehydration_required = false;
   sync.last_reconciled_at = "";
   sync.errors = [];
+}
+
+function projectResultErrors(result) {
+  const errors = [];
+  if (result.taskError) errors.push(errorRecord(result.taskError, result.projectId, "tasks"));
+  if (result.tagError) errors.push(errorRecord(result.tagError, result.projectId, "tags"));
+  return errors;
 }
 
 function taskReplacementId(projectId, taskId) {
@@ -617,12 +678,13 @@ function stableIdentityKey(user, authentication) {
   return String(user?.id || authentication?.masked_identity || "authenticated");
 }
 
-function errorRecord(error, projectId = "") {
+function errorRecord(error, projectId = "", section = "") {
   return {
     code: String(error?.code || "work_sync_error"),
     status: Number(error?.status || 0),
     message: String(error?.message || error || "Work Sync failed"),
-    project_id: String(projectId || "")
+    project_id: String(projectId || ""),
+    section: String(section || "")
   };
 }
 

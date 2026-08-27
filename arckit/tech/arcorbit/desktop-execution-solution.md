@@ -237,11 +237,22 @@ Case Reader 只在权威绑定已经存在时根据 `case_id` 匹配 Project `ad
 
 - `active` 且 handoff 由 Agent 负责：显式交还执行权后启动 fresh Runtime run。
 - `active/handoff` 且需要 human：创建 attention item。
+- `active/handoff` 且下一责任为 external：协议层保留 external 原因，Desktop 将其持久投影为 `awaiting_human + external_dependency`，创建 attention item，释放 Runtime 进程但继续持有 lane；只有人工确认动作才启动同一 task session/thread 的 fresh Runtime。
 - `closed` 且 Git closeout checkpoint 已完成：进入远端完成写回。
 - `closed` 且 Git closeout 尚未完成：resume 同一 thread 执行 closeout turn。
 - 权威绑定缺失、冲突，或 Case 缺失、解析失败、状态歧义：进入 recovery，不得扫描仓库、依据旧 run 或利用候选数量猜测身份与完成状态。
 
 `cli_handoff` 本身阻止 Runtime presence recovery 将其误报为丢失进程，也阻止同步自动启动并发 Runtime。只有用户显式“恢复自动执行”或 fresh Case 已 resolved 才结束 CLI 所有权；后者可安全收尾，因为 canonical Case 已声明研发闭环完成。
+
+### 不可自动推进事项的人工介入投影
+
+Runtime 成功完成本轮并写入 accepted ledger 后，若 effective handoff 的 `next_responsibility=external`，Coordinator 必须把该结果解释为 Automation 无法自行推进的人工介入，而不是 `runtime_incomplete`。Case/Loop 仍可使用 external 表达事实责任来源和停止原因，但 Desktop 顶层责任模型只有 Automation 可继续与 Human 需介入两类。Store 在活动 execution 上持久化 `phase=awaiting_human`、`intervention_kind=external_dependency`、accepted handoff reason、恢复条件和开始时间；同 lane 下一项继续冻结，该 execution 不占 Runtime 进程槽位，并创建可操作的 attention item，但不创建 recovery item。
+
+live Run 完成、detached Run 对账和 canonical Case 启动恢复必须收敛到同一 `awaiting_human + external_dependency` 投影。Presence Recovery 因 attention item 明确停止，应用重启不得把“没有存活 Runtime”升级为 `runtime_process_missing`，也不得自动重试尚未满足的依赖。Ledger 为 external handoff 生成稳定 `next_prompt`；旧记录缺失该字段时 Desktop 使用不改变事实的兜底说明。Store normalization 将旧 `phase=external_wait` 与验收问题同名状态迁移为这一投影并补建 attention item，避免升级遗留任务悬空。
+
+Renderer 统一显示“需要人工介入”，以“外部依赖”标明原因子类，并展示原因、恢复条件和“已处理，重新检查”。类型化 `confirm-external-dependency` IPC 只接受稳定 `execution_id`；main process 校验 lane/task/session/thread 与介入类型后清除 attention 投影并启动 fresh Runtime run。Run Manager 复用原 task session 和持久 thread，由 Agent fresh-read canonical Case 决定完成、继续推进或再次请求介入。该确认动作不接收用户正文；需要授权、事实或决策的其他介入仍通过既有有正文 Intervention 流程恢复。
+
+同一顶层责任规则覆盖 recovery item、配置缺口和 CLI 接管：内部继续保留各自 phase、原因与专用处理入口，但只要恢复必须由操作者动作触发，health 与 Inspector 都投影为 Human responsibility。`remote_completion_pending` 等 Coordinator 能自动监听、对账或重试的状态仍属于 Automation responsibility，不能因为依赖任务源就误报人工介入。
 
 ### 本地优先恢复与收尾检查点
 
@@ -281,7 +292,7 @@ Chat session 或 thread 创建成功但首个 turn 启动失败时保留本地�
 
 session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_start` 必须复用它。任务完成后 session、thread id 与消息留作审查；删除项目时沿用项目级清理规则。退出登录只清除远端身份与快照，不删除本地 task session、thread binding、Run activity 或用量历史。
 
-Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状态、Run Manager 的实时 ownership、workspace/task thread binding 和 canonical Case checkpoint 的组合为权威事实。`phase`、attention 与 `recovery_items` 是可重建的控制投影，不能单独决定任务是否可恢复。Coordinator 按 lane 独立对账：活动任务仍为 `in_progress`、没有存活 Run、没有该 lane 的 attention 或其他要求人工处理的恢复项，并且 phase 表明执行在 `starting`、`running`、`continuing` 或 `recovery` 中被中断时，确定性重建 `runtime_process_missing`，再以原 task session 和持久 thread 启动替代 Run。不同 lane 的恢复并行成立；同一 lane 发现多个进行中任务时只产生 lane-scoped conflict。
+Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状态、Run Manager 的实时 ownership、workspace/task thread binding 和 canonical Case checkpoint 的组合为权威事实。`phase`、attention 与 `recovery_items` 是可重建的控制投影，不能单独决定任务是否可恢复。Coordinator 按 lane 独立对账：活动任务仍为 `in_progress`、没有存活 Run、没有该 lane 的 attention 或其他要求人工处理的恢复项，并且 phase 表明执行在 `starting`、`running`、`continuing` 或 `recovery` 中被中断时，确定性重建 `runtime_process_missing`，再以原 task session 和持久 thread 启动替代 Run。`awaiting_human`、`cli_handoff` 与远端收尾 phase 都不是进程丢失候选；旧 `external_wait` 在状态规范化时先迁移为带 attention 的 `awaiting_human`。不同 lane 的恢复并行成立；同一 lane 发现多个进行中任务时只产生 lane-scoped conflict。
 
 恢复标记是启动事务的持久意图：Coordinator 在替代 Run 的 `run_id`、`thread_id` 和运行 phase 写入 Automation Store 前不移除它；替代 Run 绑定成功时在同一次 Store mutation 中消费标记。启动失败时，同一次失败收束把临时标记替换成唯一可操作的 `start_failed`，保留同 thread 重试与人工反馈入口。应用在上述任意检查点再次退出后，下一次启动仍能从持久状态重建或继续同一恢复动作。
 
@@ -306,6 +317,7 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 - 已绑定持久 thread 的 Runtime 失败项可接收非空用户反馈；反馈启动同 thread 的新 Run、保留来源 refs，并在同一 Workbench transcript 中显示，失败时不提前移除恢复项。
 - 电脑断电或 Desktop 进程异常退出后，每个 lane 中仍为 `in_progress` 且没有存活 Run 的活动任务会从持久事实重建恢复项，并以原 task session 和 thread 启动替代 Run；缺失 `recovery_items` 不会让任务永久停滞。
 - 恢复标记只在替代 Run 绑定成功的同一次 Store mutation 中消费；启动失败保留唯一可操作恢复项，存活 Run 或需要人工处理的恢复决策都不会被自动恢复绕过。
+- accepted external handoff 在 live、detached 与重启对账中都持久投影为 `awaiting_human + external_dependency` 并创建 attention，不产生 Runtime error 或进程丢失恢复项；人工确认恢复复用同一 execution、task session 和 thread，并允许 fresh Agent 结果再次请求介入。
 - thread id 在首个 turn 前持久化；进程重启和 Runtime Run 切换都 resume 同一 thread。
 - 不同待办不共享 Codex thread；同一待办不会创建 Controller、Worker、Review 或 commit thread。
 - 同一 `cwd + command` 的并发请求只批准一个进程，并留下可审查软异常。
