@@ -43,7 +43,8 @@ import {
   deriveReadinessSteps,
   deriveTaskExecutorAutomationHelp,
   deriveTodayGuidance,
-  deriveWorkEligibilityGuidance
+  deriveWorkEligibilityGuidance,
+  isCurrentProjectUser
 } from "../../src/desktop/today-guidance.mjs";
 
 const api = window.arckitDesktop;
@@ -1743,20 +1744,26 @@ async function bindAutomationWorkspace(remoteProjectId, localProjectId) {
 
 async function createTaskForArcOrbit(defaultProjectId = "") {
   const projects = workspaceOptions().filter((project) => !defaultProjectId || String(project.value) === String(defaultProjectId));
-  if (!projects.length || !state.platform.user?.id) throw new Error("当前没有可由你创建待处理任务的产品。");
+  if (!projects.length) throw new Error("当前没有可由你创建待处理任务的产品。");
+  const initialProjectId = defaultProjectId || projects[0].value;
+  if (!projectCurrentUserExecutorId(initialProjectId)) {
+    throw new Error("无法确认当前用户在所选产品中的执行人身份，请刷新项目后重试。");
+  }
   await openPlatformAction({
     title: "创建并交给 ArcOrbit",
     lead: "这是明确的自动执行意图：执行人固定为当前用户，状态固定为待处理。普通 Work 创建仍默认待评审。",
     confirmLabel: "创建并进入待处理",
     fields: [
-      platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId || projects[0].value, options: projects }),
+      platformField("project_id", "产品", { type: "select", required: true, value: initialProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
       platformField("executor", "执行人", { value: `${currentWorkshopUserName()} · 我`, readonly: true }),
       platformField("task_state", "状态", { value: "待处理 · 进入 Automation 候选", readonly: true }),
       platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions() })
     ],
     onSubmit: async (values) => {
-      const input = { project_id: values.project_id, content: values.content, state: "pending", executor_id: state.platform.user.id };
+      const executorId = projectCurrentUserExecutorId(values.project_id);
+      if (!executorId) throw new Error("无法确认当前用户在所选产品中的执行人身份，请刷新项目后重试。");
+      const input = { project_id: values.project_id, content: values.content, state: "pending", executor_id: executorId };
       if (values.priority !== "") input.priority = values.priority;
       await executeManagedAction("task.create", input, "待处理任务已创建；正在重新计算下一步", { tolerateRefreshFailure: true });
       return { close: true };
@@ -2010,7 +2017,7 @@ function renderPlatformWorkInspector(task) {
     task,
     workspace,
     automationTask,
-    currentUserId: state.platform.user?.id,
+    currentUserId: projectCurrentUserExecutorId(task.project_id),
     canManageTask: canManage,
     errors: state.platform.errors
   });
@@ -2191,7 +2198,7 @@ function taskAttachmentItem(task, item) {
 
 function taskAttachmentCreatorName(task, item) {
   const member = (state.platform.members || []).find((entry) => String(entry.project_id) === String(task.project_id) && String(entry.user_id) === String(item.creator_id));
-  return member?.username || member?.name || (String(item.creator_id) === String(state.platform.user?.id || "") ? "我" : `成员 ${item.creator_id || "未知"}`);
+  return member?.username || member?.name || (isCurrentProjectUser(item.creator_id, projectCurrentUserExecutorId(task.project_id)) ? "我" : `成员 ${item.creator_id || "未知"}`);
 }
 
 async function loadTaskAttachments(taskId) {
@@ -2871,10 +2878,10 @@ async function deleteTask(taskId) {
 async function manageTaskAttachments(taskId) {
   const task = findPlatformTask(taskId);
   const attachments = await api.executePlatformAction("task.attachments.list", { task_id: task.id });
-  const userId = String(state.platform.user?.id || "");
+  const userId = projectCurrentUserExecutorId(task.project_id);
   const role = findWorkspace(task.project_id).current_user_role;
-  const editable = (attachments || []).filter((item) => String(item.creator_id) === userId && ["text", "url"].includes(item.type));
-  const deletable = (attachments || []).filter((item) => String(item.creator_id) === userId || String(task.creator_id) === userId || ["owner", "admin"].includes(role));
+  const editable = (attachments || []).filter((item) => isCurrentProjectUser(item.creator_id, userId) && ["text", "url"].includes(item.type));
+  const deletable = (attachments || []).filter((item) => isCurrentProjectUser(item.creator_id, userId) || isCurrentProjectUser(task.creator_id, userId) || ["owner", "admin"].includes(role));
   if (editable.length === 0 && deletable.length === 0) {
     showToast("新评论和资源可在 Inspector 中添加；当前记录没有可管理操作。");
     return;
@@ -3230,7 +3237,7 @@ function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", e
       type: "select",
       value: executorId,
       options: memberSelectOptions(projectId),
-      help: includeExecutorAutomationHelp ? deriveTaskExecutorAutomationHelp({ executorId, currentUserId: state.platform.user?.id, state: taskState }) : ""
+      help: includeExecutorAutomationHelp ? deriveTaskExecutorAutomationHelp({ executorId, currentUserId: projectCurrentUserExecutorId(projectId), state: taskState }) : ""
     }),
     ...(includeFather ? [platformField("father_id", "父待办", { type: "select", value: fatherId, options: taskSelectOptions(projectId, excludedTaskId) })] : []),
     taskTagField(projectId, tags)
@@ -3251,7 +3258,7 @@ function bindTaskFormProjectScope(defaultProjectId, initial = {}) {
     if (!executorSelect || !help) return;
     help.textContent = deriveTaskExecutorAutomationHelp({
       executorId: executorSelect.value,
-      currentUserId: state.platform.user?.id,
+      currentUserId: projectCurrentUserExecutorId(projectSelect.value),
       state: stateSelect?.value || ""
     });
   };
@@ -3422,6 +3429,11 @@ function roleOptions() { return [{ value: "member", label: "Member" }, { value: 
 function taskStateOptions() { return TASK_STATES.map((value) => ({ value, label: STATE_LABELS[value] || value })); }
 function taskPriorityOptions() { return [{ value: "", label: "无优先级" }, { value: "0", label: "最高 · 紧急且重要" }, { value: "1", label: "高 · 优先处理" }, { value: "2", label: "中 · 正常处理" }, { value: "3", label: "低 · 可以延后" }]; }
 function workspaceOptions() { return (state.platform.product_workspaces || []).map((item) => ({ value: item.id, label: item.name })); }
+function projectCurrentUserExecutorId(projectId) {
+  const value = String((state.platform.product_workspaces || []).find((item) => String(item.id) === String(projectId))?.current_user_id || "").trim();
+  const numeric = Number(value);
+  return Number.isSafeInteger(numeric) && numeric > 0 ? value : "";
+}
 function taskCreationDefaultProjectId(projects) {
   return projects.some((project) => String(project.value) === String(state.selectedProjectId))
     ? state.selectedProjectId
@@ -3444,7 +3456,7 @@ function findPlatformTask(id) {
   return value;
 }
 function findFeedback(id) { const value = state.platform.feedback_v1.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到反馈。"); return value; }
-function canManagePlatformTask(task) { const role = findWorkspace(task.project_id).current_user_role; return task.state !== "in_progress" || ["owner", "admin"].includes(role) || String(task.executor_id) === String(state.platform.user?.id || ""); }
+function canManagePlatformTask(task) { const role = findWorkspace(task.project_id).current_user_role; return task.state !== "in_progress" || ["owner", "admin"].includes(role) || isCurrentProjectUser(task.executor_id, projectCurrentUserExecutorId(task.project_id)); }
 function servicePriority(value) { const number = Number(value || 0); return number > 0 ? Math.max(0, 100 - number) : 0; }
 function workshopTaskPriority(task) {
   const raw = task?.raw?.priority;

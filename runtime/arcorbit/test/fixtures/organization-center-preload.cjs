@@ -19,6 +19,7 @@ let taskReplacementScenario = "success";
 const feedbackV2ImageTest = process.env.ARCORBIT_ELECTRON_FEEDBACK_V2_TEST === "1";
 const workAcceptanceReplacementTest = process.env.ARCORBIT_WORK_ACCEPTANCE_REPLACEMENT_TEST === "1";
 const workAcceptanceLogoutTest = process.env.ARCORBIT_WORK_ACCEPTANCE_LOGOUT_TEST === "1";
+const todayCreateIdentityMode = String(process.env.ARCORBIT_TODAY_CREATE_IDENTITY_MODE || "");
 let failedFeedbackV2ImagePreview = false;
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
@@ -52,9 +53,9 @@ const automation = {
   acceptance_feedback_counts: { open: 2 }, health: { state: "ready", label: "待命", tone: "success" }
 };
 const projects = [
-  { id: "11", name: "ArcOrbit", organization_id: "31", git_url: "https://example.test/arcorbit", current_user_role: "owner", local_project_path: "/repo/arcorbit", participating: true, eligible: true },
-  { id: "12", name: "Workshop Todo", organization_id: "31", git_url: "", current_user_role: "member", local_project_path: "", participating: false, eligible: false },
-  { id: "21", name: "Personal Lab", organization_id: "", git_url: "", current_user_role: "owner", local_project_path: "", participating: false, eligible: false }
+  { id: "11", name: "ArcOrbit", organization_id: "31", git_url: "https://example.test/arcorbit", current_user_id: "7", current_user_role: "owner", local_project_path: "/repo/arcorbit", participating: true, eligible: true },
+  { id: "12", name: "Workshop Todo", organization_id: "31", git_url: "", current_user_id: "8", current_user_role: "member", local_project_path: "", participating: false, eligible: false },
+  { id: "21", name: "Personal Lab", organization_id: "", git_url: "", current_user_id: "7", current_user_role: "owner", local_project_path: "", participating: false, eligible: false }
 ];
 const members = [
   { id: "91", user_id: "7", organization_id: "31", username: "Glare", role: "owner", is_me: true, created_at: "2026-01-01" },
@@ -119,6 +120,36 @@ const platform = {
   automation: { ...automation, acceptance_feedback_counts: { open: 0 } },
   capabilities: { organizations: "available", organization_governance: "available", project_members: "managed_with_permissions_except_direct_add", invitation_lifecycle: "create_once_no_list_or_revoke", feedback_v1: "read_write", feedback_v2: feedbackV2ImageTest ? "available" : "unavailable" }, errors: []
 };
+
+if (todayCreateIdentityMode) {
+  const globalUserId = "8f14e45f-ea7f-4d31-9f15-0c9f8a7b6c5d";
+  platform.user.id = globalUserId;
+  automation.user.id = globalUserId;
+  platform.active_workset.project_ids = ["11"];
+  platform.worksets[0].project_ids = ["11"];
+  platform.product_workspaces = platform.product_workspaces
+    .filter((workspace) => workspace.id === "11")
+    .map((workspace) => ({
+      ...workspace,
+      current_user_id: todayCreateIdentityMode === "missing" ? "" : "7",
+      task_counts: {},
+      tasks: []
+    }));
+  platform.tasks = [];
+  automation.tasks = [];
+  automation.queue = [];
+  automation.todo_queue = [];
+  automation.blocked_pending_tasks = [];
+  automation.active_executions = [];
+  automation.active_execution = null;
+  automation.active_task = null;
+  automation.active_run = null;
+  automation.attention_items = [];
+  automation.recovery_items = [];
+  automation.recent_completions = [];
+  automation.acceptance_feedback_queue = [];
+  automation.acceptance_feedback_counts = { open: 0 };
+}
 
 const noOp = async () => ({});
 contextBridge.exposeInMainWorld("arckitDesktop", {
@@ -275,13 +306,15 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     if (command === "task.create") {
       const projectId = String(input.project_id);
       const project = projects.find((item) => item.id === projectId);
+      const workspace = platform.product_workspaces.find((item) => String(item.id) === projectId);
       const member = projectMembers.find((item) => item.project_id === projectId && String(item.user_id) === String(input.executor_id));
+      const taskState = String(input.state || "pending_review");
       const task = {
         id: `W-LOCAL-${++createdTaskSequence}`,
         project_id: projectId,
         project_name: project?.name || `Project ${projectId}`,
         content: input.content,
-        state: "pending_review",
+        state: taskState,
         terminal: false,
         priority: 0,
         raw: { priority: input.priority },
@@ -292,15 +325,14 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
         updated_at: "2026-08-24T12:00:00Z"
       };
       platform.tasks.push(task);
-      const workspace = platform.product_workspaces.find((item) => String(item.id) === projectId);
-      if (workspace) workspace.task_counts.pending_review = Number(workspace.task_counts.pending_review || 0) + 1;
-      if (String(input.executor_id) === String(automation.user.id)) {
+      if (workspace) workspace.task_counts[taskState] = Number(workspace.task_counts[taskState] || 0) + 1;
+      if (String(input.executor_id) === String(workspace?.current_user_id || automation.user.id)) {
         automation.tasks.push({
           ...task,
-          state_label: "待评审",
+          state_label: taskState === "pending" ? "待处理" : "待评审",
           local_project_path: "/repo/arcorbit",
-          eligible: false,
-          eligibility_reason: "任务当前不是待处理状态",
+          eligible: taskState === "pending",
+          eligibility_reason: taskState === "pending" ? "任务可进入自动领取" : "任务当前不是待处理状态",
           acceptance_feedback_items: []
         });
         for (const listener of automationListeners) listener({ type: "automation.changed", reason: "project-refresh", projectId });

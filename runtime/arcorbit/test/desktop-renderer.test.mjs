@@ -1225,7 +1225,8 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /template\.content\.querySelector\(selector\)\?\.replaceWith\(editor\)/);
   assert.doesNotMatch(source, /work(?:Comment|Acceptance)Draft/);
   assert.match(source, /task\.attachment\.create.*type: "text"/s);
-  assert.match(source, /String\(item\.creator_id\) === userId/);
+  assert.match(source, /isCurrentProjectUser\(item\.creator_id, userId\)/);
+  assert.match(source, /isCurrentProjectUser\(task\.creator_id, userId\)/);
   assert.match(source, /\["owner", "admin"\]\.includes\(role\)/);
   assert.match(source, /data-task-attachment-retry/);
   assert.match(source, /renderRestrictedMarkdown\(task\.content\)/);

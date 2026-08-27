@@ -6,12 +6,14 @@ import {
   deriveReadinessSteps,
   deriveTaskExecutorAutomationHelp,
   deriveTodayGuidance,
-  deriveWorkEligibilityGuidance
+  deriveWorkEligibilityGuidance,
+  isCurrentProjectUser
 } from "../src/desktop/today-guidance.mjs";
 
 const ownerWorkspace = (overrides = {}) => ({
   id: "p1",
   name: "ArcOrbit",
+  current_user_id: "u1",
   current_user_role: "owner",
   local_project_id: "local-1",
   local_project_path: "/workspace",
@@ -59,6 +61,47 @@ test("Today prioritizes human and completion responsibilities before preparation
   assert.equal(deriveTodayGuidance({ platform: incomplete, automation: automation([{ id: "done", project_id: "p1", executor_id: "u1", state: "completed" }]), setup, authentication: { authenticated: true } }).kind, "completion_review");
 });
 
+test("Today resolves current task ownership per Product Workspace instead of the global login identity", () => {
+  const workspaces = [
+    ownerWorkspace({ id: "p1", current_user_id: "7" }),
+    ownerWorkspace({ id: "p2", current_user_id: "8", local_project_id: "local-2" })
+  ];
+  const tasks = [
+    { id: "mine-p1", project_id: "p1", executor_id: "7", state: "pending" },
+    { id: "other-p2", project_id: "p2", executor_id: "7", state: "pending" }
+  ];
+  const uuidPlatform = platform(null, {
+    user: { id: "8f14e45f-ea7f-4d31-9f15-0c9f8a7b6c5d", username: "Glare" },
+    product_workspaces: workspaces
+  });
+  const guidance = deriveTodayGuidance({
+    platform: uuidPlatform,
+    automation: automation(tasks, { enabled: false }),
+    setup: { status: "ready" },
+    authentication: { authenticated: true }
+  });
+  assert.equal(guidance.kind, "create_task");
+  assert.equal(guidance.workspace.id, "p2");
+
+  const selectedProjectGuidance = deriveTodayGuidance({
+    platform: uuidPlatform,
+    automation: automation(tasks, { enabled: false }),
+    setup: { status: "ready" },
+    authentication: { authenticated: true },
+    selectedProjectId: "p1"
+  });
+  assert.equal(selectedProjectGuidance.kind, "enable_automation");
+  assert.equal(selectedProjectGuidance.workspace.id, "p1");
+
+  const missingProjectIdentity = deriveTodayGuidance({
+    platform: platform(ownerWorkspace({ current_user_id: "" }), { user: uuidPlatform.user }),
+    automation: automation([tasks[0]], { enabled: false }),
+    setup: { status: "ready" },
+    authentication: { authenticated: true }
+  });
+  assert.equal(missingProjectIdentity.kind, "create_task");
+});
+
 test("Today and Automation preserve unknown data instead of projecting empty work", () => {
   const degraded = platform(ownerWorkspace(), { source_status: "degraded", errors: [{ section: "tasks", project_id: "p1" }] });
   assert.equal(deriveTodayGuidance({ platform: degraded, automation: automation(), setup: { status: "ready" }, authentication: { authenticated: true } }).kind, "unknown");
@@ -92,6 +135,14 @@ test("new task executor guidance distinguishes all Automation qualification comb
   const pending = deriveTaskExecutorAutomationHelp({ executorId: "u1", currentUserId: "u1", state: "pending" });
   assert.match(pending, /项目连接、项目授权和全局领取/);
   assert.match(pending, /不表示已经进入队列/);
+});
+
+test("project ownership checks fail closed when either identity is missing", () => {
+  assert.equal(isCurrentProjectUser("7", "7"), true);
+  assert.equal(isCurrentProjectUser("", ""), false);
+  assert.equal(isCurrentProjectUser("7", ""), false);
+  assert.equal(isCurrentProjectUser("", "7"), false);
+  assert.equal(isCurrentProjectUser("7", "8"), false);
 });
 
 test("permission-limited project gaps produce responsibility handoff without a failing action", () => {
@@ -142,7 +193,11 @@ test("readiness steps are derived from current facts and mark only one current s
 
 test("Renderer reuses owned mutations, fresh-reads after success, and preserves ordinary Work defaults", async () => {
   const source = await readFile(new URL("../desktop/renderer/renderer.js", import.meta.url), "utf8");
-  assert.match(source, /state: "pending", executor_id: state\.platform\.user\.id/);
+  assert.match(source, /state: "pending", executor_id: executorId/);
+  assert.match(source, /projectCurrentUserExecutorId\(values\.project_id\)/);
+  assert.doesNotMatch(source, /executor_id: state\.platform\.user\.id/);
+  assert.doesNotMatch(source, /currentUserId: state\.platform\.user/);
+  assert.doesNotMatch(source, /String\(state\.platform\.user\?\.id/);
   assert.match(source, /platformField\("state", "状态", \{ type: "select", value: "pending_review"/);
   assert.match(source, /taskProjectFields\(defaultProjectId, \{ includeExecutorAutomationHelp: true, taskState: "pending_review" \}\)/);
   assert.match(source, /bindTaskFormProjectScope\(defaultProjectId, \{ includeExecutorAutomationHelp: true \}\)/);

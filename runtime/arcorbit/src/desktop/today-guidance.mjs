@@ -20,6 +20,12 @@ export function canManageProject(workspace = {}) {
   return ["owner", "admin"].includes(text(workspace.current_user_role).toLowerCase());
 }
 
+export function isCurrentProjectUser(candidateId = "", currentUserId = "") {
+  const candidate = text(candidateId).trim();
+  const currentUser = text(currentUserId).trim();
+  return Boolean(candidate) && Boolean(currentUser) && candidate === currentUser;
+}
+
 export function deriveTaskExecutorAutomationHelp({ executorId = "", currentUserId = "", state = "" } = {}) {
   const executor = text(executorId).trim();
   const currentUser = text(currentUserId).trim();
@@ -35,10 +41,14 @@ export function deriveTaskExecutorAutomationHelp({ executorId = "", currentUserI
   return "待办已分配给你且状态为待处理。创建成功后仍会检查项目连接、项目授权和全局领取，不表示已经进入队列。";
 }
 
-function currentUserTasks(tasks = [], userId = "", selectedProjectId = "all") {
-  return tasks.filter((task) => inScope(task, selectedProjectId) && (
-    !userId || text(task.executor_id) === text(userId)
-  ));
+function currentUserTasks(tasks = [], platform = {}, selectedProjectId = "all") {
+  const currentUserIds = new Map((platform.product_workspaces || []).map((workspace) => (
+    [text(workspace.id), text(workspace.current_user_id).trim()]
+  )));
+  return tasks.filter((task) => {
+    const currentUserId = currentUserIds.get(text(task.project_id)) || "";
+    return inScope(task, selectedProjectId) && isCurrentProjectUser(task.executor_id, currentUserId);
+  });
 }
 
 function orderedWorkspaces(platform = {}, selectedProjectId = "all", automationTasks = []) {
@@ -90,8 +100,7 @@ export function deriveReadinessSteps({ workspace = null, setup = {}, automation 
 
 export function deriveTodayGuidance({ platform = {}, automation = {}, setup = {}, authentication = {}, selectedProjectId = "all" } = {}) {
   const allAutomationTasks = (automation.tasks || []).filter((task) => inScope(task, selectedProjectId));
-  const userId = text(platform.user?.id || automation.user?.id);
-  const userTasks = currentUserTasks(allAutomationTasks, userId, selectedProjectId);
+  const userTasks = currentUserTasks(allAutomationTasks, platform, selectedProjectId);
   const workspaces = orderedWorkspaces(platform, selectedProjectId, userTasks);
   const attention = (automation.attention_items || []).find((item) => inScope(item, selectedProjectId));
   const recovery = (automation.recovery_items || []).find((item) => inScope(item, selectedProjectId) || !projectId(item));
@@ -141,7 +150,7 @@ export function deriveTodayGuidance({ platform = {}, automation = {}, setup = {}
 }
 
 export function deriveWorkEligibilityGuidance({ task = {}, workspace = {}, automationTask = null, currentUserId = "", canManageTask = false, errors = [] } = {}) {
-  const assignedToCurrentUser = Boolean(task.executor_id) && text(task.executor_id) === text(currentUserId);
+  const assignedToCurrentUser = isCurrentProjectUser(task.executor_id, currentUserId);
   if (projectError(errors, task.project_id)) return action("unknown", { title: "任务资格尚未确认", reason: "当前项目同步失败，不能把未知状态描述为不可执行。", action_id: "retry_refresh", action_label: "重新读取" });
   if (task.state === "pending_review") {
     if (!assignedToCurrentUser) return canManageTask
