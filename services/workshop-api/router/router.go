@@ -191,6 +191,7 @@ func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
 	group.GET("/feedbacks/:id/attachments/:attachment_id/oss/credentials", handler.GetFeedbackAttachmentOSSCredentials)
 	group.POST("/feedbacks/:id/convert-to-task", handler.ConvertFeedbackToTask) // 将反馈流转为待办
 	group.POST("/feedbacks/:id/ignore", handler.IgnoreFeedback)                 // 标记反馈为暂不处理
+	group.POST("/feedbacks/:id/restore", handler.RestoreFeedback)               // 将已忽略反馈恢复为待处理
 	group.GET("/tasks/attachments/:id/oss/credentials", handler.GetFeedbackTaskAttachmentOSSCredentials)
 }
 

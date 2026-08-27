@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type FeedbackMessageAttachmentInput struct {
@@ -99,7 +100,11 @@ type feedbackWorkflowEvent struct {
 	Data      interface{}
 }
 
-var errFeedbackAlreadyConverted = errors.New("feedback already converted")
+var (
+	errFeedbackAlreadyConverted = errors.New("feedback already converted")
+	errFeedbackIgnored          = errors.New("feedback is ignored")
+	errFeedbackNotIgnored       = errors.New("feedback is not ignored")
+)
 
 func isAPIKeyRequest(c *gin.Context) bool {
 	return strings.Contains(c.FullPath(), "/apikey/") || strings.Contains(c.Request.URL.Path, "/apikey/")
@@ -1251,6 +1256,10 @@ func IgnoreFeedback(c *gin.Context) {
 	var message models.FeedbackMessage
 	changed := false
 	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&feedback, feedbackID).Error; err != nil {
+			return err
+		}
+
 		var link models.FeedbackTaskLink
 		err := tx.Where("feedback_id = ? AND is_primary = ?", feedback.ID, true).First(&link).Error
 		if err == nil {
@@ -1313,6 +1322,98 @@ func IgnoreFeedback(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(feedbackResp))
 }
 
+// RestoreFeedback 将 V2 已忽略反馈原子恢复为待处理。只允许尚未流转待办的 ignored 记录执行。
+func RestoreFeedback(c *gin.Context) {
+	if isAPIKeyRequest(c) {
+		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, "API Key 认证不允许变更反馈受理决定", nil))
+		return
+	}
+
+	feedbackID, ok := parseFeedbackIDParam(c)
+	if !ok {
+		return
+	}
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+	feedback, ok := loadFeedbackByID(c, db, feedbackID)
+	if !ok {
+		return
+	}
+	userID, ok := requireFeedbackProjectMember(c, db, feedback.ProjectID, "恢复反馈")
+	if !ok {
+		return
+	}
+
+	var message models.FeedbackMessage
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&feedback, feedbackID).Error; err != nil {
+			return err
+		}
+
+		var link models.FeedbackTaskLink
+		err := tx.Where("feedback_id = ? AND is_primary = ?", feedback.ID, true).First(&link).Error
+		if err == nil {
+			return errFeedbackAlreadyConverted
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if feedbackTriageStatus(feedback) != models.FeedbackTriageIgnored {
+			return errFeedbackNotIgnored
+		}
+
+		if err := tx.Model(&feedback).Update("triage_status", models.FeedbackTriagePending).Error; err != nil {
+			return err
+		}
+		feedback.TriageStatus = models.FeedbackTriagePending
+		if err := updateFeedbackStatusFields(tx, &feedback, models.FeedbackStatusPending, nil); err != nil {
+			return err
+		}
+
+		metadataBytes, _ := json.Marshal(map[string]interface{}{
+			"triage_status": models.FeedbackTriagePending,
+		})
+		metadata := string(metadataBytes)
+		var createErr error
+		message, createErr = createFeedbackMessageRecord(
+			tx,
+			feedback,
+			models.FeedbackMessageSenderSystem,
+			&userID,
+			nil,
+			nil,
+			models.FeedbackMessageTypeStatusChange,
+			"反馈已恢复为待处理",
+			&metadata,
+			nil,
+		)
+		if createErr != nil {
+			return createErr
+		}
+		return createFeedbackNotificationsForMessage(tx, feedback, message)
+	}); err != nil {
+		switch {
+		case errors.Is(err, errFeedbackAlreadyConverted):
+			c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, "反馈已流转为待办，不能恢复为待处理", nil))
+		case errors.Is(err, errFeedbackNotIgnored):
+			c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, "只有已忽略反馈才能恢复为待处理", nil))
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeFeedbackNotFound, "反馈不存在", nil))
+		default:
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackUpdateFailed, "恢复反馈失败: "+err.Error(), nil))
+		}
+		return
+	}
+
+	feedbackResp := buildFeedbackResponse(feedback)
+	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.updated", feedbackResp)
+	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.message.created", buildFeedbackMessageResponse(message))
+	c.JSON(http.StatusOK, response.NewSuccessResponse(feedbackResp))
+}
+
 // ConvertFeedbackToTask 将反馈原子流转为待办
 func ConvertFeedbackToTask(c *gin.Context) {
 	if isAPIKeyRequest(c) {
@@ -1370,6 +1471,13 @@ func ConvertFeedbackToTask(c *gin.Context) {
 	var existingTaskID uint
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&feedback, feedbackID).Error; err != nil {
+			return err
+		}
+		if feedbackTriageStatus(feedback) == models.FeedbackTriageIgnored {
+			return errFeedbackIgnored
+		}
+
 		var existing models.FeedbackTaskLink
 		if err := tx.Where("feedback_id = ? AND is_primary = ?", feedback.ID, true).First(&existing).Error; err == nil {
 			existingTaskID = existing.TaskID
@@ -1464,6 +1572,10 @@ func ConvertFeedbackToTask(c *gin.Context) {
 		}
 		return createFeedbackNotificationsForMessage(tx, feedback, message)
 	}); err != nil {
+		if errors.Is(err, errFeedbackIgnored) {
+			c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, "反馈已标记为暂不处理，不能流转待办", nil))
+			return
+		}
 		if errors.Is(err, errFeedbackAlreadyConverted) {
 			c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, fmt.Sprintf("反馈已流转为待办 #%d", existingTaskID), nil))
 			return

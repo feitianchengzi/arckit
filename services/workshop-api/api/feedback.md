@@ -4,7 +4,7 @@
 
 - V1 基础反馈：`/workshop/v1/{user|apikey}/feedbacks`
 - V2 基础反馈：`/workshop/v2/{user|apikey}/feedbacks`
-- V2 工作流扩展：`/workshop/v2/{user|apikey}/feedbacks/:id/messages`、`/workshop/v2/{user|apikey}/feedbacks/:id/attachments/:attachment_id/oss/credentials`、`/workshop/v2/user/feedbacks/:id/convert-to-task`、`/workshop/v2/user/feedbacks/:id/ignore`
+- V2 工作流扩展：`/workshop/v2/{user|apikey}/feedbacks/:id/messages`、`/workshop/v2/{user|apikey}/feedbacks/:id/attachments/:attachment_id/oss/credentials`、`/workshop/v2/user/feedbacks/:id/convert-to-task`、`/workshop/v2/user/feedbacks/:id/ignore`、`/workshop/v2/user/feedbacks/:id/restore`
 
 认证：JWT；中间件 `ExtractUserID` 已注入当前用户 ID  
 权限：项目成员可创建/查询/更新/删除；删除为软删除
@@ -577,3 +577,46 @@ GET /workshop/v2/user/tasks/attachments/:id/oss/credentials?object_key={object_k
   }
 }
 ```
+
+---
+
+## 9. 忽略与恢复反馈
+
+**接口**:
+
+- `POST /workshop/v2/user/feedbacks/:id/ignore`
+- `POST /workshop/v2/user/feedbacks/:id/restore`
+
+**认证级别**: `user`
+
+**权限要求**: 项目成员可操作；`apikey` 不允许变更反馈受理决定。
+
+**行为说明**:
+
+- `ignore` 将尚未流转待办的反馈标记为 `triage_status=ignored`。
+- `restore` 只接受当前 `triage_status=ignored` 且未关联主待办的反馈，并在同一事务中将原记录恢复为 `triage_status=pending`、`status=pending`。
+- 恢复会同步兼容 `data.feedback_state=pending` 与 `data.status=analyzing`，保留其它 metadata、反馈 ID、消息和附件历史。
+- 服务端在事务内锁定反馈记录并重新校验状态；并发恢复时只有第一个请求成功，后续请求返回 `409 Conflict`。
+- 成功后写入系统状态消息，并发布反馈更新、消息与通知事件。
+
+**成功响应** (`200 OK`):
+
+```json
+{
+  "code": "OK",
+  "data": {
+    "id": 10,
+    "project_id": 1,
+    "triage_status": "pending",
+    "status": "pending",
+    "customer_status": "submitted",
+    "data": "{\"feedback_state\":\"pending\",\"status\":\"analyzing\"}"
+  }
+}
+```
+
+**错误响应**:
+
+- `403 Forbidden`: 当前用户不是项目成员，或使用 API Key 调用。
+- `404 Not Found`: 反馈不存在。
+- `409 Conflict`: 反馈不是 `ignored`，或已经流转为待办。

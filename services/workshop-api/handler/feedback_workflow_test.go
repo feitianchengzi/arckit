@@ -93,6 +93,42 @@ func TestFeedbackTriageAndCustomerStatus(t *testing.T) {
 	}
 }
 
+func TestRestoredFeedbackProjectsPendingState(t *testing.T) {
+	data := `{"feedback_state":"ignored","status":"ignored","keep":"value"}`
+	updated := mergeFeedbackData(&data, models.FeedbackStatusPending, nil)
+	if updated == nil {
+		t.Fatal("restored feedback data is nil")
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(*updated), &payload); err != nil {
+		t.Fatalf("restored feedback data is invalid json: %v", err)
+	}
+	if payload["feedback_state"] != models.FeedbackStatusPending {
+		t.Fatalf("feedback_state = %v, want pending", payload["feedback_state"])
+	}
+	if payload["status"] != "analyzing" {
+		t.Fatalf("status = %v, want analyzing", payload["status"])
+	}
+	if payload["keep"] != "value" {
+		t.Fatalf("unrelated metadata was not preserved: %#v", payload)
+	}
+}
+
+func TestRestoreFeedbackRejectsAPIKeyBeforeDatabaseAccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/workshop/v2/apikey/feedbacks/7/restore", nil)
+	context.Params = gin.Params{{Key: "id", Value: "7"}}
+
+	RestoreFeedback(context)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
+	}
+}
+
 func TestBuildFeedbackResponseIncludesWorkflowProjection(t *testing.T) {
 	data := `{"converted_task_id":42,"task_state":"in_progress"}`
 	feedback := models.Feedback{
