@@ -77,17 +77,18 @@ export function createAutomationCoordinator(options) {
   }
 
   async function getSnapshot(filter = {}) {
-    await ensureKnownLanes();
-    const [store, laneSnapshots] = await Promise.all([
-      runManager.readDesktopStore(),
-      Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.getSnapshot(filter)))
+    const { store } = await ensureKnownLanes();
+    const [base, laneSnapshots] = await Promise.all([
+      ensureOverview().getSnapshot(filter),
+      laneCoordinators.size > 1
+        ? Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.getSnapshot(filter)))
+        : Promise.resolve([])
     ]);
     const automation = ensureExecutionCollections(store.automation || {});
-    const boundLaneKeys = new Set(Object.values(automation.project_bindings || {}).map(String).filter(Boolean));
-    const base = laneSnapshots.length === 1 && boundLaneKeys.size <= 1
-      ? laneSnapshots[0]
-      : await ensureOverview().getSnapshot(filter);
-    const executions = laneSnapshots
+    const executionSnapshots = laneSnapshots.length > 0
+      ? laneSnapshots
+      : base.active_task ? [base] : [];
+    const executions = executionSnapshots
       .filter((snapshot) => snapshot.active_task)
       .map((snapshot) => ({ ...snapshot.active_task, active_run: snapshot.active_run || null }))
       .sort((left, right) => String(left.started_at || left.claimed_at || "").localeCompare(String(right.started_at || right.claimed_at || "")));

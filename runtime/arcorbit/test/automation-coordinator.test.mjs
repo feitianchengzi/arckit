@@ -77,6 +77,68 @@ test("Automation projects come from the Catalog even before task readiness exist
   coordinator.dispose();
 });
 
+test("top-level Automation keeps unbound Workset projects while a single lane stays isolated", async () => {
+  const store = {
+    projects: [{ id: "local-100", name: "悦芽音乐", path: "/workspace/yueya-melody" }],
+    settings: { task_source: {} },
+    platform: {
+      active_workset_id: "WORKSET-DEFAULT",
+      worksets: [{ id: "WORKSET-DEFAULT", name: "当前产品集", project_ids: ["97", "101", "100"] }]
+    },
+    automation: {
+      enabled: true,
+      queue_paused: false,
+      project_bindings: { "100": "local-100" },
+      project_participation: { "100": true },
+      snapshot: {
+        source_status: "healthy",
+        errors: [],
+        user: { id: "7", name: "tester" },
+        projects: [
+          { id: "97", name: "iForest客户端", current_user_role: "owner" },
+          { id: "101", name: "悦芽英语", current_user_role: "owner" },
+          { id: "100", name: "悦芽音乐", current_user_role: "owner" }
+        ],
+        tasks: [],
+        synced_at: "2026-08-28T19:21:54.277Z"
+      },
+      active_executions: {},
+      selected_execution_id: "",
+      acceptance_feedback_items: [],
+      attention_items: [],
+      recovery_items: [],
+      recent_completions: []
+    }
+  };
+  const observedProjections = [];
+  const workSync = {
+    attachLocalProjection(current) {
+      observedProjections.push(current);
+      return current;
+    },
+    async reconcile() {},
+    async refreshProject() {},
+    async updateTaskState() { throw new Error("unused"); }
+  };
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, []),
+    workSync
+  });
+
+  await coordinator.maybeStartNext();
+  const snapshot = await coordinator.getSnapshot();
+
+  assert.deepEqual(snapshot.projects.map((project) => project.id), ["97", "101", "100"]);
+  assert.equal(snapshot.projects.find((project) => project.id === "97").local_project_id, "");
+  assert.equal(snapshot.projects.find((project) => project.id === "101").local_project_id, "");
+  assert.equal(snapshot.projects.find((project) => project.id === "100").local_project_id, "local-100");
+  assert.equal(observedProjections.some((current) => (
+    current.automation.snapshot.projects.length === 1
+      && current.automation.snapshot.projects[0].id === "100"
+  )), true);
+  coordinator.dispose();
+});
+
 test("automation snapshot reads bounded run summaries and only hydrates the active run", async () => {
   const store = recoveryStore({ phase: "running" });
   const calls = { summaries: 0, details: 0, hydratedLists: 0 };
