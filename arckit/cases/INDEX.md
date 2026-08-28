@@ -162,3 +162,5 @@
 | [CASE-20260827-002](closed/CASE-20260827-002-make-project-availability-self-healing-across-upgrades.md) | closed | Make project availability self-healing across upgrades | 2026-08-27T04:21:53.274Z |
 | [CASE-20260827-003](closed/CASE-20260827-003-today.md) | closed | 修复 Today 首项目任务执行人身份映射 | 2026-08-27T04:27:42.168Z |
 | [CASE-20260827-004](closed/CASE-20260827-004-unify-non-automatable-work-as-human-intervention.md) | closed | Unify non-automatable work as human intervention | 2026-08-27T06:34:45.808Z |
+| [CASE-20260828-001](closed/CASE-20260828-001-feedback.md) | closed | Feedback 未读消息加载与刷新策略 | 2026-08-28T20:12:10.108Z |
+| [CASE-20260828-002](closed/CASE-20260828-002-automation.md) | closed | 修复 Automation 新项目本地绑定入口缺失 | 2026-08-28T19:50:24.576Z |

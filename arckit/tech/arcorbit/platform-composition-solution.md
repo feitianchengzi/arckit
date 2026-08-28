@@ -179,6 +179,8 @@ Feedback V2 在每个当前 Workset Project 上通过 Workshop 登录身份和�
 
 V2 凭据由 main 进程私有认证边界持有，不进入公开设置或 Renderer snapshot。
 
+notification snapshot 与 `/feedbacks/{id}/messages` 是两个独立新鲜度域。Renderer 以 project id、feedback id、notification snapshot epoch 和单调请求身份协调当前会话：首次选择或 fresh 未读触发消息重载；消息成功投影后才调用 typed mark-read；同一会话的并发请求去重，身份已变化或序号过期的响应不进入当前投影。
+
 ## 平台 Snapshot
 
 `getPlatformSnapshot(input)` 接受：
@@ -312,6 +314,8 @@ V2 客户端契约的 triage status、customer status、消息、回复附件、
 
 Renderer 从主导航进入 Work 时直接激活本地 Task Projection Store。七状态切换、搜索、多维筛选、日期和分页/窗口选择只生成本地查询，不发起 Workshop 请求；无本地数据时展示 Work Sync 的初始化或恢复状态。WebSocket 失效、显式刷新、生命周期恢复、周期对账和 mutation 成功由 Work Sync 触发受控远端读取，完成后只发布受影响的本地项目 revision；Renderer 依据 revision 更新 Work，不重建隐藏页面。
 
+Feedback 页面级、详情级和沟通记录刷新共享一个组合动作：先读取完整 Platform snapshot，再为当前选中的 V2 feedback 强制读取消息。消息失败保留同一身份的缓存消息、回复草稿、附件选择和详情滚动上下文，并保留未读投影与恢复入口；刷新 snapshot 本身不视为消息已刷新。
+
 ## 迁移
 
 Desktop Store v13 把待办同步所有权归入 `platform.task_sync`，并保持既有平台组合迁移幂等：
@@ -336,7 +340,7 @@ Renderer 的顶层导航按职责分组：
 - Feedback：普通用户反馈与验收反馈的明确双栏或双标签视图。
 - Organization：不受 workset 裁剪的组织 → 成员 → 项目治理中心，并包含个人项目 scope。
 
-Feedback 工作台的左右栏拥有独立滚动所有权：列表网格只按内容生成单行 track，不把剩余高度分配给少量结果；详情卡片包含固定高度的内部滚动容器，异步消息与图片更新保留当前详情阅读位置。Renderer 根据规范化 attachment type、MIME type 或受支持扩展名识别图片，并通过类型化图片 IPC 提交 project、feedback、attachment 与 object key 等领域身份，不提交任意下载 URL。
+Feedback 工作台的左右栏拥有独立滚动所有权：列表网格只按内容生成单行 track，不把剩余高度分配给少量结果；详情卡片包含固定高度的内部滚动容器，异步消息与图片更新保留当前详情阅读位置。沟通记录标题提供独立刷新动作；页面、详情和沟通记录三处手动刷新使用同一组合动作。Renderer 根据规范化 attachment type、MIME type 或受支持扩展名识别图片，并通过类型化图片 IPC 提交 project、feedback、attachment 与 object key 等领域身份，不提交任意下载 URL。
 
 main process 的图片资源加载器按 `work-task | feedback-file | feedback-v2` 来源分派。Work 图片继续由 TaskAttachment 归属校验取得资源地址；Feedback 原文附件先由 Platform Coordinator 重新读取当前项目反馈并校验反馈归属，V2 消息附件继续通过固定 Feedback V2 领域动作取得地址。所有地址和重定向均再次验证为受信资源或无凭据 HTTPS，响应限制为 PNG、JPEG、GIF、WebP 和既定图片大小上限。默认预览只向 Renderer 返回受限 data URL；Work 与 Feedback 点击后复用同一个 sandboxed managed image viewer BrowserWindow，另存为、重试、缩放、适配、实际大小、旋转和平移能力不在各业务页面重复实现。
 
@@ -397,6 +401,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - V2 每项目探测、成功采用与 V1 fallback；列表失败时不渲染 V2-only 动作，通知失败时仍保留消息和回复。
 - V1 已忽略恢复覆盖无关 metadata 保留、`ignored=false`、`feedback_state=pending` 与 `status=analyzing` 的一致写入；V2 同记录恢复覆盖固定 route 与 typed IPC、事务行锁、ignored 状态前置校验、待办关联冲突、服务器 `pending` 确认、权限拒绝、对象不存在和网络失败，并证明失败时 Renderer 不改写原状态。
 - V2 消息读取与回复、附件上传策略与受限读取、通知已读、专用忽略和原子转待办的成功、权限拒绝、对象不存在及网络失败。
+- V2 fresh 未读自动重载与页面、详情、沟通记录组合刷新；消息成功后才标记已读；同会话去重、过期响应隔离以及消息、未读、草稿、附件和详情滚动上下文保持。
 - V2 某一动作失败时保留已加载列表、详情、消息与回复草稿，且 Renderer 无法传入 URL、header、token 或 API key。
 - 平台 partial sync 不阻断健康项目和既有 Automation。
 - 既有单全局 execution、persistent thread、双队列和 closeout 测试全部通过。

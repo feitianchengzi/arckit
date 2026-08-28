@@ -157,6 +157,8 @@ const state = {
   feedbackSort: "newest",
   feedbackLinkRecoveries: {},
   feedbackConversations: {},
+  feedbackSnapshotEpoch: 0,
+  feedbackConversationRequestSequence: 0,
   feedbackImagePreviews: {},
   feedbackImageInputs: {},
   organizationScopeId: "",
@@ -656,7 +658,7 @@ function wireEvents() {
     state.feedbackSort = els.feedbackSortSelect.value;
     renderPlatformFeedback();
   });
-  els.feedbackRefreshButton.addEventListener("click", () => runAction(refreshSnapshot));
+  els.feedbackRefreshButton.addEventListener("click", () => runAction(refreshFeedbackWorkspace));
   els.closePlatformActionButton.addEventListener("click", () => closePlatformAction(null));
   els.cancelPlatformActionButton.addEventListener("click", () => closePlatformAction(null));
   els.platformActionOverlay.addEventListener("click", (event) => {
@@ -1100,6 +1102,7 @@ async function refreshSnapshot({ quiet = false, surface = "all" } = {}) {
     invalidateTaskAttachmentCaches(state, { clearPending: identityChanged });
     state.snapshot = snapshot;
     state.platform = platform;
+    if (!workSurface) state.feedbackSnapshotEpoch += 1;
     syncWorkInspectorWidth(platform);
     const scopeIds = new Set((state.platform.organization_scopes || []).map((item) => String(item.id)));
     if ((!state.organizationScopeChosen && scopeIds.size > 0) || !state.organizationScopeId || (state.organizationScopeId !== "personal" && !scopeIds.has(state.organizationScopeId))) {
@@ -2370,14 +2373,18 @@ function renderFeedbackInspector(feedback) {
   els.feedbackInspector.querySelector("[data-feedback-priority]")?.addEventListener("change", (event) => runAction(() => updateFeedbackPriority(feedback.id, event.currentTarget.value)));
   els.feedbackInspector.querySelector("[data-feedback-ignore]")?.addEventListener("click", () => runAction(() => ignoreFeedback(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-restore]")?.addEventListener("click", (event) => runAction(() => restoreFeedback(feedback.id, event.currentTarget)));
-  els.feedbackInspector.querySelector("[data-feedback-refresh]")?.addEventListener("click", () => runAction(refreshSnapshot));
+  els.feedbackInspector.querySelector("[data-feedback-refresh]")?.addEventListener("click", () => runAction(refreshFeedbackWorkspace));
   els.feedbackInspector.querySelector("[data-feedback-task]")?.addEventListener("click", () => runAction(() => feedbackToTask(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-link-retry]")?.addEventListener("click", () => runAction(() => retryFeedbackTaskLink(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-delete]")?.addEventListener("click", () => runAction(() => deleteFeedback(feedback.id)));
   wireFeedbackImages(feedback);
   wireFeedbackConversation(feedback, feedbackManagement);
   els.feedbackInspector.querySelector(".feedback-inspector-scroll").scrollTop = previousScrollTop;
-  if (useV2 && !state.feedbackConversations[String(feedback.id)]) void loadFeedbackConversation(feedback);
+  if (feedbackConversationNeedsLoad(feedback, useV2)) {
+    void loadFeedbackConversation(feedback, {
+      force: Boolean(state.feedbackConversations[String(feedback.id)])
+    });
+  }
 }
 
 function renderFeedbackFile(feedback) {
@@ -2419,6 +2426,37 @@ function feedbackWorkspace(feedback) {
   return (state.platform.product_workspaces || []).find((item) => String(item.id) === String(feedback.project_id));
 }
 
+function feedbackUsesV2(feedback) {
+  const status = feedbackWorkspace(feedback)?.feedback_management?.status;
+  return feedback?.feedback_source === "v2" && ["available", "degraded"].includes(status);
+}
+
+function feedbackIsUnread(feedback) {
+  return Boolean(feedbackWorkspace(feedback)?.feedback_management?.unread_feedback_ids?.map(String).includes(String(feedback?.id)));
+}
+
+function feedbackConversationIdentity(feedback) {
+  return `${String(feedback?.project_id || "")}:${String(feedback?.id || "")}`;
+}
+
+function feedbackConversationRequestIsCurrent(id, requestId, requestKey) {
+  const current = state.feedbackConversations[String(id)];
+  return current?.request_id === requestId && current?.request_key === requestKey;
+}
+
+function feedbackConversationNeedsLoad(feedback, useV2 = feedbackUsesV2(feedback)) {
+  if (!useV2 || state.page !== "feedback") return false;
+  const conversation = state.feedbackConversations[String(feedback.id)];
+  if (!conversation) return true;
+  return feedbackIsUnread(feedback) && conversation.last_unread_refresh_epoch !== state.feedbackSnapshotEpoch;
+}
+
+async function refreshFeedbackWorkspace({ quiet = false } = {}) {
+  await refreshSnapshot({ quiet });
+  const feedback = (state.platform.feedback_v1 || []).find((item) => String(item.id) === String(state.selectedFeedbackId));
+  if (feedback && feedbackUsesV2(feedback)) await loadFeedbackConversation(feedback, { force: true });
+}
+
 function applyFeedbackReadState(feedback, result) {
   const management = feedbackWorkspace(feedback)?.feedback_management;
   if (!management) return;
@@ -2438,13 +2476,14 @@ function renderFeedbackConversation(feedback, management) {
     : messages.length
       ? `<div class="feedback-message-list">${messages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => feedbackResourceIsImage(attachment) ? renderFeedbackImage({ source: "feedback-v2", project_id: feedback.project_id, feedback_id: feedback.id, attachment_id: attachment.id, object_key: attachment.object_key, file_name: attachment.file_name || feedbackFileName(attachment.object_key), mime_type: attachment.mime_type, resource_version: attachment.id || attachment.object_key }) : `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
       : `<div class="empty-state compact">尚无沟通记录。</div>`;
-  return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div></div>${error}${readError}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><label><span>回复附件</span><input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}><small>${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small></label><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></section>`;
+  return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div><button class="secondary-button" data-feedback-conversation-refresh type="button" ${conversation.loading ? "disabled" : ""}>刷新</button></div>${error}${readError}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><label><span>回复附件</span><input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}><small>${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small></label><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></section>`;
 }
 
 function wireFeedbackConversation(feedback, management) {
   const id = String(feedback.id);
   const conversation = state.feedbackConversations[id];
   if (!conversation && feedback.feedback_source !== "v2") return;
+  els.feedbackInspector.querySelector("[data-feedback-conversation-refresh]")?.addEventListener("click", () => runAction(refreshFeedbackWorkspace));
   els.feedbackInspector.querySelector("[data-feedback-messages-retry]")?.addEventListener("click", () => runAction(() => loadFeedbackConversation(feedback, { force: true })));
   els.feedbackInspector.querySelector("[data-feedback-reply]")?.addEventListener("input", (event) => {
     (state.feedbackConversations[id] ||= { messages: [] }).draft = event.currentTarget.value;
@@ -2513,30 +2552,52 @@ function pumpFeedbackImagePreviewQueue() {
 
 async function loadFeedbackConversation(feedback, { force = false } = {}) {
   const id = String(feedback.id);
+  const requestKey = feedbackConversationIdentity(feedback);
   const current = state.feedbackConversations[id];
-  if (current?.loading && !force) return;
+  if (current?.loading && current.request_key === requestKey) return;
+  if (current && !force && (!current.request_key || current.request_key === requestKey) && !current.error) return;
+  const preserved = !current?.request_key || current.request_key === requestKey ? current : null;
+  const requestId = state.feedbackConversationRequestSequence = (Number(state.feedbackConversationRequestSequence) || 0) + 1;
+  const unreadRefreshEpoch = feedbackIsUnread(feedback) ? state.feedbackSnapshotEpoch : preserved?.last_unread_refresh_epoch;
   let refreshFeedbackList = false;
-  state.feedbackConversations[id] = { messages: current?.messages || [], draft: current?.draft || "", file: current?.file || null, loading: true, sending: false, error: "", readError: current?.readError || "" };
+  state.feedbackConversations[id] = {
+    ...preserved,
+    messages: preserved?.messages || [],
+    draft: preserved?.draft || "",
+    file: preserved?.file || null,
+    loading: true,
+    sending: preserved?.sending || false,
+    error: "",
+    readError: preserved?.readError || "",
+    request_id: requestId,
+    request_key: requestKey,
+    last_unread_refresh_epoch: unreadRefreshEpoch
+  };
   renderFeedbackInspector(feedback);
   try {
     const messages = await runFeedbackV2Request(() => api.getFeedbackV2Messages({ project_id: feedback.project_id, feedback_id: feedback.id }));
+    if (!feedbackConversationRequestIsCurrent(id, requestId, requestKey)) return;
     state.feedbackConversations[id] = { ...state.feedbackConversations[id], messages: Array.isArray(messages) ? messages : [], loading: false, error: "" };
     const management = feedbackWorkspace(feedback)?.feedback_management;
-    if (management?.features?.mark_read === true) {
+    if (management?.features?.mark_read === true && feedbackIsUnread(feedback)) {
       try {
         const result = await runFeedbackV2Request(() => api.markFeedbackV2Read({ project_id: feedback.project_id, feedback_id: feedback.id }));
+        if (!feedbackConversationRequestIsCurrent(id, requestId, requestKey)) return;
         applyFeedbackReadState(feedback, result);
         refreshFeedbackList = true;
         state.feedbackConversations[id].readError = "";
       } catch (error) {
+        if (!feedbackConversationRequestIsCurrent(id, requestId, requestKey)) return;
         state.feedbackConversations[id].readError = error?.message || "已读回写失败";
       }
     } else {
       state.feedbackConversations[id].readError = "";
     }
   } catch (error) {
+    if (!feedbackConversationRequestIsCurrent(id, requestId, requestKey)) return;
     state.feedbackConversations[id] = { ...state.feedbackConversations[id], loading: false, error: error?.message || "加载消息失败" };
   }
+  if (!feedbackConversationRequestIsCurrent(id, requestId, requestKey)) return;
   if (refreshFeedbackList) renderPlatformFeedback();
   else if (String(state.selectedFeedbackId) === id) renderFeedbackInspector(feedback);
 }

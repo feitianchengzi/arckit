@@ -470,8 +470,9 @@ Project/Case canonical state 属于本地项目仓库；Runtime 运行记录和 
 17. Feedback 以左侧列表和右侧详情组成开发者处理工作台；页面没有创建反馈、编辑反馈原文或协议版本信息。
 18. Feedback 支持搜索、处理状态筛选、时间/优先级排序和稳定选择；已忽略且未关联待办的反馈可恢复为待处理。V1 通过兼容 metadata update 原地恢复，V2 通过固定 restore 领域动作原子恢复同一记录；服务端确认前不改变界面事实，失败时保留原 ignored 状态和阅读上下文。项目探测到开发者管理能力时还支持用户/开发者/系统消息、回复附件、未读与已读、专用忽略和原子转待办，失败能力独立降级且不影响已取得的反馈事实。
 19. Feedback 只有一条结果时仍保持单行列表高度；详情在自身区域滚动；原文和沟通图片默认加载，点击后与 Work 共用支持缩放、适配、实际大小、旋转、平移、重置和另存为的独立图片窗口。
-20. Work 切换七状态、搜索、筛选或分页只查询本地 Task Projection，不发起 Workshop 请求或显示由该切换触发的后台刷新；远端同步、订阅、对账和 mutation 全部由 Work Sync 负责。
-21. Automation 不拥有 Workshop Task Source、Realtime Adapter、REST 或远端确认，只依赖 Work Sync 发布的本地待办状态，并把任务状态动作提交给 Work。
+20. Feedback V2 首次选择或 fresh notification snapshot 标记当前反馈有未读回复时自动重拉会话；页面级、详情级和沟通记录刷新都组合重读反馈、通知与当前会话。消息成功投影后才标记已读；失败保留旧消息、未读、草稿、附件和详情滚动位置；同一会话请求去重，过期或其他项目的同 ID 响应不得覆盖当前结果。
+21. Work 切换七状态、搜索、筛选或分页只查询本地 Task Projection，不发起 Workshop 请求或显示由该切换触发的后台刷新；远端同步、订阅、对账和 mutation 全部由 Work Sync 负责。
+22. Automation 不拥有 Workshop Task Source、Realtime Adapter、REST 或远端确认，只依赖 Work Sync 发布的本地待办状态，并把任务状态动作提交给 Work。
 
 ## 当前验证基线
 

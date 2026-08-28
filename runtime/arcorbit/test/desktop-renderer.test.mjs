@@ -948,7 +948,7 @@ test("Desktop keeps developer Feedback V2 conversation behind dedicated typed IP
   assert.match(main, /settleFeedbackV2Ipc/);
   assert.match(preload, /unwrapFeedbackV2Ipc/);
   assert.match(source, /state\.feedbackConversations\[String\(feedback\.id\)\]/);
-  assert.match(source, /draft: current\?\.draft \|\| ""/);
+  assert.match(source, /draft: preserved\?\.draft \|\| ""/);
   assert.match(source, /data-feedback-message-attachment/);
   assert.match(styles, /\.feedback-conversation/);
   assert.doesNotMatch(preload, /fetch|httpRequest|feedbackV2Request|apiKey|Authorization/);
@@ -1182,6 +1182,241 @@ test("Feedback V2 read state respects notification capability and refreshes visi
   assert.equal(context.els.feedbackListSummary.textContent, "1 条 · 1 未读");
   assert.doesNotMatch(context.els.ordinaryFeedbackTable.innerHTML, /feedback-unread-dot/);
   assert.equal(calls.renders, 4);
+});
+
+test("Feedback V2 conversation freshness composes automatic and manual reload triggers", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const helpersStart = source.indexOf("function feedbackWorkspace");
+  const helpersEnd = source.indexOf("\nfunction renderFeedbackConversation", helpersStart);
+  const helpersSource = source.slice(helpersStart, helpersEnd);
+  const calls = [];
+  const feedback = { id: 51, project_id: 7, feedback_source: "v2" };
+  const workspace = {
+    id: 7,
+    feedback_management: {
+      status: "available",
+      unread_count: 1,
+      unread_feedback_ids: ["51"]
+    }
+  };
+  const context = {
+    state: {
+      page: "feedback",
+      selectedFeedbackId: "51",
+      feedbackSnapshotEpoch: 7,
+      feedbackConversations: {
+        "51": {
+          messages: [{ id: "old-message" }],
+          last_unread_refresh_epoch: 6
+        }
+      },
+      platform: {
+        product_workspaces: [workspace],
+        feedback_v1: [feedback]
+      }
+    },
+    refreshSnapshot: async (options) => { calls.push(["snapshot", options]); },
+    loadFeedbackConversation: async (item, options) => { calls.push(["conversation", item.id, options]); }
+  };
+  vm.runInNewContext(`${helpersSource}\nglobalThis.feedbackConversationNeedsLoad = feedbackConversationNeedsLoad; globalThis.refreshFeedbackWorkspace = refreshFeedbackWorkspace;`, context);
+
+  assert.equal(context.feedbackConversationNeedsLoad(feedback), true);
+  context.state.feedbackConversations["51"].last_unread_refresh_epoch = 7;
+  assert.equal(context.feedbackConversationNeedsLoad(feedback), false);
+  context.state.page = "work";
+  context.state.feedbackConversations["51"].last_unread_refresh_epoch = 6;
+  assert.equal(context.feedbackConversationNeedsLoad(feedback), false);
+  context.state.page = "feedback";
+
+  await context.refreshFeedbackWorkspace({ quiet: true });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][0], "snapshot");
+  assert.equal(calls[0][1].quiet, true);
+  assert.equal(calls[1][0], "conversation");
+  assert.equal(calls[1][1], 51);
+  assert.equal(calls[1][2].force, true);
+
+  const pageRefreshSource = source.slice(source.indexOf("function wireEvents"), source.indexOf("\nfunction setPage", source.indexOf("function wireEvents")));
+  const inspectorSource = source.slice(source.indexOf("function renderFeedbackInspector"), source.indexOf("\nfunction renderFeedbackFile", source.indexOf("function renderFeedbackInspector")));
+  const conversationSource = source.slice(source.indexOf("function renderFeedbackConversation"), source.indexOf("\nfunction wireFeedbackImages", source.indexOf("function renderFeedbackConversation")));
+  assert.match(pageRefreshSource, /feedbackRefreshButton[\s\S]+refreshFeedbackWorkspace/);
+  assert.match(inspectorSource, /data-feedback-refresh[\s\S]+refreshFeedbackWorkspace/);
+  assert.match(inspectorSource, /feedbackConversationNeedsLoad/);
+  assert.match(inspectorSource, /previousScrollTop[\s\S]+feedback-inspector-scroll[\s\S]+scrollTop = previousScrollTop/);
+  assert.match(conversationSource, /data-feedback-conversation-refresh[\s\S]+refreshFeedbackWorkspace/);
+});
+
+test("Feedback V2 conversation loading deduplicates requests, preserves local state, and ignores stale responses", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const helpersStart = source.indexOf("function feedbackWorkspace");
+  const helpersEnd = source.indexOf("\nfunction renderFeedbackConversation", helpersStart);
+  const loadStart = source.indexOf("async function loadFeedbackConversation");
+  const loadEnd = source.indexOf("\nasync function sendFeedbackReply", loadStart);
+  const behaviorSource = `${source.slice(helpersStart, helpersEnd)}\n${source.slice(loadStart, loadEnd)}`;
+  const deferred = () => {
+    let resolvePromise;
+    let rejectPromise;
+    const promise = new Promise((resolve, reject) => {
+      resolvePromise = resolve;
+      rejectPromise = reject;
+    });
+    return { promise, resolve: resolvePromise, reject: rejectPromise };
+  };
+  const messagesByProject = new Map();
+  const markReadByProject = new Map();
+  let deferMarkRead = false;
+  const events = [];
+  const workspaces = [7, 8].map((id) => ({
+    id,
+    feedback_management: {
+      status: "available",
+      features: { mark_read: id === 7 },
+      unread_count: id === 7 ? 1 : 0,
+      unread_feedback_ids: id === 7 ? ["51"] : []
+    }
+  }));
+  const context = {
+    state: {
+      page: "feedback",
+      selectedFeedbackId: "51",
+      feedbackSnapshotEpoch: 7,
+      feedbackConversationRequestSequence: 0,
+      feedbackConversations: {
+        "51": {
+          messages: [{ id: "old-message" }],
+          draft: "saved draft",
+          file: { name: "saved.txt" },
+          loading: false,
+          sending: false,
+          error: "",
+          readError: "",
+          request_key: "7:51",
+          last_unread_refresh_epoch: 6
+        }
+      },
+      platform: { product_workspaces: workspaces, feedback_v1: [] }
+    },
+    api: {
+      getFeedbackV2Messages: async ({ project_id }) => {
+        events.push(`messages:${project_id}`);
+        const request = deferred();
+        messagesByProject.set(project_id, request);
+        return request.promise;
+      },
+      markFeedbackV2Read: async ({ project_id }) => {
+        events.push(`mark:${project_id}`);
+        if (deferMarkRead) {
+          const request = deferred();
+          markReadByProject.set(project_id, request);
+          return request.promise;
+        }
+        return { marked_count: 1 };
+      }
+    },
+    runFeedbackV2Request: async (operation) => operation(),
+    renderFeedbackInspector: () => {},
+    renderPlatformFeedback: () => {}
+  };
+  vm.runInNewContext(`${behaviorSource}\nglobalThis.loadFeedbackConversation = loadFeedbackConversation;`, context);
+  const feedback7 = { id: 51, project_id: 7, feedback_source: "v2" };
+
+  const firstLoad = context.loadFeedbackConversation(feedback7, { force: true });
+  const duplicateLoad = context.loadFeedbackConversation(feedback7, { force: true });
+  assert.equal(events.filter((event) => event === "messages:7").length, 1);
+  context.state.feedbackConversations["51"].draft = "edited while loading";
+  context.state.feedbackConversations["51"].file = { name: "replacement.txt" };
+  messagesByProject.get(7).resolve([{ id: "fresh-message" }]);
+  await Promise.all([firstLoad, duplicateLoad]);
+
+  assert.deepEqual(Array.from(context.state.feedbackConversations["51"].messages, (item) => item.id), ["fresh-message"]);
+  assert.equal(context.state.feedbackConversations["51"].draft, "edited while loading");
+  assert.equal(context.state.feedbackConversations["51"].file.name, "replacement.txt");
+  assert.equal(context.state.feedbackConversations["51"].last_unread_refresh_epoch, 7);
+  assert.deepEqual(events, ["messages:7", "mark:7"]);
+  assert.equal(workspaces[0].feedback_management.unread_count, 0);
+  assert.deepEqual(workspaces[0].feedback_management.unread_feedback_ids, []);
+
+  const oldProjectLoad = context.loadFeedbackConversation(feedback7, { force: true });
+  const feedback8 = { id: 51, project_id: 8, feedback_source: "v2" };
+  const newProjectLoad = context.loadFeedbackConversation(feedback8, { force: true });
+  messagesByProject.get(8).resolve([{ id: "project-8-message" }]);
+  await newProjectLoad;
+  messagesByProject.get(7).resolve([{ id: "stale-project-7-message" }]);
+  await oldProjectLoad;
+  assert.equal(context.state.feedbackConversations["51"].request_key, "8:51");
+  assert.deepEqual(Array.from(context.state.feedbackConversations["51"].messages, (item) => item.id), ["project-8-message"]);
+
+  deferMarkRead = true;
+  workspaces[0].feedback_management.unread_count = 1;
+  workspaces[0].feedback_management.unread_feedback_ids = ["51"];
+  const staleReadLoad = context.loadFeedbackConversation(feedback7, { force: true });
+  messagesByProject.get(7).resolve([{ id: "project-7-message-before-stale-read" }]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(markReadByProject.get(7));
+
+  const currentProjectLoad = context.loadFeedbackConversation(feedback8, { force: true });
+  messagesByProject.get(8).resolve([{ id: "current-project-8-message" }]);
+  await currentProjectLoad;
+  markReadByProject.get(7).reject(new Error("stale mark-read failure"));
+  await staleReadLoad;
+
+  assert.equal(context.state.feedbackConversations["51"].request_key, "8:51");
+  assert.deepEqual(Array.from(context.state.feedbackConversations["51"].messages, (item) => item.id), ["current-project-8-message"]);
+  assert.equal(context.state.feedbackConversations["51"].readError, "");
+});
+
+test("Feedback V2 conversation load failure keeps cached messages, draft, attachment, and unread state", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const helpersStart = source.indexOf("function feedbackWorkspace");
+  const helpersEnd = source.indexOf("\nfunction renderFeedbackConversation", helpersStart);
+  const loadStart = source.indexOf("async function loadFeedbackConversation");
+  const loadEnd = source.indexOf("\nasync function sendFeedbackReply", loadStart);
+  const behaviorSource = `${source.slice(helpersStart, helpersEnd)}\n${source.slice(loadStart, loadEnd)}`;
+  const workspace = {
+    id: 7,
+    feedback_management: {
+      status: "available",
+      features: { mark_read: true },
+      unread_count: 1,
+      unread_feedback_ids: ["51"]
+    }
+  };
+  const context = {
+    state: {
+      page: "feedback",
+      selectedFeedbackId: "51",
+      feedbackSnapshotEpoch: 9,
+      feedbackConversationRequestSequence: 0,
+      feedbackConversations: {
+        "51": {
+          messages: [{ id: "cached-message" }],
+          draft: "unsent draft",
+          file: { name: "evidence.png" },
+          request_key: "7:51",
+          last_unread_refresh_epoch: 8
+        }
+      },
+      platform: { product_workspaces: [workspace], feedback_v1: [] }
+    },
+    api: {
+      getFeedbackV2Messages: async () => { throw new Error("network unavailable"); },
+      markFeedbackV2Read: async () => { throw new Error("mark read must not run"); }
+    },
+    runFeedbackV2Request: async (operation) => operation(),
+    renderFeedbackInspector: () => {},
+    renderPlatformFeedback: () => {}
+  };
+  vm.runInNewContext(`${behaviorSource}\nglobalThis.loadFeedbackConversation = loadFeedbackConversation;`, context);
+  await context.loadFeedbackConversation({ id: 51, project_id: 7, feedback_source: "v2" }, { force: true });
+
+  const conversation = context.state.feedbackConversations["51"];
+  assert.deepEqual(Array.from(conversation.messages, (item) => item.id), ["cached-message"]);
+  assert.equal(conversation.draft, "unsent draft");
+  assert.equal(conversation.file.name, "evidence.png");
+  assert.equal(conversation.loading, false);
+  assert.equal(conversation.error, "network unavailable");
+  assert.equal(workspace.feedback_management.unread_count, 1);
+  assert.deepEqual(workspace.feedback_management.unread_feedback_ids, ["51"]);
 });
 
 test("ADVANCE owns one top product-set scope while Work and Automation own their local filters", async () => {
