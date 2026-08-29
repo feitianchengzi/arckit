@@ -2,9 +2,11 @@
 
 import os
 import sys
+import json
 from pathlib import Path
 import warnings
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 warnings.filterwarnings(
     "ignore",
@@ -70,35 +72,24 @@ def append_cache_buster(target: str, version: str) -> str:
     return f"{path_and_query}{query_sep}deploy_v={version}{sep}{fragment}"
 
 
-def build_root_index_html(target: str) -> str:
+def build_root_index_html(target: str, app_shell_html: str) -> str:
     now_dt = datetime.now(timezone.utc)
-    now = now_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-    target = append_cache_buster(target, now_dt.strftime("%Y%m%d%H%M%S"))
-    escaped = target.replace('"', "&quot;")
-    return f"""<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="pragma" content="no-cache" />
-    <meta http-equiv="expires" content="0" />
-    <title>Feedback Console Redirect</title>
-    <script>
-      location.replace("{escaped}");
-    </script>
-  </head>
-  <body>
-    <noscript>
-      <p>正在跳转到控制台… <a href="{escaped}">点击进入</a></p>
-    </noscript>
-    <p style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #666;">
-      Redirecting to <a href="{escaped}">{escaped}</a>
-    </p>
-    <!-- generated at {now} by feedback-console-web deploy -->
-  </body>
-</html>
-"""
+    redirect_target = append_cache_buster(target, now_dt.strftime("%Y%m%d%H%M%S"))
+    app_base_path = urlsplit(target).path.rstrip("/") or "/"
+    redirect_json = json.dumps(redirect_target, ensure_ascii=False).replace("</", "<\\/")
+    base_json = json.dumps(app_base_path, ensure_ascii=False).replace("</", "<\\/")
+    guard = f"""<script>
+      (function () {{
+        var appBase = {base_json};
+        var isAppRoute = location.pathname === appBase || location.pathname.indexOf(appBase + "/") === 0;
+        if (!isAppRoute) location.replace({redirect_json});
+      }})();
+    </script>"""
+
+    if "<head>" not in app_shell_html:
+        fail("Built index.html does not contain <head>.")
+
+    return app_shell_html.replace("<head>", f"<head>\n    {guard}", 1)
 
 
 def load_config() -> dict:
@@ -201,14 +192,15 @@ def upload_spa_aliases(bucket: oss2.Bucket, dist_dir: Path, prefix: str):
     log(f"  uploaded SPA alias: {prefix} ({format_size(len(index_html))})")
 
 
-def sync_root_index(bucket: oss2.Bucket, target: str):
-    html = build_root_index_html(target).encode("utf-8")
+def sync_root_index(bucket: oss2.Bucket, dist_dir: Path, target: str):
+    app_shell_html = (dist_dir / "index.html").read_text(encoding="utf-8")
+    html = build_root_index_html(target, app_shell_html).encode("utf-8")
     bucket.put_object(
         "index.html",
         html,
         headers=HTML_CACHE_HEADERS,
     )
-    log(f"  synced root index.html -> {target} with deploy_v cache buster ({format_size(len(html))})")
+    log(f"  synced root SPA fallback (deep links preserved; root -> {target}) ({format_size(len(html))})")
 
 
 def build_access_url(custom_domain: str, endpoint: str, bucket_name: str, prefix: str) -> str:
@@ -245,7 +237,7 @@ def main():
     upload_dist(bucket, cfg["dist_dir"], cfg["prefix"])
     upload_spa_aliases(bucket, cfg["dist_dir"], cfg["prefix"])
     if cfg["sync_root_index"]:
-        sync_root_index(bucket, cfg["root_index_target"])
+        sync_root_index(bucket, cfg["dist_dir"], cfg["root_index_target"])
     else:
         log("Root index sync skipped. Set SYNC_ROOT_INDEX=1 to enable.")
 

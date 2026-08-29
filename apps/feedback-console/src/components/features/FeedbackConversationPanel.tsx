@@ -229,12 +229,12 @@ function ConversationAttachment({ feedbackId, attachment }: { feedbackId: number
   }
 
   return (
-    <div className="max-w-full">
+    <div className={clsx('max-w-full', kind === 'image' && 'w-24')}>
       {kind === 'image' && sourceUrl && !imageLoadFailed ? (
         <button
           type="button"
           onClick={() => void open()}
-          className="group block max-w-full text-left"
+          className="group block w-full text-left"
           title={`查看大图：${name}`}
         >
           <img
@@ -245,7 +245,7 @@ function ConversationAttachment({ feedbackId, attachment }: { feedbackId: number
               setImageLoadFailed(true)
               setError('图片加载失败，可尝试打开原文件')
             }}
-            className="max-h-64 max-w-full rounded-md border border-divider bg-surface object-contain shadow-sm transition-opacity group-hover:opacity-85"
+            className="aspect-square w-full rounded-md border border-divider bg-surface object-cover shadow-sm transition-opacity group-hover:opacity-85"
           />
           <span className="mt-1 block truncate text-xs font-medium text-primary">{name}</span>
         </button>
@@ -456,10 +456,13 @@ export function FeedbackConversationPanel({ feedbackId, projectId, onChanged, on
                   </p>
                 ) : null}
                 {message.attachments?.length ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {message.attachments.map((attachment, index) => (
-                      <ConversationAttachment key={`${message.id}-${attachment.object_key || attachment.url || index}`} feedbackId={message.feedback_id} attachment={attachment} />
-                    ))}
+                  <div className="mt-3">
+                    <p className="mb-2 text-[11px] font-semibold text-foreground-tertiary">附件 {message.attachments.length}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {message.attachments.map((attachment, index) => (
+                        <ConversationAttachment key={`${message.id}-${attachment.object_key || attachment.url || index}`} feedbackId={message.feedback_id} attachment={attachment} />
+                      ))}
+                    </div>
                   </div>
                 ) : null}
               </article>

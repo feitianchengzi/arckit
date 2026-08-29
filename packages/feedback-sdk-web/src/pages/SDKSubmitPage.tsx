@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { FeedbackShell } from '@/components/sdk/FeedbackShell'
-import { FeedbackSubmitStep } from '@/components/sdk/FeedbackSubmitStep'
+import { FeedbackSubmitStep, type FeedbackSubmitImage } from '@/components/sdk/FeedbackSubmitStep'
 import { getOrPersistApiKey, getOrPersistCustomUserId, resolveProjectId, submitFeedbackByApiKey } from '@/lib/feedback/api'
 import { submitFeedbackV2, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { uploadFeedbackImageByApiKey, uploadFeedbackImageV2 } from '@/lib/feedback/upload'
@@ -39,26 +39,168 @@ function base64PayloadToFile(payload: FeedbackSDKNativeImagePayload): File {
   return new File([bytes], fileName, { type: mimeType })
 }
 
+const MAX_FEEDBACK_IMAGES = 9
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024
+const MAX_TOTAL_IMAGE_SIZE = 20 * 1024 * 1024
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+
+interface SelectedFeedbackImage extends FeedbackSubmitImage {
+  file: File
+  uploadedFileKey: string
+  uploadedAttachment: FeedbackV2Attachment | null
+}
+
+function createImageID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `feedback_image_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
 export function SDKSubmitPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [content, setContent] = useState('')
-  const [imageName, setImageName] = useState('')
+  const [images, setImages] = useState<SelectedFeedbackImage[]>([])
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadError, setUploadError] = useState('')
   const [pickerWarning, setPickerWarning] = useState('')
-  const [uploadedFileKey, setUploadedFileKey] = useState('')
-  const [uploadedAttachment, setUploadedAttachment] = useState<FeedbackV2Attachment | null>(null)
   const pickerAttemptRef = useRef(0)
+  const imagesRef = useRef<SelectedFeedbackImage[]>([])
+  const previewURLsRef = useRef(new Set<string>())
+
+  const updateImage = useCallback((imageID: string, update: Partial<SelectedFeedbackImage>) => {
+    setImages((current) => {
+      const next = current.map((image) => image.id === imageID ? { ...image, ...update } : image)
+      imagesRef.current = next
+      return next
+    })
+  }, [])
+
+  const uploadImage = useCallback(async (image: SelectedFeedbackImage) => {
+    updateImage(image.id, { status: 'uploading', progress: 0, error: '', uploadedFileKey: '', uploadedAttachment: null })
+    try {
+      if (getFeedbackSDKConfig().feedbackV2Enabled === true) {
+        const attachment = await uploadFeedbackImageV2({
+          file: image.file,
+          onProgress: (progress) => updateImage(image.id, { progress }),
+        })
+        updateImage(image.id, {
+          status: 'uploaded',
+          progress: 1,
+          uploadedAttachment: attachment,
+          uploadedFileKey: attachment.object_key || '',
+        })
+        return
+      }
+
+      const apiKey = getOrPersistApiKey()
+      if (!apiKey) throw new Error('未检测到 API Key，无法上传图片')
+      const result = await uploadFeedbackImageByApiKey({
+        apiKey,
+        file: image.file,
+        onProgress: (progress) => updateImage(image.id, { progress }),
+      })
+      updateImage(image.id, { status: 'uploaded', progress: 1, uploadedFileKey: result.objectKey })
+    } catch (error: any) {
+      const message = error?.message || '图片上传失败'
+      updateImage(image.id, { status: 'error', error: message })
+      setUploadError(`${image.name}：${message}`)
+    }
+  }, [updateImage])
+
+  const handleUploadFiles = useCallback((selectedFiles: File[]) => {
+    pickerAttemptRef.current += 1
+    setPickerWarning('')
+    setUploadError('')
+    if (!selectedFiles.length) return
+
+    const useV2 = getFeedbackSDKConfig().feedbackV2Enabled === true
+    const maxImages = useV2 ? MAX_FEEDBACK_IMAGES : 1
+    let current = imagesRef.current
+    if (!useV2 && current.length) {
+      current.forEach((image) => {
+        URL.revokeObjectURL(image.previewUrl)
+        previewURLsRef.current.delete(image.previewUrl)
+      })
+      current = []
+    }
+
+    const availableSlots = Math.max(0, maxImages - current.length)
+    const candidates = selectedFiles.slice(0, availableSlots)
+    const rejectedMessages: string[] = []
+    if (selectedFiles.length > availableSlots) {
+      rejectedMessages.push(`最多选择 ${maxImages} 张图片，超出的图片未添加`)
+    }
+
+    let totalSize = current.reduce((sum, image) => sum + image.file.size, 0)
+    const nextImages: SelectedFeedbackImage[] = []
+    candidates.forEach((file) => {
+      const mimeType = file.type.trim().toLowerCase()
+      if (!SUPPORTED_IMAGE_TYPES.has(mimeType)) {
+        rejectedMessages.push(`${file.name} 格式不支持`)
+        return
+      }
+      if (file.size <= 0 || file.size > MAX_IMAGE_SIZE) {
+        rejectedMessages.push(`${file.name} 超过单张 10MB 限制`)
+        return
+      }
+      if (totalSize + file.size > MAX_TOTAL_IMAGE_SIZE) {
+        rejectedMessages.push(`${file.name} 添加后会超过图片总计 20MB 限制`)
+        return
+      }
+
+      totalSize += file.size
+      const previewUrl = URL.createObjectURL(file)
+      previewURLsRef.current.add(previewUrl)
+      nextImages.push({
+        id: createImageID(),
+        file,
+        name: file.name || '截图',
+        previewUrl,
+        status: 'uploading',
+        progress: 0,
+        error: '',
+        uploadedFileKey: '',
+        uploadedAttachment: null,
+      })
+    })
+
+    const next = [...current, ...nextImages]
+    imagesRef.current = next
+    setImages(next)
+    if (rejectedMessages.length) setUploadError(rejectedMessages.join('；'))
+    nextImages.forEach((image) => void uploadImage(image))
+  }, [uploadImage])
+
+  const removeImage = useCallback((imageID: string) => {
+    const removed = imagesRef.current.find((image) => image.id === imageID)
+    if (removed) {
+      URL.revokeObjectURL(removed.previewUrl)
+      previewURLsRef.current.delete(removed.previewUrl)
+    }
+    const next = imagesRef.current.filter((image) => image.id !== imageID)
+    imagesRef.current = next
+    setImages(next)
+    setUploadError('')
+  }, [])
+
+  const retryImage = useCallback((imageID: string) => {
+    const image = imagesRef.current.find((item) => item.id === imageID)
+    if (!image) return
+    setUploadError('')
+    void uploadImage(image)
+  }, [uploadImage])
 
   useEffect(() => {
     if (!getFeedbackSDKConfig().feedbackV2Enabled) {
       getOrPersistApiKey()
       getOrPersistCustomUserId()
     }
+  }, [])
+
+  useEffect(() => () => {
+    previewURLsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    previewURLsRef.current.clear()
   }, [])
 
   useEffect(() => {
@@ -68,7 +210,7 @@ export function SDKSubmitPage() {
       try {
         const payload = (event as CustomEvent<FeedbackSDKNativeImagePayload>).detail
         const file = base64PayloadToFile(payload || {})
-        void handleUploadFile(file)
+        handleUploadFiles([file])
       } catch (error: any) {
         setUploadError(error?.message || '原生图片读取失败，请重试')
       }
@@ -76,9 +218,10 @@ export function SDKSubmitPage() {
 
     window.addEventListener(FEEDBACK_SDK_NATIVE_IMAGE_EVENT, handleNativeImage)
     return () => window.removeEventListener(FEEDBACK_SDK_NATIVE_IMAGE_EVENT, handleNativeImage)
-  }, [])
+  }, [handleUploadFiles])
 
   const submitFeedback = async () => {
+    const uploading = images.some((image) => image.status === 'uploading')
     if (submitting || uploading) return
 
     setSubmitError('')
@@ -92,12 +235,12 @@ export function SDKSubmitPage() {
     try {
       const useV2 = getFeedbackSDKConfig().feedbackV2Enabled === true
       if (useV2) {
-        if (imageName && !uploadedAttachment) {
-          throw new Error('图片尚未上传完成，请稍后再提交')
+        if (images.some((image) => image.status !== 'uploaded' || !image.uploadedAttachment)) {
+          throw new Error('仍有图片未上传成功，请重试或移除后再提交')
         }
         await submitFeedbackV2({
           content: trimmedContent,
-          attachments: uploadedAttachment ? [uploadedAttachment] : [],
+          attachments: images.map((image) => image.uploadedAttachment).filter(Boolean) as FeedbackV2Attachment[],
         })
         navigate({ pathname: '/status', search: location.search })
         return
@@ -110,7 +253,8 @@ export function SDKSubmitPage() {
 
       const customUserId = getOrPersistCustomUserId()
       const projectId = await resolveProjectId(undefined, apiKey)
-      if (imageName && !uploadedFileKey) {
+      const image = images[0]
+      if (image && !image.uploadedFileKey) {
         throw new Error('图片尚未上传完成，请稍后再提交')
       }
       await submitFeedbackByApiKey({
@@ -118,8 +262,8 @@ export function SDKSubmitPage() {
         projectId,
         customUserId,
         content: trimmedContent,
-        imageName,
-        fileKey: uploadedFileKey,
+        imageName: image?.name || '',
+        fileKey: image?.uploadedFileKey || '',
       })
 
       navigate({ pathname: '/status', search: location.search })
@@ -127,43 +271,6 @@ export function SDKSubmitPage() {
       setSubmitError(error?.message || '提交失败，请稍后重试')
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  const handleUploadFile = async (file: File | null) => {
-    pickerAttemptRef.current += 1
-    setPickerWarning('')
-    setUploadError('')
-    setUploadedFileKey('')
-    setUploadedAttachment(null)
-    setUploadProgress(0)
-    setImageName(file?.name || '')
-
-    if (!file) return
-
-    setUploading(true)
-    try {
-      if (getFeedbackSDKConfig().feedbackV2Enabled === true) {
-        const attachment = await uploadFeedbackImageV2({ file, onProgress: setUploadProgress })
-        setUploadedAttachment(attachment)
-        setUploadedFileKey(attachment.object_key || '')
-        return
-      }
-
-      const apiKey = getOrPersistApiKey()
-      if (!apiKey) {
-        throw new Error('未检测到 API Key，无法上传图片')
-      }
-      const result = await uploadFeedbackImageByApiKey({
-        apiKey,
-        file,
-        onProgress: setUploadProgress,
-      })
-      setUploadedFileKey(result.objectKey)
-    } catch (error: any) {
-      setUploadError(error?.message || '图片上传失败')
-    } finally {
-      setUploading(false)
     }
   }
 
@@ -199,10 +306,13 @@ export function SDKSubmitPage() {
       return false
     }
 
+    const maximumImages = getFeedbackSDKConfig().feedbackV2Enabled === true ? MAX_FEEDBACK_IMAGES : 1
+
     picker.postMessage({
       type: 'pickImage',
       accept: 'image/*',
       source: 'feedback-sdk-web',
+      maximumSelectionCount: Math.max(1, maximumImages - imagesRef.current.length),
     })
     return true
   }
@@ -210,6 +320,8 @@ export function SDKSubmitPage() {
   const contentWrapClass = 'mx-auto w-full max-w-[980px]'
   const innerWrapClass = 'space-y-4 px-2 md:px-3'
   const formWrapClass = 'mx-auto w-full max-w-[760px]'
+  const uploading = images.some((image) => image.status === 'uploading')
+  const maxImages = getFeedbackSDKConfig().feedbackV2Enabled === true ? MAX_FEEDBACK_IMAGES : 1
 
   return (
     <div className="min-h-[100dvh] bg-surface px-4 py-6 md:px-6">
@@ -219,16 +331,17 @@ export function SDKSubmitPage() {
             <div className={formWrapClass}>
               <FeedbackSubmitStep
                 value={content}
-                imageName={imageName}
-                disabled={submitting || uploading}
+                images={images}
+                maxImages={maxImages}
+                disabled={submitting}
                 submitError={submitError}
                 uploadError={uploadError}
                 uploading={uploading}
-                uploadProgress={uploadProgress}
-                uploadedFileKey={uploadedFileKey}
                 pickerWarning={pickerWarning}
                 onChange={setContent}
-                onUpload={handleUploadFile}
+                onUpload={handleUploadFiles}
+                onRemoveImage={removeImage}
+                onRetryImage={retryImage}
                 onPickerStarted={handlePickerStarted}
                 onRequestNativeImage={requestNativeImage}
                 onNext={submitFeedback}
