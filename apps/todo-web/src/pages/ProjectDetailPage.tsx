@@ -35,6 +35,12 @@ import type { TaskInfo } from '@/lib/permissions'
 
 const LOCAL_STATUS_EVENT_SUPPRESS_MS = 5000
 
+const toFormString = (value: unknown) => {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  return String(value)
+}
+
 const extractSocketTaskId = (payload: ProjectSocketEvent): number | null => {
   const data = payload.data
   if (!data || typeof data !== 'object') return null
@@ -296,10 +302,16 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (!project) return
-    setProjectInfoName(project.name)
-    setProjectInfoGitUrl(project.git_url || '')
+    setProjectInfoName(toFormString(project.name))
+    setProjectInfoGitUrl(toFormString(project.git_url))
     setProjectInfoError('')
   }, [project?.id, project?.name, project?.git_url])
+
+  useEffect(() => {
+    setShowMoreMenu(false)
+    setShowProjectInfoDialog(false)
+    setProjectInfoError('')
+  }, [projectIdParam])
   
   // 加载项目标签
   const { loadProjectTags, getProjectTags } = useTagStore()
@@ -808,8 +820,8 @@ export default function ProjectDetailPage() {
   // 初始化编辑表单
   const handleEditClick = () => {
     if (project) {
-      setEditName(project.name)
-      setEditGitUrl(project.git_url || '')
+      setEditName(toFormString(project.name))
+      setEditGitUrl(toFormString(project.git_url))
       setEditError('')
       setShowEditDialog(true)
     }
@@ -1015,8 +1027,8 @@ export default function ProjectDetailPage() {
     setEditError('')
     
     // 验证
-    const trimmedName = editName.trim()
-    const trimmedGitUrl = editGitUrl.trim()
+    const trimmedName = toFormString(editName).trim()
+    const trimmedGitUrl = toFormString(editGitUrl).trim()
 
     if (!trimmedName) {
       setEditError('请输入项目名称')
@@ -1125,20 +1137,24 @@ export default function ProjectDetailPage() {
     project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'owner')
 
   const canEditProjectInfo = isOwner
+  const projectNameValue = toFormString(project.name)
+  const projectGitUrlValue = toFormString(project.git_url)
+  const projectInfoNameValue = toFormString(projectInfoName)
+  const projectInfoGitUrlValue = toFormString(projectInfoGitUrl)
   const projectInfoDirty =
-    projectInfoName.trim() !== project.name ||
-    projectInfoGitUrl.trim() !== (project.git_url || '')
+    projectInfoNameValue.trim() !== projectNameValue ||
+    projectInfoGitUrlValue.trim() !== projectGitUrlValue
 
   const handleProjectInfoSave = async () => {
     if (!canEditProjectInfo || isSavingProjectInfo) return
 
-    const trimmedName = projectInfoName.trim()
-    const trimmedGitUrl = projectInfoGitUrl.trim()
+    const trimmedName = projectInfoNameValue.trim()
+    const trimmedGitUrl = projectInfoGitUrlValue.trim()
 
     setProjectInfoError('')
 
     if (!trimmedName) {
-      setProjectInfoName(project.name)
+      setProjectInfoName(projectNameValue)
       setProjectInfoError('请输入项目名称')
       return
     }
@@ -1153,8 +1169,8 @@ export default function ProjectDetailPage() {
     }
 
     if (!projectInfoDirty) {
-      setProjectInfoName(project.name)
-      setProjectInfoGitUrl(project.git_url || '')
+      setProjectInfoName(projectNameValue)
+      setProjectInfoGitUrl(projectGitUrlValue)
       return
     }
 
@@ -1449,8 +1465,8 @@ export default function ProjectDetailPage() {
                 className="h-5 w-5"
               />
             </button>
-            <h1 className="project-linear-title min-w-0 truncate text-foreground" title={project.name}>
-              {project.name}
+            <h1 className="project-linear-title min-w-0 truncate text-foreground" title={projectNameValue}>
+              {projectNameValue}
             </h1>
 
             {/* 更多菜单 - 跟随项目名称伸缩 */}
@@ -1472,8 +1488,8 @@ export default function ProjectDetailPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setProjectInfoName(project.name)
-                      setProjectInfoGitUrl(project.git_url || '')
+                      setProjectInfoName(projectNameValue)
+                      setProjectInfoGitUrl(projectGitUrlValue)
                       setProjectInfoError('')
                       moreMenuButtonRef.current?.blur()
                       setShowProjectInfoDialog(true)
@@ -1926,7 +1942,7 @@ export default function ProjectDetailPage() {
               </label>
               <input
                 id="project-info-name"
-                value={projectInfoName}
+                value={projectInfoNameValue}
                 onChange={(event) => setProjectInfoName(event.target.value)}
                 onBlur={handleProjectInfoSave}
                 onKeyDown={(event) => {
@@ -1947,7 +1963,7 @@ export default function ProjectDetailPage() {
               </label>
               <input
                 id="project-info-git-url"
-                value={projectInfoGitUrl}
+                value={projectInfoGitUrlValue}
                 onChange={(event) => setProjectInfoGitUrl(event.target.value)}
                 onBlur={handleProjectInfoSave}
                 onKeyDown={(event) => {
@@ -1991,7 +2007,7 @@ export default function ProjectDetailPage() {
             id="edit-name"
             label="项目名称"
             placeholder="例如：待办管理系统"
-            value={editName}
+            value={toFormString(editName)}
             onChange={(e) => setEditName(e.target.value)}
             fullWidth
             required
@@ -2002,7 +2018,7 @@ export default function ProjectDetailPage() {
             id="edit-git-url"
             label="Git 地址"
             placeholder="https://github.com/username/repo"
-            value={editGitUrl}
+            value={toFormString(editGitUrl)}
             onChange={(e) => setEditGitUrl(e.target.value)}
             fullWidth
             helperText="项目的 Git 仓库地址（可选）"
@@ -2038,7 +2054,7 @@ export default function ProjectDetailPage() {
       <ConfirmDialog
         open={showDeleteConfirm}
         title="删除项目"
-        message={`确定要删除项目 "${project.name}" 吗？此操作将删除项目及其所有任务和成员，且无法撤销。`}
+        message={`确定要删除项目 "${projectNameValue}" 吗？此操作将删除项目及其所有任务和成员，且无法撤销。`}
         confirmLabel="删除"
         cancelLabel="取消"
         variant="danger"
@@ -2087,7 +2103,7 @@ export default function ProjectDetailPage() {
           members={members}
           currentUserId={currentUserId}
           projectId={projectId}
-          projectName={project.name}
+          projectName={projectNameValue}
         />
       )}
 

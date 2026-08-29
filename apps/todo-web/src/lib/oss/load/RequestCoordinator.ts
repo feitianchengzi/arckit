@@ -8,6 +8,7 @@ import { SignatureProvider } from './SignatureProvider'
 import { StatusMonitor } from './StatusMonitor'
 import { normalizeObjectKey } from '../sdk'
 import type { ManagerConfig, ResourceItem } from './types'
+import { describeSignedUrl, describeTimestamp, errorOssImageDiag, logOssImageDiag } from './diagnostics'
 
 export class RequestCoordinator {
   // 请求队列（用于请求合并）
@@ -38,11 +39,19 @@ export class RequestCoordinator {
     if (!normalizedKey) return ''
 
     console.log(`[RequestCoordinator] 📥 收到请求: ${normalizedKey}`)
+    logOssImageDiag('coordinator.request.received', {
+      objectKey: normalizedKey,
+      activeQueueSize: this.requestQueue.size,
+    })
     
     // 1. 检查是否有正在进行的请求（请求合并）
     const existingRequest = this.requestQueue.get(normalizedKey)
     if (existingRequest) {
       console.log(`[RequestCoordinator] 🔗 请求合并: ${normalizedKey} (已有 ${this.requestQueue.size} 个进行中的请求)`)
+      logOssImageDiag('coordinator.request.merged', {
+        objectKey: normalizedKey,
+        activeQueueSize: this.requestQueue.size,
+      })
       return existingRequest
     }
     
@@ -56,6 +65,12 @@ export class RequestCoordinator {
           url: cached.signedUrl.substring(0, 50) + '...',
           expiresAt: new Date(cached.expiresAt).toLocaleString(),
         })
+        logOssImageDiag('coordinator.cache.hit.valid', {
+          objectKey: normalizedKey,
+          url: describeSignedUrl(cached.signedUrl),
+          expiresAt: describeTimestamp(cached.expiresAt),
+          bufferSeconds: this.config.bufferTime,
+        })
         this.statusMonitor.setStatus(normalizedKey, 'ready')
         return cached.signedUrl
       } else {
@@ -63,14 +78,27 @@ export class RequestCoordinator {
           url: cached.signedUrl.substring(0, 50) + '...',
           expiresAt: new Date(cached.expiresAt).toLocaleString(),
         })
+        logOssImageDiag('coordinator.cache.hit.expired', {
+          objectKey: normalizedKey,
+          url: describeSignedUrl(cached.signedUrl),
+          expiresAt: describeTimestamp(cached.expiresAt),
+          bufferSeconds: this.config.bufferTime,
+        })
         this.storageManager.delete(normalizedKey)
       }
     } else {
       console.log(`[RequestCoordinator] ❌ 缓存未命中，需要加载: ${normalizedKey}`)
+      logOssImageDiag('coordinator.cache.miss', {
+        objectKey: normalizedKey,
+      })
     }
     
     // 3. 创建新请求并加入队列
     console.log(`[RequestCoordinator] 🚀 开始加载资源: ${normalizedKey}`)
+    logOssImageDiag('coordinator.load.queued', {
+      objectKey: normalizedKey,
+      activeQueueSize: this.requestQueue.size,
+    })
     const promise = this.loadResource(normalizedKey)
     this.requestQueue.set(normalizedKey, promise)
     
@@ -78,6 +106,10 @@ export class RequestCoordinator {
     promise.finally(() => {
       this.requestQueue.delete(normalizedKey)
       console.log(`[RequestCoordinator] ✅ 请求完成，已从队列移除: ${normalizedKey}`)
+      logOssImageDiag('coordinator.request.finished', {
+        objectKey: normalizedKey,
+        activeQueueSize: this.requestQueue.size,
+      })
     })
     
     return promise
@@ -96,10 +128,19 @@ export class RequestCoordinator {
       
       // 获取签名 URL
       console.log(`[RequestCoordinator] 🔐 开始获取签名 URL: ${normalizedKey}`)
+      logOssImageDiag('coordinator.signature.start', {
+        objectKey: normalizedKey,
+      })
       const { signedUrl, expiresAt } = await this.signatureProvider.getSignedUrlWithExpires(normalizedKey)
       const signatureTime = Date.now() - startTime
       console.log(`[RequestCoordinator] ✅ 签名 URL 获取成功 (耗时 ${signatureTime}ms): ${normalizedKey}`, {
         url: signedUrl.substring(0, 50) + '...',
+      })
+      logOssImageDiag('coordinator.signature.success', {
+        objectKey: normalizedKey,
+        elapsedMs: signatureTime,
+        url: describeSignedUrl(signedUrl),
+        expiresAt: describeTimestamp(expiresAt),
       })
       
       const now = Date.now()
@@ -119,6 +160,10 @@ export class RequestCoordinator {
       console.log(`[RequestCoordinator] 💾 保存到缓存: ${normalizedKey}`, {
         expiresAt: new Date(expiresAt).toLocaleString(),
       })
+      logOssImageDiag('coordinator.cache.save', {
+        objectKey: normalizedKey,
+        expiresAt: describeTimestamp(expiresAt),
+      })
       this.storageManager.set(normalizedKey, resourceItem)
       
       // 更新状态为 ready
@@ -126,10 +171,19 @@ export class RequestCoordinator {
       
       const totalTime = Date.now() - startTime
       console.log(`[RequestCoordinator] ✅ 资源加载成功 (总耗时 ${totalTime}ms): ${normalizedKey}`)
+      logOssImageDiag('coordinator.load.success', {
+        objectKey: normalizedKey,
+        elapsedMs: totalTime,
+      })
       return signedUrl
     } catch (error) {
       const totalTime = Date.now() - startTime
       console.error(`[RequestCoordinator] ❌ 资源加载失败 (耗时 ${totalTime}ms): ${normalizedKey}`, error)
+      errorOssImageDiag('coordinator.load.failed', {
+        objectKey: normalizedKey,
+        elapsedMs: totalTime,
+        error: error instanceof Error ? error.message : String(error),
+      })
       this.statusMonitor.setStatus(normalizedKey, 'error')
       throw error
     }

@@ -6,6 +6,12 @@
 import { STSCredentials, uploadApi } from '../../api/endpoints/upload'
 import { getSafeSignedUrlExpires, loadOSSSDK, normalizeObjectKey } from '../sdk'
 import type { ManagerConfig } from './types'
+import {
+  describeSignedUrl,
+  describeTimestamp,
+  errorOssImageDiag,
+  logOssImageDiag,
+} from './diagnostics'
 
 export interface SignedUrlResult {
   signedUrl: string
@@ -24,6 +30,7 @@ export class SignatureProvider {
   
   // OSS Client 实例（单例，全局共享）
   private ossClient: any = null
+  private ossClientCredentialFingerprint: string | null = null
   
   // 配置
   private readonly bufferTime: number
@@ -47,6 +54,12 @@ export class SignatureProvider {
    */
   async getSignedUrlWithExpires(objectKey: string): Promise<SignedUrlResult> {
     const normalizedKey = normalizeObjectKey(objectKey)
+    logOssImageDiag('signature.url.start', {
+      objectKey: normalizedKey,
+      hasCachedCredentials: !!this.stsPool.credentials,
+      credentialsExpiresAt: describeTimestamp(this.stsPool.expiresAt),
+      hasClient: !!this.ossClient,
+    })
 
     // 获取或刷新 STS 凭证
     const credentials = await this.getCredentials()
@@ -63,6 +76,13 @@ export class SignatureProvider {
     const signedUrl = client.signatureUrl(normalizedKey, {
       expires,
     })
+
+    logOssImageDiag('signature.url.generated', {
+      objectKey: normalizedKey,
+      expiresSeconds: expires,
+      stsExpiration: describeTimestamp(credentials.Expiration),
+      signedUrl: describeSignedUrl(signedUrl),
+    })
     
     return {
       signedUrl,
@@ -75,16 +95,31 @@ export class SignatureProvider {
    */
   async getCredentials(forceRefresh: boolean = false): Promise<STSCredentials> {
     const now = Date.now()
+    logOssImageDiag('signature.credentials.request', {
+      forceRefresh,
+      hasCachedCredentials: !!this.stsPool.credentials,
+      credentialsExpiresAt: describeTimestamp(this.stsPool.expiresAt),
+      hasRefreshPromise: !!this.stsPool.refreshPromise,
+      bufferMs: this.bufferTime,
+    })
     
     // 检查现有凭证是否有效（提前 bufferTime 判断）
     if (!forceRefresh && 
         this.stsPool.credentials && 
         this.stsPool.expiresAt > (now + this.bufferTime)) {
+      logOssImageDiag('signature.credentials.reuse', {
+        forceRefresh,
+        credentials: this.describeCredentials(this.stsPool.credentials),
+        expiresAt: describeTimestamp(this.stsPool.expiresAt),
+      })
       return this.stsPool.credentials
     }
     
-    // 如果正在刷新，等待现有 Promise（请求合并）
-    if (this.stsPool.refreshPromise && !forceRefresh) {
+    // 如果正在刷新，等待现有 Promise。forceRefresh 只绕过已缓存凭证，不绕过正在进行的刷新。
+    if (this.stsPool.refreshPromise) {
+      logOssImageDiag('signature.credentials.waitExistingRefresh', {
+        forceRefresh,
+      })
       return this.stsPool.refreshPromise
     }
     
@@ -103,6 +138,9 @@ export class SignatureProvider {
     } finally {
       if (this.stsPool.refreshPromise === refreshPromise) {
         this.stsPool.refreshPromise = null
+        logOssImageDiag('signature.credentials.refreshPromiseCleared', {
+          forceRefresh,
+        })
       }
     }
   }
@@ -112,6 +150,12 @@ export class SignatureProvider {
    */
   private async refreshCredentials(): Promise<STSCredentials> {
     console.log('[SignatureProvider] 开始刷新 STS 凭证...')
+    logOssImageDiag('signature.credentials.refresh.start', {
+      previousCredentials: this.describeCredentials(this.stsPool.credentials),
+      previousExpiresAt: describeTimestamp(this.stsPool.expiresAt),
+      hasClient: !!this.ossClient,
+      clientCredentialFingerprint: this.describeCredentialFingerprint(this.ossClientCredentialFingerprint),
+    })
     
     try {
       const credentials = await uploadApi.getSTSToken()
@@ -124,6 +168,10 @@ export class SignatureProvider {
       this.stsPool.expiresAt = expirationTime
       
       console.log('[SignatureProvider] STS 凭证刷新成功, 过期时间:', new Date(expirationTime).toISOString())
+      logOssImageDiag('signature.credentials.refresh.success', {
+        credentials: this.describeCredentials(credentials),
+        expiresAt: describeTimestamp(expirationTime),
+      })
       
       // 设置提前刷新定时器
       this.scheduleRefresh()
@@ -131,6 +179,9 @@ export class SignatureProvider {
       return credentials
     } catch (error) {
       console.error('[SignatureProvider] 刷新 STS 凭证失败:', error)
+      errorOssImageDiag('signature.credentials.refresh.failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       throw error
     }
   }
@@ -151,12 +202,23 @@ export class SignatureProvider {
     if (refreshTime > 0) {
       this.stsPool.refreshTimer = window.setTimeout(() => {
         console.log('[SignatureProvider] 定时器触发，提前刷新 STS 凭证')
-        this.refreshCredentials().catch(error => {
+        logOssImageDiag('signature.credentials.scheduledRefresh.fire', {
+          expiresAt: describeTimestamp(this.stsPool.expiresAt),
+        })
+        this.getCredentials(true).catch(error => {
           console.error('[SignatureProvider] 定时刷新失败:', error)
+          errorOssImageDiag('signature.credentials.scheduledRefresh.failed', {
+            error: error instanceof Error ? error.message : String(error),
+          })
         })
       }, refreshTime)
       
       console.log(`[SignatureProvider] 已设置提前刷新定时器，${Math.floor(refreshTime / 1000)} 秒后刷新`)
+      logOssImageDiag('signature.credentials.scheduledRefresh.set', {
+        refreshInMs: refreshTime,
+        refreshInSeconds: Math.floor(refreshTime / 1000),
+        expiresAt: describeTimestamp(this.stsPool.expiresAt),
+      })
     }
   }
   
@@ -164,8 +226,21 @@ export class SignatureProvider {
    * 获取或创建 OSS Client（复用同一个实例）
    */
   private async getOSSClient(credentials: STSCredentials): Promise<any> {
+    const nextFingerprint = this.getCredentialFingerprint(credentials)
+    const canReuseClient = !!this.ossClient && this.ossClientCredentialFingerprint === nextFingerprint
+    logOssImageDiag('signature.client.check', {
+      hasClient: !!this.ossClient,
+      canReuseClient,
+      clientCredentialFingerprint: this.describeCredentialFingerprint(this.ossClientCredentialFingerprint),
+      nextCredentialFingerprint: this.describeCredentialFingerprint(nextFingerprint),
+      credentials: this.describeCredentials(credentials),
+    })
+
     // 如果 Client 存在且凭证未变，复用现有实例
-    if (this.ossClient && this.isCredentialsSame(credentials)) {
+    if (canReuseClient) {
+      logOssImageDiag('signature.client.reuse', {
+        credentialFingerprint: this.describeCredentialFingerprint(nextFingerprint),
+      })
       return this.ossClient
     }
     
@@ -182,23 +257,49 @@ export class SignatureProvider {
       secure: credentials.Secure,
       authorizationV4: credentials.AuthorizationV4,
     })
+    this.ossClientCredentialFingerprint = nextFingerprint
     
     console.log('[SignatureProvider] 创建新的 OSS Client')
+    logOssImageDiag('signature.client.created', {
+      credentialFingerprint: this.describeCredentialFingerprint(nextFingerprint),
+      credentials: this.describeCredentials(credentials),
+    })
     
     return this.ossClient
   }
   
-  /**
-   * 检查凭证是否相同
-   */
-  private isCredentialsSame(newCredentials: STSCredentials): boolean {
-    if (!this.stsPool.credentials) return false
-    
-    const old = this.stsPool.credentials
-    return (
-      old.AccessKeyId === newCredentials.AccessKeyId &&
-      old.SecurityToken === newCredentials.SecurityToken
-    )
+  private getCredentialFingerprint(credentials: STSCredentials | null): string | null {
+    if (!credentials) return null
+    return [
+      credentials.AccessKeyId,
+      credentials.SecurityToken,
+      credentials.Expiration,
+    ].join('|')
+  }
+
+  private describeCredentialFingerprint(fingerprint: string | null) {
+    if (!fingerprint) return null
+
+    const [accessKeyId = '', securityToken = '', expiration = ''] = fingerprint.split('|')
+    return {
+      accessKeyIdSuffix: accessKeyId.slice(-6),
+      securityTokenLength: securityToken.length,
+      expiration: describeTimestamp(expiration),
+    }
+  }
+
+  private describeCredentials(credentials: STSCredentials | null) {
+    if (!credentials) return null
+
+    return {
+      accessKeyIdSuffix: credentials.AccessKeyId.slice(-6),
+      securityTokenLength: credentials.SecurityToken?.length ?? 0,
+      expiration: describeTimestamp(credentials.Expiration),
+      bucket: credentials.BucketName,
+      region: credentials.Region,
+      secure: credentials.Secure,
+      authorizationV4: credentials.AuthorizationV4,
+    }
   }
   
   /**
@@ -214,5 +315,7 @@ export class SignatureProvider {
     this.stsPool.refreshPromise = null
     this.stsPool.refreshCallbacks = []
     this.ossClient = null
+    this.ossClientCredentialFingerprint = null
+    logOssImageDiag('signature.clear')
   }
 }

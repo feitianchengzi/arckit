@@ -11,6 +11,7 @@ import type { ManagerConfig, ResourceStatus } from './types'
 import { ENABLE_AVATAR_LOGS } from './logConfig'
 import { normalizeObjectKey } from '../sdk'
 import { clearCache as clearUrlUpdateCache } from './UrlUpdateNotifier'
+import { errorOssImageDiag, logOssImageDiag } from './diagnostics'
 
 export class OssResourceLoadManager {
   private static instance: OssResourceLoadManager | null = null
@@ -60,7 +61,12 @@ export class OssResourceLoadManager {
    * 获取资源 URL（最常用，透明化处理）
    */
   async getUrl(objectKey: string): Promise<string> {
-    return this.requestCoordinator.coordinate(normalizeObjectKey(objectKey))
+    const normalizedKey = normalizeObjectKey(objectKey)
+    logOssImageDiag('loader.getUrl', {
+      objectKey: normalizedKey,
+      status: this.statusMonitor.getStatus(normalizedKey),
+    })
+    return this.requestCoordinator.coordinate(normalizedKey)
   }
   
   /**
@@ -99,16 +105,38 @@ export class OssResourceLoadManager {
    */
   async refresh(objectKey: string): Promise<string> {
     const normalizedKey = normalizeObjectKey(objectKey)
+    logOssImageDiag('loader.refresh.start', {
+      objectKey: normalizedKey,
+      statusBefore: this.statusMonitor.getStatus(normalizedKey),
+    })
 
     // 清除缓存
     this.storageManager.delete(normalizedKey)
     clearUrlUpdateCache(normalizedKey)
+    logOssImageDiag('loader.refresh.cacheCleared', {
+      objectKey: normalizedKey,
+    })
     
     // 强制刷新 STS 凭证
-    await this.signatureProvider.getCredentials(true)
+    try {
+      await this.signatureProvider.getCredentials(true)
+      logOssImageDiag('loader.refresh.credentialsReady', {
+        objectKey: normalizedKey,
+      })
+    } catch (error) {
+      errorOssImageDiag('loader.refresh.credentialsFailed', {
+        objectKey: normalizedKey,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
+    }
     
     // 重新加载
-    return this.getUrl(normalizedKey)
+    const url = await this.getUrl(normalizedKey)
+    logOssImageDiag('loader.refresh.finished', {
+      objectKey: normalizedKey,
+    })
+    return url
   }
   
   /**

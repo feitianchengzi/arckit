@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react'
 import { OssResourceManager } from '@/lib/oss/OssResourceManager'
 import { subscribeUrlUpdate } from '@/lib/oss/load/UrlUpdateNotifier'
 import { normalizeObjectKey } from '@/lib/oss/sdk'
+import {
+  describeImageElement,
+  describeSignedUrl,
+  errorOssImageDiag,
+  logOssImageDiag,
+} from '@/lib/oss/load/diagnostics'
 
 const IMAGE_URL_RETRY_DELAYS = [0, 800, 2000]
 
@@ -31,18 +37,47 @@ function GalleryImage({
     let retryTimer: number | undefined
     setUrl('')
 
+    logOssImageDiag('gallery.mount', {
+      objectKey,
+      rawKey: image.key,
+      index,
+    })
+
     const unsubscribe = subscribeUrlUpdate(objectKey, (newUrl) => {
+      logOssImageDiag('gallery.urlUpdate.received', {
+        objectKey,
+        active,
+        url: describeSignedUrl(newUrl),
+      })
       if (active) setUrl(newUrl)
     })
 
     const resolveUrl = (attempt = 0) => {
+      logOssImageDiag('gallery.resolve.start', {
+        objectKey,
+        attempt,
+      })
+
       OssResourceManager.resolve(objectKey).then(u => {
+        logOssImageDiag('gallery.resolve.success', {
+          objectKey,
+          attempt,
+          active,
+          url: describeSignedUrl(u),
+        })
         if (active && u) setUrl(u)
       }).catch(error => {
         if (!active) return
 
         const nextAttempt = attempt + 1
         if (nextAttempt < IMAGE_URL_RETRY_DELAYS.length) {
+          logOssImageDiag('gallery.resolve.retryScheduled', {
+            objectKey,
+            attempt,
+            nextAttempt,
+            delayMs: IMAGE_URL_RETRY_DELAYS[nextAttempt],
+            error: error instanceof Error ? error.message : String(error),
+          })
           retryTimer = window.setTimeout(
             () => resolveUrl(nextAttempt),
             IMAGE_URL_RETRY_DELAYS[nextAttempt]
@@ -54,6 +89,11 @@ function GalleryImage({
           objectKey,
           error: error instanceof Error ? error.message : String(error),
         })
+        errorOssImageDiag('gallery.resolve.failed', {
+          objectKey,
+          attempt,
+          error: error instanceof Error ? error.message : String(error),
+        })
       })
     }
 
@@ -63,8 +103,11 @@ function GalleryImage({
       active = false
       if (retryTimer) window.clearTimeout(retryTimer)
       unsubscribe()
+      logOssImageDiag('gallery.unmount', {
+        objectKey,
+      })
     }
-  }, [objectKey])
+  }, [image.key, index, objectKey])
 
   if (!url) {
     return (
@@ -82,6 +125,18 @@ function GalleryImage({
         alt={`图片 ${index + 1}`}
         data-oss-key={objectKey}
         className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform"
+        onLoad={(event) => {
+          logOssImageDiag('gallery.img.load', {
+            objectKey,
+            image: describeImageElement(event.currentTarget),
+          })
+        }}
+        onError={(event) => {
+          errorOssImageDiag('gallery.img.error', {
+            objectKey,
+            image: describeImageElement(event.currentTarget),
+          })
+        }}
       />
     </div>
   )
