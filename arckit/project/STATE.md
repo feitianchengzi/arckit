@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 316
-Updated: 2026-08-28T20:12:10.108Z
+Revision: 320
+Updated: 2026-08-29T15:50:07.539Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-修复用户把可访问项目加入当前产品集后，Automation 本地绑定仍只显示既有已绑定项目的问题。
+修复 A 会话持续输出时切换到 B 会话后，A 的待执行自动滚动与共享跟随状态影响 B 消息列表定位的问题。
 
 ## Active Work
 

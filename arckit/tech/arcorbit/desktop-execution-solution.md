@@ -69,10 +69,12 @@ Runtime Projector 在中性消息之外维护 Loop status、structured Agent res
 2. Chat Coordinator 原子保存用户消息与 turn request，再创建或恢复对应 adapter owner。
 3. `onThreadBound` 在 `turn/start` 前把 thread id 写入同一 session；持久化失败时不开始 turn。
 4. app-server 事件经通用 projector 更新内存投影，并只在语义消息边界、人工控制、错误和 turn 终态持久化。
-5. main process 向 Renderer 发送有界 `chat.changed` 通知；Renderer 随后读取 session snapshot，不直接消费 raw JSON-RPC。
+5. main process 将同一消息 item 的 raw delta 合并为有界 `chat.message.changed` 局部投影，payload 携带该 item 最新的公开消息形态；Renderer 只把局部投影合并到当前选中 session，不读取 raw JSON-RPC，也不为流式更新重新拉取 snapshot。非流式 session/message 边界使用失效通知，Renderer 以 single-flight + trailing refresh 合并读取最新 session snapshot。
 6. turn completed/interrupted/failed 后，Coordinator 持久化终态并释放该 session 的活动 owner；下一个用户输入复用同一 thread。
 
 Chat 消息采用与 Run message 相同的稳定角色、actor、kind、content、status 和时间字段，但归属键为 `session_id/thread_id/turn_id/item_id`，不伪造 `run_id/task_id/round_index`。流式 delta 更新同一 item；应用异常时允许丢失尚未形成语义边界的瞬时字符，但保留已提交用户消息、thread binding 和最后持久消息。
+
+Renderer 的 Chat 控制面与流式数据面分离。会话选择、创建、删除、审批、错误和 turn 终态可以改变结构，进入可合并的 snapshot 刷新；当前 session 的流式消息只更新稳定 message id 对应的消息节点，不重建会话列表、项目选项或完整 transcript。后台 session 的流式投影不改变当前页面，也不触发 snapshot。Conversation Surface 以调用方提供的 session context 隔离“跟随最新”、detached 阅读位置与待执行自动滚动；切换 context 先保存原 session 状态并使其未执行 frame token 失效，再恢复目标 session 状态，首次进入才默认跟随最新。`wheel/touch/pointer/key` 用户意图立即撤销当前 session 待执行的自动跟随，此后该 session 的流式渲染不得写 `scrollTop`，直到用户回到底部或显式点击“回到最新”。
 
 ### Acceptance Feedback Record 与独立队列
 
@@ -119,7 +121,7 @@ Workbench 以 task session 内全部 Runtime runs 的结构化 activity 生成�
 
 每个 Run 只维护一个紧凑 `messages.jsonl` 消息记录、一个收束后的 `activity.json` 投影和一个错误专用 `stderr.log`。Desktop 不再同时复制完整 stderr event stream 与 JSON wrapper，也不创建 `raw-events.jsonl`。`messages.jsonl` 允许同一消息 ID 出现状态更新记录，读取方以最后一条为准；它不保存逐 token、逐字符或命令输出 delta。
 
-Desktop 仍实时解析 Runtime stderr 以维护内存中的 activity、Token、耗时与控制状态，但 IPC 只发送合并后的 activity-changed 通知。Renderer 按有界节奏拉取最新快照，单次 delta 不触发独立 IPC、磁盘 append 或 DOM 节点。Run 结束、错误、人工控制和语义消息完成时立即刷出必要记录；进程异常时允许丢失尚未形成语义边界的瞬时 delta，不影响 canonical Case/ledger 恢复。
+Desktop 仍实时解析 Runtime stderr 以维护内存中的 activity、Token、耗时与控制状态，但 IPC 只发送合并后的 activity-changed 通知。Renderer 按有界节奏拉取最新快照，单次 delta 不触发独立 IPC、磁盘 append 或 DOM 节点；Chat 的合并流式投影是局部消息补丁，不是全局或 session snapshot 失效信号。Run/Chat turn 结束、错误、人工控制和语义消息完成时立即刷出必要记录；进程异常时允许丢失尚未形成语义边界的瞬时 delta，不影响 canonical Case/ledger 恢复。
 
 `run.activity_changed` 是携带 `run_id` 的局部 invalidation，不是全局应用失效信号。Renderer 只在 Automation Command Center 正显示该 active run，或 Workbench 正显示同一个 run 时合并处理；其他页面和不相关的历史 Workbench 直接忽略。可见命中只调用 Automation Snapshot，不能联带 Platform Snapshot、认证状态、Work 查询或 Chat 查询；响应只更新 Automation state，并分别调用 `renderCommandCenter` 或 `renderWorkbench`。全局 `render()`、隐藏页面 DOM 和 route authentication 不参与 activity 节奏。Run started/finished、人工消息、command result 和 Automation 状态变更仍走完整一致性刷新，因为这些事件可能改变导航、队列、恢复或跨页面状态。
 

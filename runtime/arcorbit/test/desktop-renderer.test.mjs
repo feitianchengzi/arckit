@@ -173,6 +173,57 @@ test("Conversation Surface coalesces live follow into one instant scroll per fra
   assert.equal(harness.surface.isFollowingLatest(), true);
 });
 
+test("Conversation Surface cancels a queued auto-follow as soon as the user starts scrolling", () => {
+  const harness = createConversationSurfaceHarness();
+  harness.surface.render({ messages: [{ id: "STREAM", role: "assistant", kind: "text", content: "delta", status: "running" }] });
+  assert.equal(harness.frames.length, 1);
+
+  harness.dispatchElement("wheel");
+  harness.element.scrollTop = 760;
+  harness.surface.render({ messages: [{ id: "STREAM", role: "assistant", kind: "text", content: "delta delta", status: "running" }] });
+  harness.frames.shift()();
+
+  assert.equal(harness.surface.isFollowingLatest(), false);
+  assert.deepEqual(harness.scrollCalls, []);
+  assert.equal(harness.element.scrollTop, 760);
+});
+
+test("Conversation Surface isolates queued follow and detached reading position by context", () => {
+  const harness = createConversationSurfaceHarness({ scrollTop: 900 });
+  const message = (id, content) => ({ id, role: "assistant", kind: "text", content, status: "running" });
+
+  harness.surface.render({ contextId: "CHAT-B", messages: [message("B", "B transcript")] });
+  harness.frames.shift()();
+  harness.scrollCalls.length = 0;
+  harness.dispatchElement("wheel");
+  harness.element.scrollTop = 420;
+  harness.dispatchElement("scroll");
+
+  harness.surface.render({ contextId: "CHAT-A", messages: [message("A", "A delta")] });
+  const staleAFrame = harness.frames.shift();
+  harness.element.scrollTop = 900;
+  harness.surface.render({ contextId: "CHAT-B", messages: [message("B", "B transcript")] });
+  staleAFrame();
+
+  assert.equal(harness.element.scrollTop, 420);
+  assert.equal(harness.surface.isFollowingLatest(), false);
+  assert.deepEqual(harness.scrollCalls, []);
+  assert.equal(harness.jumpHidden(), false);
+});
+
+test("Conversation Surface skips DOM and scroll work when a stream projection is unchanged", () => {
+  const harness = createConversationSurfaceHarness();
+  const message = { id: "STREAM", role: "assistant", kind: "text", content: "stable", status: "running" };
+  harness.surface.render({ messages: [message] });
+  harness.frames.shift()();
+  harness.scrollCalls.length = 0;
+
+  harness.surface.render({ messages: [{ ...message }] });
+
+  assert.equal(harness.frames.length, 0);
+  assert.deepEqual(harness.scrollCalls, []);
+});
+
 test("Conversation Surface preserves user reading position across repeated renders", () => {
   const harness = createConversationSurfaceHarness({ scrollTop: 420 });
   harness.dispatchElement("scroll");
@@ -180,10 +231,9 @@ test("Conversation Surface preserves user reading position across repeated rende
 
   harness.surface.render({ messages: [{ role: "assistant", kind: "text", content: "first" }] });
   harness.surface.render({ messages: [{ role: "assistant", kind: "text", content: "second" }] });
-  harness.element.scrollTop = 0;
-  harness.frames.shift()();
 
   assert.equal(harness.element.scrollTop, 420);
+  assert.equal(harness.frames.length, 0);
   assert.deepEqual(harness.scrollCalls, []);
   assert.equal(harness.jumpHidden(), false);
 });
@@ -569,6 +619,82 @@ test("Chat refresh exposes progress immediately and only the latest refresh may 
 
   assert.deepEqual(coordinator.getState().snapshot.messages.map((message) => message.id), ["LATEST"]);
   assert.equal(coordinator.getState().refreshing, false);
+});
+
+test("Chat stream events patch only the selected session without starting a snapshot refresh", async () => {
+  let snapshotCalls = 0;
+  const coordinator = createCoordinator(chatApi({
+    chatSnapshot: async () => { snapshotCalls += 1; return chatSnapshot(); }
+  }));
+  await coordinator.initialize(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [
+      { id: "CHAT-A", project_id: "PROJECT-A" },
+      { id: "CHAT-B", project_id: "PROJECT-B" }
+    ],
+    messages: [{ id: "STREAM", role: "assistant", kind: "text", content: "a", status: "running" }]
+  }));
+
+  assert.equal(coordinator.applyStreamEvent({
+    type: "chat.message.changed",
+    session_id: "CHAT-A",
+    messages: [{ id: "STREAM", role: "assistant", kind: "text", content: "abc", status: "running" }]
+  }), true);
+  assert.equal(coordinator.getState().snapshot.messages[0].content, "abc");
+  assert.equal(snapshotCalls, 0);
+
+  assert.equal(coordinator.applyStreamEvent({
+    type: "chat.message.changed",
+    session_id: "CHAT-B",
+    messages: [{ id: "OTHER", role: "assistant", kind: "text", content: "background", status: "running" }]
+  }), false);
+  assert.deepEqual(coordinator.getState().snapshot.messages.map((message) => message.id), ["STREAM"]);
+  assert.equal(snapshotCalls, 0);
+});
+
+test("Chat refresh cannot erase a stream patch that arrives while its snapshot is in flight", async () => {
+  let releaseSnapshot;
+  const coordinator = createCoordinator(chatApi({
+    chatSnapshot: () => new Promise((resolve) => { releaseSnapshot = resolve; })
+  }));
+  await coordinator.initialize(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }],
+    messages: [{ id: "USER", role: "user", kind: "text", content: "Question", status: "completed" }]
+  }));
+
+  const refresh = coordinator.refresh({ quiet: true });
+  coordinator.applyStreamEvent({
+    type: "chat.message.changed",
+    session_id: "CHAT-A",
+    messages: [{ id: "STREAM", role: "assistant", kind: "text", content: "latest delta", status: "running" }]
+  });
+  releaseSnapshot(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }],
+    messages: [{ id: "USER", role: "user", kind: "text", content: "Question", status: "completed" }]
+  }));
+  await refresh;
+
+  assert.deepEqual(coordinator.getState().snapshot.messages.map(({ id, content }) => [id, content]), [
+    ["USER", "Question"],
+    ["STREAM", "latest delta"]
+  ]);
+});
+
+test("Chat Renderer separates stream patches from coalesced structural refreshes", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const eventBranch = source.slice(source.indexOf("api.onChatEvent"), source.indexOf("api.onEvent", source.indexOf("api.onChatEvent")));
+  const refresh = source.slice(source.indexOf("async function refreshChat"), source.indexOf("function selectedChatSession"));
+
+  assert.match(eventBranch, /chatStateCoordinator\.applyStreamEvent\(event\)/);
+  assert.match(eventBranch, /scheduleChatRefresh\(\)/);
+  assert.doesNotMatch(eventBranch, /refreshChat\(/);
+  assert.match(refresh, /if \(chatRefreshPromise\) return chatRefreshPromise/);
+  assert.match(refresh, /while \(chatRefreshRequested\)/);
+  assert.match(source, /renderedChatSessionList/);
+  assert.match(source, /contextId: session\?\.id \|\| "chat-draft"/);
+  assert.doesNotMatch(eventBranch, /chatConversationSurface\.followLatest/);
 });
 
 test("Chat navigation renders the cached page before starting its background refresh", async () => {

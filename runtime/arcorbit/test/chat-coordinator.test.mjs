@@ -53,6 +53,73 @@ test("ChatCoordinator creates isolated persistent Chat sessions and resumes thei
   }
 });
 
+test("ChatCoordinator keeps high-frequency deltas in memory and emits a bounded stream projection", async () => {
+  const fixture = await chatFixture();
+  const baseUpdateDesktopStore = fixture.options.runManager.updateDesktopStore;
+  let storeWrites = 0;
+  let releaseTurn;
+  let markDeltasProjected;
+  const deltasProjected = new Promise((resolve) => { markDeltasProjected = resolve; });
+  const events = [];
+  const coordinator = createChatCoordinator({
+    ...fixture.options,
+    runManager: {
+      ...fixture.options.runManager,
+      async updateDesktopStore(...args) {
+        storeWrites += 1;
+        return baseUpdateDesktopStore(...args);
+      }
+    },
+    streamNotifyMs: 5,
+    idFactory: sequenceId(),
+    createAdapter: () => ({
+      async *runTurn({ options }) {
+        await options.onThreadBound({ threadId: "THREAD-STREAM", resumed: false });
+        yield { type: "codex.turn.started", turn_id: "TURN-STREAM" };
+        for (let index = 0; index < 1_000; index += 1) {
+          yield { type: "codex.agent_message.delta", item_id: "ITEM-STREAM", text: "x" };
+        }
+        markDeltasProjected();
+        await new Promise((resolve) => { releaseTurn = resolve; });
+        yield { type: "codex.turn.completed", turn_id: "TURN-STREAM", turn: { status: "completed" } };
+      },
+      async interrupt() { releaseTurn?.(); },
+      close() {}
+    })
+  });
+  const removeListener = coordinator.onEvent((event) => events.push(event));
+  try {
+    const started = await coordinator.send({ project_id: "PROJECT-1", client_request_id: "REQUEST-STREAM", text: "Stream" });
+    await deltasProjected;
+    const patchDeadline = Date.now() + 250;
+    while (!events.some((event) => event.type === "chat.message.changed") && Date.now() < patchDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
+    const patchEvents = events.filter((event) => event.type === "chat.message.changed");
+    const projected = await coordinator.getSnapshot({ session_id: started.selected_session_id });
+    const persistedBeforeBoundary = await fixture.options.runManager.readDesktopStore();
+    assert.equal(patchEvents.length, 1);
+    assert.equal(patchEvents[0].messages[0].content.length, 1_000);
+    assert.equal(projected.messages.find((message) => message.role === "assistant").content.length, 1_000);
+    assert.equal((persistedBeforeBoundary.messages[started.selected_session_id] || []).some((message) => message.role === "assistant"), false);
+    assert.ok(storeWrites <= 4, `expected bounded persistence before the turn boundary, received ${storeWrites} writes`);
+
+    releaseTurn();
+    const completed = await waitForChatTerminal(coordinator, started.selected_session_id);
+    const assistantMessages = completed.messages.filter((message) => message.role === "assistant");
+    assert.equal(assistantMessages.length, 1);
+    assert.equal(assistantMessages[0].content.length, 1_000);
+    assert.equal(assistantMessages[0].status, "completed");
+    assert.ok(storeWrites <= 5, `expected one terminal persistence write, received ${storeWrites} total writes`);
+  } finally {
+    removeListener();
+    releaseTurn?.();
+    await coordinator.close();
+    await fixture.cleanup();
+  }
+});
+
 test("ChatCoordinator replays an unbound first-send request without creating another session or turn", async () => {
   const fixture = await chatFixture();
   let adapterRuns = 0;

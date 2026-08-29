@@ -3,6 +3,7 @@ const { contextBridge } = require("electron");
 const calls = [];
 const automationListeners = new Set();
 const workSyncListeners = new Set();
+const chatListeners = new Set();
 const taskStates = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
 const workDetailRefreshTest = process.env.ARCORBIT_WORK_DETAIL_REFRESH_FIXTURE === "1";
 const taskAttachments = workDetailRefreshTest ? {
@@ -20,6 +21,25 @@ const feedbackV2ImageTest = process.env.ARCORBIT_ELECTRON_FEEDBACK_V2_TEST === "
 const workAcceptanceReplacementTest = process.env.ARCORBIT_WORK_ACCEPTANCE_REPLACEMENT_TEST === "1";
 const workAcceptanceLogoutTest = process.env.ARCORBIT_WORK_ACCEPTANCE_LOGOUT_TEST === "1";
 const todayCreateIdentityMode = String(process.env.ARCORBIT_TODAY_CREATE_IDENTITY_MODE || "");
+const chatStreamPerformanceTest = process.env.ARCORBIT_CHAT_STREAM_PERFORMANCE_FIXTURE === "1";
+let chatSnapshotDelayMs = 0;
+let chatStreamEmitted = 0;
+let chatStreamTimer = null;
+const chatSessions = chatStreamPerformanceTest ? [
+  { id: "CHAT-A", project_id: "local-11", title: "Streaming session", status: "running", error: "", retry_client_request_id: "", created_at: "2026-08-29T00:00:00Z", updated_at: "2026-08-29T00:01:00Z" },
+  { id: "CHAT-B", project_id: "local-11", title: "Switch target", status: "completed", error: "", retry_client_request_id: "", created_at: "2026-08-28T00:00:00Z", updated_at: "2026-08-28T00:01:00Z" }
+] : [];
+const chatMessages = chatStreamPerformanceTest ? {
+  "CHAT-A": [
+    ...Array.from({ length: 60 }, (_, index) => ({ id: `HISTORY-${index}`, role: index % 2 ? "assistant" : "user", kind: "text", content: `History ${index} ${"bounded conversation content ".repeat(3)}`, status: "completed", created_at: `2026-08-29T00:00:${String(index).padStart(2, "0")}Z`, updated_at: `2026-08-29T00:00:${String(index).padStart(2, "0")}Z` })),
+    { id: "STREAM-MESSAGE", role: "assistant", kind: "text", content: "", status: "running", created_at: "2026-08-29T00:01:00Z", updated_at: "2026-08-29T00:01:00Z" }
+  ],
+  "CHAT-B": [
+    ...Array.from({ length: 60 }, (_, index) => ({ id: `TARGET-HISTORY-${index}`, role: index % 2 ? "assistant" : "user", kind: "text", content: `Target history ${index} ${"independent reading position ".repeat(3)}`, status: "completed", created_at: `2026-08-28T00:00:${String(index).padStart(2, "0")}Z`, updated_at: `2026-08-28T00:00:${String(index).padStart(2, "0")}Z` })),
+    { id: "TARGET-MESSAGE", role: "assistant", kind: "text", content: "Target transcript", status: "completed", created_at: "2026-08-28T00:01:00Z", updated_at: "2026-08-28T00:01:00Z" }
+  ]
+} : {};
+let selectedChatSessionId = chatStreamPerformanceTest ? "CHAT-A" : "";
 let failedFeedbackV2ImagePreview = false;
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
@@ -152,6 +172,20 @@ if (todayCreateIdentityMode) {
 }
 
 const noOp = async () => ({});
+const testChatSnapshotValue = (requested = selectedChatSessionId) => ({
+  generated_at: new Date().toISOString(),
+  projects: chatStreamPerformanceTest ? [{ id: "local-11", name: "ArcOrbit Local" }] : [],
+  sessions: chatSessions,
+  selected_session_id: requested,
+  messages: chatMessages[requested] || [],
+  draft: { project_id: "local-11", text: "" }
+});
+const testChatSnapshot = async (input = {}) => {
+  calls.push(["chatSnapshot", input]);
+  if (chatSnapshotDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, chatSnapshotDelayMs));
+  const requested = String(input.session_id || selectedChatSessionId || "");
+  return testChatSnapshotValue(requested);
+};
 contextBridge.exposeInMainWorld("arckitDesktop", {
   getWindowState: async () => ({ maximized: false, minimized: false }),
   minimizeWindow: noOp,
@@ -176,8 +210,14 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   openProductFeedback: async () => ({ status: "opened", mode: "submit" }),
   refreshProductFeedbackUnread: async () => ({ status: "ready", unread_count: 0 }),
   getAuthStatus: async () => ({ status: "authenticated", authenticated: true, identity: "glare@example.test", masked_identity: "g***@example.test" }),
-  chatSnapshot: async () => ({ generated_at: "", projects: [], sessions: [], selected_session_id: "", messages: [], draft: { project_id: "", text: "" } }),
-  createChat: noOp, selectChat: noOp, deleteChat: noOp, renameChat: noOp,
+  chatSnapshot: testChatSnapshot,
+  createChat: noOp,
+  selectChat: async ({ session_id: sessionId }) => {
+    selectedChatSessionId = String(sessionId || "");
+    calls.push(["selectChat", { session_id: selectedChatSessionId }]);
+    return testChatSnapshotValue(selectedChatSessionId);
+  },
+  deleteChat: noOp, renameChat: noOp,
   interruptChat: noOp, decideChatApproval: noOp, sendChatMessage: noOp,
   automationSnapshot: async () => automation,
   selectAutomationExecution: async (executionId) => {
@@ -252,7 +292,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   onSetupEvent: () => () => {},
   onAutomationEvent: (listener) => { automationListeners.add(listener); return () => automationListeners.delete(listener); },
   onWorkSyncEvent: (listener) => { workSyncListeners.add(listener); return () => workSyncListeners.delete(listener); },
-  onEvent: () => () => {}, onChatEvent: () => () => {}, onProductFeedbackUnread: () => () => {},
+  onEvent: () => () => {}, onChatEvent: (listener) => { chatListeners.add(listener); return () => chatListeners.delete(listener); }, onProductFeedbackUnread: () => () => {},
   setActiveWorkset: noOp,
   syncAutomation: async () => { calls.push(["syncAutomation", {}]); return automation; },
   setAutomationEnabled: noOp, setQueuePaused: noOp,
@@ -376,6 +416,27 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   openWorkTaskAttachment: async (input) => { calls.push(["openWorkTaskAttachment", input]); return { opened: true }; },
   openWorkExternalLink: async (value) => { calls.push(["openWorkExternalLink", value]); return { opened: true }; },
   getTestCalls: async () => calls,
+  setTestChatSnapshotDelay: async (value) => { chatSnapshotDelayMs = Math.max(0, Number(value) || 0); },
+  emitTestChatStream: async ({ count = 200, interval_ms: intervalMs = 1 } = {}) => {
+    if (chatStreamTimer) clearInterval(chatStreamTimer);
+    chatStreamEmitted = 0;
+    chatStreamTimer = setInterval(() => {
+      chatStreamEmitted += 1;
+      const message = chatMessages["CHAT-A"]?.find((item) => item.id === "STREAM-MESSAGE");
+      if (message) {
+        message.content += "x";
+        message.updated_at = new Date().toISOString();
+        for (const listener of chatListeners) listener({ type: "chat.message.changed", session_id: "CHAT-A", messages: [{ ...message }] });
+      }
+      if (chatStreamEmitted >= count) {
+        clearInterval(chatStreamTimer);
+        chatStreamTimer = null;
+      }
+    }, Math.max(1, Number(intervalMs) || 1));
+    return { started: true };
+  },
+  getTestChatStreamState: async () => ({ emitted: chatStreamEmitted, active: Boolean(chatStreamTimer) }),
+  emitTestChatEvent: async (event) => { for (const listener of chatListeners) listener(event); },
   setTestTaskReplacementScenario: async (value) => { taskReplacementScenario = String(value || "success"); },
   setTestPlatformSnapshotDelay: async (value) => { workQueryDelayMs = Math.max(0, Number(value) || 0); },
   queueTestPlatformWorkQueries: async (scenarios) => {

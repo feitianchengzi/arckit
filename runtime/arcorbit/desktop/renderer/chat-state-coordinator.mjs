@@ -34,6 +34,8 @@ export function createChatStateCoordinator({
   let ownerEpoch = 0;
   let sendEpoch = 0;
   let refreshEpoch = 0;
+  let streamRevision = 0;
+  const recentStreamPatches = new Map();
   let draftRevision = 0;
   let pendingDraft = null;
   let draftTimer = null;
@@ -239,15 +241,19 @@ export function createChatStateCoordinator({
     const epoch = resetOwner ? beginOwnerTransition() : observeOwner();
     const sessionId = resetOwner ? null : value.owner.session_id;
     const currentRefresh = ++refreshEpoch;
+    const acceptedStreamRevision = streamRevision;
     value = { ...value, refreshing: true, ...(!quiet ? { error: "" } : {}) };
     try {
       const snapshot = await api.chatSnapshot({ session_id: value.owner.session_id || "" });
       if (currentRefresh === refreshEpoch) {
-        adoptSnapshot(snapshot, {
+        const adopted = adoptSnapshot(snapshot, {
           epoch,
           strategy: resetOwner ? "authoritative" : "preserve-owner",
           sessionId
         });
+        if (adopted && streamRevision > acceptedStreamRevision && value.owner.session_id) {
+          applyRecentStreamPatches(value.owner.session_id, acceptedStreamRevision);
+        }
       }
       return snapshot;
     } catch (error) {
@@ -272,6 +278,44 @@ export function createChatStateCoordinator({
       retry_client_request_id: sessionById(value.snapshot, value.owner.session_id)?.retry_client_request_id || ""
     };
     draftRevision += 1;
+  }
+
+  function applyStreamEvent(event = {}) {
+    const sessionId = String(event.session_id || "");
+    if (event.type !== "chat.message.changed" || !sessionId || sessionId !== value.owner.session_id || !Array.isArray(event.messages)) return false;
+    const normalizedPatch = normalizeSnapshot({ messages: event.messages }).messages || [];
+    streamRevision += 1;
+    const sessionPatches = recentStreamPatches.get(sessionId) || new Map();
+    for (const message of normalizedPatch) sessionPatches.set(message.id, { revision: streamRevision, message });
+    recentStreamPatches.set(sessionId, sessionPatches);
+    while (sessionPatches.size > 500) sessionPatches.delete(sessionPatches.keys().next().value);
+    applyMessagePatch(sessionId, normalizedPatch);
+    return true;
+  }
+
+  function applyRecentStreamPatches(sessionId, afterRevision) {
+    const messages = [...(recentStreamPatches.get(sessionId)?.values() || [])]
+      .filter((entry) => entry.revision > afterRevision)
+      .map((entry) => entry.message);
+    if (messages.length) applyMessagePatch(sessionId, messages);
+  }
+
+  function applyMessagePatch(sessionId, normalizedPatch) {
+    const messages = value.snapshot.selected_session_id === sessionId ? [...(value.snapshot.messages || [])] : [];
+    const indexes = new Map(messages.map((message, index) => [message.id, index]));
+    for (const message of normalizedPatch) {
+      const index = indexes.get(message.id);
+      if (index === undefined) {
+        indexes.set(message.id, messages.length);
+        messages.push(message);
+      } else {
+        messages[index] = message;
+      }
+    }
+    value = {
+      ...value,
+      snapshot: { ...value.snapshot, selected_session_id: sessionId, messages }
+    };
   }
 
   async function send() {
@@ -349,6 +393,7 @@ export function createChatStateCoordinator({
     refresh,
     setDraft,
     prepareRetry,
+    applyStreamEvent,
     send,
     flushDraft
   };

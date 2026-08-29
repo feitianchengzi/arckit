@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-28T20:12:10.108Z",
-    "revision": 316
+    "updated_at": "2026-08-29T15:50:07.539Z",
+    "revision": 320
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "修复用户把可访问项目加入当前产品集后，Automation 本地绑定仍只显示既有已绑定项目的问题。",
+      "current_focus": "修复 A 会话持续输出时切换到 B 会话后，A 的待执行自动滚动与共享跟随状态影响 B 消息列表定位的问题。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

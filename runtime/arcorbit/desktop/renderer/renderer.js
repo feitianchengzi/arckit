@@ -198,6 +198,13 @@ const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map
 let refreshQueued = false;
 let automationRefreshQueued = false;
 let activityRefreshQueued = false;
+let chatRefreshTimer = null;
+let chatRefreshPromise = null;
+let chatRefreshRequested = false;
+let chatRefreshQuiet = true;
+let chatRefreshResetOwner = false;
+let renderedChatProjectOptions = "";
+let renderedChatSessionList = "";
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
@@ -299,7 +306,11 @@ async function boot() {
   api.onWorkSyncEvent(() => scheduleRefresh());
   api.onChatEvent((event) => {
     if (event?.type === "chat.draft.changed") return;
-    refreshChat({ quiet: true }).catch(() => {});
+    if (event?.type === "chat.message.changed") {
+      if (chatStateCoordinator.applyStreamEvent(event)) renderChat();
+      return;
+    }
+    scheduleChatRefresh();
   });
   api.onEvent((event) => {
     if (["run.started", "run.finished", "message.added"].includes(event.type)) {
@@ -875,7 +886,8 @@ function renderCodexSetup() {
   els.codexSetupStatus.textContent = status.toUpperCase();
   els.codexSetupStatus.className = `health-badge ${status === "ready" ? "success" : codex.error ? "danger" : "warning"}`;
   els.codexSetupFacts.innerHTML = [
-    ["Executable", installation.available ? installation.command : "未发现"],
+    ["Executable", installation.command || "未发现"],
+    ["State", installation.state || "等待检测"],
     ["Provenance", installation.provenance || "none"],
     ["Version", installation.version_summary || "等待检测"],
     ["Authentication", authentication.authenticated ? "已认证" : authentication.state || "等待检测"]
@@ -1335,13 +1347,41 @@ function emptyWorkQueryProjection(key = "", query = normalizeWorkQuery({})) {
 }
 
 async function refreshChat({ quiet = false, resetOwner = false } = {}) {
-  const request = chatStateCoordinator.refresh({ quiet, resetOwner });
-  renderChat();
+  chatRefreshRequested = true;
+  chatRefreshQuiet = chatRefreshQuiet && quiet;
+  chatRefreshResetOwner = chatRefreshResetOwner || resetOwner;
+  if (chatRefreshPromise) return chatRefreshPromise;
+  chatRefreshPromise = (async () => {
+    let result = null;
+    while (chatRefreshRequested) {
+      const nextQuiet = chatRefreshQuiet;
+      const nextResetOwner = chatRefreshResetOwner;
+      chatRefreshRequested = false;
+      chatRefreshQuiet = true;
+      chatRefreshResetOwner = false;
+      if (!nextQuiet) renderChat();
+      try {
+        result = await chatStateCoordinator.refresh({ quiet: nextQuiet, resetOwner: nextResetOwner });
+      } finally {
+        renderChat();
+      }
+    }
+    return result;
+  })();
   try {
-    return await request;
+    return await chatRefreshPromise;
   } finally {
-    renderChat();
+    chatRefreshPromise = null;
+    if (chatRefreshRequested) scheduleChatRefresh(0);
   }
+}
+
+function scheduleChatRefresh(delay = 32) {
+  if (chatRefreshTimer !== null) return;
+  chatRefreshTimer = window.setTimeout(() => {
+    chatRefreshTimer = null;
+    refreshChat({ quiet: true }).catch(() => {});
+  }, delay);
 }
 
 function selectedChatSession() {
@@ -1398,26 +1438,34 @@ function renderChat() {
   const unavailableSessionProjectOption = session && !project
     ? `<option value="${escapeHtml(session.project_id)}" selected>${escapeHtml(session.project_id)}（不可用）</option>`
     : "";
-  els.chatProjectSelect.innerHTML = chat.snapshot.projects.length || unavailableSessionProjectOption
+  const projectOptions = chat.snapshot.projects.length || unavailableSessionProjectOption
     ? unavailableSessionProjectOption + chat.snapshot.projects.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === project?.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
     : `<option value="">尚无本地 Product Workspace</option>`;
+  if (projectOptions !== renderedChatProjectOptions) {
+    els.chatProjectSelect.innerHTML = projectOptions;
+    renderedChatProjectOptions = projectOptions;
+  }
   els.chatProjectSelect.disabled = Boolean(session) || chat.snapshot.projects.length === 0;
   els.chatWorkspacePickerLabel.textContent = session ? "固定归属" : "新对话属于";
   els.newChatButton.disabled = chat.snapshot.projects.length === 0;
-  els.chatSessionList.innerHTML = chat.snapshot.sessions.length
+  const sessionList = chat.snapshot.sessions.length
     ? renderChatSessionGroups(chat)
     : `<div class="chat-empty-list">还没有对话。发送第一条消息时才会创建会话。</div>`;
-  els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
-    await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
-    chatConversationSurface.followLatest();
-    renderChat();
-  })));
-  els.chatSessionList.querySelectorAll("[data-chat-history-project-id]").forEach((button) => button.addEventListener("click", () => {
-    const projectId = button.dataset.chatHistoryProjectId;
-    if (expandedChatProjectIds.has(projectId)) expandedChatProjectIds.delete(projectId);
-    else expandedChatProjectIds.add(projectId);
-    renderChat();
-  }));
+  if (sessionList !== renderedChatSessionList) {
+    els.chatSessionList.innerHTML = sessionList;
+    renderedChatSessionList = sessionList;
+    els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+      await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
+      renderChat();
+    })));
+    els.chatSessionList.querySelectorAll("[data-chat-history-project-id]").forEach((button) => button.addEventListener("click", () => {
+      const projectId = button.dataset.chatHistoryProjectId;
+      if (expandedChatProjectIds.has(projectId)) expandedChatProjectIds.delete(projectId);
+      else expandedChatProjectIds.add(projectId);
+      renderedChatSessionList = "";
+      renderChat();
+    }));
+  }
   els.chatWorkspaceLabel.textContent = project?.name
     ? `LOCAL WORKSPACE · ${project.name}`
     : session?.project_id ? `LOCAL WORKSPACE · ${session.project_id} · 不可用` : "选择本地工作区";
@@ -1433,6 +1481,7 @@ function renderChat() {
     ? `<div class="chat-error" role="alert"><span>${escapeHtml(chat.error || session.error)}</span>${session?.status === "failed" ? `<button class="secondary-button" data-chat-retry-last type="button">编辑后重试</button>` : ""}</div>`
     : "";
   chatConversationSurface.render({
+    contextId: session?.id || "chat-draft",
     messages: session ? chat.snapshot.messages : [],
     emptyHtml: session
       ? `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`

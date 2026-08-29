@@ -12,6 +12,7 @@ export function createChatCoordinator({
   setupReadinessPreflight = async () => {},
   createAdapter = createCodexAppServerAdapter,
   approvalTimeoutMs = 5 * 60_000,
+  streamNotifyMs = 32,
   now = () => new Date().toISOString(),
   idFactory = () => randomUUID()
 }) {
@@ -19,6 +20,8 @@ export function createChatCoordinator({
   const emitter = new EventEmitter();
   const owners = new Map();
   const pendingApprovals = new Map();
+  const liveMessages = new Map();
+  const pendingStreamNotifications = new Map();
   let initialized = false;
 
   async function ensureInitialized() {
@@ -52,7 +55,7 @@ export function createChatCoordinator({
       projects: (store.projects || []).map(({ id, name }) => ({ id, name })),
       sessions: sessions.map(publicSession),
       selected_session_id: selected?.id || "",
-      messages: selected ? (store.messages?.[selected.id] || []).map(publicMessage) : [],
+      messages: selected ? projectedSessionMessages(store.messages?.[selected.id] || [], liveMessages.get(selected.id)).map(publicMessage) : [],
       draft: {
         project_id: String(selected?.project_id || store.chat?.draft?.project_id || ""),
         text: String(selected ? selected.draft || "" : store.chat?.draft?.text || "")
@@ -309,12 +312,16 @@ export function createChatCoordinator({
     });
     owners.get(sessionId)?.adapter.close();
     owners.delete(sessionId);
+    cancelStreamNotification(sessionId);
+    liveMessages.delete(sessionId);
     await declineSessionApprovals(sessionId);
     changed("chat.session.deleted", sessionId);
     return { deleted_session_id: removed.id, snapshot: await getSnapshot() };
   }
 
   async function close() {
+    for (const pending of pendingStreamNotifications.values()) clearTimeout(pending.timer);
+    pendingStreamNotifications.clear();
     await Promise.all([...owners.entries()].map(async ([sessionId, owner]) => {
       if (owner.completion) {
         owner.cancelled = true;
@@ -323,21 +330,27 @@ export function createChatCoordinator({
         try { await withTimeout(owner.completion, 2_000, ""); } catch {}
       }
       owner.adapter.close();
-      await mutateChatSession(sessionId, (session) => {
+      cancelStreamNotification(sessionId);
+      await mutateChatSession(sessionId, (session, store) => {
+        commitLiveMessages(sessionId, session, store);
         if (ACTIVE_STATUSES.has(session.status)) {
           session.status = "interrupted";
           session.error ||= "ArcOrbit closed before this turn reached a terminal state.";
           session.updated_at = now();
         }
+        completeRunningMessagesInStore(session, store);
       }).catch(() => {});
     }));
+    for (const pending of pendingStreamNotifications.values()) clearTimeout(pending.timer);
+    pendingStreamNotifications.clear();
     owners.clear();
+    liveMessages.clear();
   }
 
   async function ownerFor(sessionId, project) {
     let owner = owners.get(sessionId);
     if (!owner) {
-      owner = { project_id: project.id, project_path: resolve(project.path), adapter: createAdapter(), completion: null, adapterStarted: false, cancelled: false };
+      owner = { project_id: project.id, project_path: resolve(project.path), adapter: createAdapter(), completion: null, adapterStarted: false, cancelled: false, thread_id: "", turn_id: "" };
       owners.set(sessionId, owner);
     }
     if (owner.project_id !== project.id || owner.project_path !== resolve(project.path)) throw new Error("Chat adapter ownership does not match the session workspace.");
@@ -348,6 +361,8 @@ export function createChatCoordinator({
   }
 
   async function bindThread(sessionId, binding) {
+    const owner = owners.get(sessionId);
+    if (owner) owner.thread_id = String(binding.threadId || "");
     await mutateChatSession(sessionId, (session) => {
       session.thread_id = String(binding.threadId || "");
       session.updated_at = now();
@@ -358,6 +373,8 @@ export function createChatCoordinator({
   async function projectEvent(sessionId, event) {
     if (!event?.type) return;
     if (event.type === "codex.turn.started" || event.type === "codex.turn.start.completed") {
+      const owner = owners.get(sessionId);
+      if (owner) owner.turn_id = String(event.turn_id || "");
       await mutateChatSession(sessionId, (session) => {
         session.turn_id = String(event.turn_id || "");
         session.status = "running";
@@ -367,37 +384,53 @@ export function createChatCoordinator({
       return;
     }
     if (event.type === "codex.agent_message.delta") {
-      await upsertProjectedMessage(sessionId, {
+      upsertLiveMessage(sessionId, {
         role: "assistant", kind: "text", item_id: String(event.item_id || "assistant"), content_delta: String(event.text || ""), status: "running"
       });
+      scheduleStreamNotification(sessionId);
       return;
     }
     if (event.type === "codex.reasoning.delta") {
-      await upsertProjectedMessage(sessionId, {
+      upsertLiveMessage(sessionId, {
         role: "assistant", kind: "reasoning", item_id: String(event.item_id || "reasoning"), content_delta: String(event.text || ""), status: "running"
       });
+      scheduleStreamNotification(sessionId);
       return;
     }
     if (event.type === "codex.item.started") {
       const item = event.params?.item || {};
       if (["commandExecution", "fileChange", "toolCall", "webSearch"].includes(item.type)) {
-        await upsertProjectedMessage(sessionId, {
+        upsertLiveMessage(sessionId, {
           role: "tool", kind: "tool", item_id: String(item.id || "tool"), content: toolSummary(item), status: "running"
         });
+        scheduleStreamNotification(sessionId);
       }
       return;
     }
     if (event.type === "codex.item.completed") {
       const item = event.params?.item || {};
       if (["commandExecution", "fileChange", "toolCall", "webSearch"].includes(item.type)) {
-        await upsertProjectedMessage(sessionId, {
+        upsertLiveMessage(sessionId, {
           role: "tool", kind: "tool", item_id: String(item.id || "tool"), content: toolSummary(item), status: toolSucceeded(item) ? "completed" : "failed"
         });
+        await persistLiveMessage(sessionId, { itemId: String(item.id || "tool"), kind: "tool" });
+        changed("chat.message.committed", sessionId);
+      } else if (item.type === "agentMessage") {
+        upsertLiveMessage(sessionId, {
+          role: "assistant", kind: "text", item_id: String(item.id || "assistant"),
+          ...(item.text !== undefined ? { content: String(item.text || "") } : {}), status: "completed"
+        });
+        await persistLiveMessage(sessionId, { itemId: String(item.id || "assistant"), kind: "text" });
+        changed("chat.message.committed", sessionId);
+      } else if (item.type === "reasoning") {
+        await persistLiveMessage(sessionId, { itemId: String(item.id || "reasoning"), kind: "reasoning", status: "completed" });
+        changed("chat.message.committed", sessionId);
       }
       return;
     }
     if (event.type === "codex.turn.completed") {
-      await mutateChatSession(sessionId, (session) => {
+      cancelStreamNotification(sessionId);
+      await mutateChatSession(sessionId, (session, store) => {
         const turnStatus = String(event.turn?.status || "");
         const interrupted = ["interrupting", "interrupted"].includes(session.status) || turnStatus === "interrupted";
         const failed = session.status === "failed" || turnStatus === "failed";
@@ -405,8 +438,9 @@ export function createChatCoordinator({
         if (session.status !== "failed") session.retry_client_request_id = "";
         session.turn_id = String(event.turn_id || session.turn_id || "");
         session.updated_at = now();
+        commitLiveMessages(sessionId, session, store);
+        completeRunningMessagesInStore(session, store);
       });
-      await completeRunningMessages(sessionId);
       changed("chat.turn.completed", sessionId);
       return;
     }
@@ -438,7 +472,9 @@ export function createChatCoordinator({
     };
     pendingApprovals.set(key, pending);
     timer = setTimeout(() => { pending.resolve(false).catch(() => {}); }, approvalTimeoutMs);
+    cancelStreamNotification(sessionId);
     await mutateChatSession(sessionId, (session, store) => {
+      commitLiveMessages(sessionId, session, store);
       session.status = "waiting_approval";
       session.updated_at = now();
       store.messages[sessionId] ||= [];
@@ -473,54 +509,15 @@ export function createChatCoordinator({
     changed("chat.approval.decided", sessionId);
   }
 
-  async function upsertProjectedMessage(sessionId, input) {
-    await mutateChatSession(sessionId, (session, store) => {
-      const messages = store.messages[sessionId] ||= [];
-      let message = messages.find((item) => item.turn_id === session.turn_id && item.item_id === input.item_id && item.kind === input.kind);
-      if (!message) {
-        message = {
-          id: `CHAT-MSG-${idFactory()}`,
-          session_id: sessionId,
-          role: input.role,
-          kind: input.kind,
-          content: "",
-          status: input.status,
-          thread_id: session.thread_id,
-          turn_id: session.turn_id,
-          item_id: input.item_id,
-          created_at: now(),
-          updated_at: now()
-        };
-        messages.push(message);
-      }
-      message.content = input.content_delta !== undefined ? `${message.content}${input.content_delta}` : String(input.content || "");
-      message.status = input.status;
-      message.updated_at = now();
-      session.updated_at = message.updated_at;
-      store.messages[sessionId] = messages.slice(-500);
-    });
-    changed("chat.message.changed", sessionId);
-  }
-
-  async function completeRunningMessages(sessionId) {
-    await mutateChatSession(sessionId, (session, store) => {
-      for (const message of store.messages[sessionId] || []) {
-        if (message.turn_id === session.turn_id && message.status === "running") {
-          message.status = session.status === "interrupted"
-            ? "interrupted"
-            : session.status === "failed" ? "failed" : "completed";
-          message.updated_at = now();
-        }
-      }
-    });
-  }
-
   async function failSession(sessionId, error) {
     const message = error?.message || String(error);
+    cancelStreamNotification(sessionId);
     await mutateChatSession(sessionId, (session, store) => {
       session.status = session.status === "interrupting" ? "interrupted" : "failed";
       session.error = message;
       session.updated_at = now();
+      commitLiveMessages(sessionId, session, store);
+      completeRunningMessagesInStore(session, store);
       store.messages[sessionId] ||= [];
       store.messages[sessionId].push({
         id: `CHAT-ERROR-${idFactory()}`,
@@ -551,6 +548,86 @@ export function createChatCoordinator({
 
   function changed(type, sessionId = "") {
     emitter.emit("event", { type, session_id: sessionId, occurred_at: now() });
+  }
+
+  function upsertLiveMessage(sessionId, input) {
+    const owner = owners.get(sessionId);
+    const messages = liveMessages.get(sessionId) || new Map();
+    const key = liveMessageKey(input.item_id, input.kind);
+    let message = messages.get(key);
+    if (!message) {
+      message = {
+        id: `CHAT-MSG-${idFactory()}`,
+        session_id: sessionId,
+        role: input.role,
+        kind: input.kind,
+        content: "",
+        status: input.status,
+        thread_id: owner?.thread_id || "",
+        turn_id: owner?.turn_id || "",
+        item_id: input.item_id,
+        created_at: now(),
+        updated_at: now()
+      };
+      messages.set(key, message);
+      liveMessages.set(sessionId, messages);
+    }
+    message.content = input.content_delta !== undefined ? `${message.content}${input.content_delta}` : input.content !== undefined ? String(input.content || "") : message.content;
+    message.status = input.status || message.status;
+    message.updated_at = now();
+    return message;
+  }
+
+  async function persistLiveMessage(sessionId, { itemId, kind, status = "" }) {
+    cancelStreamNotification(sessionId);
+    const key = liveMessageKey(itemId, kind);
+    await mutateChatSession(sessionId, (session, store) => {
+      const messages = liveMessages.get(sessionId);
+      const message = messages?.get(key);
+      if (!message) return;
+      if (status) message.status = status;
+      upsertPersistedMessage(store.messages[sessionId] ||= [], message);
+      store.messages[sessionId] = store.messages[sessionId].slice(-500);
+      messages.delete(key);
+      if (messages.size === 0) liveMessages.delete(sessionId);
+      session.updated_at = message.updated_at;
+    });
+  }
+
+  function commitLiveMessages(sessionId, session, store) {
+    const messages = liveMessages.get(sessionId);
+    if (!messages?.size || !store) return;
+    store.messages[sessionId] ||= [];
+    for (const message of messages.values()) upsertPersistedMessage(store.messages[sessionId], message);
+    store.messages[sessionId] = store.messages[sessionId].slice(-500);
+    liveMessages.delete(sessionId);
+    session.updated_at = now();
+  }
+
+  function completeRunningMessagesInStore(session, store) {
+    for (const message of store.messages[session.id] || []) {
+      if (message.turn_id === session.turn_id && message.status === "running") {
+        message.status = session.status === "interrupted" ? "interrupted" : session.status === "failed" ? "failed" : "completed";
+        message.updated_at = now();
+      }
+    }
+  }
+
+  function scheduleStreamNotification(sessionId) {
+    if (pendingStreamNotifications.has(sessionId)) return;
+    const timer = setTimeout(() => {
+      pendingStreamNotifications.delete(sessionId);
+      const messages = [...(liveMessages.get(sessionId)?.values() || [])].map(publicMessage);
+      if (messages.length) emitter.emit("event", { type: "chat.message.changed", session_id: sessionId, messages, occurred_at: now() });
+    }, streamNotifyMs);
+    pendingStreamNotifications.set(sessionId, { timer });
+  }
+
+  function cancelStreamNotification(sessionId) {
+    const pending = pendingStreamNotifications.get(sessionId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingStreamNotifications.delete(sessionId);
   }
 
   return {
@@ -591,6 +668,24 @@ function publicMessage(message) {
     created_at: String(message.created_at || ""),
     updated_at: String(message.updated_at || message.created_at || "")
   };
+}
+
+function liveMessageKey(itemId, kind) {
+  return `${String(itemId || "")}:${String(kind || "")}`;
+}
+
+function upsertPersistedMessage(messages, input) {
+  const index = messages.findIndex((message) => message.id === input.id);
+  const persisted = { ...input };
+  if (index >= 0) messages[index] = persisted;
+  else messages.push(persisted);
+}
+
+function projectedSessionMessages(persistedMessages, liveMessageMap) {
+  if (!liveMessageMap?.size) return persistedMessages;
+  const projected = persistedMessages.map((message) => ({ ...message }));
+  for (const message of liveMessageMap.values()) upsertPersistedMessage(projected, message);
+  return projected;
 }
 
 function approvalSummary(request) {

@@ -164,3 +164,5 @@
 | [CASE-20260827-004](closed/CASE-20260827-004-unify-non-automatable-work-as-human-intervention.md) | closed | Unify non-automatable work as human intervention | 2026-08-27T06:34:45.808Z |
 | [CASE-20260828-001](closed/CASE-20260828-001-feedback.md) | closed | Feedback 未读消息加载与刷新策略 | 2026-08-28T20:12:10.108Z |
 | [CASE-20260828-002](closed/CASE-20260828-002-automation.md) | closed | 修复 Automation 新项目本地绑定入口缺失 | 2026-08-28T19:50:24.576Z |
+| [CASE-20260829-001](closed/CASE-20260829-001-arcorbit-chat.md) | closed | 修复 ArcOrbit Chat 流式消息架构放大与交互失活 | 2026-08-29T14:28:33.252Z |
+| [CASE-20260829-002](closed/CASE-20260829-002-arcorbit-chat.md) | closed | 隔离 ArcOrbit Chat 跨会话滚动所有权 | 2026-08-29T15:50:07.539Z |
