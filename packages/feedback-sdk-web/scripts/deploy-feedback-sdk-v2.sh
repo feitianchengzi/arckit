@@ -23,9 +23,9 @@ fi
 echo "Building isolated V2 app..."
 (
   cd "$PROJECT_DIR"
-  # Both origins are controlled console entry points. The SDK still only accepts
+  # These origins are controlled product entry points. The SDK still only accepts
   # messages from this explicit allowlist (plus localhost for local debugging).
-  VITE_SDK_PARENT_ORIGINS="${VITE_SDK_PARENT_ORIGINS:-https://workshop.feitianchengzi.com,https://feedback.feitianchengzi.com}" npm run build:v2
+  VITE_SDK_PARENT_ORIGINS="${VITE_SDK_PARENT_ORIGINS:-https://workshop.feitianchengzi.com,https://feedback.feitianchengzi.com,https://jinghong.wang}" npm run build:v2
 )
 
 if [ ! -f "$PROJECT_DIR/dist/index.html" ]; then

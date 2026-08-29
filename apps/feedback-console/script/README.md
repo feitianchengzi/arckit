@@ -7,8 +7,8 @@ This directory contains build and OSS deploy scripts for `feedback-console-web`.
 - `build-vite.sh`: build helper
 - `deploy-feedback-console.sh`: deploy entry (bash)
 - `deploy-feedback-console.py`: deploy worker (python)
-- `publish-root-index.sh`: upload root `index.html` redirect
-- `publish-root-index.py`: root redirect worker
+- `publish-root-index.sh`: upload root `index.html` SPA fallback
+- `publish-root-index.py`: root SPA fallback worker
 
 ## Safety defaults
 
@@ -43,7 +43,8 @@ npm run deploy:oss
 ```
 
 With `SYNC_ROOT_INDEX=1`, the deploy will also upload bucket root `index.html`
-as a redirect to `ROOT_INDEX_TARGET`. It does not delete or overwrite `sdk/`
+as an SPA fallback. Direct `/console/*` links keep their original path, while the
+bucket root still redirects to `ROOT_INDEX_TARGET`. It does not delete or overwrite `sdk/`
 or any other prefix.
 
 Use `/console` as the public console entry. Avoid `/console/` because OSS

@@ -15,6 +15,7 @@ import JoinOrganizationPage from '@/pages/JoinOrganizationPage'
 import FeedbackProjectDetailPage from '@/pages/FeedbackProjectDetailPage'
 import FeedbackCaseDemoPage from '@/pages/FeedbackCaseDemoPage'
 import FeedbackProjectSettingsPage from '@/pages/FeedbackProjectSettingsPage'
+import FeedbackProjectMembersPage from '@/pages/FeedbackProjectMembersPage'
 import { ToastHost } from '@/components/ui/ToastHost'
 
 // 布局组件
@@ -74,6 +75,7 @@ function App() {
         <Route path="/feedbacks/organizations/:id" element={<OrganizationDetailPage />} />
         <Route path="/feedbacks/case-demo" element={<FeedbackCaseDemoPage />} />
         <Route path="/feedbacks/projects/:id/settings" element={<FeedbackProjectSettingsPage />} />
+        <Route path="/feedbacks/projects/:id/members" element={<FeedbackProjectMembersPage />} />
         <Route path="/feedbacks/projects/:id" element={<FeedbackProjectDetailPage />} />
         <Route path="/organizations/:id" element={<OrganizationDetailPage />} />
         <Route path="/organizations/:id/invite" element={<InviteOrganizationPage />} />
