@@ -4,6 +4,7 @@ import { Button, LoadingView, ErrorView } from '@/components/ui'
 import { useAuthStore } from '@/store/authStore'
 import { useJoinOrganizationInvite } from '@/hooks/useOrganizations'
 import { getAccessToken } from '@/lib/utils/tokenManager'
+import { buildFeedbackOrganizationPath } from '@/lib/utils/organizationRouting'
 
 export default function JoinOrganizationPage() {
   const navigate = useNavigate()
@@ -16,6 +17,11 @@ export default function JoinOrganizationPage() {
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const [joinedOrganizationId, setJoinedOrganizationId] = useState<number | null>(null)
+
+  const successPath = joinedOrganizationId
+    ? buildFeedbackOrganizationPath(joinedOrganizationId)
+    : '/feedbacks'
 
   const handleJoin = async () => {
     if (!inviteCode) {
@@ -35,10 +41,11 @@ export default function JoinOrganizationPage() {
 
     setStatus('loading')
     try {
-      await joinOrganization.mutateAsync(inviteCode)
+      const result = await joinOrganization.mutateAsync(inviteCode)
+      setJoinedOrganizationId(result?.organization_id ?? null)
       setStatus('success')
       setTimeout(() => {
-        navigate('/organizations')
+        navigate(result?.organization_id ? buildFeedbackOrganizationPath(result.organization_id) : '/feedbacks')
       }, 3000)
     } catch (err: any) {
       // 检查是否是400错误（用户未注册完成）
@@ -103,10 +110,10 @@ export default function JoinOrganizationPage() {
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
           <div className="text-5xl mb-4">🎉</div>
           <h2 className="text-2xl font-bold text-gray-900">加入成功</h2>
-          <p className="mt-2 text-gray-600">即将跳转到组织列表</p>
+          <p className="mt-2 text-gray-600">即将进入组织页面</p>
           <Button
             variant="primary"
-            onClick={() => navigate('/organizations')}
+            onClick={() => navigate(successPath)}
             className="mt-6"
             fullWidth
           >
@@ -134,10 +141,10 @@ export default function JoinOrganizationPage() {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => navigate('/organizations')}
+              onClick={() => navigate('/feedbacks')}
               fullWidth
             >
-              返回组织列表
+              返回反馈平台
             </Button>
           </div>
         </div>

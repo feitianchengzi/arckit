@@ -14,6 +14,7 @@ export default function FeedbackProjectDetailPage() {
   const { data: project, isLoading, error, refetch } = useProject(projectId)
   const setCurrentOrganizationId = useOrganizationStore((state) => state.setCurrentOrganizationId)
   const settingsPath = `/feedbacks/projects/${id}/settings`
+  const membersPath = `/feedbacks/projects/${id}/members`
 
   useEffect(() => {
     if (typeof project?.organization_id !== 'number') return
@@ -51,6 +52,7 @@ export default function FeedbackProjectDetailPage() {
           projectId={projectId}
           projectName={project.name}
           embedded
+          onOpenMembers={() => navigate(membersPath)}
           onOpenSettings={() => navigate(settingsPath)}
         />
       </div>

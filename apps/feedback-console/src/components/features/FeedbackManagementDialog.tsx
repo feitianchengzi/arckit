@@ -17,6 +17,7 @@ interface FeedbackManagementDialogProps {
   projectId: string
   projectName?: string
   embedded?: boolean
+  onOpenMembers?: () => void
   onOpenSettings?: () => void
 }
 
@@ -454,6 +455,7 @@ export function FeedbackManagementDialog({
   projectId,
   projectName,
   embedded = false,
+  onOpenMembers,
   onOpenSettings,
 }: FeedbackManagementDialogProps) {
   const [page, setPage] = useState(1)
@@ -961,6 +963,19 @@ export function FeedbackManagementDialog({
 			  <option value="oldest">最早</option>
 			  <option value="priority">优先级</option>
 			</select>
+			{onOpenMembers && (
+            <button
+              type="button"
+              onMouseDown={preventButtonFocus}
+              onClick={onOpenMembers}
+              className={mergeClassName(
+                BUTTON_RESET_CLASS,
+				'h-8 rounded-md border border-divider bg-surface px-3 text-xs font-semibold text-foreground-secondary hover:bg-surface-hover',
+              )}
+            >
+              项目成员
+            </button>
+          )}
 			{onOpenSettings && (
             <button
               type="button"

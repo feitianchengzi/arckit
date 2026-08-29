@@ -62,7 +62,7 @@ cd webapps/feedback-sdk-web
 npm run deploy:oss:v2
 ```
 
-该命令固定构建到 `/sdk-v2`，且只会上传 `sdk-v2/` 下的新文件：不删除对象、不写 bucket 根目录、不触碰 `/sdk`。上传顺序为版本化静态资源、`sdk-v2/index.html`、SPA 别名，确保入口文件最后切换。它默认只信任 `workshop.feitianchengzi.com` 和 `feedback.feitianchengzi.com` 两个控制台入口；如需调整，部署前显式设置 `VITE_SDK_PARENT_ORIGINS`。
+该命令固定构建到 `/sdk-v2`，且只会上传 `sdk-v2/` 下的新文件：不删除对象、不写 bucket 根目录、不触碰 `/sdk`。上传顺序为版本化静态资源、`sdk-v2/index.html`、SPA 别名，确保入口文件最后切换。它默认信任 `workshop.feitianchengzi.com`、`feedback.feitianchengzi.com` 和 `jinghong.wang` 三个宿主入口；如需调整，部署前显式设置 `VITE_SDK_PARENT_ORIGINS`。
 
 完成 V2 页面验收后，再在反馈控制台的部署环境中设置：
 
