@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-29T15:50:07.539Z",
-    "revision": 320
+    "updated_at": "2026-08-29T17:43:21.909Z",
+    "revision": 323
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "修复 A 会话持续输出时切换到 B 会话后，A 的待执行自动滚动与共享跟随状态影响 B 消息列表定位的问题。",
+      "current_focus": "Make Codex CLI discovery, installation selection, update checks, updates, proxy use, and recovery source-aware and reliable across supported local execution scopes.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,19 +147,20 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback 与 Work 能力和边界。Work 是 Workshop 待办同步与本地 Task Projection 的唯一客户端所有者；新建和编辑 Sheet 提供完整七状态，编辑 Sheet 是异常纠偏兜底，Inspector 按当前状态提供有限下一步动作。Work Inspector 默认更宽，支持可访问拖拽调宽与跨应用重启恢复，并使用内容、紧凑属性、协作和验收语义分区。Work 编辑待办允许把内容复制到当前产品集内另一个可写产品，并在目标创建获 Workshop 确认后删除源 Task。目标 Task 获得新身份，仅复制正文、状态、优先级及目标产品内重新选择的关联字段，不继承评论、附件、Run、session、thread、Gate 或验收问题。Work 负责两阶段 mutation 和部分成功恢复；Automation 只消费服务器确认后的本地状态。Setup Readiness 在应用冷启动时 fresh-check Desktop Store 中全部已关联本地项目相对于内置 payload 的 skill drift；新增或改变本地项目关联及用户主动重试会再次检查。项目集、具体项目、Workset 等纯查看切换、解除关联和 task start 不重新扫描 skills，task start 只消费已验证缓存并 fail closed。trusted Case binding 的既有能力和边界保持不变。Setup Readiness 对同名项目 skill、loader、共享资源和用户按需 catalog 冲突保留 typed diagnostic；当 provider 证明安全目标与唯一内置来源时，用户可逐项选择“备份并使用当前应用包覆盖所选同名 skill”，未选和无关内容保持不变。Feedback 中已忽略且未关联待办的反馈可恢复为待处理，恢复只在服务端确认 pending 后生效。 Today、Work、Automation 与 Organization 必须从同一可访问 Project Catalog 得到项目身份；项目存在、项目绑定、同步就绪和执行资格彼此独立，项目详情同步失败不得使项目消失。",
-          "reason": "当前 Case 将覆盖安装自愈和跨页面项目一致性确立为稳定架构边界。",
+          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback 与 Work 能力和边界。Work 是 Workshop 待办同步与本地 Task Projection 的唯一客户端所有者；新建和编辑 Sheet 提供完整七状态，编辑 Sheet 是异常纠偏兜底，Inspector 按当前状态提供有限下一步动作。Work Inspector 默认更宽，支持可访问拖拽调宽与跨应用重启恢复，并使用内容、紧凑属性、协作和验收语义分区。Work 编辑待办允许把内容复制到当前产品集内另一个可写产品，并在目标创建获 Workshop 确认后删除源 Task。目标 Task 获得新身份，仅复制正文、状态、优先级及目标产品内重新选择的关联字段，不继承评论、附件、Run、session、thread、Gate 或验收问题。Work 负责两阶段 mutation 和部分成功恢复；Automation 只消费服务器确认后的本地状态。Setup Readiness 在应用冷启动时 fresh-check Desktop Store 中全部已关联本地项目相对于内置 payload 的 skill drift；新增或改变本地项目关联及用户主动重试会再次检查。项目集、具体项目、Workset 等纯查看切换、解除关联和 task start 不重新扫描 skills，task start 只消费已验证缓存并 fail closed。trusted Case binding 的既有能力和边界保持不变。Setup Readiness 对同名项目 skill、loader、共享资源和用户按需 catalog 冲突保留 typed diagnostic；当 provider 证明安全目标与唯一内置来源时，用户可逐项选择“备份并使用当前应用包覆盖所选同名 skill”，未选和无关内容保持不变。Feedback 中已忽略且未关联待办的反馈可恢复为待处理，恢复只在服务端确认 pending 后生效。 Today、Work、Automation 与 Organization 必须从同一可访问 Project Catalog 得到项目身份；项目存在、项目绑定、同步就绪和执行资格彼此独立，项目详情同步失败不得使项目消失。 Codex Setup 维护完整 installation inventory 与唯一 active binding，按 execution scope 和 owner 证明选择既有安装、生成安装建议、检查更新并在 mutation 后复验实际 executable；更新查询失败不把健康 Codex 降级为未安装。",
+          "reason": "操作者确认的安装与更新升级已经形成稳定产品规格。",
           "evidence": [
             "Current operator input, 2026-08-27",
             "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
             "arckit/interaction/platform-workspace/interaction.md",
             "arckit/spec/agentic-software-development/arcorbit-work-management.md",
             "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/tech/arcorbit/realtime-synchronization-solution.md"
+            "arckit/tech/arcorbit/realtime-synchronization-solution.md",
+            "arckit/spec/arcorbit-distribution.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 Project Catalog 所有权、跨页面可见性或项目级执行资格边界改变时重审。",
-          "revision": 39
+          "resume_condition": "当 Codex 官方安装渠道、owner 语义、execution scope 或 Setup 生命周期改变时重审。",
+          "revision": 40
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -281,16 +282,17 @@
         "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 继续通过显式 main-process adapters 集成 Codex app-server/CLI、Workshop 和 Feedback，并保持 Renderer 无凭据、无通用请求能力。真实 Chat 使用可复用的 Codex Conversation 基础层处理 app-server initialize、persistent thread start/resume、turn start/interrupt、streamed items、token usage 和 approval request；ChatCoordinator 直接提交用户文本，不设置 Agent Loop output schema，也不调用 state-driven Runtime、trusted ledger 或 Automation Coordinator。Workshop Task Source 与 realtime adapter 只服务 main-process Work Sync；Work Sync 负责订阅范围、REST 对账、mutation 和本地投影发布，Automation 不直接集成 Workshop。Feedback V2 和产品反馈 SDK 的既有契约与恢复行为保持不变。Workshop Feedback SDK 用户端和 Console 开发者端共同定义双向 V2 消息域；ArcOrbit 对 Workset 项目默认探测开发者能力，列表失败回退 V1，单项失败仅降级对应动作，不用安装包 allowlist 隐藏能力。Feedback V2 的忽略恢复采用固定 POST /feedbacks/{id}/restore 领域合约，仅允许 ignored 原子进入 pending；缺少 provider 合约时失败关闭，不通过通用 update 或 Renderer 本地状态伪装成功。Codex Setup 额外通过固定 main-process allowlist 集成 OpenAI 官方 macOS/Linux/Windows standalone installer 和 codex login、login status、logout 接口；网络、权限、process、capability 与 status 失败分别恢复，Renderer 不能提供 URL、argv、environment 或 shell。",
-          "reason": "当前源码证据证明 V2 restore 是新增的外部 provider 合约，必须保持与专用 ignore 相同的受控 adapter 边界。",
+          "statement": "ArcOrbit 继续通过显式 main-process adapters 集成 Codex app-server/CLI、Workshop 和 Feedback，并保持 Renderer 无凭据、无通用请求能力。真实 Chat 使用可复用的 Codex Conversation 基础层处理 app-server initialize、persistent thread start/resume、turn start/interrupt、streamed items、token usage 和 approval request；ChatCoordinator 直接提交用户文本，不设置 Agent Loop output schema，也不调用 state-driven Runtime、trusted ledger 或 Automation Coordinator。Workshop Task Source 与 realtime adapter 只服务 main-process Work Sync；Work Sync 负责订阅范围、REST 对账、mutation 和本地投影发布，Automation 不直接集成 Workshop。Feedback V2 和产品反馈 SDK 的既有契约与恢复行为保持不变。Workshop Feedback SDK 用户端和 Console 开发者端共同定义双向 V2 消息域；ArcOrbit 对 Workset 项目默认探测开发者能力，列表失败回退 V1，单项失败仅降级对应动作，不用安装包 allowlist 隐藏能力。Feedback V2 的忽略恢复采用固定 POST /feedbacks/{id}/restore 领域合约，仅允许 ignored 原子进入 pending；缺少 provider 合约时失败关闭，不通过通用 update 或 Renderer 本地状态伪装成功。Codex Setup 额外通过固定 main-process allowlist 集成 OpenAI 官方 macOS/Linux/Windows standalone installer 和 codex login、login status、logout 接口；网络、权限、process、capability 与 status 失败分别恢复，Renderer 不能提供 URL、argv、environment 或 shell。 Codex Setup 通过固定 main-process adapters 集成 OpenAI standalone release channel、exact npm registry context、exact Homebrew cask context 与明确 WSL distro transport；所有网络操作复用脱敏代理 context，Renderer 不能提供 URL、package spec、registry、cask、argv、environment 或 shell。",
+          "reason": "来源感知更新要求每个外部 owner 具有固定且可证明的 adapter 边界。",
           "evidence": [
             "arckit/tech/arcorbit/platform-composition-solution.md",
             "runtime/arcorbit/src/workshop-platform-adapter.mjs",
-            "/Users/Glare/Library/Developer/ModularProgram/hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/lib/api/feedbackV2Client.ts"
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/lib/api/feedbackV2Client.ts",
+            "arckit/tech/arcorbit/installer-supply-chain.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 V2 restore route、状态前置条件、返回对象、权限或 provider capability detection 改变时重审。",
-          "revision": 13
+          "resume_condition": "当 Codex 官方发布源、npm/Homebrew 命令契约、WSL transport 或代理边界改变时重审。",
+          "revision": 14
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -343,18 +345,19 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit 与 ArcOrbit 的既有 ledger、Electron、Runtime、Platform Coordinator、Work Sync、Chat、Setup Readiness 和 trusted case-control 技术边界保持不变。Work Inspector 偏好继续由 Desktop Store、typed preload action 和 Renderer 持有。应用冷启动的 coordinated Setup Readiness 由 main process fresh-read Desktop Store 中全部本地 Product Workspace roots；新增或改变本地关联及用户主动 retry 使用相同 aggregate check，显式空 roots 清除既有 project plan 并执行 global-only。Renderer 项目/Workset 筛选不触发检查，解除关联跳过检查。SkillProvisioningManager.assertReady(projectRoot) 只读取内存 snapshot，要求 ready 且 project root 位于最近成功检查的 plan.project_roots；Chat/Automation task start 不调用 provider 或扫描 skills。SkillProvisioningManager 的 plan、drift、同名冲突诊断和 backup-and-overwrite-selected 事务边界保持不变。Feedback V1 恢复通过受控 update 同时写入 ignored=false、feedback_state=pending 和 status=analyzing；V2 恢复由 Platform Adapter、Coordinator、main IPC、preload 和 Renderer 的 restoreFeedbackV2 typed action 链调用固定 provider route，并只在服务端确认后刷新投影。新版启动必须执行有代际的 rehydration：规范化旧 Store、刷新可访问 Catalog、按需求集合协调对账并在 dispatch 前只开放健康项目。任务与标签独立确认；重建期间新增需求必须触发后续一轮，不能被进行中的 reconcile 吞掉。Case/Loop 继续保留 external_wait 作为内部停止原因；Automation Coordinator 将其确定性投影为 awaiting_human + external_dependency，Store 迁移旧 external_wait 并补建 attention，typed confirm-external-dependency IPC 校验 execution 后复用原 session/thread。Workset Feedback V2 notification snapshot 与 `/feedbacks/{id}/messages` 是两个独立新鲜度域；Renderer 以当前 feedback id、未读投影和有身份的会话加载状态协调刷新，不把 refreshSnapshot 视为消息已刷新。消息请求必须去重或隔离过期响应，并在成功投影消息后才调用 typed mark-read；失败不清除缓存消息或草稿。",
-          "reason": "根因是 notification snapshot 与会话缓存缺少显式失效和组合刷新关系。",
+          "statement": "Arckit 与 ArcOrbit 的既有 ledger、Electron、Runtime、Platform Coordinator、Work Sync、Chat、Setup Readiness 和 trusted case-control 技术边界保持不变。Work Inspector 偏好继续由 Desktop Store、typed preload action 和 Renderer 持有。应用冷启动的 coordinated Setup Readiness 由 main process fresh-read Desktop Store 中全部本地 Product Workspace roots；新增或改变本地关联及用户主动 retry 使用相同 aggregate check，显式空 roots 清除既有 project plan 并执行 global-only。Renderer 项目/Workset 筛选不触发检查，解除关联跳过检查。SkillProvisioningManager.assertReady(projectRoot) 只读取内存 snapshot，要求 ready 且 project root 位于最近成功检查的 plan.project_roots；Chat/Automation task start 不调用 provider 或扫描 skills。SkillProvisioningManager 的 plan、drift、同名冲突诊断和 backup-and-overwrite-selected 事务边界保持不变。Feedback V1 恢复通过受控 update 同时写入 ignored=false、feedback_state=pending 和 status=analyzing；V2 恢复由 Platform Adapter、Coordinator、main IPC、preload 和 Renderer 的 restoreFeedbackV2 typed action 链调用固定 provider route，并只在服务端确认后刷新投影。新版启动必须执行有代际的 rehydration：规范化旧 Store、刷新可访问 Catalog、按需求集合协调对账并在 dispatch 前只开放健康项目。任务与标签独立确认；重建期间新增需求必须触发后续一轮，不能被进行中的 reconcile 吞掉。Case/Loop 继续保留 external_wait 作为内部停止原因；Automation Coordinator 将其确定性投影为 awaiting_human + external_dependency，Store 迁移旧 external_wait 并补建 attention，typed confirm-external-dependency IPC 校验 execution 后复用原 session/thread。Workset Feedback V2 notification snapshot 与 `/feedbacks/{id}/messages` 是两个独立新鲜度域；Renderer 以当前 feedback id、未读投影和有身份的会话加载状态协调刷新，不把 refreshSnapshot 视为消息已刷新。消息请求必须去重或隔离过期响应，并在成功投影消息后才调用 typed mark-read；失败不清除缓存消息或草稿。 Codex setup 将完整 InstallationInventory、active binding、InstallAdvisor、UpdateChecker、owner adapter 与 SetupNetworkContext 分层；路径分类仅作 hint，mutation 需要 owner proof，并以完整 inventory refresh 和 exact version/binding postcondition 判定成功。",
+          "reason": "原单一 resolver 结果不足以安全支持多来源安装和更新。",
           "evidence": [
             "runtime/arcorbit/desktop/renderer/renderer.js:2324",
             "runtime/arcorbit/desktop/renderer/renderer.js:2380",
             "runtime/arcorbit/desktop/renderer/renderer.js:2514",
             "runtime/arcorbit/src/platform-coordinator.mjs:23",
-            "runtime/arcorbit/src/workshop-platform-adapter.mjs:124"
+            "runtime/arcorbit/src/workshop-platform-adapter.mjs:124",
+            "arckit/tech/arcorbit/installer-supply-chain.md"
           ],
           "confidence": "high",
-          "resume_condition": "当消息支持增量游标、push payload、跨反馈并发或缓存迁出 Renderer 时重审。",
-          "revision": 44
+          "resume_condition": "当 executable identity、package owner proof、update channel 或 mutation postcondition 改变时重审。",
+          "revision": 45
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"

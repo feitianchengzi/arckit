@@ -240,6 +240,50 @@ test("preflight consumes the cached ready snapshot without launching fresh probe
   assert.deepEqual({ executableProbes, processProbes, setupEvents }, countsAfterCheck);
 });
 
+test("preflight refreshes a non-ready snapshot after an external Codex upgrade", async () => {
+  let upgraded = false;
+  let executableProbes = 0;
+  const manager = createCodexSetupManager({
+    platform: "linux",
+    probeExecutable: async () => {
+      executableProbes += 1;
+      return upgraded ? executable : { available: false, state: "missing", summary: "missing" };
+    },
+    processRunner: async ({ args }) => args.at(-1) === "--help"
+      ? { exitCode: 0, stdout: "--with-api-key", stderr: "" }
+      : { exitCode: 0, stdout: "", stderr: "" }
+  });
+
+  assert.equal((await manager.check()).status, "missing");
+  upgraded = true;
+  assert.equal((await manager.assertReady()).status, "ready");
+  assert.equal(executableProbes, 2);
+});
+
+test("broken executable facts preserve the discovered path and structured failure", async () => {
+  const manager = createCodexSetupManager({
+    platform: "linux",
+    probeExecutable: async () => ({
+      available: false,
+      discovered: true,
+      state: "broken",
+      errorCode: "CODEX_EXECUTABLE_UNRUNNABLE",
+      command: "/custom/bin/codex",
+      pathEntries: ["/custom/bin"],
+      provenance: "unknown-external",
+      summary: "Codex executable 已找到但无法运行。"
+    })
+  });
+
+  const snapshot = await manager.check();
+  assert.equal(snapshot.status, "broken");
+  assert.equal(snapshot.installation.available, false);
+  assert.equal(snapshot.installation.discovered, true);
+  assert.equal(snapshot.installation.command, "/custom/bin/codex");
+  assert.deepEqual(snapshot.installation.path_entries, ["/custom/bin"]);
+  assert.equal(snapshot.error.code, "CODEX_EXECUTABLE_UNRUNNABLE");
+});
+
 test("preflight fails closed from the cached snapshot while a setup mutation is active", async () => {
   let installed = false;
   let installerStarted;
@@ -531,6 +575,79 @@ test("external installations reject direct update with the stable recovery code"
   }
 });
 
+test("proven npm installations update through their exact owner and refresh versions", async () => {
+  let version = "1.2.3";
+  const calls = [];
+  const manager = createCodexSetupManager({
+    platform: "linux",
+    env: { PATH: "/fixture/node/bin", HTTPS_PROXY: "http://proxy.example:7890" },
+    probeExecutable: async () => ({
+      available: true,
+      discovered: true,
+      state: "ready",
+      command: "/fixture/node/bin/codex",
+      pathEntries: ["/fixture/node/bin"],
+      provenance: "npm",
+      summary: `codex-cli ${version}`,
+      version,
+      installationId: "npm-fixture",
+      executionScope: "native:linux",
+      installations: [{
+        id: "npm-fixture",
+        execution_scope: "native:linux",
+        platform: "linux",
+        available: true,
+        discovered: true,
+        state: "ready",
+        command: "/fixture/node/bin/codex",
+        path_entries: ["/fixture/node/bin"],
+        owner: "npm",
+        provenance: "npm",
+        owner_confidence: "inferred",
+        owner_identity: "",
+        owner_executable: "",
+        version,
+        version_summary: `codex-cli ${version}`,
+        active: true
+      }]
+    }),
+    ownerResolver: async (installations) => installations.map((installation) => ({
+      ...installation,
+      owner_confidence: "proven",
+      owner_identity: "npm:/fixture/node",
+      owner_executable: "/fixture/node/bin/npm"
+    })),
+    updateChecker: async (installation) => ({
+      state: installation.version === "1.3.0" ? "up-to-date" : "update-available",
+      installed_version: installation.version,
+      latest_version: "1.3.0",
+      channel: "npm:/fixture/node:dist-tags.latest",
+      checked_at: "2026-08-30T00:00:00.000Z",
+      error: null
+    }),
+    processRunner: async (spec) => {
+      calls.push(spec);
+      const args = spec.args.join(" ");
+      if (args === "install --global @openai/codex@latest") {
+        version = "1.3.0";
+        return { exitCode: 0, stdout: "", stderr: "" };
+      }
+      if (args.endsWith("--help")) return { exitCode: 0, stdout: "--with-api-key", stderr: "" };
+      return { exitCode: 1, stdout: "", stderr: "" };
+    }
+  });
+
+  const before = await manager.check();
+  assert.equal(before.installation.can_update, true);
+  const after = await manager.update();
+  assert.equal(after.installation.owner, "npm");
+  assert.equal(after.installation.version, "1.3.0");
+  assert.equal(after.update.state, "up-to-date");
+  const updateCall = calls.find((call) => call.args.join(" ") === "install --global @openai/codex@latest");
+  assert.equal(updateCall.command, "/fixture/node/bin/npm");
+  assert.equal(updateCall.env.HTTPS_PROXY, "http://proxy.example:7890");
+});
+
 test("standalone update succeeds only when fresh discovery remains proven standalone", async () => {
   const external = {
     ...executable,
@@ -740,7 +857,15 @@ test("successful mutations clear cancellation identity before fresh inspection",
   const snapshot = await pending;
   assert.equal(snapshot.status, "selection-required");
   assert.equal(snapshot.operation, null);
-  assert.deepEqual(readinessCodexProbe, executable);
+  assert.deepEqual({
+    available: readinessCodexProbe.available,
+    command: readinessCodexProbe.command,
+    pathEntries: readinessCodexProbe.pathEntries,
+    provenance: readinessCodexProbe.provenance,
+    summary: readinessCodexProbe.summary
+  }, executable);
+  assert.equal(readinessCodexProbe.installations.length, 1);
+  assert.equal(readinessCodexProbe.installations[0].active, true);
   const recheckEvents = operationEvents.filter((item) => item.phase.startsWith("rechecking-"));
   assert.deepEqual(recheckEvents.map((item) => item.phase), [
     "rechecking-executable",
@@ -867,7 +992,8 @@ test("failed installer mutations refresh executable state while preserving failu
 
     const snapshot = await manager[scenario.action]();
     const kind = scenario.kind || scenario.action;
-    assert.equal(probes, 2, `${kind} should probe before the mutation and after its failure`);
+    const expectedProbes = kind === "update" ? 3 : 2;
+    assert.equal(probes, expectedProbes, `${kind} should probe before mutation, revalidate a locked update target, and refresh after failure`);
     assert.equal(recheckingSeen, true, `${kind} should expose a non-cancellable recheck phase`);
     assert.equal(snapshot.status, `${kind}-failed`);
     assert.equal(snapshot.installation.command, scenario.after.command);
@@ -977,15 +1103,30 @@ test("installer download is temporary, owner-only, and removed after execution",
   await runOfficialInstaller({
     platform: "linux",
     url: "https://chatgpt.com/codex/install.sh",
+    env: { HTTPS_PROXY: "http://proxy.example:7890" },
     fetchImpl: async () => new Response(script, { status: 200, headers: { "content-length": String(script.byteLength) } }),
     processRunner: async (spec) => {
       observedScript = spec.args[0];
       await access(observedScript);
       assert.equal(spec.command, "/bin/sh");
+      assert.equal(spec.env.HTTPS_PROXY, "http://proxy.example:7890");
       return { exitCode: 0, stdout: "", stderr: "" };
     }
   });
   await assert.rejects(() => access(observedScript), (error) => error.code === "ENOENT");
+});
+
+test("installer download maps DNS failures without exposing raw diagnostics", async () => {
+  await assert.rejects(
+    () => runOfficialInstaller({
+      platform: "linux",
+      url: "https://chatgpt.com/codex/install.sh",
+      fetchImpl: async () => { throw Object.assign(new Error("sensitive host diagnostic"), { cause: { code: "ENOTFOUND" } }); }
+    }),
+    (error) => error.code === "INSTALLER_DNS_FAILED"
+      && error.stage === "download"
+      && !error.message.includes("sensitive host diagnostic")
+  );
 });
 
 test("installer download rejects declared and streamed responses above the fixed size bound", async () => {

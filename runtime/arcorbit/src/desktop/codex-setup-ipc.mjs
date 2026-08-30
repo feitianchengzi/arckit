@@ -43,7 +43,11 @@ export function registerCodexSetupIpc({
     confirmations.set(confirmationId, { action, snapshot: snapshotAuthority(snapshot), intent: intentAuthority(intent) });
     return { confirmed: true, confirmation_id: confirmationId };
   }));
-  ipcMain.handle("arckit:codex-setup-install", confirmed("install", () => codexSetupManager.install()));
+  ipcMain.handle("arckit:codex-setup-install", confirmed(
+    "install",
+    (input) => codexSetupManager.install(requireCodexInstallInput(input)),
+    installIntentFromInput
+  ));
   ipcMain.handle("arckit:codex-setup-update", confirmed("update", () => codexSetupManager.update()));
   ipcMain.handle("arckit:codex-setup-migrate", confirmed("migrate", () => codexSetupManager.migrateToStandalone()));
   ipcMain.handle("arckit:codex-setup-login", confirmed(
@@ -61,6 +65,9 @@ export function registerCodexSetupIpc({
   )));
   ipcMain.handle("arckit:codex-setup-logout", confirmed("logout", () => codexSetupManager.logout()));
   ipcMain.handle("arckit:codex-setup-recheck", authorized(async () => checkCombinedSetupReadiness()));
+  ipcMain.handle("arckit:codex-setup-check-updates", authorized(async () => (
+    refreshAfterCodexOperation(() => codexSetupManager.checkUpdates({ force: true }))
+  )));
 }
 
 function consumeConfirmation(confirmations, action, input, snapshot, intent = null) {
@@ -79,7 +86,13 @@ function requireConfirmedAction(value) {
 }
 
 function confirmationIntent(action, input) {
-  return action === "login" ? loginIntentFromInput(input) : null;
+  if (action === "login") return loginIntentFromInput(input);
+  if (action === "install") return installIntentFromInput(input);
+  return null;
+}
+
+function installIntentFromInput(input) {
+  return requireCodexInstallInput(input);
 }
 
 function loginIntentFromInput(input) {
@@ -108,10 +121,22 @@ function snapshotAuthority(snapshot = {}) {
     updated_at: snapshot.updated_at,
     status: snapshot.status,
     installation: snapshot.installation,
+    installations: snapshot.installations,
+    active_binding: snapshot.active_binding,
+    install_advice: snapshot.install_advice,
+    update: snapshot.update,
     authentication: snapshot.authentication,
     operation: snapshot.operation,
     error: snapshot.error
   });
+}
+
+function requireCodexInstallInput(input) {
+  const method = String(input?.method || "standalone");
+  if (!new Set(["standalone", "npm", "homebrew"]).has(method)) {
+    throw ipcError("INSTALL_METHOD_INVALID", "Codex install method is invalid.");
+  }
+  return { method };
 }
 
 function ipcError(code, message) {

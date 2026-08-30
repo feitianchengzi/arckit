@@ -2209,6 +2209,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:codex-setup-cancel",
     "arckit:codex-setup-logout",
     "arckit:codex-setup-recheck",
+    "arckit:codex-setup-check-updates",
     "arckit:setup-continue",
     "arckit:chat-snapshot",
     "arckit:chat-create",

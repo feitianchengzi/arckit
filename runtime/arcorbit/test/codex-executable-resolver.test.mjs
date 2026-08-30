@@ -48,8 +48,70 @@ test("Codex resolver fails closed when a discovered executable cannot run", asyn
   });
 
   assert.equal(result.available, false);
+  assert.equal(result.discovered, true);
+  assert.equal(result.state, "broken");
+  assert.equal(result.errorCode, "CODEX_EXECUTABLE_UNRUNNABLE");
   assert.match(result.summary, /已找到但无法运行/);
-  assert.equal(result.command, "");
+  assert.equal(result.command, "/fixture/bin/codex");
+  assert.deepEqual(result.pathEntries, ["/fixture/bin"]);
+});
+
+test("optional candidate source failures do not suppress an independently runnable Codex", async () => {
+  const denied = Object.assign(new Error("denied"), { code: "EACCES" });
+  const result = await resolveCodexExecutable({
+    platform: "darwin",
+    env: { PATH: "/usr/local/bin" },
+    homeDir: "/fixture/home",
+    accessFile: async (candidate) => candidate === "/usr/local/bin/codex",
+    readDirectory: async (root) => {
+      if (root.includes(".nvm")) throw denied;
+      return [];
+    },
+    runVersion: async () => "codex-cli fixture"
+  });
+
+  assert.equal(result.available, true);
+  assert.equal(result.command, "/usr/local/bin/codex");
+});
+
+test("GUI discovery falls back to the login shell PATH and launches with that PATH", async () => {
+  let observedPath = "";
+  const result = await resolveCodexExecutable({
+    platform: "darwin",
+    env: { PATH: "/usr/bin:/bin", SHELL: "/bin/zsh" },
+    homeDir: "/fixture/home",
+    accessFile: async (candidate) => candidate === "/custom/codex/bin/codex",
+    readDirectory: async () => [],
+    readShellPath: async () => "/custom/codex/bin:/custom/node/bin:/usr/bin:/bin",
+    runVersion: async (_candidate, { env }) => {
+      observedPath = env.PATH;
+      return "codex-cli shell-fixture";
+    }
+  });
+
+  assert.equal(result.available, true);
+  assert.equal(result.command, "/custom/codex/bin/codex");
+  assert.match(observedPath, /^\/custom\/codex\/bin:\/custom\/node\/bin:/u);
+});
+
+test("incomplete candidate discovery is not mislabeled as a missing installation", async () => {
+  const denied = Object.assign(new Error("denied"), { code: "EACCES" });
+  const result = await resolveCodexExecutable({
+    platform: "linux",
+    env: { PATH: "/usr/bin:/bin" },
+    homeDir: "/fixture/home",
+    accessFile: async () => false,
+    readDirectory: async (root) => {
+      if (root.includes(".nvm")) throw denied;
+      return [];
+    },
+    readShellPath: async () => { throw denied; }
+  });
+
+  assert.equal(result.available, false);
+  assert.equal(result.discovered, false);
+  assert.equal(result.state, "check-failed");
+  assert.equal(result.errorCode, "CODEX_DISCOVERY_FAILED");
 });
 
 test("shared Codex resolver exposes only a successfully probed command", async () => {
@@ -68,6 +130,48 @@ test("shared Codex resolver exposes only a successfully probed command", async (
     command: "/fixture/bin/codex",
     pathEntries: ["/fixture/bin"]
   });
+});
+
+test("shared resolver reuses a shell-discovered executable before querying the shell again", async () => {
+  let shellPathReads = 0;
+  const resolver = createCodexExecutableResolver({
+    platform: "darwin",
+    env: { PATH: "/usr/bin:/bin", SHELL: "/bin/zsh" },
+    homeDir: "/fixture/home",
+    accessFile: async (candidate) => candidate === "/custom/codex/bin/codex",
+    readDirectory: async () => [],
+    readShellPath: async () => {
+      shellPathReads += 1;
+      return "/custom/codex/bin:/usr/bin:/bin";
+    },
+    runVersion: async () => "codex-cli fixture"
+  });
+
+  assert.equal((await resolver.probe()).available, true);
+  assert.equal((await resolver.probe()).available, true);
+  assert.equal(shellPathReads, 1);
+});
+
+test("transient version launch failures receive one bounded retry", async () => {
+  let attempts = 0;
+  const waits = [];
+  const result = await resolveCodexExecutable({
+    platform: "linux",
+    env: { PATH: "/fixture/bin" },
+    homeDir: "/fixture/home",
+    accessFile: async (candidate) => candidate === "/fixture/bin/codex",
+    readDirectory: async () => [],
+    runVersion: async () => {
+      attempts += 1;
+      if (attempts === 1) throw Object.assign(new Error("busy"), { code: "EBUSY" });
+      return "codex-cli fixture";
+    },
+    wait: async (milliseconds) => { waits.push(milliseconds); }
+  });
+
+  assert.equal(result.available, true);
+  assert.equal(attempts, 2);
+  assert.deepEqual(waits, [150]);
 });
 
 test("resolver stage callbacks begin before the corresponding discovery and version work settles", async () => {
@@ -141,7 +245,16 @@ test("Windows resolver discovers the newest verified Codex Desktop runtime witho
   assert.equal(result.command.toLowerCase(), current.toLowerCase());
   assert.equal(result.provenance, "desktop-runtime");
   assert.equal(result.summary, "codex-cli desktop-current");
-  assert.deepEqual(probed.map((candidate) => candidate.toLowerCase()), [current.toLowerCase()]);
+  assert.deepEqual(probed.map((candidate) => candidate.toLowerCase()), [current.toLowerCase(), older.toLowerCase()]);
+  assert.deepEqual(result.installations.map((installation) => ({
+    command: installation.command.toLowerCase(),
+    active: installation.active,
+    owner: installation.owner,
+    scope: installation.execution_scope
+  })), [
+    { command: current.toLowerCase(), active: true, owner: "desktop-runtime", scope: "native:win32" },
+    { command: older.toLowerCase(), active: false, owner: "desktop-runtime", scope: "native:win32" }
+  ]);
 });
 
 test("Codex resolver prefers the ArcOrbit override and accepts the legacy override as fallback", async () => {

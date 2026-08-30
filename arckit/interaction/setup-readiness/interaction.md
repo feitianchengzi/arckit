@@ -2,7 +2,7 @@
 
 ## 页面定位
 
-Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页面。应用冷启动时检查全部已关联本地项目；运行期间只有新增或改变 Product Workspace 本地关联、用户主动恢复或“重新检查”才再次检查 Arckit skills。项目集全部、具体项目、Workset 或其它纯查看切换不进入本页，解除关联也不产生无意义检查。Codex 缺失、损坏、需要更新或尚未认证时，用户在本页完成官方 standalone 安装、更新和显式登录；它只在受信资源、Codex 或当前项目能力尚未达到可运行状态时成为主路由，当前检查通过后继续原路由。
+Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页面。应用冷启动时检查全部已关联本地项目；运行期间只有新增或改变 Product Workspace 本地关联、用户主动恢复或“重新检查”才再次检查 Arckit skills。项目集全部、具体项目、Workset 或其它纯查看切换不进入本页，解除关联也不产生无意义检查。Codex 缺失、损坏、存在 owner channel 更新或尚未认证时，用户在本页查看完整 installation inventory、选择适合当前电脑的安装方式、检查更新并显式登录；它只在受信资源、Codex 或当前项目能力尚未达到可运行状态时成为主路由，当前检查通过后继续原路由。
 
 页面不承担 GitHub 出包、ArcForge 治理编辑、Codex 凭证管理或 Runtime task 执行。它只展示当前安装包锁定的资源、Codex 安装/认证状态、目标目录、plan/drift、需要的确认和可恢复结果。
 
@@ -15,7 +15,7 @@ Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页
 ### 主路径
 
 1. 应用启动后只从 ArcOrbit 当前数据身份读取 source store 与关系，并自动校验 distribution lock、trusted resources、ArcForge provider、skill payload，随后执行 Codex executable discovery、`codex --version` 和 `codex login status`；全局检查不写任意 Agent skill 目录，也不读取 Codex credential file，旧 Runtime 数据不参与检查或恢复。
-2. Codex 缺失或损坏时，用户确认后由 main process 调用当前平台官方 standalone installer；安装或更新结束后页面自动重新发现 executable 和版本，不要求重启 ArcOrbit。
+2. Codex 缺失或损坏时，页面默认推荐当前平台官方 standalone；只有已验证 npm/Homebrew 工具与写入目标时才显示额外可选方法。安装或 owner-specific 更新结束后页面自动刷新完整 inventory、active binding 和版本，不要求重启 ArcOrbit。
 3. Codex 未认证时，页面先显示无默认值的凭证类型选择；选择 ChatGPT 后再显示无默认值的浏览器/设备码流程选择。完成当前层级选择前“继续登录”始终禁用。
 4. 官方登录流程结束、取消、超时或失败后自动重新运行 `codex login status`；只有退出码确认已认证才继续后续全局检查。
 5. 全局环境 ready 时显示短暂成功结果并继续 Login 或工作区；没有项目绑定时不把任意项目声明为 skills ready。Codex ready 不等于 Workshop 已登录，Workshop ready 也不等于 Codex 已认证。
@@ -33,7 +33,7 @@ Setup Readiness 是 Desktop 的全局资源、Codex CLI 与项目能力准备页
 - 用户可以确认当前 fresh plan、返回检查详情，或退出应用；不存在跳过必须能力并启动 Runtime 的路径。
 - Codex 安装、更新、认证和 skills apply 是不同确认域；一个动作的确认不能替另一个动作继续。
 - 凭证类型、ChatGPT 登录流程和外部安装迁移都默认未选择；说明或推荐不产生选择，只有用户点击后的 typed action 可以继续。
-- 当前 standalone Codex 可以一键更新；检测到 npm、Homebrew、自定义或未知外部安装时显示来源且不静默创建第二份，用户继续使用原安装或进入独立迁移确认。
+- proven standalone、npm 或 Homebrew active installation 只有在更新检查确认 `update-available` 后才显示 owner-specific 更新；inferred、configured、Desktop runtime 或未知来源保持可运行，但只显示所有权说明、主动重新检查或独立 standalone 管理确认，不静默创建第二份。
 - 任一 Automation execution、Chat turn 或其它 Codex 任务运行时，更新/迁移禁用并列出阻塞 owner；页面不提供“强制终止并更新”。
 - 普通安装只以当前 plan 的确认框作为主动作启用条件。展开或收起完整安装明细不改变确认状态，也不作为不可见的附加门槛。
 - 同名未受管理目录不能使用普通确认继续；missing managed target 和关系可证明的 provider-managed migration 不是本地内容冲突，可以进入明确的 repair/upgrade plan。
@@ -82,9 +82,11 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 
 ### Codex CLI 恢复
 
-- `missing` 首屏说明不需要 Node、npm 或 Homebrew，显示当前平台与官方 standalone 来源；“安装 Codex CLI”只有在用户确认后执行。
-- `broken` 显示候选 executable、来源和版本探测失败摘要，提供重新检查；仅在 standalone 所有权明确时提供修复/重装，外部来源提供所有权说明和显式迁移入口。
-- `installed` 显示绝对 executable 的安全缩略、来源和版本。standalone 可更新；外部来源显示“由外部安装维护”，不伪装成已由 ArcOrbit 管理。
+- `missing` 首屏说明不需要 Node、npm 或 Homebrew，显示 `recommended` standalone；已存在且满足版本/写权限的 npm 或 Homebrew 作为 `available` 选项，阻塞方法不进入可执行选择。
+- `broken` 显示候选 executable、owner hint 和版本探测失败摘要，提供重新检查；其它健康候选仍保留在 inventory，任一可选 source 失败不把整机误报为 missing。
+- `installed` 显示 active executable、execution scope、owner/confidence、installed version、独立 update state 与 latest version；多个候选逐项显示 active/shadowed 选择原因。
+- `check-failed` 只作用于对应 discovery 或 update consultation；更新查询失败显示代理/网络恢复说明，不能隐藏健康 installation、清除认证状态或阻止继续使用。
+- proven owner 的 `update-available` 显示“更新 Codex”，`up-to-date`、`ahead-of-channel`、`channel-mismatch`、`owner-conflict` 和 `unsupported-owner` 均显示对应说明而不伪造可更新动作；主动“检查更新”绕过缓存。
 - `installing` 与 `updating` 显示下载、执行、重新发现、版本复核四阶段。失败保留已完成阶段、稳定 code、可重试动作和“当前安装是否仍可用”，不把 installer 退出零直接显示为成功。
 - 存在活动 Codex owner 时更新按钮禁用，旁边直接列出阻塞的 Chat/Automation 摘要；owner 结束后自动重新计算可更新性。
 
@@ -126,9 +128,9 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 
 ### 输入输出边界
 
-输入包括 distribution lock 校验结果、provider inspect、source state、Product Workspace、本地项目根、project applicability assessment、plan、drift、Codex installation/auth snapshot、一次性 secret action 和用户确认。页面不接受用户手输任意 source、target、installer URL、executable、参数或 shell 命令。
+输入包括 distribution lock 校验结果、provider inspect、source state、Product Workspace、本地项目根、project applicability assessment、plan、drift、Codex installation inventory/active binding/install advice/update/auth snapshot、一次性 secret action 和用户确认。页面不接受用户手输任意 source、target、installer URL、executable、package spec、registry、cask、参数、environment 或 shell 命令。
 
-输出包括 Codex install/update/migrate/login/logout/cancel/recheck typed action、被确认的 plan digest、typed upgrade disposition、逐目标备份/恢复确认、同名 skill 选择与 `backup-and-overwrite-selected` 确认、单独 cleanup confirmation、retry、打开平台恢复入口、复制诊断和继续路由。Codex process 只由 Electron main process 的 CodexSetupManager 编排；skill 文件写入只由 SkillProvisioningManager 编排，并由 ArcForge provider 执行 provisioning 事务。
+输出包括绑定 installation method 的 Codex install、owner-specific update、check-updates、migrate/adopt-standalone、login/logout/cancel/recheck typed action、被确认的 plan digest、typed upgrade disposition、逐目标备份/恢复确认、同名 skill 选择与 `backup-and-overwrite-selected` 确认、单独 cleanup confirmation、retry、打开平台恢复入口、复制诊断和继续路由。Codex process 只由 Electron main process 的 CodexSetupManager 编排；skill 文件写入只由 SkillProvisioningManager 编排，并由 ArcForge provider 执行 provisioning 事务。
 
 ## 页面状态
 

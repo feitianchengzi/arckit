@@ -95,6 +95,12 @@ h1, h2, h3, p { margin-top: 0; }
 .codex-setup-facts small { color: var(--ink-500); font-size: var(--type-micro); }
 .codex-setup-facts strong { margin-top: 3px; overflow-wrap: anywhere; font-size: var(--type-caption); }
 .codex-setup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.codex-install-method { display: flex; align-items: center; gap: 7px; color: var(--ink-500); font-size: var(--type-micro); }
+.codex-install-method select { min-width: 190px; }
+.codex-inventory { display: grid; gap: 6px; margin-top: 10px; }
+.codex-inventory-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 8px 9px; border: 1px solid rgba(106, 80, 180, .16); border-radius: 7px; background: rgba(255, 255, 255, .55); }
+.codex-inventory-item strong, .codex-inventory-item small { overflow-wrap: anywhere; }
+.codex-inventory-item small { grid-column: 1 / -1; color: var(--ink-500); font-size: var(--type-micro); }
 .codex-auth-panel { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--violet-200); }
 .codex-auth-panel fieldset { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
 .codex-auth-panel fieldset + fieldset { margin-top: 12px; }

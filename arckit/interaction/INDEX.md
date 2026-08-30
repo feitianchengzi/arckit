@@ -13,9 +13,9 @@
 - login/ 登录页面：七天滚动会话恢复、临时错误保活与不可绕过的 Workshop 验证码登录门禁。✅
   - default.html 登录线框：会话恢复、未登录入口、验证码已发送和登录失败。✅ (65行)
   - interaction.md 登录交互：七天会话续期、启动路由、验证码反馈与失败恢复。✅ (134行)
-- setup-readiness/ 环境准备页面：冷启动与新关联检查、无副作用项目查看、Codex standalone 安装/更新、无默认值显式认证、项目写入确认、用户级迁移、同名 skill 选择与备份覆盖、事务 apply 与阻塞恢复。✅
+- setup-readiness/ 环境准备页面：冷启动与新关联检查、无副作用项目查看、Codex installation inventory/安装建议/owner-specific 更新、无默认值显式认证、项目写入确认、用户级迁移、同名 skill 选择与备份覆盖、事务 apply 与阻塞恢复。✅
   - default.html 环境准备线框：检查触发边界、Codex 缺失/安装/认证选择/登录复核、可见项目写入摘要、managed-stale 清理、执行、完成、升级迁移和失败恢复。✅ (177行)
-  - interaction.md 环境准备交互：冷启动/新关联/主动重试、纯查看不检查、Codex 安装状态、两级无默认认证、用户级 managed 迁移、备份恢复与异常恢复。✅ (241行)
+  - interaction.md 环境准备交互：冷启动/新关联/主动重试、纯查看不检查、Codex inventory/安装建议/更新状态、两级无默认认证、用户级 managed 迁移、备份恢复与异常恢复。✅ (243行)
 - platform-workspace/ 多产品平台应用壳：以三组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、会话新鲜度与同记录恢复的主工作台式 Feedback 和 Organization 行为。✅
   - default.html 平台应用壳线框：三组导航、全局产品范围、Feedback 单行控制轨、会话未读与刷新、窄窗口收敛、剩余高度双栏、已忽略恢复和转待办恢复状态。✅ (177行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系、项目邀请与项目连接缺口就地修复。✅ (13行)

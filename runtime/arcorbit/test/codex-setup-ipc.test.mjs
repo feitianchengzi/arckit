@@ -7,15 +7,18 @@ test("Codex Setup IPC rejects foreign senders and stale or replayed confirmation
   const sender = { id: "main-window" };
   let snapshot = setupSnapshot("snapshot-1");
   let installCalls = 0;
+  let installInput = null;
+  let updateChecks = 0;
   let confirmationSequence = 0;
   const manager = {
     getSnapshot: () => structuredClone(snapshot),
-    install: async () => { installCalls += 1; return snapshot; },
+    install: async (input) => { installCalls += 1; installInput = input; return snapshot; },
     update: async () => snapshot,
     migrateToStandalone: async () => snapshot,
     login: async () => snapshot,
     cancel: () => snapshot,
-    logout: async () => snapshot
+    logout: async () => snapshot,
+    checkUpdates: async () => { updateChecks += 1; return snapshot; }
   };
   registerCodexSetupIpc({
     ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
@@ -49,6 +52,44 @@ test("Codex Setup IPC rejects foreign senders and stale or replayed confirmation
     (error) => error.code === "CONFIRMATION_INVALID"
   );
   assert.equal(installCalls, 1);
+  assert.deepEqual(installInput, { method: "standalone" });
+  await handlers.get("arckit:codex-setup-check-updates")({ sender });
+  assert.equal(updateChecks, 1);
+});
+
+test("Codex Setup IPC binds install confirmation to the selected owner method", async () => {
+  const handlers = new Map();
+  const sender = { id: "main-window" };
+  const snapshot = setupSnapshot("snapshot-install");
+  let installedMethod = "";
+  registerCodexSetupIpc({
+    ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+    codexSetupManager: {
+      getSnapshot: () => snapshot,
+      install: async ({ method }) => { installedMethod = method; return snapshot; },
+      update: async () => snapshot,
+      migrateToStandalone: async () => snapshot,
+      login: async () => snapshot,
+      cancel: () => snapshot,
+      logout: async () => snapshot,
+      checkUpdates: async () => snapshot
+    },
+    combinedSetupReadiness: (_skills, codex = snapshot) => ({ codex_setup: codex }),
+    checkCombinedSetupReadiness: async () => ({ codex_setup: snapshot }),
+    refreshAfterCodexOperation: async (operation) => ({ codex_setup: await operation() }),
+    authorizeSender: (event) => assert.equal(event.sender, sender),
+    confirmAction: async () => true,
+    createConfirmationId: () => "install-confirmation"
+  });
+
+  const confirmation = await handlers.get("arckit:codex-setup-confirm")({ sender }, { action: "install", method: "npm" });
+  await assert.rejects(
+    () => handlers.get("arckit:codex-setup-install")({ sender }, { method: "homebrew", confirmation_id: confirmation.confirmation_id }),
+    (error) => error.code === "CONFIRMATION_INTENT_MISMATCH"
+  );
+  const retry = await handlers.get("arckit:codex-setup-confirm")({ sender }, { action: "install", method: "npm" });
+  await handlers.get("arckit:codex-setup-install")({ sender }, { method: "npm", confirmation_id: retry.confirmation_id });
+  assert.equal(installedMethod, "npm");
 });
 
 test("Codex Setup IPC requires cancel operation identity", async () => {

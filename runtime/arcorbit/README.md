@@ -74,7 +74,15 @@ Codex structured output uses `schemas/agent-loop-result.schema.json`. Runtime pe
 
 ## CLI
 
-### Codex executable discovery on Windows
+### Codex installation lifecycle
+
+Setup Readiness keeps a complete installation inventory rather than treating the first `which`/`where` result as the whole machine. Each candidate is probed through its absolute executable, assigned a native execution scope, normalized version, owner hint and owner confidence, while one deterministic active binding is shared by Chat and Automation.
+
+ArcOrbit proves npm and Homebrew ownership from exact package-manager metadata before enabling mutation. Standalone ownership is persisted only after an ArcOrbit-managed installer operation; inferred or unknown owners remain runnable but fail closed for update. Update availability is advisory and source-aware: standalone reads the OpenAI stable release channel, npm uses the proving npm registry configuration, and Homebrew uses the proving cask metadata. Successful results are cached, manual checks bypass the cache, and network failure never makes a healthy Codex unavailable.
+
+When no healthy installation exists, standalone is recommended on macOS, Linux, and Windows. npm or Homebrew is offered only when the existing tool and target write capability are verified; ArcOrbit never installs a package manager as a side effect. Installer downloads, metadata checks, npm, Homebrew, login, and update children share the current ArcOrbit proxy context without projecting proxy credentials into Renderer state.
+
+#### Windows discovery
 
 ArcOrbit accepts both native `codex.exe` executables and npm-installed `codex.cmd` shims. Resolution is fail-closed: every candidate must exist and complete `--version` successfully before Desktop stores it for Chat or Automation. Windows candidates are evaluated in this order:
 
@@ -84,11 +92,13 @@ ArcOrbit accepts both native `codex.exe` executables and npm-installed `codex.cm
 4. the standalone installer candidates under `%USERPROFILE%\.local\bin`;
 5. versioned Codex Desktop runtimes under `%LOCALAPPDATA%\OpenAI\Codex\bin\<runtime>\codex.exe`, newest first, followed by the unversioned `bin\codex.exe` fallback.
 
-After ArcOrbit installs, updates, or explicitly migrates Codex, the immediate fresh discovery temporarily prefers the standalone candidates so the operation succeeds only if the managed executable is actually selected. Codex Desktop runtimes are reported as `desktop-runtime`; they remain eligible for explicit standalone migration but never for ArcOrbit-managed in-place updates.
+After ArcOrbit installs or explicitly migrates to standalone, fresh discovery temporarily prefers standalone candidates so the operation succeeds only if the intended executable is actually selected. Codex Desktop runtimes are reported as `desktop-runtime`; they remain eligible for explicit standalone migration but never for ArcOrbit-managed in-place updates.
 
 Native executables launch directly. Command shims launch through a non-interactive Windows PowerShell boundary that transports the executable path and argument array in environment-backed JSON, preserving `app-server` and `--stdio` as separate arguments without interpolating them into a shell command. ArcOrbit does not execute binaries directly from the access-controlled `Program Files\WindowsApps` package directory.
 
 The Desktop runtime fallback lets ArcOrbit work when Codex Desktop is installed and has prepared its per-user runtime but no standalone CLI is installed. That location is treated as a discovered, version-probed candidate rather than a guaranteed OpenAI installation contract. If neither a CLI nor a runnable Desktop runtime is present, Setup Readiness remains blocked and asks the user to install or repair Codex instead of starting a Loop that cannot initialize app-server.
+
+On macOS and Linux, ArcOrbit checks its process `PATH`, explicit overrides, standalone and common package-manager locations, then falls back to the user's login-shell `PATH` when no executable was discovered. Optional NVM, FNM, or shell-path discovery failures do not suppress independently runnable candidates. Setup Readiness keeps `missing`, `check-failed`, and `broken` distinct, and preserves the path of an executable that was found but failed `--version` instead of reporting it as absent.
 
 Dry-run the current repository:
 

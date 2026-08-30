@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, powerMonitor, shell, utilityProcess, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, powerMonitor, session, shell, utilityProcess, WebContentsView } from "electron";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -6,7 +6,14 @@ import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createChatCoordinator } from "../src/chat-coordinator.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
 import { createCodexExecutableResolver } from "../src/codex-executable-resolver.mjs";
-import { activeCodexOwnersFromStore, codexProbeFromSetupSnapshot, createCodexSetupManager } from "../src/codex-setup-manager.mjs";
+import { activeCodexOwnersFromStore, codexProbeFromSetupSnapshot, createCodexSetupManager, runControlledProcess } from "../src/codex-setup-manager.mjs";
+import {
+  buildCodexSetupNetworkEnv,
+  createCodexUpdateChecker,
+  inspectCodexOwnerCapabilities,
+  resolveCodexInstallationOwners
+} from "../src/codex-installation-lifecycle.mjs";
+import { createCodexOwnerReceiptStore } from "../src/codex-owner-receipt-store.mjs";
 import { createInteractiveCodexCliLauncher } from "../src/interactive-cli-launcher.mjs";
 import { createPlatformCoordinator } from "../src/platform-coordinator.mjs";
 import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
@@ -105,10 +112,32 @@ app.whenReady().then(async () => {
     dataRoot: app.getPath("userData"),
     codexProbe: async () => codexProbeFromSetupSnapshot(codexSetupManager.getSnapshot())
   });
+  const codexNetworkSession = session.fromPartition("persist:arcorbit-codex-setup");
+  let codexProxyAuthority = "";
+  const getCodexNetworkContext = async () => {
+    const settings = await runManager.getSettings();
+    const proxy = settings.codex_proxy || {};
+    const authority = proxy.enabled ? String(proxy.url || "").trim() : "direct";
+    if (authority !== codexProxyAuthority) {
+      await codexNetworkSession.setProxy(authority === "direct"
+        ? { mode: "direct" }
+        : { mode: "fixed_servers", proxyRules: authority });
+      codexProxyAuthority = authority;
+    }
+    return {
+      env: buildCodexSetupNetworkEnv(process.env, proxy),
+      fetchImpl: (url, init) => codexNetworkSession.fetch(url, init)
+    };
+  };
   codexSetupManager = createCodexSetupManager({
     probeExecutable: (input) => codexExecutableResolver.probe(input),
     preferStandalone: () => codexExecutableResolver.preferStandalone(),
     activeOwners: async () => activeCodexOwnersFromStore(await runManager.readDesktopStore()),
+    getNetworkContext: getCodexNetworkContext,
+    ownerResolver: (installations, context) => resolveCodexInstallationOwners({ installations, ...context }),
+    capabilityInspector: (context) => inspectCodexOwnerCapabilities(context),
+    updateChecker: createCodexUpdateChecker({ processRunner: runControlledProcess }),
+    receiptStore: createCodexOwnerReceiptStore(join(app.getPath("userData"), "codex-owner-receipts.json")),
     recheckReadiness: ({ codexProbe }) => skillProvisioningManager.check({ quiet: true, codexProbeResult: codexProbe })
   });
   chatCoordinator = createChatCoordinator({
@@ -646,17 +675,22 @@ function assertMainRenderer(event) {
   if (event.sender !== mainWindow?.webContents) throw new Error("Main-window actions can only be invoked from the main ArcOrbit window.");
 }
 
-async function confirmCodexSetupAction(action, _snapshot, intent = {}) {
+async function confirmCodexSetupAction(action, snapshot, intent = {}) {
   const loginMethod = {
     "chatgpt:browser": "将启动 Codex 官方系统浏览器登录流程。",
     "chatgpt:device": "将启动 Codex 官方设备码登录流程。",
     "api-key:": "将通过 child stdin 一次性提交当前 API Key；不会写入配置、日志或环境变量。",
     "access-token:": "将通过 child stdin 一次性提交当前 Enterprise Access Token；不会写入配置、日志或环境变量。"
   }[`${intent.method || ""}:${intent.flow || ""}`];
+  const installMethod = { standalone: "OpenAI 官方 standalone installer", npm: "当前电脑已验证的 npm", homebrew: "当前电脑已验证的 Homebrew cask" }[intent.method] || "推荐方式";
+  const updateOwner = snapshot?.installation?.owner || snapshot?.installation?.provenance || "当前 owner";
+  const migrationMessage = snapshot?.installation?.owner === "standalone"
+    ? "将重新执行官方 standalone installer，并在 fresh discovery 成功后记录 ArcOrbit 管理权。"
+    : "将保留当前外部 Codex 安装，并另行安装官方 standalone 后切换 ArcOrbit 使用目标。";
   const messages = {
-    install: ["安装 Codex", "将下载并执行 OpenAI 官方 Codex standalone installer，安装后立即重新检测。"],
-    update: ["更新 Codex", "将更新当前 proven standalone Codex；活动 Chat 或 Automation 会阻止此操作。"],
-    migrate: ["迁移到 standalone", "将保留当前外部 Codex 安装，并另行安装官方 standalone 后切换 ArcOrbit 使用目标。"],
+    install: ["安装 Codex", `将通过${installMethod}安装 Codex，完成后立即刷新完整 installation inventory。`],
+    update: ["更新 Codex", `将通过 proven ${updateOwner} adapter 更新当前 active installation；活动 Chat 或 Automation 会阻止此操作。`],
+    migrate: ["迁移到 standalone", migrationMessage],
     login: ["登录 Codex", loginMethod],
     logout: ["退出 Codex", "将调用 Codex CLI logout；活动 owner 会阻止此操作。"]
   };

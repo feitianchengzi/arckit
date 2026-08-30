@@ -92,7 +92,7 @@ Setup Readiness 检查：
 - 安装包内 Runtime trusted resources 完整且 digest 与 distribution lock 一致；
 - ArcForge Embedded Provider 版本和 digest 一致；
 - Arckit skill payload 版本、来源 commit、manifest 和文件 digest 一致；
-- Codex CLI 的 executable 来源可识别、可启动且 `codex --version` 成功；
+- Codex CLI discovery 已完整结束，executable 来源可识别、可启动且 `codex --version` 成功；
 - Codex 登录状态由 `codex login status` 的退出码确认；
 - Product Workspace 对应的规范化本地项目根和 Codex 项目级 skill 目标可解析；
 - 当前项目的 skills 安装关系、项目适用性判断和 drift 状态可读取；
@@ -115,18 +115,39 @@ Setup Readiness 检查：
 Codex CLI 环境检查拥有独立安装状态：
 
 - `checking`：重新执行 executable discovery 与版本探测；
-- `missing`：没有找到可验证 executable，可由用户确认安装；
+- `missing`：所有可用 discovery source 均已完成且没有发现 executable，可由用户确认安装；
+- `check-failed`：至少一个已启用 discovery source 未完成，当前结果不能证明 Codex 缺失；
 - `installing`：正在调用当前平台的 OpenAI 官方 standalone installer；
 - `installed`：当前 executable 已通过 `codex --version`；
-- `updating`：正在更新当前 standalone installation；
-- `broken`：发现候选 executable，但版本探测失败；
+- `updating`：正在通过已证明 owner 更新当前 active installation；
+- `broken`：发现候选 executable，但版本探测失败；状态保留候选绝对路径和已识别来源，不显示为“未发现”；
 - `install-failed`：下载、网络、权限、执行或安装后验证失败，可重试。
+
+安装检查同时维护完整 installation inventory 与唯一 active binding。每个 installation 具有稳定 execution scope、绝对 executable、当前版本、安装来源、来源置信度和健康状态；Windows Native 与每个 WSL distro 是不同 execution scope，不能互相证明已安装。Setup 默认展示 active binding，并在存在多个健康 installation、PATH 遮蔽或来源冲突时展示其它候选和选择原因，不把任一健康候选静默丢弃。
+
+安装来源至少包括 `standalone`、`npm`、`homebrew`、`configured`、`desktop-runtime` 和 `unknown-external`。npm 与 Homebrew 只有在对应包管理器能够证明 package/cask 记录且其 executable 与候选一致时才属于已证明来源；路径模式只能形成推断。ArcOrbit 自身成功完成的 standalone 安装记录可以证明后续管理权，既有 canonical standalone 路径没有记录时只形成可确认推断。来源无法证明不影响 Codex 继续使用，但禁止无确认地修改或卸载。
 
 macOS、Linux 和 Windows 均使用 OpenAI 官方文档发布的 standalone installer。ArcOrbit 固定平台、下载来源和执行方式，负责下载/执行编排、进度、失败分类与重试；Renderer 只能提交安装、更新、取消或重新检查等结构化动作，不能提供 URL、路径、参数或 shell 命令。安装成功后无需重启 ArcOrbit，系统立即重新执行 executable discovery 和 `codex --version`。
 
-发现 npm、Homebrew、自定义路径或其它外部安装时，ArcOrbit 显示当前来源并继续验证该 executable，不静默安装第二份 standalone Codex，也不修改系统或用户 `PATH`。当前 executable 的 standalone 所有权可证明时才直接提供一键更新；外部安装需要继续由其原所有者维护，或者由用户通过独立确认明确迁移到官方 standalone，迁移前后都重新检查实际解析结果和 PATH 冲突。
+Desktop discovery 不把 GUI 进程 `PATH` 当作用户环境的完整事实。它依次检查显式 executable 配置、当前会话最近一次成功路径、当前进程 `PATH`、standalone 与常见 Node/package-manager 目录，并在 macOS/Linux 没有发现候选时读取用户 login shell 的 `PATH`。任一可选目录或 shell source 失败都独立形成诊断，不得压掉其它已经可验证的候选；只有 discovery 完整且没有候选时才能显示 `missing`。
+
+版本探测失败与 discovery 异常使用结构化状态和稳定错误码，不依赖展示文案推断。瞬时 executable 启动错误在进入 `broken` 前执行一次有界重试；失败后仍保留候选路径、来源和安全摘要。Setup 页面分别展示 executable、installation state、来源、版本与认证，不把“找到但不可运行”或“检查未完成”表达为“没有安装”。
+
+发现 npm、Homebrew、自定义路径或其它外部安装时，ArcOrbit 显示当前来源并继续验证该 executable，不静默安装第二份 standalone Codex，也不修改系统或用户 `PATH`。已有健康 installation 时默认继续使用同一 owner；只有完全没有健康 installation 时才生成新安装建议。macOS、Linux、Windows Native 的默认建议为官方 standalone；npm 或 Homebrew 仅在对应工具已存在、版本要求满足、全局目标对当前用户可写且用户明确选择该维护方式时可用。ArcOrbit 不为了安装 Codex 自动安装 Node、npm、Homebrew 或 WSL。
+
+每项安装建议包含 `method`、`suitability`、原因和阻塞条件。`recommended` 表示满足全部前置条件且不会覆盖健康 binding；`available` 表示可以选择但不是默认；`blocked` 表示平台、架构、权限、包管理器、执行域或冲突条件不成立。多安装冲突、来源不明或 WSL distro 未确定时不自动选择安装目标。
+
+更新可用性是独立于 installation health 的咨询状态：`unknown`、`checking`、`up-to-date`、`update-available`、`ahead-of-channel`、`channel-mismatch`、`owner-conflict`、`check-failed` 或 `unsupported-owner`。当前版本始终来自 active binding 的绝对 executable；最新版本来自同一 owner 和同一 execution scope 的发布源。standalone 使用 OpenAI 官方 release channel，npm 使用证明该 installation 的 npm registry 配置，Homebrew 使用证明该 installation 的 brew/cask 元数据。网络或代理失败只能产生 `check-failed`，不能产生 `up-to-date`，也不阻止已经健康且已认证的 Codex 继续运行。
+
+ArcOrbit 对成功的更新检查设置有界缓存，并提供绕过缓存的主动重新检查。执行更新前重新读取 active binding、owner、当前版本和活动任务，避免用陈旧检查结果修改 installation。更新动作只调用该 owner 的固定 adapter；来源已证明的 standalone、npm 和 Homebrew 分别使用自己的官方更新方式。configured、desktop-runtime、unknown external 或 owner-conflict 只展示外部维护说明或显式迁移入口。
+
+任何安装或更新成功都必须满足 postcondition：目标命令结束、完整 discovery 重跑、目标绝对 executable 的 `codex --version` 成功、active binding 与用户选择一致，且当前版本达到本次目标。操作失败时保留此前健康 binding；更新了非 active installation、更新后仍被其它路径遮蔽或 owner 发生变化都属于可恢复冲突，不报告成功。
 
 任何 Automation execution、Chat turn 或其它由 ArcOrbit 持有的 Codex 任务仍在运行时，更新和迁移保持禁用，并明确列出阻塞原因。安装、更新或迁移不接管现有 Codex 任务，不以杀死活动任务换取更新。
+
+Codex snapshot 非 ready 时，Chat 或 Automation 的 Codex preflight 在没有活动 Setup mutation 的前提下执行 fresh executable、版本与认证检查，使用户在 ArcOrbit 外部完成安装或升级后无需依赖旧失败状态。活动 Setup mutation 期间 preflight 立即 fail closed；Codex fresh check 不重新扫描项目 skills，项目 skills 继续使用最近一次协调式 Setup Readiness 建立的受控 snapshot。
+
+安装发现、版本查询、installer 下载、npm registry 和 Homebrew metadata 请求统一使用 ArcOrbit 当前代理配置。代理只进入受控 main-process operation environment，不进入 Renderer state；凭证在日志和错误中脱敏。代理不可用、DNS/连接失败和发布源响应异常分别形成稳定诊断，用户可以修复代理后重新检查而无需重启应用。
 
 ### Codex 显式认证
 
@@ -250,7 +271,7 @@ Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Deskt
 - 项目 skill、项目 loader、共享资源和 catalog entry 的同名冲突都遵守 fresh digest、默认未选、逐项确认、先完整备份再替换、失败全量回滚和未选目标不变；无法证明安全目标或唯一 bundled source 时只提供精确外部恢复条件。
 - 受管理内容变化只有在逐目标差异可见且用户明确选择备份或放弃本地内容后才能恢复；missing 和可证明的 managed migration 不得被错误标记为用户修改。
 - macOS、Linux 和 Windows 缺少 Codex 时都能从 Setup Readiness 确认运行官方 standalone installer，安装后无需重启即可发现并验证 executable。
-- standalone Codex 可以从 ArcOrbit 发起更新；活动 Codex 任务会阻止更新，外部 npm/Homebrew/自定义安装不会被静默替换或制造第二份 PATH 候选。
+- proven standalone、npm 与 Homebrew Codex 可以从 ArcOrbit 通过各自 owner adapter 发起更新；活动 Codex 任务会阻止更新，inferred 或自定义安装不会被静默替换或制造第二份 PATH 候选。
 - 未登录时没有任何认证选项被预选，当前层级未完成选择时不能继续；每个可见登录命令只在用户明确选择后执行。
 - 浏览器登录、设备码登录、API Key 和明确支持的企业 Access Token 均在完成后以 `codex login status` 退出码复核；取消、超时、网络、权限和认证失败均可恢复或重试。
 - ArcOrbit 不访问 Codex 凭证文件；API Key 和 Access Token 只进入受控子进程 stdin，不出现在命令参数、日志、错误、普通配置或共享 Renderer state。

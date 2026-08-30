@@ -312,7 +312,13 @@ ArcForge Core 是 upgrade classification 与迁移语义的唯一实现。Embedd
 
 Manager 不修改现有 `preflightRun` 的 kernel 语义。SkillProvisioningManager 的 task-start `assertReady(projectRoot)` 只读取内存 snapshot：状态必须为 `ready`，且规范化 task root 必须存在于最近成功 full check 的 `plan.project_roots`；它不调用 provider、读取项目 skills 或刷新 snapshot。Automation Coordinator 将这项缓存断言与 Runtime preflight 组合，任一失败都 fail closed；用户通过独立 Setup retry 建立新状态，Runtime 不通过文件扫描推断 Agent native skill discovery。
 
-Codex discoverability 解析一个经过 `--version` 验证的绝对 executable，而不假设 Desktop GUI 进程继承交互式 shell 的 `PATH`。解析顺序覆盖显式配置、当前 `PATH`、常见用户级安装目录以及 NVM/FNM 的版本目录；Node 版本管理器中的 CLI 同时携带其 sibling `bin` 目录作为子进程 `PATH` 前缀，保证 `#!/usr/bin/env node` 启动器可执行。解析失败保持 Setup blocked，不修改系统或用户 `PATH`。
+CodexSetupManager 的 preflight 与 SkillProvisioningManager 的缓存断言保持不同职责。Codex snapshot 为 `ready` 时 preflight 复用当前受控 binding；snapshot 非 ready 时，在没有活动 Setup mutation 的前提下进入 manager 串行边界执行 fresh executable、version 和 login-status inspection，使外部安装或升级能够替换旧失败状态。活动 mutation 期间 preflight 立即 fail closed，不覆盖 operation id、取消入口或中间状态。
+
+Codex discoverability 解析一个经过 `--version` 验证的绝对 executable，而不假设 Desktop GUI 进程继承终端 shell 的 `PATH`。常规顺序为显式 `ARCORBIT_CODEX_BIN`、当前会话最近一次成功路径、当前进程 `PATH`、standalone 和常见用户级 package-manager 目录，以及 NVM/FNM 版本目录；显式 standalone migration 的 post-check 临时把 standalone 放在首位。macOS/Linux 在静态候选没有发现 executable 时，以固定、无 Renderer 输入的 login-shell 命令读取 `PATH` 并只据此补充 executable 候选。Node 版本管理器和 shell fallback 中的 CLI 携带解析目录及 shell `PATH` 作为子进程环境，保证 shim 和 `#!/usr/bin/env node` 启动器使用同一可验证环境。resolver 不执行 shell alias/function，不修改系统或用户 `PATH`。
+
+每个可选候选源独立失败。NVM、FNM、Windows Desktop runtime、文件访问或 login-shell source 的读取错误形成结构化 discovery issue，但不终止其它候选验证；只要独立候选通过 version probe，结果仍为 ready。没有候选且存在 discovery issue 时返回 `check-failed/CODEX_DISCOVERY_FAILED`，所有 source 完整且无候选时才返回 `missing/CODEX_NOT_FOUND`。发现可访问候选但 `--version` 失败时返回 `broken/CODEX_EXECUTABLE_UNRUNNABLE`，保留候选绝对路径、PATH prefix、provenance 和安全错误摘要；snapshot 与 Renderer 不把它清空为“未发现”。
+
+`--version` 使用绝对 executable 和受控环境，单次超时保持十秒。`EAGAIN`、`EBUSY`、`ENOENT`、`ETIMEDOUT`、`ETXTBSY`、被信号终止或 timeout kill 等瞬时启动错误在一百五十毫秒后只重试一次；其它失败不重试。一次成功 binding 在当前 Desktop 进程中作为 last-known candidate 优先复核，但任何新 probe 仍必须重新通过 `--version`，失败 binding 不进入 Chat、Automation、Runtime child 或交互式 CLI。
 
 Windows 的 npm 安装通常暴露 `.cmd`/`.bat` command shim。版本探测不得把这类文件直接交给 `execFile`，也不得用拼接用户路径的 shell 字符串；必须通过固定 PowerShell 脚本启动，并仅用结构化环境变量传递 executable 和 JSON 参数。原生 executable 继续使用直接参数边界。
 
@@ -323,14 +329,49 @@ Windows 的 npm 安装通常暴露 `.cmd`/`.bat` command shim。版本探测不�
 `CodexSetupManager` 维护与 Workshop session、SkillProvisioningManager project relation 和 Runtime execution 分离的 snapshot：
 
 ```text
-installation: checking | missing | installing | installed | updating | broken | install-failed
+installation: checking | missing | check-failed | installing | installed | updating | broken | install-failed
 authentication: checking | selection-required | login-in-progress | authenticated | logged-out | expired | login-failed
 executable: absolute path + required PATH prefix + detected owner
 operation: opaque id + kind + phase + started_at + cancellable
 last_error: stable code + safe summary + recovery actions
 ```
 
-`detected owner` 至少区分 `standalone`、`npm`、`homebrew`、`configured`、`desktop-runtime` 和 `unknown-external`。`desktop-runtime` 表示 Codex Desktop 已准备且通过版本探测的 per-user runtime；它是可识别的兼容来源，不属于 ArcOrbit 管理的 standalone installation。来源判断只使用 executable 路径、resolver provenance 和固定的安装元数据，不读取 Codex auth storage。外部 executable 继续参与版本和认证 probe；manager 不为它静默创建 standalone 副本。只有当前 executable 的 standalone 所有权可证明时，`update` 才直接进入 installer；其它来源返回 `CODEX_EXTERNAL_INSTALLATION`，由 UI 解释外部所有权或发起独立、显式的 standalone migration confirmation。迁移成功后 discovery 必须证明 ArcOrbit 实际选择的新 executable 且没有未解释的 PATH precedence 冲突。
+manager 内部使用 `CodexInstallationInventory`，而不是把 resolver 的首个结果直接当作全部安装事实：
+
+```text
+installation_id: execution scope + normalized executable identity
+execution_scope: native:<platform> | wsl:<distro>
+executable: absolute path + required PATH prefix
+owner: standalone | npm | homebrew | configured | desktop-runtime | unknown-external
+owner_confidence: proven | inferred | unknown
+owner_executable: exact npm/brew/wsl launcher when applicable
+installed_version: normalized semantic version + raw summary
+health: healthy | un runnable | discovery-failed
+active_binding: boolean + selection reason
+```
+
+inventory 聚合全部独立候选 probe；active binding 只是可重复计算的选择结果。显式配置优先于最近成功 binding，最近成功 binding 优先于普通 PATH 候选；健康状态优先于不可运行候选。相同真实 executable 去重但合并发现证据。不同 execution scope 永不去重。存在多个健康候选时 snapshot 保留全部候选，并以 `shadowed`、`owner-conflict` 或 `selection-required` 诊断解释未选项。
+
+`missing` 表示 discovery 完整且没有 executable；`check-failed` 表示 discovery 证据不完整；`broken` 表示 executable 已发现但 version probe 未通过。`executable` 在 `broken` 时仍保存 discovered path、PATH prefix 与 detected owner，只有 `missing` 或无法建立任何候选事实时为空。
+
+`detected owner` 至少区分 `standalone`、`npm`、`homebrew`、`configured`、`desktop-runtime` 和 `unknown-external`。`desktop-runtime` 表示 Codex Desktop 已准备且通过版本探测的 per-user runtime；它是可识别的兼容来源，不属于 ArcOrbit 管理的 standalone installation。来源判断只使用 executable 路径、resolver provenance 和固定的安装元数据，不读取 Codex auth storage。外部 executable 继续参与版本和认证 probe；manager 不为它静默创建 standalone 副本。只有当前 executable 的 standalone、npm 或 Homebrew 所有权可证明时，`update` 才进入对应固定 owner adapter；其它来源返回 `CODEX_EXTERNAL_INSTALLATION`，由 UI 解释外部所有权或发起独立、显式的 standalone migration confirmation。迁移成功后 discovery 必须证明 ArcOrbit 实际选择的新 executable 且没有未解释的 PATH precedence 冲突。
+
+owner resolution 是 adapter 证明而不是路径分类。npm adapter 使用候选 executable 的 sibling Node/npm 环境或已记录 npm executable，读取 exact global prefix 与 `@openai/codex` package record，并证明 package bin 与候选一致；NVM、FNM、Volta、asdf、mise 等每个 Node environment 是不同 owner identity。Homebrew adapter 使用 exact brew prefix、已安装 cask JSON 和 artifact/link 关系证明。standalone adapter 以 ArcOrbit 成功 operation receipt 证明管理权；canonical 路径只能给出 `inferred`。证明失败保留 resolver provenance 作为展示 hint，但 mutation fail closed。
+
+`CodexInstallAdvisor` 先消费 inventory，再消费平台、架构、目录权限和 package-manager capability。存在健康 active binding 时建议保持 owner；不存在健康 binding 时 native macOS/Linux/Windows 默认推荐 standalone。npm 需要 exact npm 可执行、当前 package metadata 要求成立且 global prefix 对当前用户可写；Homebrew 需要 exact brew、可用 cask 和健康 prefix；WSL 需要明确 distro，并把 discovery、mutation 与运行都约束在同一 `wsl.exe --distribution` transport。advisor 不安装 Node、Homebrew、WSL 或其它前置工具。
+
+更新状态独立保存：
+
+```text
+update: unknown | checking | up-to-date | update-available | ahead-of-channel
+        | channel-mismatch | owner-conflict | check-failed | unsupported-owner
+installed_version: active executable probe result
+latest_version: owner adapter result or empty
+channel: stable owner channel identity
+checked_at: timestamp
+```
+
+`CodexUpdateChecker` 以 installation id 和 owner identity 调用固定 adapter。standalone adapter 请求官方 release-channel metadata并解析 tag；npm adapter 以 exact npm 和其 registry 配置读取 `@openai/codex` 的 `dist-tags.latest`；Homebrew adapter 使用 exact brew 的 `outdated --cask --json=v2 codex` 语义。比较只接受规范化语义版本，不执行字符串排序。检查错误保留 installed version 并返回 `check-failed`；缓存有 TTL，用户主动 refresh 绕过缓存，Runtime readiness 不依赖 latest 查询成功。
 
 平台 installer 规格来自 OpenAI 官方 Codex CLI 文档，并固定在 main-process allowlist：
 
@@ -341,7 +382,13 @@ last_error: stable code + safe summary + recovery actions
 
 同一官方 installer 用于安装和 standalone 更新。临时脚本、下载响应和子进程在 operation 结束后清理；installer 不进入 ArcOrbit 包，不被重新分发。网络、HTTP、临时文件、权限、process exit 和 post-probe 各自映射稳定错误 code。stdout/stderr 只经过界限化、控制字符清理和敏感模式屏蔽后形成进度/诊断，不能作为成功事实；成功必须重新运行 executable discovery 与 `codex --version`。固定来源和当前命令以 [Codex CLI 官方安装文档](https://learn.chatgpt.com/docs/codex/cli) 为权威证据，版本升级时通过契约测试显式更新 allowlist。
 
+npm 与 Homebrew mutation 只通过已证明 owner adapter 执行。npm 使用 exact npm executable 调用固定 `install --global @openai/codex@latest` 参数；Homebrew 使用 exact brew executable 调用固定 `upgrade --cask codex` 参数。Renderer 不能提供 package spec、registry、cask、argv 或 executable。configured、desktop-runtime、unknown-external 和 inferred owner 不执行 mutation，除非用户进入单独的 standalone migration confirmation。
+
+所有 network-bearing adapter 从同一 `CodexSetupNetworkContext` 获取代理环境。context 规范化 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` 及小写兼容键，并只注入 installer、release metadata、exact npm、exact brew 和 WSL transport 的受控子进程。它不覆盖用户明确配置的 npm registry 或 Homebrew source identity，不把代理 URL、用户名、密码写入 snapshot、progress 或错误。代理、DNS、TLS、HTTP、registry/cask metadata 与 process failure 使用不同错误 code。
+
 install、update 和 migration 在 main process 内互斥，并先向 Automation Coordinator、ChatCoordinator 和其它 Codex process owner 查询 active operation。存在 running/starting/waiting-approval Codex task 或 turn 时返回 `CODEX_UPDATE_ACTIVE_TASKS`，携带无敏感的 owner/execution refs；manager 不主动 interrupt 它们。应用退出、窗口销毁或用户取消只在当前 phase 可安全终止时发出 bounded termination，随后 fresh discovery，绝不根据“进程已退出”推断安装成功。
+
+mutation 在开始时锁定 installation id、execution scope、owner identity、before version 和目标 channel，并在下载前再次确认 active binding。结束后执行完整 inventory refresh，要求目标 installation 健康、版本达到目标且仍是用户选择的 active binding。原健康 binding 在失败后继续有效；目标更新成功但未成为 active、被其它安装遮蔽或 owner identity 改变时返回 postcondition conflict，不把 operation 投影为成功。
 
 认证命令同样只从固定枚举物化：
 
@@ -417,7 +464,13 @@ Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Ele
 - 无项目根时 `needs-project` 且不写用户级目录、多个项目独立 relation、同根绑定去重与项目路径变化；
 - clean project install、项目 target drift、项目级 shared assets 和以项目 cwd 执行的 Codex discoverability；
 - macOS、Linux 和 Windows 的固定 standalone installer allowlist、下载/执行失败分类、安装后 fresh discovery 与 `--version` 验证；
+- GUI `PATH` 与 login-shell `PATH` 分歧、asdf/mise/pnpm/NVM/FNM 候选、可选 source 读取失败隔离，以及 last-known executable 的受控复核；
+- `missing`、`check-failed`、`broken` 的结构化分类，broken path/provenance 保真、瞬时 version probe 单次重试和非 ready preflight fresh check；
 - standalone update、活动 Automation/Chat/Codex owner 阻断，以及 npm/Homebrew/configured/unknown external installation 不产生静默副本；
+- installation inventory 去重与多健康候选保真、npm/Homebrew owner metadata 证明、inferred owner mutation fail closed 和 execution-scope 隔离；
+- 无健康安装时的 standalone 默认建议、npm/Homebrew 前置能力与权限判断、WSL distro identity，以及不自动安装 package manager；
+- standalone/npm/Homebrew latest 查询、语义版本比较、缓存与主动 refresh、查询失败不阻塞 healthy Runtime；
+- 统一代理环境、凭证脱敏、来源级网络错误，以及 mutation 前锁定 owner 与 postcondition conflict；
 - installation 与 authentication 状态转换、重复动作互斥、取消/超时、退出后 fresh probe 和应用无需重启的恢复；
 - 无默认认证选择、缺失选择拒绝、device/access-token capability gating，以及每个可见方式只映射固定 argv；
 - API Key/Access Token 只进入 stdin，argv/environment/log/error/store/Renderer shared state 均无 secret，并对恶意值和 spawn failure 做泄漏回归；

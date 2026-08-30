@@ -131,6 +131,7 @@ const state = {
   setupReviewPlanChanged: false,
   codexAuthMethod: "",
   codexAuthFlow: "",
+  codexInstallMethod: "",
   page: "today",
   selectedProjectId: "all",
   selectedState: "pending",
@@ -347,7 +348,8 @@ function wireEvents() {
     }
   }));
   els.codexInstallButton.addEventListener("click", () => runAction(async () => {
-    await runConfirmedCodexSetupAction("install", (input) => api.installCodex(input));
+    const method = els.codexInstallMethod.value || state.codexInstallMethod || "standalone";
+    await runConfirmedCodexSetupAction("install", (input) => api.installCodex(input), { method });
   }));
   els.codexUpdateButton.addEventListener("click", () => runAction(async () => {
     await runConfirmedCodexSetupAction("update", (input) => api.updateCodex(input));
@@ -355,6 +357,12 @@ function wireEvents() {
   els.codexMigrateButton.addEventListener("click", () => runAction(async () => {
     await runConfirmedCodexSetupAction("migrate", (input) => api.migrateCodexToStandalone(input));
   }));
+  els.codexCheckUpdatesButton.addEventListener("click", () => runAction(async () => {
+    await runCodexSetupAction(() => api.checkCodexUpdates());
+  }));
+  els.codexInstallMethod.addEventListener("change", () => {
+    state.codexInstallMethod = els.codexInstallMethod.value;
+  });
   els.codexAuthMethods.addEventListener("change", (event) => {
     state.codexAuthMethod = String(event.target?.value || "");
     state.codexAuthFlow = "";
@@ -879,6 +887,9 @@ function codexOperationFeedback(operation) {
 function renderCodexSetup() {
   const codex = state.setup?.codex_setup || {};
   const installation = codex.installation || {};
+  const installations = Array.isArray(codex.installations) ? codex.installations : [];
+  const update = codex.update || {};
+  const installAdvice = Array.isArray(codex.install_advice) ? codex.install_advice : [];
   const authentication = codex.authentication || {};
   const capabilities = authentication.capabilities || {};
   const operating = Boolean(codex.operation) || state.setupBusy;
@@ -888,16 +899,33 @@ function renderCodexSetup() {
   els.codexSetupFacts.innerHTML = [
     ["Executable", installation.command || "未发现"],
     ["State", installation.state || "等待检测"],
-    ["Provenance", installation.provenance || "none"],
-    ["Version", installation.version_summary || "等待检测"],
+    ["Owner", `${installation.owner || installation.provenance || "none"} · ${installation.owner_confidence || "unknown"}`],
+    ["Version", installation.version || installation.version_summary || "等待检测"],
+    ["Update", update.state || "unknown"],
+    ["Latest", update.latest_version || "尚未确认"],
     ["Authentication", authentication.authenticated ? "已认证" : authentication.state || "等待检测"]
   ].map(([label, value]) => `<div><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("");
 
+  els.codexInventory.innerHTML = installations.length > 1
+    ? installations.map((item) => `<div class="codex-inventory-item"><strong>${item.active ? "当前 · " : ""}${escapeHtml(item.owner || item.provenance || "unknown")}</strong><span>${escapeHtml(item.version || item.state || "unknown")}</span><small>${escapeHtml(item.command || "")}${item.selection_reason ? ` · ${escapeHtml(item.selection_reason)}` : ""}</small></div>`).join("")
+    : "";
+
+  const installChoices = installAdvice.filter((item) => item.suitability !== "blocked");
+  const selectedInstallMethod = installChoices.some((item) => item.method === state.codexInstallMethod)
+    ? state.codexInstallMethod
+    : installChoices.find((item) => item.suitability === "recommended")?.method || installChoices[0]?.method || "";
+  state.codexInstallMethod = selectedInstallMethod;
+  els.codexInstallMethod.innerHTML = installChoices.map((item) => `<option value="${escapeHtml(item.method)}"${item.method === selectedInstallMethod ? " selected" : ""}>${escapeHtml(item.method)} · ${escapeHtml(item.suitability)}</option>`).join("");
+  els.codexInstallMethodRegion.classList.toggle("hidden", !installation.can_install || installChoices.length < 2);
+
   els.codexInstallButton.classList.toggle("hidden", !installation.can_install);
   els.codexUpdateButton.classList.toggle("hidden", !installation.can_update);
+  els.codexCheckUpdatesButton.classList.toggle("hidden", !installation.available || installation.owner_confidence !== "proven" || !["standalone", "npm", "homebrew"].includes(installation.owner));
   els.codexMigrateButton.classList.toggle("hidden", !installation.can_migrate);
+  els.codexMigrateButton.textContent = installation.owner === "standalone" ? "确认 standalone 管理" : "迁移到 standalone";
   const ownerBlocked = codex.error?.code === "CODEX_UPDATE_ACTIVE_TASKS";
-  for (const button of [els.codexInstallButton, els.codexUpdateButton, els.codexMigrateButton]) button.disabled = operating || ownerBlocked;
+  for (const button of [els.codexInstallButton, els.codexUpdateButton, els.codexCheckUpdatesButton, els.codexMigrateButton]) button.disabled = operating || ownerBlocked;
+  els.codexInstallMethod.disabled = operating;
 
   const needsAuthentication = Boolean(installation.available && !authentication.authenticated);
   els.codexAuthPanel.classList.toggle("hidden", !needsAuthentication);
@@ -927,13 +955,16 @@ function renderCodexSetup() {
         deviceAuth.user_code ? `并输入一次性代码 ${deviceAuth.user_code}` : "正在等待一次性代码"
       ].join("，")
     : "";
-  els.codexSetupFeedback.textContent = codex.error?.message || (codex.operation
-    ? [deviceAuthFeedback, codexOperationFeedback(codex.operation)].filter(Boolean).join("；")
+  const idleFeedback = update.state === "check-failed"
+    ? update.error?.message || "更新检查失败；当前健康 Codex 仍可继续使用。"
     : authentication.authenticated
       ? "Codex 与 Workshop 认证保持独立；当前 Codex 状态已由 login status 复核。"
       : installation.available
         ? "请选择认证方式；所有选项默认未选。"
-        : "安装使用固定官方 URL；Renderer 不能提供 URL、argv、environment 或 shell。");
+        : installAdvice.find((item) => item.method === selectedInstallMethod)?.reason || "安装与更新只调用 main process 固定 owner adapter。";
+  els.codexSetupFeedback.textContent = codex.error?.message || (codex.operation
+    ? [deviceAuthFeedback, codexOperationFeedback(codex.operation)].filter(Boolean).join("；")
+    : idleFeedback);
 }
 
 function clearCodexAuthSelection() {

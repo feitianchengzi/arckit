@@ -87,7 +87,11 @@ export function combineDesktopSetupReadiness(skills, codex) {
 function codexSetupSummary(snapshot = {}) {
   const installation = snapshot.installation || {};
   const authentication = snapshot.authentication || {};
-  if (!installation.available) return installation.state === "broken" ? "Codex CLI 已找到但无法运行。" : "未找到 Codex CLI；可使用官方 standalone installer 恢复。";
+  if (!installation.available) {
+    if (installation.state === "broken") return `Codex CLI 已找到但无法运行${installation.command ? `：${installation.command}` : ""}。`;
+    if (installation.state === "check-failed") return "Codex CLI 检测未完成；请查看错误后重新检测。";
+    return "未找到 Codex CLI；可使用官方 standalone installer 恢复。";
+  }
   if (snapshot.operation) return `Codex ${snapshot.operation.kind} · ${snapshot.operation.phase}`;
   if (!authentication.authenticated) return `${installation.version_summary || "Codex CLI 可用"} · 等待显式登录`;
   return `${installation.version_summary || "Codex CLI 可用"} · 已认证 · ${installation.provenance}`;

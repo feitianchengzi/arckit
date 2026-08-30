@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   cancelCodexSetup: (input) => ipcRenderer.invoke("arckit:codex-setup-cancel", input),
   logoutCodex: (input) => ipcRenderer.invoke("arckit:codex-setup-logout", input),
   recheckCodexSetup: () => ipcRenderer.invoke("arckit:codex-setup-recheck"),
+  checkCodexUpdates: () => ipcRenderer.invoke("arckit:codex-setup-check-updates"),
   continueFromSetup: () => ipcRenderer.invoke("arckit:setup-continue"),
   pickProject: () => ipcRenderer.invoke("arckit:pick-project"),
   listRuns: (filter) => ipcRenderer.invoke("arckit:list-runs", filter),
