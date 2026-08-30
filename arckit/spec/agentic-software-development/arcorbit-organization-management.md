@@ -103,6 +103,10 @@ ArcOrbit 不开放 `POST /projects/:id/members` 直接添加入口，因为当�
 
 修改任一连接不得隐式修改另外两项，也不得写回 Workshop 项目成员或归属。
 
+repository binding 是当前登录成员在当前设备上的 Workspace Control。只要 Project Catalog 确认该成员可以访问项目，无论其项目角色是 owner、admin 还是 member，都可以为自己的 ArcOrbit 实例选择、改变或解除本地目录；该动作不修改 Workshop 项目、成员关系、其他成员设备或 Automation participation。
+
+Automation participation 扩大项目级自动领取范围，继续只向 project owner/admin 提供。Renderer 分别判断 repository binding 与 Automation participation 的动作资格，不得用项目治理角色限制本地目录绑定，也不得因成员完成本地绑定而自动授权项目参与。
+
 ## 分页契约
 
 Workshop 列表接口的 `page_size` 上限为 200。ArcOrbit 对组织、组织成员、参与项目、组织全部项目、待办、反馈、标签和附件进行确定性翻页，直到：
@@ -139,7 +143,7 @@ owner/admin 的“组织全部项目”查询失败时，不静默回退成“�
 6. 项目详情中的邀请动作明确绑定项目，并在创建后展示一次完整结果与能力限制。
 7. 用户可以在 ArcOrbit 内使用组织或项目邀请码加入。
 8. 项目创建后不能在 ArcOrbit 中修改组织归属。
-9. Workset、本地绑定和 Automation participation 是独立动作。
+9. Workset、本地绑定和 Automation participation 是独立动作；任意可访问项目成员都能维护自己设备上的本地绑定，只有 owner/admin 能改变 Automation participation。
 10. 所有列表完整消费服务端分页，不因数据超过 200 条而截断。
 11. 不开放直接添加项目成员，不伪造邀请历史或撤销。
 

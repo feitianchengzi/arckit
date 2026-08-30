@@ -145,14 +145,35 @@ test("project ownership checks fail closed when either identity is missing", () 
   assert.equal(isCurrentProjectUser("7", "8"), false);
 });
 
-test("permission-limited project gaps produce responsibility handoff without a failing action", () => {
+test("local binding stays member-local while project participation keeps its admin boundary", () => {
   const workspace = ownerWorkspace({ current_user_role: "member", local_project_id: "", local_project_path: "", participating: false });
   const today = deriveTodayGuidance({ platform: platform(workspace), automation: automation(), setup: { status: "ready" }, authentication: { authenticated: true } });
-  assert.equal(today.responsibility, "project_admin");
-  assert.equal(today.action_id, "copy_handoff");
+  assert.equal(today.responsibility, "current_user");
+  assert.equal(today.action_id, "bind_workspace");
   const work = deriveWorkEligibilityGuidance({ task: { id: "t1", project_id: "p1", executor_id: "u1", state: "pending" }, workspace, currentUserId: "u1", canManageTask: true });
-  assert.equal(work.responsibility, "project_admin");
-  assert.equal(work.action_id, "copy_handoff");
+  assert.equal(work.responsibility, "current_user");
+  assert.equal(work.action_id, "bind_workspace");
+  const automationGuidance = deriveAutomationGuidance({
+    platform: platform(workspace),
+    automation: automation([], { blocked_pending_tasks: [{ id: "t1", project_id: "p1", state: "pending", eligibility_code: "project_unbound" }] })
+  });
+  assert.equal(automationGuidance.responsibility, "current_user");
+  assert.equal(automationGuidance.action_id, "bind_workspace");
+
+  const boundWorkspace = { ...workspace, local_project_id: "local-1", local_project_path: "/workspace" };
+  const participation = deriveTodayGuidance({ platform: platform(boundWorkspace), automation: automation(), setup: { status: "ready" }, authentication: { authenticated: true } });
+  assert.equal(participation.kind, "enable_project");
+  assert.equal(participation.responsibility, "project_admin");
+  assert.equal(participation.action_id, "copy_handoff");
+  const workParticipation = deriveWorkEligibilityGuidance({ task: { id: "t1", project_id: "p1", executor_id: "u1", state: "pending" }, workspace: boundWorkspace, currentUserId: "u1", canManageTask: true });
+  assert.equal(workParticipation.kind, "enable_project");
+  assert.equal(workParticipation.responsibility, "project_admin");
+  const automationParticipation = deriveAutomationGuidance({
+    platform: platform(boundWorkspace),
+    automation: automation([], { blocked_pending_tasks: [{ id: "t1", project_id: "p1", state: "pending", eligibility_code: "project_not_participating" }] })
+  });
+  assert.equal(automationParticipation.kind, "enable_project");
+  assert.equal(automationParticipation.responsibility, "project_admin");
 });
 
 test("Automation distinguishes blocked candidates, review-only work and a truly empty queue", () => {

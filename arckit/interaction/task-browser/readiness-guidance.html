@@ -24,14 +24,14 @@
 </div></details>
 
 <details><summary>任务已待处理 · 项目连接缺口</summary><div class="state-content">
-<div class="state-description"><strong>触发条件：</strong>任务已分配给当前用户且为待处理，但所属项目没有本地目录。</div>
+<div class="state-description"><strong>触发条件：</strong>任务已分配给当前用户且为待处理，但所属可访问项目没有本地目录；owner、admin 和 member 使用同一当前用户动作。</div>
 <div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>Product Lifecycle / Work</span><strong>AR-220</strong><span>连接缺口</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Eligibility · Workspace</div><h2>任务已准备好，但 ArcOrbit 还不能进入项目</h2><p>缺少本地目录会同时阻止本地 Automation 和 Chat；任务状态本身无需再次修改。</p></div></div><div class="attention-strip"><div class="run-orb">2</div><div><strong>为 ArcOrbit 选择本地目录</strong><small>Workshop Project：ArcOrbit · 当前执行人：你 · 状态：待处理</small></div><button class="compact-action primary">选择本地目录</button></div></div></div></div>
 <div class="component-list"><h3>组件清单</h3><ul><li>任务已具备状态提示</li><li>跨能力影响说明</li><li>项目上下文</li><li>目录绑定动作</li></ul></div>
 <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择本地目录</code> → 打开所属项目的绑定 Sheet</div><div class="interaction-item"><code>绑定成功</code> → 回到当前任务并显示下一项资格事实，不重复确认任务</div></div>
 </div></details>
 
 <details><summary>无权限 · 显示责任方</summary><div class="state-content">
-<div class="state-description"><strong>触发条件：</strong>当前用户能查看任务，但无权修改执行人、确认状态或项目连接。</div>
+<div class="state-description"><strong>触发条件：</strong>当前用户能查看任务，但无权修改执行人、确认状态或改变项目 Automation participation；本地目录绑定不进入该无权限状态。</div>
 <div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><span>Product Lifecycle / Work</span><strong>AR-231</strong><span>只读</span></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Responsibility</div><h2>需要项目管理员确认</h2><p>任务仍是待评审，当前执行人未分配；你没有修改该项目任务的权限。</p></div><span class="badge">需要 owner / admin</span></div><section class="surface"><div class="surface-header"><strong>可交接信息</strong><span>AR-231</span></div><div class="surface-body"><dl class="key-value-list"><dt>需要动作</dt><dd>分配执行人并确认为待处理</dd><dt>责任角色</dt><dd>Project owner / admin</dd><dt>当前用户</dt><dd>member · 只读</dd></dl><button class="compact-action">复制任务与原因</button></div></section></div></div></div>
 <div class="component-list"><h3>组件清单</h3><ul><li>权限说明</li><li>责任角色</li><li>所需动作</li><li>可复制交接摘要</li></ul></div>
 <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>复制任务与原因</code> → 复制项目、任务、阻断和责任角色</div><div class="interaction-item"><code>权限变化</code> → fresh-read 后原位显示可执行动作</div></div>

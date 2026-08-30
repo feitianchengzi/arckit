@@ -1465,7 +1465,7 @@ function renderChat() {
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
-  const manageableRemoteProjects = (state.platform.projects || []).filter(canManageProject);
+  const bindableRemoteProjects = state.platform.projects || [];
   const unavailableSessionProjectOption = session && !project
     ? `<option value="${escapeHtml(session.project_id)}" selected>${escapeHtml(session.project_id)}（不可用）</option>`
     : "";
@@ -1516,7 +1516,7 @@ function renderChat() {
     messages: session ? chat.snapshot.messages : [],
     emptyHtml: session
       ? `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`
-      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : manageableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
+      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : bindableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
   });
   els.chatErrorHost.querySelector("[data-chat-retry-last]")?.addEventListener("click", () => {
     chatStateCoordinator.prepareRetry();
@@ -1525,15 +1525,15 @@ function renderChat() {
   });
   els.chatTranscript.querySelector("[data-chat-add-workspace]")?.addEventListener("click", () => runAction(openChatWorkspaceSetup));
   els.chatTranscript.querySelector("[data-chat-copy-workspace-handoff]")?.addEventListener("click", () => runAction(async () => {
-    await navigator.clipboard.writeText("Chat 需要一个已绑定本地目录的 Product Workspace。请由 Project owner / admin 在 Organization 项目详情完成本地连接。");
+    await navigator.clipboard.writeText("Chat 需要一个已绑定本地目录的 Product Workspace。当前账户没有可访问的 Workshop Project；请先加入或创建项目，再为自己选择本地目录。");
     showToast("项目连接说明已复制；聊天草稿保持不变。");
   }));
   renderChatComposer();
 }
 
 async function openChatWorkspaceSetup() {
-  const projects = (state.platform.projects || []).filter(canManageProject).map((project) => ({ value: project.id, label: project.name }));
-  if (!projects.length) throw new Error("当前没有可由你绑定本地目录的远端项目；请联系 Project owner / admin。");
+  const projects = (state.platform.projects || []).map((project) => ({ value: project.id, label: project.name }));
+  if (!projects.length) throw new Error("当前账户没有可访问的远端项目；请先加入或创建 Workshop Project。");
   await openPlatformAction({
     title: "让 Chat 进入一个本地项目",
     lead: "选择远端项目后再选择它对应的本地目录。绑定期间保留当前 Chat 草稿；失败不会清空选择或草稿。",
@@ -1929,7 +1929,7 @@ function renderOrganizationProjects(scope, personalProjects) {
 }
 
 function organizationProjectGuidance(project, canManage) {
-  if (!project.local_project_path && !project.local_project_id) return `<div class="inline-guidance"><strong>本地连接未完成</strong><p>绑定目录会启用 Chat 和本地 Automation；不会加入 Workset 或授权领取。</p>${canManage ? `<button class="primary-button" data-organization-bind-workspace="${escapeHtml(project.id)}" type="button">选择本地目录</button>` : `<small>责任角色：Project owner / admin。当前角色 ${escapeHtml(project.current_user_role || "只读")} 无法完成此动作。</small><button class="secondary-button" data-organization-copy-handoff="${escapeHtml(project.id)}" type="button">复制处理说明</button>`}</div>`;
+  if (!project.local_project_path && !project.local_project_id) return `<div class="inline-guidance"><strong>本地连接未完成</strong><p>绑定目录是当前设备上的个人工作区设置，会启用 Chat 和本地 Automation；不会加入 Workset、修改项目成员或授权领取。</p><button class="primary-button" data-organization-bind-workspace="${escapeHtml(project.id)}" type="button">选择本地目录</button></div>`;
   if (!project.participating) return `<div class="inline-guidance"><strong>项目尚未允许自动领取</strong><p>项目目录已绑定；授权只扩大该项目候选范围。</p>${canManage ? `<button class="primary-button" data-organization-enable-project="${escapeHtml(project.id)}" type="button">允许此项目</button>` : `<small>责任角色：Project owner / admin。当前角色 ${escapeHtml(project.current_user_role || "只读")} 无法完成此动作。</small><button class="secondary-button" data-organization-copy-handoff="${escapeHtml(project.id)}" type="button">复制处理说明</button>`}</div>`;
   return `<div class="inline-guidance is-ready"><strong>项目连接已准备</strong><p>本地目录和项目授权已就绪；Workset 仍只控制观察范围。</p></div>`;
 }

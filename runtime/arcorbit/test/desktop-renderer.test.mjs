@@ -934,6 +934,11 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /captureTaskAttachmentRequest\(state, \{ identityOnly: true \}\)[\s\S]+pickWorkTaskAttachment[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
   assert.match(source, /api\.setAutomationEnabled/);
   assert.match(source, /api\.bindAutomationProject/);
+  assert.doesNotMatch(source, /\(state\.platform\.projects \|\| \[\]\)\.filter\(canManageProject\)/);
+  assert.doesNotMatch(source, /需要项目管理员绑定本地目录|Project owner \/ admin 在 Organization 项目详情完成本地连接/);
+  const organizationGuidanceSource = source.slice(source.indexOf("function organizationProjectGuidance"), source.indexOf("\nfunction wireOrganizationActions"));
+  assert.match(organizationGuidanceSource, /!project\.local_project_path && !project\.local_project_id[\s\S]+data-organization-bind-workspace/);
+  assert.match(organizationGuidanceSource, /!project\.participating[\s\S]+Project owner \/ admin/);
   assert.match(source, /blocked_pending_tasks/);
   assert.match(source, /acceptance_feedback_queue/);
   assert.match(source, /api\.submitAcceptanceFeedback/);

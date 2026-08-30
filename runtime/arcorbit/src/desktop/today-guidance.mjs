@@ -120,7 +120,6 @@ export function deriveTodayGuidance({ platform = {}, automation = {}, setup = {}
   for (const workspace of workspaces) {
     const workspaceTasks = userTasks.filter((task) => text(task.project_id) === text(workspace.id));
     if (!workspace.local_project_path && !workspace.local_project_id) {
-      if (!canManageProject(workspace)) return handoff("bind_workspace", workspace, { title: "需要项目管理员绑定本地目录", reason: "缺少本地目录会同时阻止 Chat 和本地 Automation。" });
       return action("bind_workspace", { workspace, title: "绑定本地目录", reason: "缺少本地目录会同时阻止 Chat 和本地 Automation。", action_id: "bind_workspace", action_label: "选择本地目录" });
     }
     if (setup?.status !== "ready") return action("project_setup", { workspace, title: "恢复项目环境", reason: "本地目录已绑定，但 Setup Readiness 尚未通过。", action_id: "check_setup", action_label: "检查项目环境" });
@@ -164,9 +163,7 @@ export function deriveWorkEligibilityGuidance({ task = {}, workspace = {}, autom
   if (!assignedToCurrentUser) return canManageTask
     ? action("assign_current_user", { title: "这条任务不会由你的 Automation 领取", reason: "待处理任务的执行人不是当前用户。", action_id: "edit_assignee", action_label: "修改执行人" })
     : handoff("assign_current_user", workspace, { title: "需要项目管理员修改执行人", reason: "当前执行人不是你，且当前角色不能修改任务归属。" });
-  if (!workspace.local_project_path && !workspace.local_project_id) return canManageProject(workspace)
-    ? action("bind_workspace", { workspace, title: "任务已准备好，但缺少本地目录", reason: "绑定目录后留在当前 Inspector 并重新计算资格。", action_id: "bind_workspace", action_label: "选择本地目录" })
-    : handoff("bind_workspace", workspace, { title: "需要项目管理员绑定本地目录", reason: "任务状态已准备，但当前角色不能完成项目连接。" });
+  if (!workspace.local_project_path && !workspace.local_project_id) return action("bind_workspace", { workspace, title: "任务已准备好，但缺少本地目录", reason: "绑定目录后留在当前 Inspector 并重新计算资格。", action_id: "bind_workspace", action_label: "选择本地目录" });
   if (!workspace.participating) return canManageProject(workspace)
     ? action("enable_project", { workspace, title: "项目尚未允许自动领取", reason: "只修改项目 participation，不改变任务或全局总闸。", action_id: "enable_project", action_label: "允许此项目" })
     : handoff("enable_project", workspace, { title: "需要项目管理员允许自动领取", reason: "当前角色不能扩大项目的 Automation 范围。" });
@@ -186,9 +183,7 @@ export function deriveAutomationGuidance({ automation = {}, platform = {}, selec
   if (blocked.length) {
     const candidate = blocked.find((task) => task.eligibility_code === "project_unbound") || blocked.find((task) => task.eligibility_code === "project_not_participating") || blocked[0];
     const workspace = (platform.product_workspaces || []).find((item) => text(item.id) === text(candidate.project_id)) || {};
-    if (candidate.eligibility_code === "project_unbound") return canManageProject(workspace)
-      ? action("bind_workspace", { workspace, candidate_count: blocked.length, title: `${blocked.length} 条工作在等待项目连接`, reason: "不是空队列；待处理任务存在，但缺少本地目录。", action_id: "bind_workspace", action_label: "选择本地目录" })
-      : handoff("bind_workspace", workspace, { candidate_count: blocked.length, title: "需要项目管理员绑定本地目录", reason: `${blocked.length} 条待处理任务受此连接缺口影响。` });
+    if (candidate.eligibility_code === "project_unbound") return action("bind_workspace", { workspace, candidate_count: blocked.length, title: `${blocked.length} 条工作在等待项目连接`, reason: "不是空队列；待处理任务存在，但缺少本地目录。", action_id: "bind_workspace", action_label: "选择本地目录" });
     if (candidate.eligibility_code === "project_not_participating") return canManageProject(workspace)
       ? action("enable_project", { workspace, candidate_count: blocked.length, title: `${blocked.length} 条工作尚未获得项目授权`, reason: "不是空队列；允许项目后原位重新计算候选。", action_id: "enable_project", action_label: "允许此项目" })
       : handoff("enable_project", workspace, { candidate_count: blocked.length, title: "需要项目管理员允许自动领取", reason: `${blocked.length} 条待处理任务受项目授权影响。` });

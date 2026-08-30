@@ -185,6 +185,8 @@ test("production Organization Center keeps governance independent and invitation
   assert.match(result.memberText, /为何这里没有项目邀请/);
   assert.match(result.memberText, /已有项目关系/);
   assert.equal(result.memberProjectHasInvite, false);
+  assert.equal(result.memberProjectHasBindingAction, true);
+  assert.equal(result.memberProjectHasParticipationAction, false);
   assert.equal(result.inviteFormTitle, "邀请加入 ArcOrbit");
   assert.equal(result.inviteResultTitle, "项目邀请已生成 · ArcOrbit");
   assert.match(result.inviteResultText, /不绑定某位成员/);

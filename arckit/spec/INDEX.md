@@ -16,6 +16,6 @@
   - arcorbit-platform-capabilities.md ArcOrbit 多产品研发平台：定义 Work-owned 同步、本地 Task Projection、全局产品集、Feedback 双向会话新鲜度/同记录恢复与独立产品反馈中心。🟡 (498行)
   - arcorbit-work-management.md ArcOrbit Work 待办管理：定义统一 Project Catalog、覆盖安装自愈、本地状态查询、跨产品受控替换及 Automation 消费边界。🟡 (116行)
   - arcorbit-planned-workspaces.md ArcOrbit Chat 与计划工作空间：定义按项目分组的真实 Codex Chat、新会话项目归属、共享 Conversation Surface 边界及计划工作空间职责。🟡 (195行)
-  - arcorbit-organization-management.md ArcOrbit 组织治理：定义组织范围、成员关系、项目可见性、邀请加入、分页和推进连接的稳定行为。🟢 (155行)
+  - arcorbit-organization-management.md ArcOrbit 组织治理：定义组织范围、成员关系、项目可见性、邀请加入、分页及成员本地绑定与管理员项目授权边界。🟢 (159行)
   - loop-engineering-research.md Loop Engineering 研究输入：保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。⚪ (132行)
 - all-integration-strategy.md all 候选 Skill 整合策略草案：历史迁移记录，保留 all 角色型研发流水线 skill 包的早期拆解和归并思路，不作为当前路由依据。⚪ (902行)
