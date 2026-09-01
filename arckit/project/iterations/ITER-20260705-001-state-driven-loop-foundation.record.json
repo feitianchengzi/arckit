@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-09-01T09:31:16.887Z",
+  "updated_at": "2026-09-01T14:35:37.354Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -3273,7 +3273,9 @@
     ]
   },
   "blocking_project_gaps": [],
-  "active_case_refs": [],
+  "active_case_refs": [
+    "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md"
+  ],
   "closed_case_refs": [
     "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
     "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
@@ -3396,15 +3398,16 @@
     "arckit/cases/closed/CASE-20260829-002-arcorbit-chat.md",
     "arckit/cases/closed/CASE-20260829-003-upgrade-arcorbit-codex-cli-installation-and-updates.md",
     "arckit/cases/closed/CASE-20260830-001-development-case.md",
-    "arckit/cases/closed/CASE-20260830-002-arcorbit-desktop.md"
+    "arckit/cases/closed/CASE-20260830-002-arcorbit-desktop.md",
+    "arckit/cases/closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md",
+    "case_ref": "arckit/cases/closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md"
+      "arckit/cases/closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md"
     ],
-    "updated_at": "2026-09-01T09:31:16.887Z"
+    "updated_at": "2026-09-01T14:35:37.354Z"
   }
 }

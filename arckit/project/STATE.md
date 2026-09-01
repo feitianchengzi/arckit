@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 331
-Updated: 2026-09-01T04:19:45.213Z
+Revision: 333
+Updated: 2026-09-01T14:35:37.354Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Merge the Workshop Todo backend, Todo web application, Feedback web applications, SDK, and iOS example into Arckit with a coherent directory structure, explicit multi-license boundaries, and a sibling private arckit-ops repository for non-public operational material.
+修复 ArcOrbit Chat 中超长 JSON、代码行等内容反向撑宽页面的问题，使 Chat 宽度只由父容器决定。
 
 ## Active Work
 

@@ -22,13 +22,22 @@ const workAcceptanceReplacementTest = process.env.ARCORBIT_WORK_ACCEPTANCE_REPLA
 const workAcceptanceLogoutTest = process.env.ARCORBIT_WORK_ACCEPTANCE_LOGOUT_TEST === "1";
 const todayCreateIdentityMode = String(process.env.ARCORBIT_TODAY_CREATE_IDENTITY_MODE || "");
 const chatStreamPerformanceTest = process.env.ARCORBIT_CHAT_STREAM_PERFORMANCE_FIXTURE === "1";
+const chatContentOverflowTest = process.env.ARCORBIT_CHAT_CONTENT_OVERFLOW_FIXTURE === "1";
+const chatFixtureEnabled = chatStreamPerformanceTest || chatContentOverflowTest;
 let chatSnapshotDelayMs = 0;
 let chatStreamEmitted = 0;
 let chatStreamTimer = null;
 const chatSessions = chatStreamPerformanceTest ? [
   { id: "CHAT-A", project_id: "local-11", title: "Streaming session", status: "running", error: "", retry_client_request_id: "", created_at: "2026-08-29T00:00:00Z", updated_at: "2026-08-29T00:01:00Z" },
   { id: "CHAT-B", project_id: "local-11", title: "Switch target", status: "completed", error: "", retry_client_request_id: "", created_at: "2026-08-28T00:00:00Z", updated_at: "2026-08-28T00:01:00Z" }
+] : chatContentOverflowTest ? [
+  { id: "CHAT-OVERFLOW", project_id: "local-11", title: "Structured result overflow", status: "completed", error: "", retry_client_request_id: "", created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:01:00Z" }
 ] : [];
+const oversizedStructuredResult = JSON.stringify({
+  schema_version: "arckit-overflow-fixture/v1",
+  unbroken_payload: "LongStructuredResultValue".repeat(360),
+  rows: Array.from({ length: 90 }, (_, index) => ({ index, value: `row-${index}` }))
+}, null, 2);
 const chatMessages = chatStreamPerformanceTest ? {
   "CHAT-A": [
     ...Array.from({ length: 60 }, (_, index) => ({ id: `HISTORY-${index}`, role: index % 2 ? "assistant" : "user", kind: "text", content: `History ${index} ${"bounded conversation content ".repeat(3)}`, status: "completed", created_at: `2026-08-29T00:00:${String(index).padStart(2, "0")}Z`, updated_at: `2026-08-29T00:00:${String(index).padStart(2, "0")}Z` })),
@@ -38,8 +47,12 @@ const chatMessages = chatStreamPerformanceTest ? {
     ...Array.from({ length: 60 }, (_, index) => ({ id: `TARGET-HISTORY-${index}`, role: index % 2 ? "assistant" : "user", kind: "text", content: `Target history ${index} ${"independent reading position ".repeat(3)}`, status: "completed", created_at: `2026-08-28T00:00:${String(index).padStart(2, "0")}Z`, updated_at: `2026-08-28T00:00:${String(index).padStart(2, "0")}Z` })),
     { id: "TARGET-MESSAGE", role: "assistant", kind: "text", content: "Target transcript", status: "completed", created_at: "2026-08-28T00:01:00Z", updated_at: "2026-08-28T00:01:00Z" }
   ]
+} : chatContentOverflowTest ? {
+  "CHAT-OVERFLOW": [
+    { id: "OVERFLOW-MESSAGE", role: "assistant", kind: "text", content: `$arckit-tech 已形成稳定结果：\n\n\`\`\`json\n${oversizedStructuredResult}\n\`\`\``, status: "completed", created_at: "2026-09-01T00:01:00Z", updated_at: "2026-09-01T00:01:00Z" }
+  ]
 } : {};
-let selectedChatSessionId = chatStreamPerformanceTest ? "CHAT-A" : "";
+let selectedChatSessionId = chatStreamPerformanceTest ? "CHAT-A" : chatContentOverflowTest ? "CHAT-OVERFLOW" : "";
 let failedFeedbackV2ImagePreview = false;
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
@@ -174,7 +187,7 @@ if (todayCreateIdentityMode) {
 const noOp = async () => ({});
 const testChatSnapshotValue = (requested = selectedChatSessionId) => ({
   generated_at: new Date().toISOString(),
-  projects: chatStreamPerformanceTest ? [{ id: "local-11", name: "ArcOrbit Local" }] : [],
+  projects: chatFixtureEnabled ? [{ id: "local-11", name: "ArcOrbit Local" }] : [],
   sessions: chatSessions,
   selected_session_id: requested,
   messages: chatMessages[requested] || [],

@@ -104,6 +104,8 @@ Renderer 的工具摘要是展示投影，不修改上游消息、Agent 上下�
 
 Conversation Surface 接受统一的 presentation message 列表。Chat 的 message kind 直接进入该列表；Automation 在进入组件前只保留 `user`、`agent`、`reasoning`、`tool`、`approval` 与 `error`，并把 `loop`、`structured`、candidate、round receipt 与 task control 放入侧栏 projection。过滤基于结构化 kind/type，不解析自然语言正文。共享组件负责同一套事件绑定和浏览状态，consumer 只通过显式 callback 处理 copy、approval、external link、retry 和 jump-to-latest。
 
+Conversation Surface 的布局边界由 consumer 父视口决定。Chat view、右栏 grid item、transcript、消息、Markdown 内容与代码块形成连续的 `min-width: 0` 收缩链，祖先容器不采用消息的最小固有内容宽度。JSON、代码和表格查看器限制在消息可用宽度内；代码查看器同时限制高度并以自身 `overflow: auto` 承担横向与纵向滚动，页面与 transcript 不接管其横向 overflow。
+
 ### Automation 执行全貌投影
 
 Run Activity 保存 append-only 的 `gap_rounds` 摘要。`runtime.session_round.started` 以 `run_id + round_index` 建立一轮并记录开始时间；`runtime.round_selection` 写入 selected gap id、goal 与 comparison summary；`runtime.agent_loop.completed` 写入 Agent 自然语言工作摘要；`runtime.round_closeout` 写入 trusted accepted status、accepted outcome、Case/Project revision 与结束时间。未收到 closeout 的 round 保持 running、awaiting_human、interrupted 或 failed，不由 Renderer 猜测 accepted。
@@ -346,6 +348,7 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 - Workbench 区分缓存输入、非缓存输入和输出，并展示上下文窗口占用。
 - Workbench 的页面根、左右栏和 Composer 不随 transcript 增长；只有中间消息列表滚动，用户阅读历史时新消息不会强制改变位置。
 - Chat 与 Automation Workbench 由同一个 Conversation Surface 渲染 Agent、用户、reasoning、tool、approval 和 error 消息，并共用 Markdown、代码复制、事件绑定、流式更新与滚动控制；源码中不存在第二套 Automation message renderer。
+- 超长单行 JSON、代码或表格不会扩大 Chat view、右栏、transcript 或消息宽度；代码查看器存在超宽与超高内容时同时产生可操作的内部横向、纵向滚动。
 - Renderer 将 Agent 正式输出作为共享消息主要信息，把非空可折叠 reasoning 和每个 tool/approval item 的原位单行活动作为次级信息；Loop、Gap、ledger 与结构化结果进入 Automation 左右面板。空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入侧栏查看器并继续保留在上游上下文或诊断证据中。
 - Workbench 从同一 task session 全部 Runtime runs 的结构化 `gap_rounds` 生成完整执行时间、准确 gap 总数和逐 gap 目标/工作/结果；进行中时持续计时，终态后固定，不解析消息文案猜测历史。
 - warm main process 中的 activity patch 处理不读取 Desktop control snapshot、历史 message、Task Projection 或 Run detail；Automation Snapshot 对一次请求只捕获一个 state view，磁盘全量读取数为零。

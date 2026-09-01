@@ -28,7 +28,7 @@
 - chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，以 session 独立阅读位置进行本地 Codex 对话。✅
   - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
   - workspace-setup.html 工作区绑定子视图：任意可访问项目成员从 Chat 原位选择目录并检查 Setup Readiness，同时保留草稿。✅ (12行)
-  - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、session 独立滚动、Composer、恢复和 Automation 隔离。✅ (122行)
+  - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、内容宽度隔离、session 独立滚动、Composer、恢复和 Automation 隔离。✅ (123行)
 - idea-workspace/ Idea 页面：创意探索、团队讨论、证据与风险比较，以及确认后的正式项目转换预览。✅
   - default.html Idea 线框：创意漏斗、详情、团队观点与开始项目动作。✅ (14行)
   - interaction.md Idea 交互：探索/讨论/确认状态、团队观点和项目转换边界。✅ (35行)
