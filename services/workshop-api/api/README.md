@@ -1,0 +1,103 @@
+# API 文档
+
+## 📋 概述
+
+本文档提供 Todo Service 的完整 API 接口说明，适用于**测试环境**和**生产环境**。
+
+## 🌐 环境配置
+
+### 测试环境（本地开发）
+
+- **基础URL**: `http://localhost:8081/workshop/v1`
+- **V2 测试URL**: `http://localhost:8081/workshop/v2`
+- **认证方式**: 使用 Header 传递用户信息（网关模拟）
+- **Header 格式**:
+  ```bash
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111"
+  -H "X-User-Username: alice"
+  ```
+
+### 生产环境（线上）
+
+- **基础URL**: `https://api.feitianchengzi.com/workshop/v1`
+- **V2 测试URL**: `https://api.feitianchengzi.com/workshop/v2`
+- **认证方式**: 使用 JWT Token（由网关处理）
+- **Header 格式**:
+  ```bash
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+  ```
+
+## 📝 使用说明
+
+### 环境变量设置
+
+在调用接口前，根据环境设置相应的变量：
+
+**测试环境**:
+```bash
+BASE_URL="http://localhost:8081/workshop/v1"
+USER_ID="11111111-1111-1111-1111-111111111111"
+USERNAME="alice"
+```
+
+**生产环境**:
+```bash
+BASE_URL="https://api.feitianchengzi.com/workshop/v1"
+ACCESS_TOKEN="your_access_token_here"
+```
+
+### 通用请求格式
+
+**测试环境示例**:
+```bash
+curl -X GET "$BASE_URL/user/projects" \
+  -H "X-User-ID: $USER_ID" \
+  -H "X-User-Username: $USERNAME"
+```
+
+**生产环境示例**:
+```bash
+curl -X GET "$BASE_URL/user/projects" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+**路由提示**:
+- `public` 级别只包含 `GET /public/health`
+- `header-info` 在 `user` / `apikey` 级别：`GET /user/header-info` 或 `GET /apikey/header-info`
+- `public/user` 这种路径不是有效路由
+- V2 与 V1 部署在同一服务内；基础业务接口兼容复用，反馈消息与流转待办只在 `/workshop/v2/...` 暴露
+
+## 🧪 本地测试脚本
+
+用于验证任务父子关系更新行为的本地脚本：
+- `test/dev/task_update_local_test.py`
+
+运行示例（测试环境）:
+```bash
+BASE_URL="http://localhost:8081/workshop/v1" \
+USER_ID="11111111-1111-1111-1111-111111111111" \
+USERNAME="alice" \
+python3 test/dev/task_update_local_test.py
+```
+
+## 📚 文档结构
+
+- **[common.md](./common.md)** - 公共接口（健康检查；Header 信息在 user/apikey 级别）
+- **[user.md](./user.md)** - 用户相关接口（创建、查询、更新用户、获取OSS凭证）
+- **[project.md](./project.md)** - 项目相关接口（创建、查询、更新、删除项目、成员管理、邀请）
+- **[task.md](./task.md)** - 任务相关接口（创建、更新、查询、层级查询、删除任务、子任务、任务附件）
+- **[tag.md](./tag.md)** - 标签相关接口（创建、查询、更新、删除标签）
+- **[feedback.md](./feedback.md)** - 反馈相关接口（V1 创建/查询/更新/删除；V2 反馈消息、反馈流转待办）
+
+## 🔄 环境差异说明
+
+| 项目 | 测试环境 | 生产环境 |
+|------|---------|---------|
+| 基础URL | `http://localhost:8081/workshop/v1` | `https://api.feitianchengzi.com/workshop/v1` |
+| V2 测试URL | `http://localhost:8081/workshop/v2` | `https://api.feitianchengzi.com/workshop/v2` |
+| 认证方式 | Header 传递用户信息 | JWT Token |
+| Header 字段 | `X-User-ID`, `X-User-Username` | `Authorization: Bearer <token>` |
+| 网关处理 | 无（直接访问服务） | 有（网关处理认证和路由） |
+
+**注意**: 除了认证方式和基础URL不同外，所有接口的请求体、响应格式、参数说明都完全相同。
