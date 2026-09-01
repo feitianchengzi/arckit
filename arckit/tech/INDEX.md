@@ -11,3 +11,5 @@
   - platform-composition-solution.md 平台组合方案：定义统一 Task 投影、持久化 Work Inspector 宽度、Feedback 通知/消息新鲜度与同记录恢复、待办跨产品先复制后删除、受控图片窗口与平台 IPC。✅ (422行)
   - realtime-synchronization-solution.md 可靠实时同步：定义统一 Project Catalog、覆盖安装 rehydration、Work-owned 对账、Automation 外部变化消费与 Gate 隔离。✅ (175行)
   - product-feedback-integration.md 产品反馈 SDK：定义 Project 107、受限 Electron WebContents、SDK 文档身份、草稿保持、Workshop 稳定身份和未读角标。✅ (67行)
+- repository-governance/ 仓库治理：公开源码 monorepo、目录许可与私有运维边界。✅
+  - monorepo-solution.md Monorepo 方案：定义 Todo/Feedback 源映射、历史过滤、多许可证矩阵、arckit-ops 隔离与安全门禁。✅ (142行)

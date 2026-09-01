@@ -1,0 +1,51 @@
+{
+  "schema_version": "arckit-monorepo-import/v1",
+  "generated_at": "2026-09-01",
+  "sources": [
+    {
+      "id": "workshop-api",
+      "repository": "../../hoewo/workshop-todo",
+      "source_branch": "main",
+      "source_head": "633b779ca1d0793a9577e267d3e9b1599248f772",
+      "target_root": "services/workshop-api",
+      "include": ["AGENTS.md", "README.md", "go.mod", "go.sum", "main.go", "api/**", "database/**", "deploy/**", "deploy.sh", "docs/**", "handler/**", "middleware/**", "models/**", "realtime/**", "response/**", "router/**", "test/**", "USER_GUIDE.md"],
+      "exclude": [".agents/**", ".cursor/**", ".claude/**", ".shared/**", ".gitmodules", "build/**", "web/**", "**/.DS_Store", "**/.env", "**/.env.*"],
+      "drop_history_readd_sanitized_head": ["USER_GUIDE.md", "api/user_api.md", "deploy/prod/env.production.example", "deploy/prod/env.workshop.production.example", "docs/feedback-v2-deployment-runbook.md", "docs/feedback-v2-notifications-unread.md"]
+    },
+    {
+      "id": "todo-web",
+      "repository": "../../hoewo/workshop-todo-website",
+      "source_branch": "main",
+      "source_head": "ddbb99a7b83dfcefb3316c8fced3a2f8573c3eb0",
+      "mappings": [
+        {"source": "frontend", "target": "apps/todo-web"},
+        {"source": "specs", "target": "apps/todo-web/docs/specs"}
+      ],
+      "exclude": [".arckit/**", ".cursor/**", ".tools/**", ".gitmodules", "frontend-nextjs-backup/**", "frontend/public/sdk/**", "frontend/dist/**", "frontend/node_modules/**", "**/.DS_Store", "**/.env", "**/.env.*"],
+      "drop_history_readd_sanitized_head": ["frontend/src/lib/feedbackSdk.ts", "frontend/env.template", "frontend/.env.production.example"]
+    },
+    {
+      "id": "workshop-feedbacks",
+      "repository": "../../hoewo/Workshop-Feedbacks",
+      "source_branch": "main",
+      "source_head": "447e16800edac4108d4dfdfb4e92f41da70e5fa6",
+      "mappings": [
+        {"source": "webapps/feedback-console-web", "target": "apps/feedback-console"},
+        {"source": "webapps/feedback-sdk-web", "target": "packages/feedback-sdk-web"},
+        {"source": "Test/ios/TestFeedBack", "target": "examples/feedback-ios"},
+        {"source": "design", "target": "docs/workshop/feedback-design"}
+      ],
+      "exclude": ["Server/**", "sameArchWebReference/**", "**/dist/**", "**/node_modules/**", "**/DerivedData/**", "**/xcuserdata/**", "**/.DS_Store", "**/.env", "**/.env.*", "**/*.p12", "**/*.mobileprovision"]
+    }
+  ],
+  "private_extraction": {
+    "target": "../arckit-ops",
+    "inventory_ref": "docs/monorepo/SOURCE_AUDIT.md#arckit-ops-提取清单",
+    "plaintext_secret_policy": "never_tracked"
+  },
+  "license_plan": {
+    "apache_2_0": ["packages/feedback-sdk-web", "examples/feedback-ios", "docs/workshop"],
+    "polyform_perimeter_1_0_1": ["apps/todo-web", "apps/feedback-console", "services/workshop-api", "runtime/arcorbit"],
+    "private_all_rights_reserved": ["../arckit-ops"]
+  }
+}

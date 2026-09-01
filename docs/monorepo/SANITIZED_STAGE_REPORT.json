@@ -1,0 +1,15 @@
+{
+  "schema_version": "arckit-monorepo-sanitized-stage/v1",
+  "generated_at": "2026-09-01T04:33:58.955Z",
+  "source_heads": {
+    "workshop-api": "633b779ca1d0793a9577e267d3e9b1599248f772",
+    "todo-web": "ddbb99a7b83dfcefb3316c8fced3a2f8573c3eb0",
+    "workshop-feedbacks": "447e16800edac4108d4dfdfb4e92f41da70e5fa6"
+  },
+  "staging_location": "temporary-workspace-only",
+  "files": 701,
+  "blocked_fingerprints_checked": 13,
+  "blocked_fingerprints_found": 0,
+  "secret_values_emitted": false,
+  "generator": "tools/scripts/prepare-monorepo-import.mjs"
+}

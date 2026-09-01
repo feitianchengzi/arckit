@@ -5,12 +5,14 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-30T09:57:45.516Z",
-    "revision": 329
+    "updated_at": "2026-09-01T04:19:45.213Z",
+    "revision": 331
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "active_case_refs": [],
+    "active_case_refs": [
+      "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md"
+    ],
     "project_gaps": [
       {
         "id": "GAP-agent-scenario-evaluation",
@@ -110,7 +112,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "实现并验收 ArcOrbit 单写者版本化 Desktop State Kernel、共享 Automation 投影、增量 activity patch 与分层持久化。",
+      "current_focus": "Merge the Workshop Todo backend, Todo web application, Feedback web applications, SDK, and iOS example into Arckit with a coherent directory structure, explicit multi-license boundaries, and a sibling private arckit-ops repository for non-public operational material.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -170,15 +172,15 @@
         "evidence_expectation": "Durable evidence sufficient to recover the system surfaces and their responsibilities.",
         "decision": {
           "status": "settled",
-          "statement": "The software comprises repository-owned Arckit skills and Node.js ledger CLIs plus ArcOrbit, an Electron platform Desktop with Setup Readiness, skill provisioning, a main-process Platform Coordinator, restricted Workshop Platform Adapter, Automation Coordinator, Runtime supervisor, Codex adapter, and packaged trusted capability resources. Workshop web clients remain available administration and source surfaces but are not required for ArcOrbit daily work.",
-          "reason": "The accepted composition architecture adds a bounded platform plane around the existing execution plane without moving service or Runtime responsibilities into Renderer.",
+          "statement": "The repository-owned software surfaces are Arckit skills and ledger CLIs, ArcOrbit Electron Desktop/Runtime, the Workshop Todo browser application, the Workshop Feedback developer console, the shared Workshop Todo/Feedback Go service, the embeddable Feedback Web SDK, and the iOS integration example. These sources live in one public Arckit monorepo while preserving existing Arckit and ArcOrbit paths; Workshop web clients remain optional administration and source surfaces rather than requirements for ArcOrbit daily work.",
+          "reason": "The repository owner authorized consolidating the previously separate Todo and Feedback sources without changing their runtime responsibilities.",
           "evidence": [
-            "arckit/tech/arcorbit/platform-composition-solution.md",
-            "arckit/tech/arcorbit/solution.md"
+            "arckit/tech/repository-governance/monorepo-solution.md",
+            "arckit/tech/arcorbit/platform-composition-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit if a new server, mobile, or externally hosted ArcOrbit surface becomes authoritative.",
-          "revision": 4
+          "resume_condition": "Revisit if a new server, mobile, or hosted surface becomes repository-owned or a current surface leaves the monorepo.",
+          "revision": 5
         },
         "gap_refs": []
       },
@@ -345,21 +347,16 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit 与 ArcOrbit 的既有 ledger、Electron、Runtime、Platform Coordinator、Work Sync、Chat、Setup Readiness 和 trusted case-control 技术边界保持不变。Work Inspector 偏好继续由 Desktop Store、typed preload action 和 Renderer 持有。应用冷启动的 coordinated Setup Readiness 由 main process fresh-read Desktop Store 中全部本地 Product Workspace roots；新增或改变本地关联及用户主动 retry 使用相同 aggregate check，显式空 roots 清除既有 project plan 并执行 global-only。Renderer 项目/Workset 筛选不触发检查，解除关联跳过检查。SkillProvisioningManager.assertReady(projectRoot) 只读取内存 snapshot，要求 ready 且 project root 位于最近成功检查的 plan.project_roots；Chat/Automation task start 不调用 provider 或扫描 skills。SkillProvisioningManager 的 plan、drift、同名冲突诊断和 backup-and-overwrite-selected 事务边界保持不变。Feedback V1 恢复通过受控 update 同时写入 ignored=false、feedback_state=pending 和 status=analyzing；V2 恢复由 Platform Adapter、Coordinator、main IPC、preload 和 Renderer 的 restoreFeedbackV2 typed action 链调用固定 provider route，并只在服务端确认后刷新投影。新版启动必须执行有代际的 rehydration：规范化旧 Store、刷新可访问 Catalog、按需求集合协调对账并在 dispatch 前只开放健康项目。任务与标签独立确认；重建期间新增需求必须触发后续一轮，不能被进行中的 reconcile 吞掉。Case/Loop 继续保留 external_wait 作为内部停止原因；Automation Coordinator 将其确定性投影为 awaiting_human + external_dependency，Store 迁移旧 external_wait 并补建 attention，typed confirm-external-dependency IPC 校验 execution 后复用原 session/thread。Workset Feedback V2 notification snapshot 与 `/feedbacks/{id}/messages` 是两个独立新鲜度域；Renderer 以当前 feedback id、未读投影和有身份的会话加载状态协调刷新，不把 refreshSnapshot 视为消息已刷新。消息请求必须去重或隔离过期响应，并在成功投影消息后才调用 typed mark-read；失败不清除缓存消息或草稿。 Codex setup 将完整 InstallationInventory、active binding、InstallAdvisor、UpdateChecker、owner adapter 与 SetupNetworkContext 分层；路径分类仅作 hint，mutation 需要 owner proof，并以完整 inventory refresh 和 exact version/binding postcondition 判定成功。 ArcOrbit Desktop 本地状态由 Electron main 单写者版本化 State Kernel 持有；query 捕获单一 immutable state view，overview 与 workspace lanes 共享 projection index，运行状态通过 revisioned typed changes 增量投影。",
-          "reason": "既有边界保持不变；ArcOrbit Desktop 本地状态由 Electron main 单写者版本化 State Kernel 持有；query 捕获单一 immutable state view，overview 与 workspace lanes 共享 projection index，运行状态通过 revisioned typed changes 增量投影。",
+          "statement": "Arckit and ArcOrbit retain their existing ledger, skill, Electron, Runtime, Platform Coordinator, Work Sync, Chat, Setup Readiness, trusted case-control, and repository-relative path boundaries. The public Arckit monorepo additionally owns Todo Web under apps, Feedback Console under apps, the Feedback Web SDK under packages, the shared Workshop API under services, and integration examples under examples. JavaScript surfaces use one root workspace with independent build and release entries; the Workshop API remains an independently testable Go module. Public builds and tests never require the sibling private arckit-ops workspace.",
+          "reason": "The accepted source layout provides coherent ownership without nesting or relocating the established Arckit skill and ArcOrbit runtime foundations.",
           "evidence": [
-            "runtime/arcorbit/desktop/renderer/renderer.js:2324",
-            "runtime/arcorbit/desktop/renderer/renderer.js:2380",
-            "runtime/arcorbit/desktop/renderer/renderer.js:2514",
-            "runtime/arcorbit/src/platform-coordinator.mjs:23",
-            "runtime/arcorbit/src/workshop-platform-adapter.mjs:124",
-            "arckit/tech/arcorbit/installer-supply-chain.md",
+            "arckit/tech/repository-governance/monorepo-solution.md",
             "arckit/tech/arcorbit/solution.md",
-            "arckit/tech/arcorbit/desktop-execution-solution.md"
+            "arckit/tech/arcorbit/platform-composition-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 executable identity、package owner proof、update channel 或 mutation postcondition 改变时重审。",
-          "revision": 46
+          "resume_condition": "Revisit when workspace tooling, repository-relative capability paths, or source ownership boundaries change.",
+          "revision": 47
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -372,17 +369,14 @@
         "evidence_expectation": "Durable risk and technical evidence sufficient to recover the governing protections.",
         "decision": {
           "status": "settled",
-          "statement": "Runtime 与 Workshop 服务凭据继续保持在受控存储和 main-process 边界内；ArcOrbit 产品反馈 bundled-static Project 107 API Key 例外及其最小权限、可轮换、不得进入 URL/Renderer/IPC/log 的规则保持不变。真实 Chat 的 Renderer 只能使用类型化 IPC，不能选择任意 cwd/thread/method、读取 raw JSON-RPC、获得 Codex 进程或文件系统通用权限。Codex command、file change 和 permissions request 必须通过异步受限 approvalProvider 返回；窗口关闭、超时、session/request 不匹配或用户拒绝均 fail closed。Chat session/thread ownership 与 Automation task session/thread/lease 双向隔离。Codex Setup 同样只接受 typed actions：ChatGPT 凭证完全留在官方流程和系统浏览器；ArcOrbit 不访问 Codex credential file 或管理 OAuth token。API Key/Access Token 只通过一次性专用 IPC 进入 main process，并直接写入 child stdin；不得进入 argv、environment、日志、错误、analytics、普通配置、Desktop Store 或共享 Renderer state，第一版不持久化。installer URL、executable 和参数均由 main-process allowlist 固定。",
-          "reason": "安装脚本执行和用户 secret 输入扩大了 setup trust boundary，必须明确 fail-closed 控制。",
+          "statement": "Runtime, Workshop, Codex, deployment, signing, infrastructure, and customer secrets remain outside Renderer and outside the public Arckit source history. The public monorepo contains only invalid example configuration and explicit environment contracts. The sibling private arckit-ops workspace owns environment-specific topology, encrypted secret references, ignored local secret material, private runbooks, and customer overlays; private Git visibility does not authorize committing plaintext secrets. Every imported current tree and complete history is scanned and filtered before publication, and any discovered real credential is revoked or rotated rather than merely deleted.",
+          "reason": "Consolidating previously separate repositories into a public monorepo expands the publication boundary and requires an explicit private operational and history-sanitization contract.",
           "evidence": [
-            "Current operator input, 2026-08-25",
-            "arckit/spec/arcorbit-distribution.md",
-            "arckit/tech/arcorbit/installer-supply-chain.md",
-            "https://learn.chatgpt.com/docs/auth"
+            "arckit/tech/repository-governance/monorepo-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 secret 持久化、系统凭证库、installer integrity、认证输出或 Renderer 输入边界改变时重审。",
-          "revision": 5
+          "resume_condition": "Revisit when secret storage, customer delivery ownership, infrastructure repositories, or publication scope changes.",
+          "revision": 6
         },
         "gap_refs": [
           "GAP-security-real-project-validation"
@@ -421,16 +415,16 @@
         "evidence_expectation": "Durable delivery evidence sufficient to recover and verify the release model.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit skills are sourced from the repository and ArcOrbit applies its locked payload only to normalized local project roots explicitly associated through Product Workspaces; it does not install bundled skills, shared assets or loaders into the Codex user-level skill directory. Source availability recommendations remain generic, while ArcOrbit uses a project-only invocation policy, per-project relations and confirmed migration of legacy managed user targets. ArcOrbit 每次应用启动都会把当前安装包 locked payload 与 Desktop Store 中全部已关联本地项目的安装关系和 drift 比较；没有本地项目时保持 global-only，任一关联项目未 ready 时不启动 Automation。Governed ArcOrbit installers are produced only by manually dispatched GitHub workflows against an existing tf/*, beta/* or appstore/* release-intent tag, bundle locked trusted resources, the Arckit skill payload and an exact ArcForge provider artifact, and support macOS arm64/x64, Windows x64 and Linux x64 with explicit signing and draft-release choices. A repository-local validation entrypoint may build current-host unsigned artifacts only when provider, ArcOrbit metadata, repository identity and workflow are explicitly labeled local; those artifacts carry no release authorization and are never published by governed workflows. Codex CLI is not bundled or redistributed in ArcOrbit v1: Setup Readiness downloads and executes OpenAI's current official standalone installer for macOS/Linux/Windows only after explicit user confirmation, records no installer bytes in the product, preserves external installations unless the user separately confirms migration, and revalidates the selected executable after install/update.",
-          "reason": "明确安装包升级后的首次应用启动即检查所有已关联项目副本，而不是依赖手动项目切换。",
+          "statement": "Arckit is a public source monorepo containing Apache-2.0 open-source protocol, skill, SDK, example, and public-documentation components together with PolyForm Perimeter 1.0.1 source-available ArcOrbit, Todo Web, Feedback Console, and Workshop API product components. The nearest component LICENSE and manifest metadata override the root default. Imported source history preserves provenance only after forbidden paths are filtered from complete history. Arckit is the sole source authority after verification; former Todo and Feedback repositories become read-only archives, while private operational and customer distribution remains in arckit-ops.",
+          "reason": "A single source repository requires unambiguous component licensing, provenance, publication, and legacy-repository authority.",
           "evidence": [
-            "arckit/spec/arcorbit-distribution.md",
-            "runtime/arcorbit/README.md",
-            "runtime/arcorbit/src/desktop-setup-readiness-context.mjs"
+            "arckit/tech/repository-governance/monorepo-solution.md",
+            "LICENSING.md",
+            "runtime/arcorbit/LICENSE"
           ],
           "confidence": "high",
-          "resume_condition": "当启动 drift 检查、payload ownership、project relation 或 Automation 放行策略改变时重审。",
-          "revision": 8
+          "resume_condition": "Revisit when a component changes license, release ownership, or source authority.",
+          "revision": 9
         },
         "gap_refs": []
       },

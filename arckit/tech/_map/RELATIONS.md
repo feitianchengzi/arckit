@@ -18,6 +18,8 @@
 
 ## Product Mapping
 
+`repository-governance/monorepo-solution.md` 定义 Arckit、ArcOrbit、Workshop Todo 与 Workshop Feedback 的源码共置、目录许可、历史导入和私有运维隔离边界；所有公开 app、service、package 与发布物遵守该仓库级方案，`arckit-ops` 只通过公开配置契约参与部署。
+
 `arckit/spec/arcorbit-distribution.md` 对应 `arcorbit/installer-supply-chain.md`，定义人工出包、安装、修复、升级和失败恢复的产品行为。
 
 `arckit/spec/agentic-software-development/runtime-automation-workspace.md` 对应 `arcorbit/solution.md`、`arcorbit/desktop-execution-solution.md` 与 `arcorbit/realtime-synchronization-solution.md`，定义 task-driven Runtime 工作区、基于 Work 本地投影的任务发现、降级恢复和人工 Gate 行为。

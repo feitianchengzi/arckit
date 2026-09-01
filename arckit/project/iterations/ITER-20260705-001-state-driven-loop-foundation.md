@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-30T09:57:45.516Z
+Updated: 2026-09-01T05:17:55.900Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,16 +17,16 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260828-001-feedback.md)
-- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260828-001-feedback.md)
-- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260829-003-upgrade-arcorbit-codex-cli-installation-and-updates.md)
-- software_decision.external_integrations: settled (arckit/cases/active/CASE-20260829-003-upgrade-arcorbit-codex-cli-installation-and-updates.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260829-003-upgrade-arcorbit-codex-cli-installation-and-updates.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260830-001-development-case.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260830-001-development-case.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260830-002-arcorbit-desktop.md)
 - software_decision.data_and_state: settled (arckit/cases/active/CASE-20260830-002-arcorbit-desktop.md)
 - software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260830-002-arcorbit-desktop.md)
+- software_decision.runtime_surfaces: settled (arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md)
+- software_decision.security_privacy_compliance: settled (arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md)
+- software_decision.delivery_and_distribution: settled (arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md)
 
 ## Remaining Project Gaps
 

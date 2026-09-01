@@ -9,3 +9,4 @@
 | `arcorbit/platform-composition-solution.md` | ✅ | Product Workspace、独立组织治理、多产品 workset、Work 本地 Task Projection、持久化 Inspector 宽度与紧凑分区、多维任务树与评论附件契约、受限 IPC 和双反馈线。 |
 | `arcorbit/realtime-synchronization-solution.md` | ✅ | PostgreSQL 持久项目事件、项目 WebSocket 游标恢复、Work-owned REST/mutation 同步、本地任务状态发布、Automation 消费和人工 Gate 隔离。 |
 | `arcorbit/product-feedback-integration.md` | ✅ | ArcOrbit 自身 Project 107、Feedback SDK WebView V2、受限 Electron WebContents、内置静态 API Key、稳定 Workshop 用户身份、未读事件/角标和失败关闭。 |
+| `repository-governance/monorepo-solution.md` | ✅ | Todo/Feedback 源码目录、过滤历史、多许可证优先级、公开配置契约、私有 arckit-ops 边界和安全门禁。 |
