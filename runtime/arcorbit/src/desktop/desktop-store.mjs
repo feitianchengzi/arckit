@@ -2,20 +2,33 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { authProjection, DEFAULT_WORKSHOP_BASE_URL, normalizeTaskSourceSettings } from "../task-source-adapter.mjs";
 import { taskDisplayTitle } from "../task-display-title.mjs";
 import { normalizeWorkInspectorWidth, WORK_INSPECTOR_DEFAULT_WIDTH } from "./work-inspector-preference.mjs";
 
-export const DESKTOP_STORE_VERSION = 16;
+export const DESKTOP_STORE_VERSION = 17;
+const TASK_REHYDRATION_VERSION = 16;
+const PARTITION_MANIFEST_VERSION = "desktop-state-partitions/v1";
+const MESSAGE_PARTITION_VERSION = "desktop-session-messages/v1";
+const TASK_PARTITION_VERSION = "desktop-task-projection/v1";
 
-export function createDesktopStore({ dataDir, runsDir, storePath }) {
+export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
   let storeQueue = Promise.resolve();
+  let loadPromise = null;
+  let messageLoadPromise = null;
+  let currentStore = null;
+  let currentMessages = null;
+  let partitionRefs = null;
+  let stateRevision = 0;
+  const readStoreJson = io.readJson || readJsonWithRetry;
+  const writeStoreJson = io.writeJson || writeJson;
 
   async function ensureStore() {
     await mkdir(dataDir, { recursive: true });
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
-      await writeJson(storePath, {
+      await persistStore(normalizeStore({
         version: DESKTOP_STORE_VERSION,
         projects: [],
         runs: [],
@@ -25,42 +38,232 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
         automation: defaultAutomationState(),
         platform: defaultPlatformState(),
         chat: defaultChatState()
-      });
+      }), { messages: {}, writeMessages: true, forceTaskProjection: true });
     }
   }
 
   async function readStoreFile() {
     await ensureStore();
-    const store = await readJsonWithRetry(storePath);
-    return normalizeStore(store);
+    const control = await readStoreJson(storePath);
+    if (validPartitionManifest(control.partitions)) {
+      partitionRefs = normalizePartitionManifest(control.partitions);
+      const taskProjection = await readStoreJson(partitionPath(partitionRefs.task_projection_file));
+      if (taskProjection?.schema_version !== TASK_PARTITION_VERSION) {
+        throw new Error(`Unsupported Desktop Task Projection partition: ${taskProjection?.schema_version || "<missing>"}`);
+      }
+      const normalized = normalizeStore({
+        ...control,
+        messages: {},
+        platform: {
+          ...(control.platform || {}),
+          task_sync: taskProjection.task_sync || {}
+        }
+      });
+      normalized.messages = {};
+      return normalized;
+    }
+
+    const migrated = normalizeStore(control);
+    currentMessages = migrated.messages;
+    await persistStore(migrated, { messages: currentMessages, writeMessages: true, forceTaskProjection: true });
+    migrated.messages = {};
+    return migrated;
+  }
+
+  async function ensureLoaded() {
+    if (currentStore) return currentStore;
+    if (!loadPromise) {
+      loadPromise = readStoreFile()
+        .then((store) => {
+          currentStore = store;
+          stateRevision = 1;
+          return store;
+        })
+        .finally(() => {
+          loadPromise = null;
+        });
+    }
+    return loadPromise;
+  }
+
+  async function readControlStore() {
+    await storeQueue;
+    return structuredClone(await ensureLoaded());
   }
 
   async function readStore() {
     await storeQueue;
-    return readStoreFile();
+    const state = await ensureLoaded();
+    const messages = await ensureMessagesLoaded();
+    return structuredClone({ ...state, messages });
+  }
+
+  const readStoreWithMessages = readStore;
+
+  async function captureStateView() {
+    await storeQueue;
+    const state = await ensureLoaded();
+    return {
+      schema_version: "desktop-state-view/v1",
+      revision: stateRevision,
+      state
+    };
+  }
+
+  async function updateControlStore(updater) {
+    return queueUpdate(updater, { includeMessages: false });
   }
 
   async function updateStore(updater) {
+    return queueUpdate(updater, { includeMessages: true });
+  }
+
+  const updateStoreWithMessages = updateStore;
+
+  async function queueUpdate(updater, { includeMessages }) {
     const operation = storeQueue.catch(() => {}).then(async () => {
-      const store = await readStoreFile();
+      const state = await ensureLoaded();
+      const messages = includeMessages ? await ensureMessagesLoaded() : {};
+      const store = structuredClone({ ...state, messages });
       const next = await updater(store) || store;
       const persisted = normalizeStore(next);
-      await writeJson(storePath, persisted);
-      return persisted;
+      const persistedMessages = includeMessages ? persisted.messages : null;
+      await persistStore(persisted, {
+        messages: persistedMessages,
+        writeMessages: includeMessages
+      });
+      persisted.messages = {};
+      currentStore = persisted;
+      if (includeMessages) currentMessages = persistedMessages;
+      stateRevision += 1;
+      return includeMessages
+        ? structuredClone({ ...persisted, messages: persistedMessages })
+        : structuredClone(persisted);
     });
     storeQueue = operation.then(() => {}, () => {});
     return operation;
   }
 
+  async function ensureMessagesLoaded() {
+    if (currentMessages) return currentMessages;
+    if (!messageLoadPromise) {
+      messageLoadPromise = readStoreJson(partitionPath(partitionRefs.message_file))
+        .then((partition) => {
+          if (partition?.schema_version !== MESSAGE_PARTITION_VERSION) {
+            throw new Error(`Unsupported Desktop Session Message partition: ${partition?.schema_version || "<missing>"}`);
+          }
+          currentMessages = partition.messages && typeof partition.messages === "object" ? partition.messages : {};
+          return currentMessages;
+        })
+        .finally(() => {
+          messageLoadPromise = null;
+        });
+    }
+    return messageLoadPromise;
+  }
+
+  async function persistStore(store, { messages = null, writeMessages = false, forceTaskProjection = false } = {}) {
+    const normalized = normalizeStore(store);
+    const previousRefs = partitionRefs;
+    const nextRefs = previousRefs ? { ...previousRefs } : {
+      schema_version: PARTITION_MANIFEST_VERSION,
+      generation: "",
+      message_file: "",
+      task_projection_file: ""
+    };
+    const generation = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const taskProjectionChanged = forceTaskProjection
+      || !previousRefs
+      || !currentStore
+      || !isDeepStrictEqual(currentStore.platform?.task_sync, normalized.platform?.task_sync);
+    const messagePartitionChanged = writeMessages && (
+      !previousRefs || !currentMessages || !isDeepStrictEqual(currentMessages, messages || {})
+    );
+    const writtenPartitions = [];
+    try {
+      if (taskProjectionChanged) {
+        nextRefs.task_projection_file = `desktop-task-projection.${generation}.json`;
+        await writeStoreJson(partitionPath(nextRefs.task_projection_file), {
+          schema_version: TASK_PARTITION_VERSION,
+          generation,
+          task_sync: normalized.platform.task_sync
+        });
+        writtenPartitions.push(nextRefs.task_projection_file);
+      }
+      if (messagePartitionChanged || !nextRefs.message_file) {
+        nextRefs.message_file = `desktop-session-messages.${generation}.json`;
+        await writeStoreJson(partitionPath(nextRefs.message_file), {
+          schema_version: MESSAGE_PARTITION_VERSION,
+          generation,
+          messages: messages || {}
+        });
+        writtenPartitions.push(nextRefs.message_file);
+      }
+      nextRefs.schema_version = PARTITION_MANIFEST_VERSION;
+      nextRefs.generation = generation;
+      await writeStoreJson(storePath, controlSnapshot(normalized, nextRefs));
+    } catch (error) {
+      await Promise.all(writtenPartitions.map((file) => rm(partitionPath(file), { force: true }).catch(() => {})));
+      throw error;
+    }
+    partitionRefs = nextRefs;
+    await cleanupReplacedPartition(previousRefs?.task_projection_file, nextRefs.task_projection_file);
+    await cleanupReplacedPartition(previousRefs?.message_file, nextRefs.message_file);
+    return normalized;
+  }
+
+  function partitionPath(file) {
+    const name = String(file || "");
+    if (!/^desktop-(?:task-projection|session-messages)\.[a-zA-Z0-9-]+\.json$/.test(name)) {
+      throw new Error(`Invalid Desktop partition ref: ${name || "<missing>"}`);
+    }
+    return resolve(dataDir, name);
+  }
+
+  async function cleanupReplacedPartition(previous, current) {
+    if (!previous || previous === current) return;
+    await rm(partitionPath(previous), { force: true }).catch(() => {});
+  }
+
   return {
     ensureStore,
     readStore,
-    updateStore
+    readControlStore,
+    readStoreWithMessages,
+    captureStateView,
+    updateStore,
+    updateControlStore,
+    updateStoreWithMessages
+  };
+}
+
+function validPartitionManifest(value) {
+  return value?.schema_version === PARTITION_MANIFEST_VERSION
+    && typeof value.message_file === "string"
+    && typeof value.task_projection_file === "string";
+}
+
+function normalizePartitionManifest(value) {
+  return {
+    schema_version: PARTITION_MANIFEST_VERSION,
+    generation: String(value.generation || ""),
+    message_file: String(value.message_file || ""),
+    task_projection_file: String(value.task_projection_file || "")
+  };
+}
+
+function controlSnapshot(store, partitions) {
+  const { messages: _messages, ...control } = store;
+  const { task_sync: _taskSync, ...platform } = control.platform || {};
+  return {
+    ...control,
+    platform,
+    partitions
   };
 }
 
 export function normalizeStore(store) {
-  const requiresTaskRehydration = Number(store?.version || 0) < DESKTOP_STORE_VERSION;
+  const requiresTaskRehydration = Number(store?.version || 0) < TASK_REHYDRATION_VERSION;
   const automation = normalizeAutomationState(store.automation || {});
   const hasPersistedChatSelection = Boolean(store.chat)
     && Object.prototype.hasOwnProperty.call(store.chat, "selected_session_id");

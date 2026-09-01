@@ -41,6 +41,7 @@ export function createAutomationCoordinator(options) {
     if (overviewCoordinator) return overviewCoordinator;
     overviewCoordinator = createLaneAutomationCoordinator({
       ...options,
+      workspaceKey: "*",
       workSync: createLaneTaskStateBoundary(sharedWorkSync, runManager, "*"),
       runManager: createLaneRunManager(runManager, "*", { subscribe: false })
     });
@@ -53,6 +54,7 @@ export function createAutomationCoordinator(options) {
     if (laneCoordinators.has(key)) return laneCoordinators.get(key);
     const coordinator = createLaneAutomationCoordinator({
       ...options,
+      workspaceKey: key,
       workSync: createLaneTaskStateBoundary(sharedWorkSync, runManager, key),
       runManager: createLaneRunManager(runManager, key, { subscribe: false })
     });
@@ -64,8 +66,8 @@ export function createAutomationCoordinator(options) {
     return coordinator;
   }
 
-  async function ensureKnownLanes() {
-    const store = await runManager.readDesktopStore();
+  async function ensureKnownLanes(store = null) {
+    store ||= await runManager.readDesktopStore();
     const automation = ensureExecutionCollections(store.automation || {});
     const keys = new Set([
       ...Object.keys(automation.active_executions),
@@ -76,12 +78,39 @@ export function createAutomationCoordinator(options) {
     return { store, automation, keys: [...keys] };
   }
 
+  async function captureQueryContext() {
+    const stateView = typeof runManager.captureDesktopStateView === "function"
+      ? await runManager.captureDesktopStateView()
+      : {
+          schema_version: "desktop-state-view/v1",
+          revision: 0,
+          state: await runManager.readDesktopStore()
+        };
+    const projectedStore = sharedWorkSync.attachLocalProjection({
+      ...stateView.state,
+      automation: {
+        ...(stateView.state.automation || {}),
+        active_executions: { ...(stateView.state.automation?.active_executions || {}) }
+      }
+    });
+    const [localProjects, runs] = await Promise.all([
+      typeof runManager.listProjectsFromStateView === "function"
+        ? runManager.listProjectsFromStateView(stateView)
+        : runManager.listProjects(),
+      typeof runManager.listRunSummariesFromStateView === "function"
+        ? runManager.listRunSummariesFromStateView(stateView, {})
+        : listRunSummaries(runManager)
+    ]);
+    return { stateView, store: projectedStore, localProjects, runs };
+  }
+
   async function getSnapshot(filter = {}) {
-    const { store } = await ensureKnownLanes();
+    const queryContext = await captureQueryContext();
+    const { store } = await ensureKnownLanes(queryContext.store);
     const [base, laneSnapshots] = await Promise.all([
-      ensureOverview().getSnapshot(filter),
+      ensureOverview().getSnapshot(filter, queryContext),
       laneCoordinators.size > 1
-        ? Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.getSnapshot(filter)))
+        ? Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.getSnapshot(filter, queryContext)))
         : Promise.resolve([])
     ]);
     const automation = ensureExecutionCollections(store.automation || {});
@@ -421,7 +450,33 @@ function executionWorkspaceKey(execution) {
 }
 
 function projectLaneStore(store, workspaceKey) {
-  const projected = structuredClone(store);
+  const sourceAutomation = store.automation || {};
+  const sourceSnapshot = sourceAutomation.snapshot || null;
+  const sourceRealtime = sourceAutomation.realtime || null;
+  const projected = {
+    ...store,
+    automation: {
+      ...sourceAutomation,
+      active_executions: { ...(sourceAutomation.active_executions || {}) },
+      project_bindings: { ...(sourceAutomation.project_bindings || {}) },
+      project_participation: { ...(sourceAutomation.project_participation || {}) },
+      acceptance_feedback_items: [...(sourceAutomation.acceptance_feedback_items || [])],
+      attention_items: [...(sourceAutomation.attention_items || [])],
+      recovery_items: [...(sourceAutomation.recovery_items || [])],
+      recent_completions: [...(sourceAutomation.recent_completions || [])],
+      snapshot: sourceSnapshot ? {
+        ...sourceSnapshot,
+        projects: [...(sourceSnapshot.projects || [])],
+        tasks: [...(sourceSnapshot.tasks || [])],
+        errors: [...(sourceSnapshot.errors || [])],
+        project_states: { ...(sourceSnapshot.project_states || {}) }
+      } : sourceSnapshot,
+      realtime: sourceRealtime ? {
+        ...sourceRealtime,
+        projects: { ...(sourceRealtime.projects || {}) }
+      } : sourceRealtime
+    }
+  };
   const automation = ensureExecutionCollections(projected.automation || (projected.automation = {}));
   const executions = automation.active_executions;
   const active = workspaceKey === "*"
@@ -526,6 +581,7 @@ function compareSupervisorCandidates(left, right) {
 function createLaneAutomationCoordinator({
   runManager,
   workSync,
+  workspaceKey = "*",
   now = () => new Date().toISOString(),
   cliLauncher = createInteractiveCodexCliLauncher(),
   setupReadinessPreflight = async () => ({ ready: true }),
@@ -544,12 +600,14 @@ function createLaneAutomationCoordinator({
       .catch((error) => emit("automation.error", { message: error.message }));
   });
 
-  async function getSnapshot(filter = {}) {
-    const [store, localProjects, runs] = await Promise.all([
-      readStore(),
-      runManager.listProjects(),
-      listRunSummaries(runManager)
-    ]);
+  async function getSnapshot(filter = {}, queryContext = null) {
+    const [store, localProjects, runs] = queryContext
+      ? [projectLaneStore(queryContext.store, workspaceKey), queryContext.localProjects, queryContext.runs]
+      : await Promise.all([
+          readStore(),
+          runManager.listProjects(),
+          listRunSummaries(runManager)
+        ]);
     const automation = store.automation;
     const taskCounts = countTasks(automation.snapshot.tasks);
     const projectIndex = new Map(automation.snapshot.projects.map((project) => [String(project.id), project]));

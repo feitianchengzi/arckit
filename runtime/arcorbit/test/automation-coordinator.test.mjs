@@ -1847,6 +1847,52 @@ test("multi-project automation starts distinct workspace lanes concurrently up t
   coordinator.dispose();
 });
 
+test("multi-lane Automation snapshot captures one state view and one shared Run index", async () => {
+  const store = multiProjectStore(3);
+  store.automation.snapshot.tasks.forEach((task) => { task.state = "in_progress"; });
+  store.automation.active_executions = Object.fromEntries([1, 2, 3].map((index) => [
+    `local-${index}`,
+    activeLaneExecution(index)
+  ]));
+  store.automation.selected_execution_id = "EXEC-1";
+  const calls = { captures: 0, compatibleReads: 0, projectIndexes: 0, runIndexes: 0 };
+  const runManager = fakeRunManager(store, [], {
+    async captureDesktopStateView() {
+      calls.captures += 1;
+      return { schema_version: "desktop-state-view/v1", revision: 7, state: store };
+    },
+    async readDesktopStore() {
+      calls.compatibleReads += 1;
+      return structuredClone(store);
+    },
+    listProjectsFromStateView(stateView) {
+      calls.projectIndexes += 1;
+      assert.equal(stateView.revision, 7);
+      return stateView.state.projects;
+    },
+    listRunSummariesFromStateView(stateView) {
+      calls.runIndexes += 1;
+      assert.equal(stateView.revision, 7);
+      return [1, 2, 3].map((index) => ({
+        id: `RUN-${index}`,
+        project_id: `local-${index}`,
+        status: "running",
+        run_summary: { token_usage: {}, performance: {} }
+      }));
+    },
+    async getRun(runId) {
+      return { id: runId, project_id: runId.replace("RUN", "local"), status: "running", activity: {} };
+    }
+  });
+  const coordinator = createAutomationCoordinator({ runManager });
+
+  const snapshot = await coordinator.getSnapshot();
+
+  assert.equal(snapshot.active_executions.length, 3);
+  assert.deepEqual(calls, { captures: 1, compatibleReads: 0, projectIndexes: 1, runIndexes: 1 });
+  coordinator.dispose();
+});
+
 test("remote projects bound to one local workspace remain serial within that workspace lane", async () => {
   const store = multiProjectStore(2);
   store.projects = [{ id: "shared", path: "/workspace/shared", name: "shared" }];

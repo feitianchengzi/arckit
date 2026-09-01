@@ -13,6 +13,7 @@
   "scripts": {
     "check": "node scripts/check-syntax.mjs && node scripts/run-tests.mjs",
     "test": "node scripts/run-tests.mjs",
+    "benchmark:state-kernel": "node --expose-gc scripts/benchmark-state-kernel.mjs",
     "test:layout": "ARCORBIT_ELECTRON_LAYOUT_TEST=1 node --test test/desktop-sidebar-layout.test.mjs",
     "desktop": "electron desktop/main.mjs",
     "smoke": "node bin/arcorbit.mjs run --project ../.. --dry-run --json",

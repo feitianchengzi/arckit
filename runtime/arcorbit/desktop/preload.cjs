@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   loginWithCode: (input) => ipcRenderer.invoke("arckit:auth-login", input),
   logoutAuth: (input) => ipcRenderer.invoke("arckit:auth-logout", input),
   automationSnapshot: (filter) => ipcRenderer.invoke("arckit:automation-snapshot", filter),
+  runActivitySnapshot: (runId) => ipcRenderer.invoke("arckit:run-activity-snapshot", runId),
   selectAutomationExecution: (executionId) => ipcRenderer.invoke("arckit:automation-select-execution", executionId),
   syncAutomation: () => ipcRenderer.invoke("arckit:automation-sync"),
   syncWork: () => ipcRenderer.invoke("arckit:work-sync"),

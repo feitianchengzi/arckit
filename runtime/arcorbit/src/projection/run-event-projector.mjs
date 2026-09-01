@@ -5,6 +5,7 @@ function createRunActivity(run) {
   const timestamp = run.started_at || new Date().toISOString();
   return {
     schema_version: "desktop-run-activity/v3",
+    projection_revision: 0,
     run_id: run.id || "",
     task_id: run.task_id || "",
     case_id: "",

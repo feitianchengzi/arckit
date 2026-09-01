@@ -168,3 +168,4 @@
 | [CASE-20260829-002](closed/CASE-20260829-002-arcorbit-chat.md) | closed | 隔离 ArcOrbit Chat 跨会话滚动所有权 | 2026-08-29T15:50:07.539Z |
 | [CASE-20260829-003](closed/CASE-20260829-003-upgrade-arcorbit-codex-cli-installation-and-updates.md) | closed | Upgrade ArcOrbit Codex CLI installation and updates | 2026-08-29T17:43:21.909Z |
 | [CASE-20260830-001](closed/CASE-20260830-001-development-case.md) | closed | 允许所有可访问项目成员绑定本地工作区 | 2026-08-30T09:01:25.875Z |
+| [CASE-20260830-002](closed/CASE-20260830-002-arcorbit-desktop.md) | closed | 建立 ArcOrbit 版本化 Desktop 状态内核与增量投影架构 | 2026-08-30T09:57:45.516Z |

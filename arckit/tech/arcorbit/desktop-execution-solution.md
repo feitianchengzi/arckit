@@ -117,13 +117,31 @@ Workbench 以 task session 内全部 Runtime runs 的结构化 activity 生成�
 
 该摘要只读取结构化 Run Activity，不解析 transcript 文案或 ledger Markdown。旧 activity 没有 `gap_rounds` 时允许从同一 activity 中仍保留的结构化 round selection/closeout message payload 做一次兼容投影；无法确认的字段显示“未记录”，不得用当前 selected gap 伪造历史轮次。
 
-### 轻量持久化与刷新
+### Desktop State Kernel 与版本化投影
+
+Electron main 进程中的 `Desktop State Kernel` 独占 Desktop 本地控制状态。Kernel 启动时读取并规范化一次持久 control snapshot，随后以单调 `state_revision` 持有当前 immutable state view；普通 query 不重新读取持久文件。所有 control mutation 进入同一串行事务边界，从同一 observed revision 计算 next state，原子持久化成功后才替换内存 view 并发布 change set。失败 mutation 不改变内存 revision、持久事实或订阅者状态。
+
+Kernel query 只返回受限 projection，不暴露可变 Store 对象：
+
+- `captureStateView()` 在一个 query 开始时固定 `{revision, state}`；该 query 的全部 overview、lane、queue、health、session 和 Run summary 派生都使用同一 view。
+- `AutomationSnapshotQuery` 对同一 state view 只构造一次全局目录和 Run summary index，再以纯 selector 产生 workspace lane 投影；lane 不拥有 Store proxy，不读取磁盘，也不 `structuredClone` 完整全局状态。
+- `ActiveRunProjectionQuery(run_id)` 优先读取 Run Manager 的内存 activity；只在进程恢复且该 run 不在内存时读取一个持久 detail。
+- `HistoricalTranscriptQuery(session_id)` 是显式 evidence 查询，只加载目标 session/run 分区，不参与 Automation Control Snapshot。
+- query 结果携带 `state_revision` 和必要的 domain/entity revision；相同 query key 在同一 revision 上可以复用有界缓存，但缓存不能成为控制事实。
+
+成功 mutation 发布 `desktop-state-change/v1`，包含 `state_revision`、`domains` 和稳定 `entities`。change 只描述失效或受限 patch，不携带 token、凭证、完整 Store、历史 transcript 或 raw Runtime event。订阅者按 revision 单向采用；收到晚到 revision 时忽略，发现 revision 跳跃且缺少可合并 patch 时读取一次对应 detail/full snapshot 建立新基线。
+
+`run.activity_changed` 投影为 `run.activity.patch/v1`，携带 `run_id`、`base_revision`、`revision`、受限 changed fields、message upsert/removal 和稳定 owner。Run activity revision 独立于 Desktop control `state_revision`，不能用一个 revision 推断另一个状态域。Renderer 通过严格 single-flight 队列串行采用 patch；新 delta 到达时只更新 pending latest revision，不创建重叠 Snapshot。Renderer 仅在当前 Command Center/Workbench owner 与 `run_id` 匹配时采用 patch；隐藏页面、不相关 Run 和旧 owner epoch 直接忽略。
+
+### 分层持久化与刷新
 
 每个 Run 只维护一个紧凑 `messages.jsonl` 消息记录、一个收束后的 `activity.json` 投影和一个错误专用 `stderr.log`。Desktop 不再同时复制完整 stderr event stream 与 JSON wrapper，也不创建 `raw-events.jsonl`。`messages.jsonl` 允许同一消息 ID 出现状态更新记录，读取方以最后一条为准；它不保存逐 token、逐字符或命令输出 delta。
 
-Desktop 仍实时解析 Runtime stderr 以维护内存中的 activity、Token、耗时与控制状态，但 IPC 只发送合并后的 activity-changed 通知。Renderer 按有界节奏拉取最新快照，单次 delta 不触发独立 IPC、磁盘 append 或 DOM 节点；Chat 的合并流式投影是局部消息补丁，不是全局或 session snapshot 失效信号。Run/Chat turn 结束、错误、人工控制和语义消息完成时立即刷出必要记录；进程异常时允许丢失尚未形成语义边界的瞬时 delta，不影响 canonical Case/ledger 恢复。
+Desktop control snapshot 只保存恢复执行与用户配置所需的有界控制事实，不内嵌 Chat/Automation 历史消息、完整 Run activity、Task 列表或远端 section cache。当前物理格式为 Store v17：`desktop-store.json` 保存 `desktop-state-partitions/v1` manifest 和 control state，session messages 保存为 `desktop-session-messages/v1` 分区，Task Projection 保存为 `desktop-task-projection/v1` 分区，Run evidence 继续按 run 分区。manifest 通过 partition ref 指向已提交 generation；写入先落新分区、最后原子替换 control manifest，失败时删除未提交分区并保持旧 manifest 可恢复。旧单体 Store 在首次启动时一次性迁移，不保留两个可接受 mutation 的长期双写 Store。
 
-`run.activity_changed` 是携带 `run_id` 的局部 invalidation，不是全局应用失效信号。Renderer 只在 Automation Command Center 正显示该 active run，或 Workbench 正显示同一个 run 时合并处理；其他页面和不相关的历史 Workbench 直接忽略。可见命中只调用 Automation Snapshot，不能联带 Platform Snapshot、认证状态、Work 查询或 Chat 查询；响应只更新 Automation state，并分别调用 `renderCommandCenter` 或 `renderWorkbench`。全局 `render()`、隐藏页面 DOM 和 route authentication 不参与 activity 节奏。Run started/finished、人工消息、command result 和 Automation 状态变更仍走完整一致性刷新，因为这些事件可能改变导航、队列、恢复或跨页面状态。
+Desktop 仍实时解析 Runtime stderr 以维护内存中的 activity、Token、耗时与控制状态，但 IPC 只发送合并后的 activity patch。单次 delta 不触发独立 IPC、control snapshot 写入、磁盘 append 或 DOM 节点；Chat 的合并流式投影同样是 session-scoped patch。Run/Chat turn 结束、错误、人工控制和语义消息完成时立即刷出必要 evidence；进程异常时允许丢失尚未形成语义边界的瞬时 delta，不影响 canonical Case/ledger 恢复。
+
+`run.activity_changed` 是携带 `run_id` 和 revision 的局部 change，不是全局应用失效信号。Renderer 只更新当前目标 Run 的 Automation projection；正常连续 revision 不调用 Automation、Platform、认证、Chat 或 Work Snapshot，revision gap 也只读取目标 Run activity snapshot。首次进入 Automation owner、结构化 control change、恢复或显式全局一致性动作才调用 Automation Snapshot；响应只更新 Automation state，并分别调用 `renderCommandCenter` 或 `renderWorkbench`。全局 `render()`、隐藏页面 DOM 和 route authentication 不参与 activity 节奏。Run started/finished、人工消息、command result 和 Automation 控制事实变化继续发布对应 domain change，因为这些事件可能改变导航、队列、恢复或跨页面状态。
 
 Run 查询采用 summary/detail 分层，raw evidence 与控制面读模型不能共享全量加载路径：
 
@@ -330,9 +348,15 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 - Chat 与 Automation Workbench 由同一个 Conversation Surface 渲染 Agent、用户、reasoning、tool、approval 和 error 消息，并共用 Markdown、代码复制、事件绑定、流式更新与滚动控制；源码中不存在第二套 Automation message renderer。
 - Renderer 将 Agent 正式输出作为共享消息主要信息，把非空可折叠 reasoning 和每个 tool/approval item 的原位单行活动作为次级信息；Loop、Gap、ledger 与结构化结果进入 Automation 左右面板。空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入侧栏查看器并继续保留在上游上下文或诊断证据中。
 - Workbench 从同一 task session 全部 Runtime runs 的结构化 `gap_rounds` 生成完整执行时间、准确 gap 总数和逐 gap 目标/工作/结果；进行中时持续计时，终态后固定，不解析消息文案猜测历史。
+- warm main process 中的 activity patch 处理不读取 Desktop control snapshot、历史 message、Task Projection 或 Run detail；Automation Snapshot 对一次请求只捕获一个 state view，磁盘全量读取数为零。
+- overview 与任意数量 workspace lanes 从同一 state view 和同一 Run summary index 派生；lane 数增长不会增加 control Store 读取次数，也不会复制完整全局状态。
+- 同一 Run 的 activity 同步保持 single-flight；连续一百个 invalidation 在前一响应未完成时最多保留一个 pending latest revision，不产生重叠 Snapshot 或乱序采用。
+- 50 MB 历史 message/evidence fixture 不增加 warm Automation Control Snapshot 的输入规模；历史增长只影响显式目标 session/run detail 查询。
+- 三个 workspace lane 连续流式运行三十分钟时，参考验收环境中的 Electron main CPU p95 低于一个逻辑核心的 20%，event-loop delay p99 低于 50 ms，内存不会随 invalidation 数持续增长；报告同时记录机器、构建、Store fixture、事件频率和采样命令。
+- crash-restart 在任意 control commit、message append、Run evidence flush 和 Renderer revision gap 边界恢复后，workspace/task/thread lease、Case binding、human Gate 与三个完成检查点保持原事实；可重建 projection 缺失只触发重建，不能改变授权或完成状态。
 - Automation Control Snapshot 不读取历史 Run 的 `activity.json` 或 `messages.jsonl`；每个活动执行至多水合自己的一个 Run，usage baseline 从 `RunSummaryProjection` 读取最近 20 个有效样本。
 - 旧 Run summary warmup 有明确 20 项上限且不读取 transcript；warmup 前后 task/thread、Gap、ledger、Gate、恢复与 closeout 结果一致。
-- `run.activity_changed` 在隐藏页面或非目标 Run 上不发起查询；可见命中只读取 Automation Snapshot 并重绘 Command Center 或 Workbench，不调用 Platform、认证、Chat、Work query 或全局 render。
+- `run.activity_changed` 在隐藏页面或非目标 Run 上不发起查询；可见且 revision 连续时只采用局部 activity patch，revision gap 才读取一次目标 Run 的 `run.activity.snapshot/v1`，不调用 Automation、Platform、认证、Chat、Work query 或全局 render。
 - Automation 的介入、恢复、CLI 接力、Case 对账、detached completion 与 closeout 按 `run_id` 水合至多一个 detail，不通过项目级历史列表寻找目标 Run。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
 - 目标 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动执行的 workspace/thread lease，其他 workspace lane 可以继续运行。

@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-30T09:01:25.875Z",
-    "revision": 326
+    "updated_at": "2026-08-30T09:57:45.516Z",
+    "revision": 329
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "纠正 ArcOrbit 将本地目录绑定误判为项目管理员操作的产品语义、交互和实现，使能够访问远端项目的任意角色成员都能在自己的设备绑定本地工作区。",
+      "current_focus": "实现并验收 ArcOrbit 单写者版本化 Desktop State Kernel、共享 Automation 投影、增量 activity patch 与分层持久化。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -252,8 +252,8 @@
         "evidence_expectation": "Durable data and technical evidence sufficient to recover the state model.",
         "decision": {
           "status": "settled",
-          "statement": "Canonical development state、Workshop 远端真相、ArcOrbit Task Projection、Automation execution、Chat session/thread 和 Case 绑定收据继续保持既有所有权边界。ArcOrbit Desktop Store 额外拥有全局 `platform.ui_preferences.work_inspector_width_px`，用于保存 360–640px 的 Work Inspector 用户选择宽度；它不属于 Workshop Task、按项目 workspace preference、Work Sync 投影或 Automation。缺失或非法值使用 440，窗口临时约束产生的有效宽度不写回保存值，任务、项目、Workset、登录身份切换和应用重启均不重置该偏好。 同名 skill 兜底覆盖的旧内容由 ArcOrbit userData 下仅当前用户可访问的 recovery area 和原子 recovery manifest 持有；全部已选项完成备份后才开始替换，失败时目标、catalog、loader 与 relation 回滚，未选内容不变。 ArcOrbit 项目状态分为 Project Catalog、Workspace Control 与 Task Readiness 三层；前两层的用户事实在覆盖安装时保留，任务、标签、游标、同步健康和 freshness 是可派生状态，必须由新版确定性重建。",
-          "reason": "当前 Case 将覆盖安装自愈和跨页面项目一致性确立为稳定架构边界。",
+          "statement": "Canonical development state、Workshop 远端真相、ArcOrbit Task Projection、Automation execution、Chat session/thread 和 Case 绑定收据继续保持既有所有权边界。ArcOrbit Desktop Store 额外拥有全局 `platform.ui_preferences.work_inspector_width_px`，用于保存 360–640px 的 Work Inspector 用户选择宽度；它不属于 Workshop Task、按项目 workspace preference、Work Sync 投影或 Automation。缺失或非法值使用 440，窗口临时约束产生的有效宽度不写回保存值，任务、项目、Workset、登录身份切换和应用重启均不重置该偏好。 同名 skill 兜底覆盖的旧内容由 ArcOrbit userData 下仅当前用户可访问的 recovery area 和原子 recovery manifest 持有；全部已选项完成备份后才开始替换，失败时目标、catalog、loader 与 relation 回滚，未选内容不变。 ArcOrbit 项目状态分为 Project Catalog、Workspace Control 与 Task Readiness 三层；前两层的用户事实在覆盖安装时保留，任务、标签、游标、同步健康和 freshness 是可派生状态，必须由新版确定性重建。 Desktop control facts、可重建 projections、按 session/project/run 分区的 messages、Task Projection 与 evidence 保持独立所有权；普通 warm query 不读取磁盘，持久实现不得形成长期双写事实源。",
+          "reason": "既有边界保持不变；Desktop control facts、可重建 projections、按 session/project/run 分区的 messages、Task Projection 与 evidence 保持独立所有权；普通 warm query 不读取磁盘，持久实现不得形成长期双写事实源。",
           "evidence": [
             "arckit/tech/arcorbit/platform-composition-solution.md",
             "runtime/arcorbit/src/desktop/desktop-store.mjs",
@@ -263,11 +263,13 @@
             "arckit/tech/arcorbit/installer-supply-chain.md",
             "arckit/spec/agentic-software-development/arcorbit-work-management.md",
             "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/tech/arcorbit/realtime-synchronization-solution.md"
+            "arckit/tech/arcorbit/realtime-synchronization-solution.md",
+            "arckit/tech/arcorbit/solution.md",
+            "arckit/tech/arcorbit/desktop-execution-solution.md"
           ],
           "confidence": "high",
           "resume_condition": "当 Desktop Store schema、持久控制事实或派生状态重建边界改变时重审。",
-          "revision": 20
+          "revision": 21
         },
         "gap_refs": [
           "GAP-cross-record-audit"
@@ -343,19 +345,21 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit 与 ArcOrbit 的既有 ledger、Electron、Runtime、Platform Coordinator、Work Sync、Chat、Setup Readiness 和 trusted case-control 技术边界保持不变。Work Inspector 偏好继续由 Desktop Store、typed preload action 和 Renderer 持有。应用冷启动的 coordinated Setup Readiness 由 main process fresh-read Desktop Store 中全部本地 Product Workspace roots；新增或改变本地关联及用户主动 retry 使用相同 aggregate check，显式空 roots 清除既有 project plan 并执行 global-only。Renderer 项目/Workset 筛选不触发检查，解除关联跳过检查。SkillProvisioningManager.assertReady(projectRoot) 只读取内存 snapshot，要求 ready 且 project root 位于最近成功检查的 plan.project_roots；Chat/Automation task start 不调用 provider 或扫描 skills。SkillProvisioningManager 的 plan、drift、同名冲突诊断和 backup-and-overwrite-selected 事务边界保持不变。Feedback V1 恢复通过受控 update 同时写入 ignored=false、feedback_state=pending 和 status=analyzing；V2 恢复由 Platform Adapter、Coordinator、main IPC、preload 和 Renderer 的 restoreFeedbackV2 typed action 链调用固定 provider route，并只在服务端确认后刷新投影。新版启动必须执行有代际的 rehydration：规范化旧 Store、刷新可访问 Catalog、按需求集合协调对账并在 dispatch 前只开放健康项目。任务与标签独立确认；重建期间新增需求必须触发后续一轮，不能被进行中的 reconcile 吞掉。Case/Loop 继续保留 external_wait 作为内部停止原因；Automation Coordinator 将其确定性投影为 awaiting_human + external_dependency，Store 迁移旧 external_wait 并补建 attention，typed confirm-external-dependency IPC 校验 execution 后复用原 session/thread。Workset Feedback V2 notification snapshot 与 `/feedbacks/{id}/messages` 是两个独立新鲜度域；Renderer 以当前 feedback id、未读投影和有身份的会话加载状态协调刷新，不把 refreshSnapshot 视为消息已刷新。消息请求必须去重或隔离过期响应，并在成功投影消息后才调用 typed mark-read；失败不清除缓存消息或草稿。 Codex setup 将完整 InstallationInventory、active binding、InstallAdvisor、UpdateChecker、owner adapter 与 SetupNetworkContext 分层；路径分类仅作 hint，mutation 需要 owner proof，并以完整 inventory refresh 和 exact version/binding postcondition 判定成功。",
-          "reason": "原单一 resolver 结果不足以安全支持多来源安装和更新。",
+          "statement": "Arckit 与 ArcOrbit 的既有 ledger、Electron、Runtime、Platform Coordinator、Work Sync、Chat、Setup Readiness 和 trusted case-control 技术边界保持不变。Work Inspector 偏好继续由 Desktop Store、typed preload action 和 Renderer 持有。应用冷启动的 coordinated Setup Readiness 由 main process fresh-read Desktop Store 中全部本地 Product Workspace roots；新增或改变本地关联及用户主动 retry 使用相同 aggregate check，显式空 roots 清除既有 project plan 并执行 global-only。Renderer 项目/Workset 筛选不触发检查，解除关联跳过检查。SkillProvisioningManager.assertReady(projectRoot) 只读取内存 snapshot，要求 ready 且 project root 位于最近成功检查的 plan.project_roots；Chat/Automation task start 不调用 provider 或扫描 skills。SkillProvisioningManager 的 plan、drift、同名冲突诊断和 backup-and-overwrite-selected 事务边界保持不变。Feedback V1 恢复通过受控 update 同时写入 ignored=false、feedback_state=pending 和 status=analyzing；V2 恢复由 Platform Adapter、Coordinator、main IPC、preload 和 Renderer 的 restoreFeedbackV2 typed action 链调用固定 provider route，并只在服务端确认后刷新投影。新版启动必须执行有代际的 rehydration：规范化旧 Store、刷新可访问 Catalog、按需求集合协调对账并在 dispatch 前只开放健康项目。任务与标签独立确认；重建期间新增需求必须触发后续一轮，不能被进行中的 reconcile 吞掉。Case/Loop 继续保留 external_wait 作为内部停止原因；Automation Coordinator 将其确定性投影为 awaiting_human + external_dependency，Store 迁移旧 external_wait 并补建 attention，typed confirm-external-dependency IPC 校验 execution 后复用原 session/thread。Workset Feedback V2 notification snapshot 与 `/feedbacks/{id}/messages` 是两个独立新鲜度域；Renderer 以当前 feedback id、未读投影和有身份的会话加载状态协调刷新，不把 refreshSnapshot 视为消息已刷新。消息请求必须去重或隔离过期响应，并在成功投影消息后才调用 typed mark-read；失败不清除缓存消息或草稿。 Codex setup 将完整 InstallationInventory、active binding、InstallAdvisor、UpdateChecker、owner adapter 与 SetupNetworkContext 分层；路径分类仅作 hint，mutation 需要 owner proof，并以完整 inventory refresh 和 exact version/binding postcondition 判定成功。 ArcOrbit Desktop 本地状态由 Electron main 单写者版本化 State Kernel 持有；query 捕获单一 immutable state view，overview 与 workspace lanes 共享 projection index，运行状态通过 revisioned typed changes 增量投影。",
+          "reason": "既有边界保持不变；ArcOrbit Desktop 本地状态由 Electron main 单写者版本化 State Kernel 持有；query 捕获单一 immutable state view，overview 与 workspace lanes 共享 projection index，运行状态通过 revisioned typed changes 增量投影。",
           "evidence": [
             "runtime/arcorbit/desktop/renderer/renderer.js:2324",
             "runtime/arcorbit/desktop/renderer/renderer.js:2380",
             "runtime/arcorbit/desktop/renderer/renderer.js:2514",
             "runtime/arcorbit/src/platform-coordinator.mjs:23",
             "runtime/arcorbit/src/workshop-platform-adapter.mjs:124",
-            "arckit/tech/arcorbit/installer-supply-chain.md"
+            "arckit/tech/arcorbit/installer-supply-chain.md",
+            "arckit/tech/arcorbit/solution.md",
+            "arckit/tech/arcorbit/desktop-execution-solution.md"
           ],
           "confidence": "high",
           "resume_condition": "当 executable identity、package owner proof、update channel 或 mutation postcondition 改变时重审。",
-          "revision": 45
+          "revision": 46
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -391,17 +395,19 @@
         "evidence_expectation": "Durable validation evidence proportionate to the identified risks.",
         "decision": {
           "status": "settled",
-          "statement": "既有协议、Runtime、realtime、Work、Chat、Automation、安全、Setup、同名冲突恢复和跨平台窗口验证义务保持不变。Setup Readiness 还必须证明：冷启动检查全部关联本地 roots；新增或改绑后再次检查全部 roots；项目集、具体项目和 Workset 纯查看切换不调用 Setup；解除关联不产生检查；用户主动 retry 保持 fresh-check；task-start skill preflight 不读取文件或调用 provider，只接受 ready 且覆盖当前规范化 root 的缓存状态；未验证 root fail closed。Feedback 忽略恢复还必须覆盖 V1 metadata 一致写入、V2 专用 route 与 typed IPC、ignored → pending 服务端确认、权限/对象/冲突/网络失败，以及失败时状态、筛选、选择和滚动位置不被乐观改写。完整 ArcOrbit 套件与需要 GUI 权限的 Electron 回归必须分别记录可重复结果。覆盖安装自愈必须以历史 Store fixtures、Catalog 成功而项目详情失败、标签独立失败和 reconcile 期间 Workset 变化的行为级回归证明，并验证用户控制事实保留、项目持续可见和仅受影响 lane 失败关闭。Feedback V2 消息新鲜度还必须证明：选中反馈出现未读时自动重拉；页面级、详情级和沟通记录手动刷新均重拉当前会话；加载失败不清除旧消息或未读，成功投影后才标记已读；并发或过期响应不覆盖较新结果；刷新不丢失草稿、附件和滚动位置。",
-          "reason": "现有 78 个相关基线测试没有覆盖导致本次缺陷的通知与会话新鲜度分离。",
+          "statement": "既有协议、Runtime、realtime、Work、Chat、Automation、安全、Setup、同名冲突恢复和跨平台窗口验证义务保持不变。Setup Readiness 还必须证明：冷启动检查全部关联本地 roots；新增或改绑后再次检查全部 roots；项目集、具体项目和 Workset 纯查看切换不调用 Setup；解除关联不产生检查；用户主动 retry 保持 fresh-check；task-start skill preflight 不读取文件或调用 provider，只接受 ready 且覆盖当前规范化 root 的缓存状态；未验证 root fail closed。Feedback 忽略恢复还必须覆盖 V1 metadata 一致写入、V2 专用 route 与 typed IPC、ignored → pending 服务端确认、权限/对象/冲突/网络失败，以及失败时状态、筛选、选择和滚动位置不被乐观改写。完整 ArcOrbit 套件与需要 GUI 权限的 Electron 回归必须分别记录可重复结果。覆盖安装自愈必须以历史 Store fixtures、Catalog 成功而项目详情失败、标签独立失败和 reconcile 期间 Workset 变化的行为级回归证明，并验证用户控制事实保留、项目持续可见和仅受影响 lane 失败关闭。Feedback V2 消息新鲜度还必须证明：选中反馈出现未读时自动重拉；页面级、详情级和沟通记录手动刷新均重拉当前会话；加载失败不清除旧消息或未读，成功投影后才标记已读；并发或过期响应不覆盖较新结果；刷新不丢失草稿、附件和滚动位置。 State Kernel 验收必须覆盖零 warm 磁盘读取、单 state view、lane-count-independent query、single-flight revision patch、50 MB history isolation、三 lane soak 的 CPU/event-loop/内存门槛及 crash/migration 恢复。",
+          "reason": "既有边界保持不变；State Kernel 验收必须覆盖零 warm 磁盘读取、单 state view、lane-count-independent query、single-flight revision patch、50 MB history isolation、三 lane soak 的 CPU/event-loop/内存门槛及 crash/migration 恢复。",
           "evidence": [
             "Verification: 78 targeted tests passed, 2026-08-29",
             "runtime/arcorbit/test/desktop-renderer.test.mjs",
             "local:fact:conversation-cache-root-cause",
-            "local:fact:refresh-safety-boundary"
+            "local:fact:refresh-safety-boundary",
+            "arckit/tech/arcorbit/solution.md",
+            "arckit/tech/arcorbit/desktop-execution-solution.md"
           ],
           "confidence": "high",
           "resume_condition": "当 Feedback 消息加载模型、通知语义或 Renderer 状态所有权改变时重审。",
-          "revision": 22
+          "revision": 23
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation",

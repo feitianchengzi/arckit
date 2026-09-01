@@ -773,13 +773,14 @@ test("Automation activity invalidation refreshes only the visible Run surface", 
   const eventBranch = source.slice(source.indexOf('if (event.type === "run.activity_changed")'), source.indexOf("window.setInterval"));
   const activityRefresh = source.slice(source.indexOf("async function refreshVisibleAutomationActivity"), source.indexOf("\nfunction scheduleWorkFilterRefresh"));
 
-  assert.match(eventBranch, /scheduleActivityRefresh\(event\.runId, 120\)/);
+  assert.match(eventBranch, /scheduleActivityRefresh\(event, 120\)/);
   assert.doesNotMatch(eventBranch, /scheduleRefresh\(event\.type === "run\.activity_changed"/);
-  assert.match(activityRefresh, /api\.automationSnapshot/);
-  assert.match(activityRefresh, /activityRunIsVisible\(runId\)/);
+  assert.match(activityRefresh, /applyRunActivityPatch/);
+  assert.match(activityRefresh, /api\.runActivitySnapshot/);
+  assert.match(activityRefresh, /activityEventOwnerIsVisible/);
   assert.match(activityRefresh, /renderCommandCenter\(\)/);
   assert.match(activityRefresh, /renderWorkbench\(\)/);
-  assert.doesNotMatch(activityRefresh, /platformSnapshot|getAuthStatus|render\(\)|routeAuthentication/);
+  assert.doesNotMatch(activityRefresh, /automationSnapshot|platformSnapshot|getAuthStatus|render\(\)|routeAuthentication/);
 });
 
 test("Work and Feedback assign one control row and all remaining height to their split workbench", async () => {
@@ -2225,6 +2226,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:chat-interrupt",
     "arckit:chat-approval-decision",
     "arckit:automation-snapshot",
+    "arckit:run-activity-snapshot",
     "arckit:automation-sync",
     "arckit:automation-enabled",
     "arckit:automation-pause",
@@ -2247,6 +2249,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     assert.match(`${main}\n${codexSetupIpc}`, new RegExp(channel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.match(preload, /automationSnapshot: \(filter\)/);
+  assert.match(preload, /runActivitySnapshot: \(runId\)/);
   assert.match(preload, /onAutomationEvent: \(listener\)/);
   assert.match(preload, /chatSnapshot: \(input\)/);
   assert.match(preload, /selectChat: \(input\)/);

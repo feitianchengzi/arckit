@@ -29,6 +29,7 @@ import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-q
 import { completedAcceptanceSelectionAfterSuccess, nextCompletedAcceptanceTaskId } from "./work-task-selection.mjs";
 import { taskDisplayTitle } from "../../src/task-display-title.mjs";
 import { initializeWindowControls } from "./window-controls.mjs";
+import { activityOwnerMatchesRun, applyRunActivityPatch, createSingleFlightActivitySync } from "./run-activity-sync.mjs";
 import {
   createWorkInspectorWidthPersistence,
   effectiveWorkInspectorWidth,
@@ -198,7 +199,6 @@ let platformActionDisabledControls = new Map();
 const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map((element) => [element.id, element]));
 let refreshQueued = false;
 let automationRefreshQueued = false;
-let activityRefreshQueued = false;
 let chatRefreshTimer = null;
 let chatRefreshPromise = null;
 let chatRefreshRequested = false;
@@ -224,6 +224,13 @@ const workInspectorWidthPersistence = createWorkInspectorWidthPersistence({
       state.platform.ui_preferences.work_inspector_width_px = width;
     }
   }
+});
+const activityRefreshQueue = createSingleFlightActivitySync({
+  consume: (event) => refreshVisibleAutomationActivity(event),
+  isEligible: (event) => activityEventOwnerIsVisible(event),
+  shouldPause: () => state.refreshing,
+  schedule: (callback, delay) => window.setTimeout(callback, delay),
+  onError: (error) => showToast(error.message)
 });
 const taskAttachmentPreviewQueue = [];
 let activeTaskAttachmentPreviews = 0;
@@ -318,7 +325,7 @@ async function boot() {
       state.transcriptSessionId = "";
     }
     if (event.type === "run.activity_changed") {
-      scheduleActivityRefresh(event.runId, 120);
+      scheduleActivityRefresh(event, 120);
       return;
     }
     if (["run.started", "run.finished", "run.command_result", "message.added"].includes(event.type)) {
@@ -1261,18 +1268,8 @@ function scheduleAutomationRefresh(delay = 80) {
   }, delay);
 }
 
-function scheduleActivityRefresh(runId, delay = 120) {
-  if (!activityRunIsVisible(runId) || activityRefreshQueued) return;
-  activityRefreshQueued = true;
-  window.setTimeout(async () => {
-    activityRefreshQueued = false;
-    if (!activityRunIsVisible(runId)) return;
-    if (state.refreshing) {
-      scheduleActivityRefresh(runId, 80);
-      return;
-    }
-    await refreshVisibleAutomationActivity(runId).catch((error) => showToast(error.message));
-  }, delay);
+function scheduleActivityRefresh(event, delay = 120) {
+  activityRefreshQueue.enqueue(event, delay);
 }
 
 function activityRunIsVisible(runId) {
@@ -1284,20 +1281,46 @@ function activityRunIsVisible(runId) {
 }
 
 async function refreshVisibleAutomationActivity(runId) {
-  if (!activityRunIsVisible(runId)) return;
+  const event = typeof runId === "object" && runId ? runId : { runId };
+  if (!activityEventOwnerIsVisible(event)) return;
   const page = state.page;
-  const snapshot = await api.automationSnapshot({
-    project_id: state.selectedProjectId,
-    state: ""
-  });
-  if (state.page !== page || !activityRunIsVisible(runId)) return;
-  state.snapshot = snapshot;
+  const visibleRun = visibleAutomationRun();
+  let nextRun = applyRunActivityPatch(visibleRun, event.patch);
+  if (!nextRun) {
+    const snapshot = await api.runActivitySnapshot(event.runId);
+    if (state.page !== page || !activityEventOwnerIsVisible(event)) return;
+    if (!snapshot?.run || !activityOwnerMatchesRun(snapshot.owner, visibleAutomationRun())) return;
+    nextRun = snapshot.run;
+  }
+  if (state.page !== page || !activityEventOwnerIsVisible(event)) return;
+  adoptVisibleAutomationRun(nextRun);
   if (page === "workbench") {
     await loadTranscript();
-    if (state.page === page && activityRunIsVisible(runId)) renderWorkbench();
+    if (state.page === page && activityRunIsVisible(event.runId)) renderWorkbench();
     return;
   }
   renderCommandCenter();
+}
+
+function visibleAutomationRun() {
+  return state.page === "workbench"
+    ? state.workbenchRun || state.snapshot.active_run
+    : state.snapshot.active_run;
+}
+
+function activityEventOwnerIsVisible(event) {
+  if (!event?.runId || !["command", "workbench"].includes(state.page)) return false;
+  const run = visibleAutomationRun();
+  return String(run?.id || "") === String(event.runId) && activityOwnerMatchesRun(event.owner, run);
+}
+
+function adoptVisibleAutomationRun(run) {
+  if (String(state.snapshot.active_run?.id || "") === String(run?.id || "")) {
+    state.snapshot = { ...state.snapshot, active_run: run };
+  }
+  if (String(state.workbenchRun?.id || "") === String(run?.id || "")) {
+    state.workbenchRun = run;
+  }
 }
 
 function scheduleWorkFilterRefresh(delay = 280) {

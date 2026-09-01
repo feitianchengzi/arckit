@@ -493,6 +493,7 @@ function registerIpc() {
     return { requires_confirmation: false, authentication };
   });
   ipcMain.handle("arckit:automation-snapshot", async (_event, filter) => automationCoordinator.getSnapshot(filter));
+  ipcMain.handle("arckit:run-activity-snapshot", async (_event, runId) => runManager.getRunActivitySnapshot(runId));
   ipcMain.handle("arckit:automation-select-execution", async (_event, executionId) => automationCoordinator.selectExecution(executionId));
   ipcMain.handle("arckit:automation-sync", async () => {
     await workSyncCoordinator.reconcile({ dispatch: false, reason: "explicit-sync" });

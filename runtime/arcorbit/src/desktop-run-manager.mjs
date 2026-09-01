@@ -30,6 +30,7 @@ import {
   parseEventLine,
   updateRunActivity
 } from "./projection/run-event-projector.mjs";
+import { activityPatchHasChanges, createRunActivityPatch } from "./projection/run-activity-patch.mjs";
 import { runtimeRecordRefForRun } from "./runtime-record-ref.mjs";
 import { createLifecycleTraceStore } from "./observability/lifecycle-trace.mjs";
 import {
@@ -56,7 +57,13 @@ export function createDesktopRunManager({
   const runsDir = join(dataDir, "runs");
   const runtimeBin = join(runtimeRoot, "bin/arcorbit.mjs");
   const activeRuns = new Map();
-  const { readStore, updateStore } = createDesktopStore({ dataDir, runsDir, storePath });
+  const {
+    readControlStore: readStore,
+    readStoreWithMessages,
+    captureStateView,
+    updateControlStore: updateStore,
+    updateStoreWithMessages
+  } = createDesktopStore({ dataDir, runsDir, storePath });
   const lifecycleTraces = createLifecycleTraceStore({ rootDir: join(dataDir, "lifecycle-traces") });
   const host = runtimeHost || {
     controlMode: "stdin",
@@ -69,12 +76,16 @@ export function createDesktopRunManager({
     terminate: terminateChildTree
   };
 
-  async function listProjects() {
-    const store = await readStore();
+  function listProjectsFromStateView(stateView) {
+    const store = desktopStateFromView(stateView);
     return store.projects.map((project) => ({
       ...project,
       has_arckit_state: existsSync(join(project.path, "arckit/project/state.record.json"))
     }));
+  }
+
+  async function listProjects() {
+    return listProjectsFromStateView(await captureStateView());
   }
 
   async function addProject(projectPath) {
@@ -94,7 +105,7 @@ export function createDesktopRunManager({
       has_arckit_state: existsSync(join(root, "arckit/project/state.record.json")),
       added_at: new Date().toISOString()
     };
-    await updateStore((store) => {
+    await updateStoreWithMessages((store) => {
       const index = store.projects.findIndex((item) => item.id === project.id);
       if (index >= 0) {
         store.projects[index] = { ...store.projects[index], ...project };
@@ -149,7 +160,7 @@ export function createDesktopRunManager({
     if (activeRun) {
       throw new Error("Stop the active run before removing this project.");
     }
-    await updateStore((store) => {
+    await updateStoreWithMessages((store) => {
       store.projects = store.projects.filter((project) => project.id !== projectIdValue);
       for (const session of store.sessions[projectIdValue] || []) {
         delete store.messages[session.id];
@@ -168,8 +179,8 @@ export function createDesktopRunManager({
     })));
   }
 
-  async function listRunSummaries(filter = {}) {
-    const store = await readStore();
+  function listRunSummariesFromStateView(stateView, filter = {}) {
+    const store = desktopStateFromView(stateView);
     return filterRuns(store.runs, filter).map((run) => {
       const active = activeRuns.get(run.id)?.run;
       return {
@@ -179,6 +190,10 @@ export function createDesktopRunManager({
     });
   }
 
+  async function listRunSummaries(filter = {}) {
+    return listRunSummariesFromStateView(await captureStateView(), filter);
+  }
+
   async function getRun(runId) {
     const store = await readStore();
     const run = store.runs.find((item) => item.id === runId);
@@ -186,6 +201,18 @@ export function createDesktopRunManager({
     return {
       ...run,
       activity: await loadRunActivity(run)
+    };
+  }
+
+  async function getRunActivitySnapshot(runId) {
+    const run = await getRun(runId);
+    if (!run) return null;
+    return {
+      schema_version: "run.activity.snapshot/v1",
+      run_id: run.id,
+      revision: Number(run.activity?.projection_revision || 0),
+      owner: runActivityOwner(run),
+      run
     };
   }
 
@@ -330,7 +357,6 @@ export function createDesktopRunManager({
         updated_at: new Date().toISOString()
       };
       draft.sessions[projectIdValue].unshift(session);
-      draft.messages[session.id] = [];
       return draft;
     });
     emit("session.created", { projectId: projectIdValue, session });
@@ -348,7 +374,7 @@ export function createDesktopRunManager({
     }
 
     let deletedSession = null;
-    const store = await updateStore((draft) => {
+    const store = await updateStoreWithMessages((draft) => {
       deletedSession = deleteProjectSession(draft, projectIdValue, sessionIdValue);
       return draft;
     });
@@ -368,7 +394,7 @@ export function createDesktopRunManager({
   }
 
   async function listMessages(projectIdValue, sessionIdValue = "") {
-    const store = await readStore();
+    const store = await readStoreWithMessages();
     const session = findSession(store, projectIdValue, sessionIdValue);
     if (!session) {
       return [];
@@ -390,7 +416,7 @@ export function createDesktopRunManager({
       created_at: new Date().toISOString()
     };
     let selectedSession;
-    await updateStore((store) => {
+    await updateStoreWithMessages((store) => {
       selectedSession = getSession(store, projectIdValue, sessionIdValue);
       const existing = entry.feedback_id
         ? (store.messages[selectedSession.id] || []).find((item) => item.feedback_id === entry.feedback_id)
@@ -734,7 +760,9 @@ export function createDesktopRunManager({
       aborting: false,
       eventWrite: Promise.resolve(),
       persistedMessageRevisions: new Map([[run.activity.messages[0].id, run.activity.messages[0].revision]]),
-      activityEmitTimer: null
+      activityEmitTimer: null,
+      activityRevision: Number(run.activity.projection_revision || 0),
+      lastEmittedActivity: structuredClone(run.activity)
     };
     activeRuns.set(runId, activeRun);
     child.stdin?.on("error", () => {
@@ -1040,7 +1068,24 @@ export function createDesktopRunManager({
     activeRun.activityEmitTimer = setTimeout(() => {
       activeRun.activityEmitTimer = null;
       if (activeRuns.has(activeRun.run.id)) {
-        emit("run.activity_changed", { runId: activeRun.run.id });
+        const baseRevision = activeRun.activityRevision;
+        const revision = baseRevision + 1;
+        const patch = createRunActivityPatch({
+          runId: activeRun.run.id,
+          previous: activeRun.lastEmittedActivity,
+          current: activeRun.run.activity,
+          baseRevision,
+          revision
+        });
+        if (!activityPatchHasChanges(patch)) return;
+        activeRun.activityRevision = revision;
+        activeRun.run.activity.projection_revision = revision;
+        activeRun.lastEmittedActivity = structuredClone(activeRun.run.activity);
+        emit("run.activity_changed", {
+          runId: activeRun.run.id,
+          owner: runActivityOwner(activeRun.run),
+          patch
+        });
       }
     }, 160);
   }
@@ -1188,6 +1233,7 @@ export function createDesktopRunManager({
       return () => emitter.off("event", listener);
     },
     listProjects,
+    listProjectsFromStateView,
     addProject,
     preflightRun,
     removeProject,
@@ -1196,7 +1242,9 @@ export function createDesktopRunManager({
     getProjectCaseState,
     listRuns,
     listRunSummaries,
+    listRunSummariesFromStateView,
     getRun,
+    getRunActivitySnapshot,
     warmRunSummaryIndex,
     readRunResult,
     getTaskThreadBinding,
@@ -1230,7 +1278,25 @@ export function createDesktopRunManager({
       return lifecycleTraces.finishTrace(context, input);
     },
     readDesktopStore: readStore,
-    updateDesktopStore: updateStore
+    readDesktopStoreWithMessages: readStoreWithMessages,
+    captureDesktopStateView: captureStateView,
+    updateDesktopStore: updateStore,
+    updateDesktopStoreWithMessages: updateStoreWithMessages
+  };
+}
+
+function desktopStateFromView(stateView) {
+  return stateView?.schema_version === "desktop-state-view/v1"
+    ? stateView.state
+    : stateView;
+}
+
+function runActivityOwner(run = {}) {
+  return {
+    run_id: String(run.id || ""),
+    project_id: String(run.project_id || ""),
+    session_id: String(run.session_id || ""),
+    task_id: String(run.task_id || "")
   };
 }
 

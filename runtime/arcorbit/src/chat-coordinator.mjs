@@ -23,10 +23,20 @@ export function createChatCoordinator({
   const liveMessages = new Map();
   const pendingStreamNotifications = new Map();
   let initialized = false;
+  const readChatStore = () => (
+    typeof runManager.readDesktopStoreWithMessages === "function"
+      ? runManager.readDesktopStoreWithMessages()
+      : runManager.readDesktopStore()
+  );
+  const updateChatStore = (updater) => (
+    typeof runManager.updateDesktopStoreWithMessages === "function"
+      ? runManager.updateDesktopStoreWithMessages(updater)
+      : runManager.updateDesktopStore(updater)
+  );
 
   async function ensureInitialized() {
     if (initialized) return;
-    await runManager.updateDesktopStore((store) => {
+    await updateChatStore((store) => {
       for (const sessions of Object.values(store.sessions || {})) {
         for (const session of sessions || []) {
           if (session.kind === "chat" && ACTIVE_STATUSES.has(session.status)) {
@@ -43,7 +53,7 @@ export function createChatCoordinator({
 
   async function getSnapshot(input = {}) {
     await ensureInitialized();
-    const store = await runManager.readDesktopStore();
+    const store = await readChatStore();
     const sessions = Object.values(store.sessions || {}).flat()
       .filter((session) => session.kind === "chat")
       .sort((left, right) => String(right.updated_at).localeCompare(String(left.updated_at)));
@@ -68,9 +78,9 @@ export function createChatCoordinator({
     const sessionId = String(input.session_id || "");
     const projectId = String(input.project_id || "");
     const text = String(input.text || "").slice(0, 100_000);
-    const store = await runManager.readDesktopStore();
+    const store = await readChatStore();
     if (projectId && !store.projects.some((project) => project.id === projectId)) throw new Error("Select an available local Product Workspace.");
-    await runManager.updateDesktopStore((draft) => {
+    await updateChatStore((draft) => {
       draft.chat ||= {};
       if (sessionId) {
         const located = findSessionById(draft, sessionId);
@@ -91,7 +101,7 @@ export function createChatCoordinator({
   async function select(input = {}) {
     await ensureInitialized();
     const sessionId = String(input.session_id || "");
-    await runManager.updateDesktopStore((store) => {
+    await updateChatStore((store) => {
       store.chat ||= {};
       if (sessionId) {
         const located = findSessionById(store, sessionId);
@@ -126,7 +136,7 @@ export function createChatCoordinator({
     let acceptedMessage = false;
     let shouldStart = false;
 
-    await runManager.updateDesktopStore((store) => {
+    await updateChatStore((store) => {
       let located = sessionId ? findSessionById(store, sessionId) : null;
       const replay = findChatRequest(store, requestId);
       if (replay) {
@@ -219,7 +229,7 @@ export function createChatCoordinator({
     try {
       await setupReadinessPreflight(resolve(project.path));
       if (owner.cancelled) return;
-      const store = await runManager.readDesktopStore();
+      const store = await readChatStore();
       const located = findSessionById(store, sessionId);
       if (!located || located.session.kind !== "chat") throw new Error("Chat session disappeared before the turn started.");
       const executable = normalizeExecutable(getCodexExecutable());
@@ -252,7 +262,7 @@ export function createChatCoordinator({
     const sessionId = requireId(input.session_id, "session_id");
     const owner = owners.get(sessionId);
     if (!owner?.completion) throw new Error("This conversation has no active turn.");
-    const currentStore = await runManager.readDesktopStore();
+    const currentStore = await readChatStore();
     const current = findSessionById(currentStore, sessionId);
     if (!current || current.session.kind !== "chat") throw new Error("Unknown Chat session.");
     if (!ACTIVE_STATUSES.has(current.session.status)) return getSnapshot({ session_id: sessionId });
@@ -303,7 +313,7 @@ export function createChatCoordinator({
       await withTimeout(owner.completion, 15_000, "Timed out waiting for the active Chat turn to stop.");
     }
     let removed = null;
-    await runManager.updateDesktopStore((store) => {
+    await updateChatStore((store) => {
       const located = findSessionById(store, sessionId);
       if (!located || located.session.kind !== "chat") throw new Error("Unknown Chat session.");
       removed = deleteProjectSession(store, located.project_id, sessionId);
@@ -538,7 +548,7 @@ export function createChatCoordinator({
   }
 
   async function mutateChatSession(sessionId, mutation) {
-    return runManager.updateDesktopStore((store) => {
+    return updateChatStore((store) => {
       const located = findSessionById(store, sessionId);
       if (!located || located.session.kind !== "chat") throw new Error(`Unknown Chat session: ${sessionId}`);
       mutation(located.session, store);

@@ -110,6 +110,21 @@ Coordinator 在提交本地领取意图前调用 Desktop Run Manager readiness p
 
 Automation Store、Coordinator、待办级 session、Workbench transcript、Token Usage 投影、命令单飞与软异常契约由 `desktop-execution-solution.md` 定义。主 Kernel 只向该平面提供结构化 run event、handoff 与 ledger 结果；Desktop 不从模型文本推断控制状态。
 
+### Desktop State Kernel
+
+Electron main 进程持有唯一长生命周期 `Desktop State Kernel`。Kernel 是 Desktop 本地控制事实的单写者和内存读取入口；Renderer、Automation workspace lane、Chat、Platform Coordinator、Work Sync 与 Runtime host 只能通过类型化 query、mutation 和 change subscription 使用状态，不能各自打开或重建完整持久 Store。一次 query 捕获一个带单调 `state_revision` 的 immutable state view，overview、workspace lanes、health、queue 和 Run summary 必须从该 view 派生，不能在同一请求中重新读取磁盘或为每个 lane 复制完整全局状态。
+
+Desktop 本地状态分为四个所有权层：
+
+- 持久控制事实保存 settings、Project Catalog identity、Workspace Control、session/thread binding、active execution、Case binding、recovery、attention 与完成检查点；这些事实通过串行事务原子提交。
+- 可重建投影保存 Automation queue/health、Task Readiness、Run summary、平台 section cache 和 Renderer snapshot；它们由控制事实、Work Sync 当前态和 Run evidence 按 revision 派生，不成为新的授权事实。
+- append-only evidence 按 owner 分区保存 Chat/Automation message、Run activity、lifecycle trace 与错误记录；高频读取不能把全部历史证据重新并入全局控制对象。
+- Project/Case canonical state 与 Workshop 服务端事实继续由既有外部事实源拥有；Desktop Kernel 只保存受控 binding、checkpoint 和本地投影，不复制其权威语义。
+
+每次成功 mutation 产生一个递增 revision 和 typed change set，至少声明受影响 domain、稳定 entity id、change kind 与新 revision。订阅者按 revision 合并局部变化；首次启动、显式导航、revision 断档或恢复校验才读取完整 snapshot。相同 query key 同时最多存在一个 in-flight 计算，后续 invalidation 合并到最新 revision；旧响应不能覆盖较新的 state view。
+
+持久化实现按所有权分区：紧凑 Desktop control snapshot、按 session 分区的消息记录、按 project 分区的 Task Projection，以及既有按 Run 分区的 evidence。存储引擎可以在不改变 query/mutation/change contract 的前提下替换；任何实现都必须保持 main-process 单写者、原子 control commit、启动校验和无长期双写事实源。
+
 ### Recovery Model
 
 Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的错误提示。每个 recovery item 包含类型、远端任务快照、本地活动关联、证据引用、冻结范围、操作责任方和允许动作。Recovery responsibility 使用 `operator`，与需要用户提供业务语义的 attention item 分离。历史跨进程 continuation run 仍可被启动同步识别和收束；新的 state-driven run 在原 Runtime 进程内消化 agent continuation。

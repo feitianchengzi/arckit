@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -49,6 +49,138 @@ test("desktop store serializes concurrent reads and updates", async () => {
     assert.equal(finalStore.runs.some((run) => "activity" in run), false);
     assert.doesNotThrow(() => JSON.parse(finalStoreText));
     assert.equal(finalStoreText.includes("large activity should not be stored"), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("desktop state kernel reads durable state once and publishes monotonic state views", async () => {
+  const root = await mkdtemp(join(tmpdir(), "arckit-state-kernel-"));
+  const storePath = join(root, "desktop-store.json");
+  let diskReads = 0;
+  let diskWrites = 0;
+  try {
+    const store = createDesktopStore({
+      dataDir: root,
+      runsDir: join(root, "runs"),
+      storePath,
+      io: {
+        async readJson(path) {
+          diskReads += 1;
+          return JSON.parse(await readFile(path, "utf8"));
+        },
+        async writeJson(path, value) {
+          diskWrites += 1;
+          await writeFile(path, `${JSON.stringify(value)}\n`, "utf8");
+        }
+      }
+    });
+
+    const first = await store.captureStateView();
+    const second = await store.captureStateView();
+    const compatibleCopy = await store.readStore();
+    compatibleCopy.projects.push({ id: "MUST-NOT-LEAK" });
+
+    assert.equal(diskReads, 3);
+    assert.equal(diskWrites, 3);
+    assert.equal(first.revision, 1);
+    assert.equal(second.revision, 1);
+    assert.equal(first.state, second.state);
+    assert.equal(first.state.projects.length, 0);
+
+    await store.updateStore((draft) => {
+      draft.projects.push({ id: "PROJECT-1", name: "Project", path: root });
+      return draft;
+    });
+    const updated = await store.captureStateView();
+
+    assert.equal(diskReads, 3);
+    assert.equal(diskWrites, 5);
+    assert.equal(updated.revision, 2);
+    assert.notEqual(updated.state, first.state);
+    assert.deepEqual(updated.state.projects.map((project) => project.id), ["PROJECT-1"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("desktop store migrates messages and Task Projection behind an atomic partition manifest", async () => {
+  const root = await mkdtemp(join(tmpdir(), "arckit-store-partitions-"));
+  const storePath = join(root, "desktop-store.json");
+  try {
+    await writeFile(storePath, `${JSON.stringify({
+      version: 16,
+      projects: [{ id: "PROJECT-1", name: "Project", path: root }],
+      runs: [],
+      sessions: { "PROJECT-1": [{ id: "SESSION-1", project_id: "PROJECT-1", kind: "chat" }] },
+      messages: { "SESSION-1": [{ id: "MESSAGE-1", session_id: "SESSION-1", content: "preserved" }] },
+      settings: {},
+      automation: {},
+      platform: {
+        task_sync: {
+          project_catalog: [{ id: "REMOTE-1" }],
+          projects: {
+            "REMOTE-1": {
+              project: { id: "REMOTE-1" },
+              tasks: [{ id: "TASK-1", project_id: "REMOTE-1", state: "pending" }],
+              tags: [],
+              trusted: true,
+              revision: 1
+            }
+          },
+          source_status: "healthy"
+        }
+      },
+      chat: { selected_session_id: "SESSION-1" }
+    })}\n`, "utf8");
+    const store = createDesktopStore({ dataDir: root, runsDir: join(root, "runs"), storePath });
+
+    const controlView = await store.captureStateView();
+    const messageView = await store.readStoreWithMessages();
+    const control = JSON.parse(await readFile(storePath, "utf8"));
+
+    assert.equal(controlView.state.messages["SESSION-1"], undefined);
+    assert.equal(controlView.state.platform.task_sync.projects["REMOTE-1"].tasks[0].id, "TASK-1");
+    assert.equal(messageView.messages["SESSION-1"][0].content, "preserved");
+    assert.equal("messages" in control, false);
+    assert.equal("task_sync" in control.platform, false);
+    assert.equal(control.partitions.schema_version, "desktop-state-partitions/v1");
+    assert.match(control.partitions.message_file, /^desktop-session-messages\./);
+    assert.match(control.partitions.task_projection_file, /^desktop-task-projection\./);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("partition migration leaves the legacy control snapshot intact when manifest commit fails", async () => {
+  const root = await mkdtemp(join(tmpdir(), "arckit-store-partition-rollback-"));
+  const storePath = join(root, "desktop-store.json");
+  const legacy = {
+    version: 16,
+    projects: [], runs: [], sessions: {}, messages: { legacy: [{ id: "M-1" }] },
+    settings: {}, automation: {}, platform: {}, chat: {}
+  };
+  try {
+    await writeFile(storePath, `${JSON.stringify(legacy)}\n`, "utf8");
+    const store = createDesktopStore({
+      dataDir: root,
+      runsDir: join(root, "runs"),
+      storePath,
+      io: {
+        async readJson(path) { return JSON.parse(await readFile(path, "utf8")); },
+        async writeJson(path, value) {
+          if (path === storePath) throw new Error("manifest commit failed");
+          await writeFile(path, `${JSON.stringify(value)}\n`, "utf8");
+        }
+      }
+    });
+
+    await assert.rejects(store.captureStateView(), /manifest commit failed/);
+    assert.deepEqual(JSON.parse(await readFile(storePath, "utf8")), legacy);
+    assert.deepEqual((await readdir(root)).filter((file) => file.startsWith("desktop-") && file !== "desktop-store.json"), []);
+
+    const recovered = createDesktopStore({ dataDir: root, runsDir: join(root, "runs"), storePath });
+    assert.equal((await recovered.readStoreWithMessages()).messages.legacy[0].id, "M-1");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
