@@ -1,0 +1,101 @@
+/**
+ * DesignTokens - 设计规范的单一来源
+ * 
+ * 重要：所有组件必须使用这些 token，不允许硬编码设计值
+ * 
+ * 使用方式：
+ * 1. 导入统一的颜色配置 colors.css
+ * 2. 在 Tailwind 配置中引用这些 CSS 变量
+ * 3. 在组件中使用语义化的 Tailwind 类名（如 bg-surface, text-foreground）
+ * 4. 不要直接使用 var(--color-*)，而是通过 Tailwind 类名
+ */
+
+/* 导入统一的颜色配置 */
+@import './colors.css';
+
+:root {
+  /* ==================== Spacing ==================== */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  --spacing-3xl: 64px;
+  --spacing-4xl: 96px;
+  
+  /* ==================== Typography ==================== */
+  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-family-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+  --font-size-4xl: 36px;
+  
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  /* ==================== Border Radius ==================== */
+  --radius-none: 0px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+  
+  /* ==================== Shadows ==================== */
+  /* 阴影已在 colors.css 中定义，这里不再重复定义 */
+  
+  /* ==================== 兼容性变量 ==================== */
+  /* 为了向后兼容，保留旧的变量名 */
+  --color-background: var(--color-surface);
+  --color-text-primary: var(--color-foreground);
+  --color-text-secondary: var(--color-foreground-secondary);
+  --color-text-tertiary: var(--color-foreground-tertiary);
+  
+  /* Primary 色阶（向后兼容） */
+  --color-primary-50: var(--color-primary-lighter);
+  --color-primary-100: var(--color-primary-light);
+  --color-primary-200: var(--color-primary-light);
+  --color-primary-300: var(--color-primary);
+  --color-primary-400: var(--color-primary);
+  --color-primary-500: var(--color-primary);
+  --color-primary-600: var(--color-primary-hover);
+  --color-primary-700: var(--color-primary-active);
+  --color-primary-800: var(--color-primary-active);
+  --color-primary-900: var(--color-primary-active);
+  
+  /* ==================== Animation ==================== */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* ==================== Z-Index ==================== */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-fixed: 1200;
+  --z-modal-backdrop: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-tooltip: 1600;
+}
+
+
+

@@ -1,0 +1,188 @@
+/**
+ * 统一颜色配置系统
+ * 
+ * 所有颜色都在这里定义，组件通过 Tailwind 类名使用
+ * 
+ * 深色模式：基于 Tailwind CSS Zinc 色阶
+ * - 符合 WCAG AA 对比度标准
+ * - 避免纯黑色，适合 OLED 屏幕
+ * - 层级越高颜色越浅，模拟光源效果
+ * 
+ * 使用方式：
+ * - bg-surface: 主背景
+ * - bg-surface-elevated: 卡片/浮层背景
+ * - text-foreground: 主文本
+ * - text-foreground-secondary: 次要文本
+ * - border-divider: 边框
+ */
+
+:root {
+  /* ==================== 表面颜色 (Surface) ==================== */
+  /* 用于背景、卡片、容器等 */
+  --color-surface: #f5f5f5;
+  --color-surface-elevated: #ffffff;
+  --color-surface-hover: #eeeef0;
+  --color-surface-active: #e9eaf6;
+  --color-surface-disabled: #f7f7f8;
+  
+  /* ==================== 前景颜色 (Foreground) ==================== */
+  /* 用于文本、图标等 */
+  --color-foreground: #23252a;
+  --color-foreground-secondary: #5c5d5f;
+  --color-foreground-tertiary: #97979a;
+  --color-foreground-disabled: #b0b5c0;
+  --color-foreground-inverse: #ffffff;
+  
+  /* ==================== 边框颜色 (Border/Divider) ==================== */
+  --color-border: #d9d9d9;
+  --color-border-hover: #6d78d5;
+  --color-border-focus: #6d78d5;
+  --color-divider: #e0e0e0;
+  
+  /* ==================== 主色 (Primary) ==================== */
+  --color-primary: #6d78d5;
+  --color-primary-hover: #5e69c1;
+  --color-primary-active: #5e69c1;
+  --color-primary-light: #e9eaf6;
+  --color-primary-lighter: #f4f4fb;
+  
+  /* ==================== Project List Icons ==================== */
+   --color-project-icon: #F3F4F6;
+   --color-project-icon-selected: #6d78d5;
+   --color-surface-icon: #d2d7df;
+
+  /* ==================== 语义颜色 ==================== */
+  /* Success */
+  --color-success: #10b981;
+  --color-success-hover: #059669;
+  --color-success-light: #d1fae5;
+  --color-success-lighter: #ecfdf5;
+  
+  /* Warning */
+  --color-warning: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-warning-light: #fef3c7;
+  --color-warning-lighter: #fffbeb;
+  
+  /* Error */
+  --color-error: #ef4444;
+  --color-error-hover: #dc2626;
+  --color-error-light: #fee2e2;
+  --color-error-lighter: #fef2f2;
+  
+  /* Info */
+  --color-info: #6d78d5;
+  --color-info-hover: #5e69c1;
+  --color-info-light: #e9eaf6;
+  --color-info-lighter: #f4f4fb;
+  
+  /* ==================== 中性色 (Gray Scale) ==================== */
+  /* 保留用于特殊场景 */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  
+  /* ==================== 阴影 ==================== */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* ==================== Scrollbar ==================== */
+  --color-scrollbar-track: var(--color-surface-disabled);
+  --color-scrollbar-thumb: var(--color-border);
+  --color-scrollbar-thumb-hover: var(--color-surface-hover);
+}
+
+/* ==================== 深色模式 ==================== */
+/* 基于 design-colors.css 定义的深色主题 */
+.dark {
+  /* ==================== 表面颜色 (Surface) ==================== */
+  --color-surface: #161616;           /* app-bg-darkest - 主内容区背景 */
+  --color-surface-elevated: #1f1f1f;  /* app-bg-dark - 卡片/侧边栏背景 */
+  --color-surface-hover: #3a3a3a;     /* app-bg-light - 悬停状态 */
+  --color-surface-active: #2a2a2a;    /* app-bg-medium - 激活/次级背景 */
+  --color-surface-disabled: #1a1a1a;  /* app-bg-darker - 禁用背景 */
+  --color-surface-icon: #333333;      /* 图标背景色 - Figma设计参考 */
+  
+  /* ==================== 前景颜色 (Foreground) ==================== */
+  --color-foreground: #ffffff;        /* app-text-primary - 主要文本 */
+  --color-foreground-secondary: #e5e5e5; /* app-text-secondary - 次要文本 */
+  --color-foreground-tertiary: #a0a0a0;  /* app-text-tertiary - 三级文本 */
+  --color-foreground-disabled: #4a4a4a;  /* app-text-disabled - 禁用文本 */
+  --color-foreground-inverse: #161616;   /* app-bg-darkest - 反色文本 */
+  
+  /* ==================== 边框颜色 (Border/Divider) ==================== */
+  --color-border: #2a2a2a;           /* app-border-dark - 主要边框 */
+  --color-border-hover: #444444;     /* app-border-light - 悬停边框 */
+  --color-border-focus: #6d78d5;
+  --color-divider: #3a3a3a;          /* app-border-medium - 分割线 */
+  
+  /* ==================== 主色 (Primary) ==================== */
+  --color-primary: #8a93e8;
+  --color-primary-hover: #9ca4f0;
+  --color-primary-active: #6d78d5;
+  --color-primary-light: rgba(109, 120, 213, 0.18);
+  --color-primary-lighter: rgba(109, 120, 213, 0.12);
+
+  /* ==================== Project List Icons ==================== */
+  --color-project-icon: #a0a0a0;     /* app-text-tertiary */
+  --color-project-icon-selected: #8a93e8;
+  
+  /* ==================== 语义颜色 ==================== */
+  /* Success */
+  --color-success: #22c55e;         /* app-green-500 */
+  --color-success-hover: #4ade80;   /* app-green-400 */
+  --color-success-light: rgba(34, 197, 94, 0.1); /* app-green-opacity-10 */
+  --color-success-lighter: rgba(34, 197, 94, 0.2); /* app-green-opacity-20 */
+  
+  /* Warning */
+  --color-warning: #eab308;          /* app-yellow-500 */
+  --color-warning-hover: #facc15;    /* app-yellow-400 */
+  --color-warning-light: #1f1f1f;    /* app-bg-dark */
+  --color-warning-lighter: #1a1a1a;  /* app-bg-darker */
+  
+  /* Error - 保留原有配置 (design-colors 未定义红色) */
+  --color-error: #ef4444;            /* red-500 */
+  --color-error-hover: #f87171;      /* red-400 */
+  --color-error-light: #27272a;      /* zinc-800 */
+  --color-error-lighter: #450a0a;    /* red-950 */
+  
+  /* Info */
+  --color-info: #8a93e8;
+  --color-info-hover: #9ca4f0;
+  --color-info-light: rgba(109, 120, 213, 0.14);
+  --color-info-lighter: rgba(109, 120, 213, 0.22);
+  
+  /* ==================== 中性色 (Zinc Scale) ==================== */
+  /* 完整的 zinc 色阶，用于特殊场景 */
+  --color-gray-50: #fafafa;
+  --color-gray-100: #f4f4f5;
+  --color-gray-200: #e4e4e7;
+  --color-gray-300: #d4d4d8;
+  --color-gray-400: #a1a1aa;
+  --color-gray-500: #71717a;
+  --color-gray-600: #52525b;
+  --color-gray-700: #3f3f46;
+  --color-gray-800: #27272a;
+  --color-gray-900: #18181b;
+  
+  /* ==================== 阴影 ==================== */
+  /* 深色模式下使用更明显的阴影 (design-colors 阴影过浅，保留原有一套) */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+
+  /* ==================== Scrollbar ==================== */
+  --color-scrollbar-track: var(--color-surface-elevated);
+  --color-scrollbar-thumb: var(--color-border);
+  --color-scrollbar-thumb-hover: var(--color-surface-hover);
+}

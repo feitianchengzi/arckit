@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录页面 - 线框图</title>
+    <style>
+        :root {
+            --gray-0: #000000; --gray-1: #333333; --gray-2: #666666; --gray-3: #999999;
+            --gray-4: #cccccc; --gray-5: #e5e5e5; --gray-6: #f5f5f5; --white: #ffffff;
+            --border-width: 1px; --border-radius: 4px;
+            --spacing-xs: 0.25rem; --spacing-sm: 0.5rem; --spacing-md: 1rem;
+            --spacing-lg: 1.5rem; --spacing-xl: 2rem;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            font-size: 16px; line-height: 1.6; color: var(--gray-1);
+            background-color: var(--gray-6); padding: var(--spacing-xl);
+        }
+        .wireframe-container {
+            max-width: 1200px; margin: 0 auto; background-color: var(--white);
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            padding: var(--spacing-xl);
+        }
+        header {
+            border-bottom: 2px solid var(--gray-4); padding-bottom: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+        h1 { font-size: 2rem; font-weight: 600; color: var(--gray-0); margin-bottom: var(--spacing-sm); }
+        .meta-info {
+            display: flex; gap: var(--spacing-lg); flex-wrap: wrap;
+            color: var(--gray-2); font-size: 0.9rem;
+        }
+        .meta-info code {
+            background-color: var(--gray-6); padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--border-radius); font-family: "SF Mono", Monaco, monospace;
+            font-size: 0.85rem;
+        }
+        details {
+            margin-bottom: var(--spacing-lg); border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius); overflow: hidden;
+        }
+        details[open] { border-color: var(--gray-1); }
+        summary {
+            cursor: pointer; padding: var(--spacing-md); background-color: var(--gray-6);
+            font-weight: 600; font-size: 1.1rem; color: var(--gray-1);
+            user-select: none; transition: background-color 0.2s;
+        }
+        summary:hover { background-color: var(--gray-5); }
+        details[open] summary { background-color: var(--gray-1); color: var(--white); }
+        .state-content { padding: var(--spacing-lg); }
+        .state-description {
+            color: var(--gray-2); margin-bottom: var(--spacing-lg); padding: var(--spacing-md);
+            background-color: var(--gray-6); border-left: 3px solid var(--gray-3);
+            border-radius: var(--border-radius);
+        }
+        .wireframe-canvas {
+            border: 2px solid var(--gray-1); border-radius: var(--border-radius);
+            padding: var(--spacing-lg); background-color: var(--white); min-height: 400px;
+        }
+        .device-frame {
+            max-width: 375px; margin: 0 auto; border: 2px solid var(--gray-1);
+            border-radius: 12px; overflow: hidden;
+        }
+        .device-frame.tablet { max-width: 768px; }
+        .device-frame.desktop { max-width: 100%; border-radius: 8px; }
+        .nav-bar {
+            background-color: var(--gray-6); border-bottom: var(--border-width) solid var(--gray-4);
+            padding: var(--spacing-md); display: flex; align-items: center;
+            justify-content: space-between;
+        }
+        .nav-title { font-weight: 600; color: var(--gray-0); }
+        .nav-button {
+            width: 60px; height: 32px; border: var(--border-width) solid var(--gray-3);
+            border-radius: var(--border-radius); background-color: var(--white);
+        }
+        .content-area { padding: var(--spacing-md); }
+        .list-item {
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            padding: var(--spacing-md); margin-bottom: var(--spacing-sm);
+            background-color: var(--white);
+        }
+        .button {
+            display: inline-block; padding: var(--spacing-sm) var(--spacing-lg);
+            border: 2px solid var(--gray-1); border-radius: var(--border-radius);
+            background-color: var(--white); color: var(--gray-1);
+            text-align: center; font-weight: 600; cursor: pointer; width: 100%;
+            margin-top: var(--spacing-md);
+        }
+        .button.primary { background-color: var(--gray-1); color: var(--white); }
+        .input-field {
+            width: 100%; padding: var(--spacing-sm);
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            background-color: var(--white); margin-bottom: var(--spacing-sm);
+        }
+        .placeholder-box {
+            background-color: var(--gray-6); border: var(--border-width) dashed var(--gray-3);
+            border-radius: var(--border-radius); padding: var(--spacing-lg);
+            text-align: center; color: var(--gray-3); margin: var(--spacing-sm) 0;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid var(--gray-5);
+            border-top-color: var(--gray-1); border-radius: 50%; display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .component-list, .interactions {
+            margin-top: var(--spacing-lg); padding: var(--spacing-md);
+            background-color: var(--gray-6); border-radius: var(--border-radius);
+        }
+        .component-list h3, .interactions h3 {
+            font-size: 1rem; margin-bottom: var(--spacing-sm); color: var(--gray-1);
+        }
+        .component-list ul { list-style: none; padding-left: 0; }
+        .component-list li {
+            padding: var(--spacing-xs) 0; color: var(--gray-2); font-size: 0.9rem;
+        }
+        .component-list li::before { content: "▸ "; color: var(--gray-3); }
+        .interaction-item {
+            padding: var(--spacing-sm); margin-bottom: var(--spacing-xs);
+            background-color: var(--white); border-left: 3px solid var(--gray-3);
+            border-radius: var(--border-radius); font-size: 0.9rem;
+        }
+        .interaction-item code {
+            background-color: var(--gray-6); padding: 2px 6px;
+            border-radius: 3px; font-size: 0.85rem;
+        }
+        .login-form {
+            max-width: 400px; margin: 0 auto; padding: var(--spacing-xl);
+        }
+        .form-group { margin-bottom: var(--spacing-lg); }
+        .form-label {
+            display: block; margin-bottom: var(--spacing-xs);
+            font-weight: 600; color: var(--gray-1);
+        }
+        .error-message {
+            color: #EF4444; font-size: 0.875rem; margin-top: var(--spacing-xs);
+        }
+        .link-text {
+            color: var(--gray-1); text-decoration: underline; cursor: pointer;
+            text-align: center; display: block; margin-top: var(--spacing-md);
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                <a href="index.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">← 返回首页</a>
+                <div style="display: flex; gap: var(--spacing-sm);">
+                    <a href="register-view.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: #2563EB; color: white; border-radius: var(--border-radius); text-decoration: none; font-weight: 600;">去注册</a>
+                    <a href="project-list-view.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">项目列表</a>
+                </div>
+            </div>
+            <h1>登录页面</h1>
+            <div class="meta-info">
+                <div>View: <code>LoginView</code></div>
+                <div>平台: <strong>Web</strong></div>
+                <div>导航层级: <strong>根页面</strong></div>
+            </div>
+        </header>
+
+        <details open>
+            <summary>加载中</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>页面首次加载时
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="login-form">
+                            <div class="placeholder-box">
+                                <div class="spinner"></div>
+                                <p style="margin-top: 1rem;">加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>LoadingView</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>页面加载</code> → 显示加载指示器
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>成功 - 登录表单</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>页面加载完成，显示登录表单
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="login-form">
+                            <h2 style="text-align: center; margin-bottom: var(--spacing-xl);">登录</h2>
+                            <div class="form-group">
+                                <label class="form-label">邮箱</label>
+                                <input type="email" class="input-field" placeholder="请输入邮箱">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">密码</label>
+                                <input type="password" class="input-field" placeholder="请输入密码">
+                            </div>
+                            <a href="project-list-view.html"><button class="button primary">登录</button></a>
+                            <a href="register-view.html" class="link-text">还没有账号？立即注册</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>TextField (邮箱输入框)</li>
+                        <li>TextField (密码输入框)</li>
+                        <li>Button (登录按钮)</li>
+                        <li>Label (表单标签)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>输入邮箱/密码</code> → 实时验证
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击登录</code> → 提交表单，显示加载状态
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击注册链接</code> → 跳转到注册页面
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>错误 - 登录失败</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>登录失败，显示错误提示
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="login-form">
+                            <h2 style="text-align: center; margin-bottom: var(--spacing-xl);">登录</h2>
+                            <div class="form-group">
+                                <label class="form-label">邮箱</label>
+                                <input type="email" class="input-field" placeholder="请输入邮箱" style="border-color: #EF4444;">
+                                <div class="error-message">邮箱格式不正确</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">密码</label>
+                                <input type="password" class="input-field" placeholder="请输入密码" style="border-color: #EF4444;">
+                                <div class="error-message">密码错误，请重试</div>
+                            </div>
+                            <a href="project-list-view.html"><button class="button primary">登录</button></a>
+                            <a href="register-view.html" class="link-text">还没有账号？立即注册</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>TextField (邮箱输入框 - 错误状态)</li>
+                        <li>TextField (密码输入框 - 错误状态)</li>
+                        <li>ErrorView (错误提示)</li>
+                        <li>Button (登录按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>显示错误</code> → 输入框边框变红，显示错误消息
+                    </div>
+                    <div class="interaction-item">
+                        <code>修改输入</code> → 清除错误状态
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>空状态 - 初始状态</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>用户首次访问，表单为空
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="login-form">
+                            <h2 style="text-align: center; margin-bottom: var(--spacing-xl);">登录</h2>
+                            <div class="form-group">
+                                <label class="form-label">邮箱</label>
+                                <input type="email" class="input-field" placeholder="请输入邮箱">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">密码</label>
+                                <input type="password" class="input-field" placeholder="请输入密码">
+                            </div>
+                            <button class="button primary" style="opacity: 0.6;">登录</button>
+                            <a href="register-view.html" class="link-text">还没有账号？立即注册</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>TextField (邮箱输入框 - 空状态)</li>
+                        <li>TextField (密码输入框 - 空状态)</li>
+                        <li>Button (登录按钮 - 禁用状态)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>表单为空</code> → 登录按钮禁用
+                    </div>
+                    <div class="interaction-item">
+                        <code>输入内容</code> → 启用登录按钮
+                    </div>
+                </div>
+            </div>
+        </details>
+
+    </div>
+</body>
+</html>
+

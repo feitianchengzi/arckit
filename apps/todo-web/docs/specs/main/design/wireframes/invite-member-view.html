@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>邀请成员页面 - 线框图</title>
+    <style>
+        :root {
+            --gray-0: #000000; --gray-1: #333333; --gray-2: #666666; --gray-3: #999999;
+            --gray-4: #cccccc; --gray-5: #e5e5e5; --gray-6: #f5f5f5; --white: #ffffff;
+            --border-width: 1px; --border-radius: 4px;
+            --spacing-xs: 0.25rem; --spacing-sm: 0.5rem; --spacing-md: 1rem;
+            --spacing-lg: 1.5rem; --spacing-xl: 2rem;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            font-size: 16px; line-height: 1.6; color: var(--gray-1);
+            background-color: var(--gray-6); padding: var(--spacing-xl);
+        }
+        .wireframe-container {
+            max-width: 1200px; margin: 0 auto; background-color: var(--white);
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            padding: var(--spacing-xl);
+        }
+        header {
+            border-bottom: 2px solid var(--gray-4); padding-bottom: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+        h1 { font-size: 2rem; font-weight: 600; color: var(--gray-0); margin-bottom: var(--spacing-sm); }
+        .meta-info {
+            display: flex; gap: var(--spacing-lg); flex-wrap: wrap;
+            color: var(--gray-2); font-size: 0.9rem;
+        }
+        .meta-info code {
+            background-color: var(--gray-6); padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--border-radius); font-family: "SF Mono", Monaco, monospace;
+            font-size: 0.85rem;
+        }
+        details {
+            margin-bottom: var(--spacing-lg); border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius); overflow: hidden;
+        }
+        details[open] { border-color: var(--gray-1); }
+        summary {
+            cursor: pointer; padding: var(--spacing-md); background-color: var(--gray-6);
+            font-weight: 600; font-size: 1.1rem; color: var(--gray-1);
+            user-select: none; transition: background-color 0.2s;
+        }
+        summary:hover { background-color: var(--gray-5); }
+        details[open] summary { background-color: var(--gray-1); color: var(--white); }
+        .state-content { padding: var(--spacing-lg); }
+        .state-description {
+            color: var(--gray-2); margin-bottom: var(--spacing-lg); padding: var(--spacing-md);
+            background-color: var(--gray-6); border-left: 3px solid var(--gray-3);
+            border-radius: var(--border-radius);
+        }
+        .wireframe-canvas {
+            border: 2px solid var(--gray-1); border-radius: var(--border-radius);
+            padding: var(--spacing-lg); background-color: var(--white); min-height: 400px;
+        }
+        .device-frame.desktop { max-width: 100%; border-radius: 8px; }
+        .app-layout {
+            display: flex; height: 600px; background-color: var(--white);
+        }
+        .sidebar {
+            width: 256px; background-color: var(--gray-6);
+            border-right: var(--border-width) solid var(--gray-4);
+            padding: var(--spacing-lg) var(--spacing-md);
+            display: flex; flex-direction: column;
+        }
+        .sidebar-profile {
+            padding: var(--spacing-md); background-color: var(--white);
+            border-radius: var(--border-radius); margin-bottom: var(--spacing-lg);
+            display: flex; align-items: center; gap: var(--spacing-sm);
+        }
+        .sidebar-avatar {
+            width: 40px; height: 40px; border-radius: 50%;
+            background-color: var(--gray-4); border: 2px solid var(--gray-3);
+        }
+        .sidebar-username {
+            font-weight: 600; color: var(--gray-1); font-size: 0.95rem;
+        }
+        .sidebar-settings {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--border-radius); margin-bottom: var(--spacing-md);
+            display: flex; align-items: center; gap: var(--spacing-sm);
+            cursor: pointer;
+        }
+        .sidebar-settings:hover {
+            background-color: var(--gray-5);
+        }
+        .sidebar-nav {
+            flex: 1; overflow-y: auto;
+        }
+        .sidebar-nav-item {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--border-radius); margin-bottom: var(--spacing-xs);
+            display: flex; align-items: center; gap: var(--spacing-sm);
+            cursor: pointer;
+        }
+        .sidebar-nav-item:hover {
+            background-color: var(--gray-5);
+        }
+        .sidebar-nav-item.active {
+            background-color: rgba(37, 99, 235, 0.1);
+            color: #2563EB; font-weight: 600;
+        }
+        .main-content {
+            flex: 1; display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .nav-bar {
+            background-color: var(--white); border-bottom: var(--border-width) solid var(--gray-4);
+            padding: var(--spacing-md); display: flex; align-items: center;
+            justify-content: space-between;
+        }
+        .nav-title { font-weight: 600; color: var(--gray-0); }
+        .nav-button {
+            width: 60px; height: 32px; border: var(--border-width) solid var(--gray-3);
+            border-radius: var(--border-radius); background-color: var(--white);
+        }
+        .form-container {
+            flex: 1; padding: var(--spacing-xl); overflow-y: auto;
+        }
+        .form-group { margin-bottom: var(--spacing-lg); }
+        .form-label {
+            display: block; margin-bottom: var(--spacing-xs);
+            font-weight: 600; color: var(--gray-1);
+        }
+        .input-field {
+            width: 100%; padding: var(--spacing-sm);
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            background-color: var(--white); margin-bottom: var(--spacing-sm);
+        }
+        .button {
+            display: inline-block; padding: var(--spacing-sm) var(--spacing-lg);
+            border: 2px solid var(--gray-1); border-radius: var(--border-radius);
+            background-color: var(--white); color: var(--gray-1);
+            text-align: center; font-weight: 600; cursor: pointer;
+            margin-right: var(--spacing-sm);
+        }
+        .button.primary { background-color: var(--gray-1); color: var(--white); }
+        .error-message {
+            color: #EF4444; font-size: 0.875rem; margin-top: var(--spacing-xs);
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid var(--gray-5);
+            border-top-color: var(--gray-1); border-radius: 50%; display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .placeholder-box {
+            background-color: var(--gray-6); border: var(--border-width) dashed var(--gray-3);
+            border-radius: var(--border-radius); padding: var(--spacing-lg);
+            text-align: center; color: var(--gray-3); margin: var(--spacing-sm) 0;
+        }
+        .button-group {
+            display: flex; justify-content: flex-end; margin-top: var(--spacing-xl);
+        }
+        .member-list {
+            margin-top: var(--spacing-xl);
+        }
+        .member-item {
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            padding: var(--spacing-md); margin-bottom: var(--spacing-sm);
+            background-color: var(--white);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .member-info {
+            display: flex; flex-direction: column;
+        }
+        .member-info strong { margin-bottom: var(--spacing-xs); }
+        .member-info span { color: var(--gray-2); font-size: 0.875rem; }
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 12px;
+            font-size: 0.75rem; font-weight: 600;
+        }
+        .badge.pending { background-color: var(--gray-5); color: var(--gray-1); }
+        .badge.accepted { background-color: #10B981; color: white; }
+        .component-list, .interactions {
+            margin-top: var(--spacing-lg); padding: var(--spacing-md);
+            background-color: var(--gray-6); border-radius: var(--border-radius);
+        }
+        .component-list h3, .interactions h3 {
+            font-size: 1rem; margin-bottom: var(--spacing-sm); color: var(--gray-1);
+        }
+        .component-list ul { list-style: none; padding-left: 0; }
+        .component-list li {
+            padding: var(--spacing-xs) 0; color: var(--gray-2); font-size: 0.9rem;
+        }
+        .component-list li::before { content: "▸ "; color: var(--gray-3); }
+        .interaction-item {
+            padding: var(--spacing-sm); margin-bottom: var(--spacing-xs);
+            background-color: var(--white); border-left: 3px solid var(--gray-3);
+            border-radius: var(--border-radius); font-size: 0.9rem;
+        }
+        .interaction-item code {
+            background-color: var(--gray-6); padding: 2px 6px;
+            border-radius: 3px; font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                <a href="index.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">← 返回首页</a>
+                <div style="display: flex; gap: var(--spacing-sm);">
+                    <a href="project-detail-view.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">项目详情</a>
+                </div>
+            </div>
+            <h1>邀请成员页面</h1>
+            <div class="meta-info">
+                <div>View: <code>InviteMemberView</code></div>
+                <div>平台: <strong>Web</strong></div>
+                <div>导航层级: <strong>三级页面</strong></div>
+            </div>
+        </header>
+
+        <details open>
+            <summary>加载中</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>页面首次加载时
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="app-layout">
+                            <div class="sidebar">
+                                <div class="sidebar-profile">
+                                    <div class="sidebar-avatar"></div>
+                                    <div class="sidebar-username">张三</div>
+                                </div>
+                                <div class="sidebar-settings">
+                                    <span style="font-size: 1.2rem;">⚙️</span>
+                                    <span>设置</span>
+                                </div>
+                                <div class="sidebar-nav">
+                                    <div class="sidebar-nav-item">
+                                        <span>📁</span>
+                                        <span>项目列表</span>
+                                    </div>
+                                    <div class="sidebar-nav-item">
+                                        <span>✓</span>
+                                        <span>待办事项</span>
+                                    </div>
+                                    <div class="sidebar-nav-item active">
+                                        <span>👥</span>
+                                        <span>成员管理</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="main-content">
+                                <div class="nav-bar">
+                                    <div class="nav-button">←</div>
+                                    <div class="nav-title">邀请成员</div>
+                                    <div class="nav-button"></div>
+                                </div>
+                                <div class="form-container">
+                                    <div class="placeholder-box">
+                                        <div class="spinner"></div>
+                                        <p style="margin-top: 1rem;">加载中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>LoadingView</li>
+                        <li>导航栏</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>页面加载</code> → 显示加载指示器
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>成功 - 邀请表单（生成前）</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>页面加载完成，显示邀请表单（未生成邀请码）
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="app-layout">
+                            <div class="sidebar">
+                                <div class="sidebar-profile">
+                                    <div class="sidebar-avatar"></div>
+                                    <div class="sidebar-username">张三</div>
+                                </div>
+                                <div class="sidebar-settings">
+                                    <span style="font-size: 1.2rem;">⚙️</span>
+                                    <span>设置</span>
+                                </div>
+                                <div class="sidebar-nav">
+                                    <div class="sidebar-nav-item">
+                                        <span>📁</span>
+                                        <span>项目列表</span>
+                                    </div>
+                                    <div class="sidebar-nav-item">
+                                        <span>✓</span>
+                                        <span>待办事项</span>
+                                    </div>
+                                    <div class="sidebar-nav-item active">
+                                        <span>👥</span>
+                                        <span>成员管理</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="main-content">
+                                <div class="nav-bar">
+                                    <div class="nav-button">←</div>
+                                    <div class="nav-title">邀请成员</div>
+                                    <div class="nav-button"></div>
+                                </div>
+                                <div class="form-container">
+                                    <h2 style="margin-bottom: var(--spacing-xl);">生成邀请链接</h2>
+                            <div class="form-group">
+                                <label class="form-label">角色</label>
+                                <select class="input-field" style="margin-bottom: var(--spacing-sm);">
+                                    <option>成员</option>
+                                    <option>管理员</option>
+                                </select>
+                                <div style="color: var(--gray-2); font-size: 0.875rem; margin-top: var(--spacing-xs);">
+                                    选择即将邀请成员的角色
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">过期时间（小时，0表示永不过期）</label>
+                                <input type="number" class="input-field" placeholder="24" value="24" min="0" style="margin-bottom: var(--spacing-sm);">
+                                <div style="color: var(--gray-2); font-size: 0.875rem; margin-top: var(--spacing-xs);">
+                                    设置邀请链接的有效期，0 表示永不过期
+                                </div>
+                            </div>
+                            <div class="button-group">
+                                <a href="project-detail-view.html"><button class="button">取消</button></a>
+                                <a href="invite-member-view.html"><button class="button primary">生成邀请码</button></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>Select (角色选择器)</li>
+                        <li>TextField (过期时间输入框 - 数字类型)</li>
+                        <li>Button (取消按钮)</li>
+                        <li>Button (生成邀请码按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>选择角色</code> → 更新选中角色
+                    </div>
+                    <div class="interaction-item">
+                        <code>输入过期时间</code> → 实时验证，计算并显示过期时间
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击生成邀请码</code> → 生成邀请码和链接，显示结果
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击取消</code> → 返回项目详情页面
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>成功 - 邀请码生成后</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>点击生成邀请码后，显示邀请码、邀请链接和过期时间
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="app-layout">
+                            <div class="sidebar">
+                                <div class="sidebar-profile">
+                                    <div class="sidebar-avatar"></div>
+                                    <div class="sidebar-username">张三</div>
+                                </div>
+                                <div class="sidebar-settings">
+                                    <span style="font-size: 1.2rem;">⚙️</span>
+                                    <span>设置</span>
+                                </div>
+                                <div class="sidebar-nav">
+                                    <div class="sidebar-nav-item">
+                                        <span>📁</span>
+                                        <span>项目列表</span>
+                                    </div>
+                                    <div class="sidebar-nav-item">
+                                        <span>✓</span>
+                                        <span>待办事项</span>
+                                    </div>
+                                    <div class="sidebar-nav-item active">
+                                        <span>👥</span>
+                                        <span>成员管理</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="main-content">
+                                <div class="nav-bar">
+                                    <div class="nav-button">←</div>
+                                    <div class="nav-title">邀请成员</div>
+                                    <div class="nav-button"></div>
+                                </div>
+                                <div class="form-container">
+                                    <h2 style="margin-bottom: var(--spacing-xl);">生成邀请链接</h2>
+                            <div class="form-group">
+                                <label class="form-label">角色</label>
+                                <select class="input-field" style="margin-bottom: var(--spacing-sm);">
+                                    <option>成员</option>
+                                    <option>管理员</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">过期时间（小时，0表示永不过期）</label>
+                                <input type="number" class="input-field" placeholder="24" value="24" min="0" style="margin-bottom: var(--spacing-sm);">
+                            </div>
+                            <div class="button-group">
+                                <a href="project-detail-view.html"><button class="button">取消</button></a>
+                                <a href="invite-member-view.html"><button class="button primary">重新生成</button></a>
+                            </div>
+                            <div style="margin-top: var(--spacing-xl); padding: var(--spacing-lg); background-color: var(--gray-6); border-radius: var(--border-radius);">
+                                <div class="form-group" style="margin-bottom: var(--spacing-lg);">
+                                    <label class="form-label">邀请码：</label>
+                                    <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                                        <code style="flex: 1; padding: var(--spacing-sm); background-color: var(--white); border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius); font-family: 'SF Mono', Monaco, monospace; font-size: 0.9rem; word-break: break-all;">
+                                            96A370CE7CC141B0AC6DC1ABD38FCEF0
+                                        </code>
+                                        <button class="button" style="margin: 0;">复制</button>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: var(--spacing-lg);">
+                                    <label class="form-label">邀请链接：</label>
+                                    <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                                        <code style="flex: 1; padding: var(--spacing-sm); background-color: var(--white); border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius); font-family: 'SF Mono', Monaco, monospace; font-size: 0.9rem; word-break: break-all;">
+                                            http://localhost:8000/join.html?code=96A370CE7CC141B0AC6DC1ABD38FCEF0
+                                        </code>
+                                        <button class="button" style="margin: 0;">复制</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">过期时间：</label>
+                                    <div style="padding: var(--spacing-sm); color: var(--gray-1); font-size: 0.95rem;">
+                                        2026年1月9日 22:31
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>Sidebar (侧边栏)</li>
+                        <li>Select (角色选择器)</li>
+                        <li>TextField (过期时间输入框)</li>
+                        <li>Button (取消按钮)</li>
+                        <li>Button (重新生成按钮)</li>
+                        <li>邀请码显示区域（代码块 + 复制按钮）</li>
+                        <li>邀请链接显示区域（链接 + 复制按钮）</li>
+                        <li>过期时间显示</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>点击复制邀请码</code> → 复制邀请码到剪贴板，显示成功提示
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击复制邀请链接</code> → 复制邀请链接到剪贴板，显示成功提示
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击重新生成</code> → 生成新的邀请码和链接，旧邀请码失效
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>错误 - 生成邀请码失败</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>生成邀请码失败，显示错误提示
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="app-layout">
+                            <div class="sidebar">
+                                <div class="sidebar-profile">
+                                    <div class="sidebar-avatar"></div>
+                                    <div class="sidebar-username">张三</div>
+                                </div>
+                                <div class="sidebar-settings">
+                                    <span style="font-size: 1.2rem;">⚙️</span>
+                                    <span>设置</span>
+                                </div>
+                                <div class="sidebar-nav">
+                                    <div class="sidebar-nav-item">
+                                        <span>📁</span>
+                                        <span>项目列表</span>
+                                    </div>
+                                    <div class="sidebar-nav-item">
+                                        <span>✓</span>
+                                        <span>待办事项</span>
+                                    </div>
+                                    <div class="sidebar-nav-item active">
+                                        <span>👥</span>
+                                        <span>成员管理</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="main-content">
+                                <div class="nav-bar">
+                                    <div class="nav-button">←</div>
+                                    <div class="nav-title">邀请成员</div>
+                                    <div class="nav-button"></div>
+                                </div>
+                                <div class="form-container">
+                                    <h2 style="margin-bottom: var(--spacing-xl);">生成邀请链接</h2>
+                            <div class="form-group">
+                                <label class="form-label">角色</label>
+                                <select class="input-field" style="margin-bottom: var(--spacing-sm);">
+                                    <option>成员</option>
+                                    <option>管理员</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">过期时间（小时，0表示永不过期）</label>
+                                <input type="number" class="input-field" placeholder="24" value="24" min="0" style="border-color: #EF4444; margin-bottom: var(--spacing-sm);">
+                                <div class="error-message">生成邀请码失败，请稍后重试</div>
+                            </div>
+                            <div class="button-group">
+                                <a href="project-detail-view.html"><button class="button">取消</button></a>
+                                <a href="invite-member-view.html"><button class="button primary">生成邀请码</button></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>Select (角色选择器)</li>
+                        <li>TextField (过期时间输入框 - 错误状态)</li>
+                        <li>ErrorView (错误提示)</li>
+                        <li>Button (生成邀请码按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>显示错误</code> → 输入框边框变红，显示错误消息
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击生成邀请码</code> → 重试生成邀请码
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>成功 - 复制成功提示</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>点击复制按钮后，显示成功提示
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="app-layout">
+                            <div class="sidebar">
+                                <div class="sidebar-profile">
+                                    <div class="sidebar-avatar"></div>
+                                    <div class="sidebar-username">张三</div>
+                                </div>
+                                <div class="sidebar-settings">
+                                    <span style="font-size: 1.2rem;">⚙️</span>
+                                    <span>设置</span>
+                                </div>
+                                <div class="sidebar-nav">
+                                    <div class="sidebar-nav-item">
+                                        <span>📁</span>
+                                        <span>项目列表</span>
+                                    </div>
+                                    <div class="sidebar-nav-item">
+                                        <span>✓</span>
+                                        <span>待办事项</span>
+                                    </div>
+                                    <div class="sidebar-nav-item active">
+                                        <span>👥</span>
+                                        <span>成员管理</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="main-content">
+                                <div class="nav-bar">
+                                    <div class="nav-button">←</div>
+                                    <div class="nav-title">邀请成员</div>
+                                    <div class="nav-button"></div>
+                                </div>
+                                <div class="form-container">
+                                    <h2 style="margin-bottom: var(--spacing-xl);">生成邀请链接</h2>
+                            <div class="form-group">
+                                <label class="form-label">角色</label>
+                                <select class="input-field" style="margin-bottom: var(--spacing-sm);">
+                                    <option>成员</option>
+                                    <option>管理员</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">过期时间（小时，0表示永不过期）</label>
+                                <input type="number" class="input-field" placeholder="24" value="24" min="0" style="margin-bottom: var(--spacing-sm);">
+                            </div>
+                            <div class="button-group">
+                                <a href="project-detail-view.html"><button class="button">取消</button></a>
+                                <a href="invite-member-view.html"><button class="button primary">重新生成</button></a>
+                            </div>
+                            <div style="margin-top: var(--spacing-xl); padding: var(--spacing-lg); background-color: var(--gray-6); border-radius: var(--border-radius);">
+                                <div class="form-group" style="margin-bottom: var(--spacing-lg);">
+                                    <label class="form-label">邀请码：</label>
+                                    <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                                        <code style="flex: 1; padding: var(--spacing-sm); background-color: var(--white); border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius); font-family: 'SF Mono', Monaco, monospace; font-size: 0.9rem; word-break: break-all;">
+                                            96A370CE7CC141B0AC6DC1ABD38FCEF0
+                                        </code>
+                                        <button class="button" style="margin: 0; background-color: #10B981; color: white; border-color: #10B981;">已复制</button>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: var(--spacing-lg);">
+                                    <label class="form-label">邀请链接：</label>
+                                    <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                                        <code style="flex: 1; padding: var(--spacing-sm); background-color: var(--white); border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius); font-family: 'SF Mono', Monaco, monospace; font-size: 0.9rem; word-break: break-all;">
+                                            http://localhost:8000/join.html?code=96A370CE7CC141B0AC6DC1ABD38FCEF0
+                                        </code>
+                                        <button class="button" style="margin: 0;">复制</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">过期时间：</label>
+                                    <div style="padding: var(--spacing-sm); color: var(--gray-1); font-size: 0.95rem;">
+                                        2026年1月9日 22:31
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top: var(--spacing-md); padding: var(--spacing-sm) var(--spacing-md); background-color: #D1FAE5; color: #065F46; border-radius: var(--border-radius); font-size: 0.875rem; text-align: center;">
+                                ✓ 邀请码已复制到剪贴板
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>邀请码显示区域（代码块 + 已复制按钮）</li>
+                        <li>邀请链接显示区域（链接 + 复制按钮）</li>
+                        <li>Toast 提示 (复制成功)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>复制成功</code> → 按钮文字变为"已复制"，显示成功 Toast 提示，3秒后恢复
+                    </div>
+                </div>
+            </div>
+        </details>
+
+    </div>
+</body>
+</html>
+

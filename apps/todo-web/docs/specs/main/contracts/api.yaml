@@ -1,0 +1,973 @@
+openapi: 3.0.3
+info:
+  title: 待办管理系统 API
+  version: 1.0.0
+  description: 待办管理系统的 RESTful API 文档
+servers:
+  - url: http://localhost:8000/api/v1
+    description: 开发环境
+  - url: https://api.example.com/api/v1
+    description: 生产环境
+
+paths:
+  # 认证相关
+  /auth/register:
+    post:
+      summary: 用户注册
+      tags: [认证]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, username]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+      responses:
+        '201':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: 邮箱或用户名已存在
+
+  /auth/login:
+    post:
+      summary: 用户登录
+      tags: [认证]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: 邮箱或密码错误
+
+  /auth/refresh:
+    post:
+      summary: 刷新访问令牌
+      tags: [认证]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+        '401':
+          description: 刷新令牌无效或过期
+
+  /auth/logout:
+    post:
+      summary: 退出登录
+      tags: [认证]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 退出成功
+
+  # 用户相关
+  /users/me:
+    get:
+      summary: 获取当前用户信息
+      tags: [用户]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  # 项目相关
+  /projects:
+    get:
+      summary: 获取项目列表
+      tags: [项目]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+    post:
+      summary: 创建项目
+      tags: [项目]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  maxLength: 500
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+
+  /projects/{projectId}:
+    get:
+      summary: 获取项目详情
+      tags: [项目]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+        '404':
+          description: 项目不存在或无权访问
+
+    patch:
+      summary: 更新项目
+      tags: [项目]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: 更新成功
+        '403':
+          description: 无权限（非创建者）
+
+    delete:
+      summary: 删除项目
+      tags: [项目]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 删除成功
+        '403':
+          description: 无权限（非创建者）
+
+  /projects/{projectId}/members:
+    get:
+      summary: 获取项目成员列表
+      tags: [项目]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectMember'
+
+  # 待办相关
+  /projects/{projectId}/todos:
+    get:
+      summary: 获取项目待办列表
+      tags: [待办]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, IN_PROGRESS, COMPLETED]
+        - name: assigneeId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Todo'
+    post:
+      summary: 创建待办
+      tags: [待办]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                content:
+                  type: string
+                  maxLength: 5000
+                assigneeId:
+                  type: string
+                  format: uuid
+                parentId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [PENDING, IN_PROGRESS, COMPLETED]
+                  default: PENDING
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+
+  /projects/{projectId}/todos/{todoId}:
+    get:
+      summary: 获取待办详情
+      tags: [待办]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoDetail'
+        '404':
+          description: 待办不存在
+
+    patch:
+      summary: 更新待办
+      tags: [待办]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                assigneeId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [PENDING, IN_PROGRESS, COMPLETED]
+                version:
+                  type: integer
+                  description: 乐观锁版本号
+      responses:
+        '200':
+          description: 更新成功
+        '409':
+          description: 版本冲突（并发编辑）
+
+    delete:
+      summary: 删除待办
+      tags: [待办]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 删除成功
+        '403':
+          description: 无权限
+
+  /projects/{projectId}/todos/{todoId}/status-history:
+    get:
+      summary: 获取待办状态历史
+      tags: [待办]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoStatusHistory'
+
+  # 邀请相关
+  /projects/{projectId}/invitations:
+    post:
+      summary: 生成邀请码
+      tags: [邀请]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [ADMIN, MEMBER]
+                expiryHours:
+                  type: integer
+                  minimum: 0
+                  description: 过期时间（小时），0 表示永不过期
+      responses:
+        '201':
+          description: 生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationResponse'
+
+  /invitations/{inviteCode}:
+    get:
+      summary: 验证邀请码
+      tags: [邀请]
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 邀请码有效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationInfo'
+        '404':
+          description: 邀请码不存在或已过期
+
+  /invitations/{inviteCode}/accept:
+    post:
+      summary: 接受邀请
+      tags: [邀请]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 接受成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+
+  /invitations/{inviteCode}/decline:
+    post:
+      summary: 拒绝邀请
+      tags: [邀请]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: inviteCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 拒绝成功
+
+  # 评论相关
+  /projects/{projectId}/todos/{todoId}/comments:
+    get:
+      summary: 获取待办评论列表
+      tags: [评论]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+
+    post:
+      summary: 创建评论
+      tags: [评论]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                mentionedUserIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+
+  /projects/{projectId}/todos/{todoId}/comments/{commentId}:
+    patch:
+      summary: 更新评论
+      tags: [评论]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+      responses:
+        '200':
+          description: 更新成功
+        '403':
+          description: 无权限（非作者）
+
+    delete:
+      summary: 删除评论
+      tags: [评论]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: todoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 删除成功
+        '403':
+          description: 无权限（非作者）
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        avatar:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        creatorId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - type: object
+          properties:
+            creator:
+              $ref: '#/components/schemas/User'
+            memberCount:
+              type: integer
+            todoCount:
+              type: integer
+
+    ProjectMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [ADMIN, MEMBER]
+        joinedAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/User'
+
+    Todo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+        content:
+          type: string
+          nullable: true
+        creatorId:
+          type: string
+          format: uuid
+        assigneeId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED]
+        version:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TodoDetail:
+      allOf:
+        - $ref: '#/components/schemas/Todo'
+        - type: object
+          properties:
+            creator:
+              $ref: '#/components/schemas/User'
+            assignee:
+              $ref: '#/components/schemas/User'
+              nullable: true
+            children:
+              type: array
+              items:
+                $ref: '#/components/schemas/Todo'
+            commentCount:
+              type: integer
+
+    TodoStatusHistory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        todoId:
+          type: string
+          format: uuid
+        previousStatus:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED]
+          nullable: true
+        newStatus:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED]
+        changedById:
+          type: string
+          format: uuid
+        changedAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+          nullable: true
+        changedBy:
+          $ref: '#/components/schemas/User'
+
+    InvitationResponse:
+      type: object
+      properties:
+        inviteCode:
+          type: string
+          description: 32位十六进制邀请码
+        inviteLink:
+          type: string
+          description: 邀请链接
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 过期时间，null 表示永不过期
+
+    InvitationInfo:
+      type: object
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        projectName:
+          type: string
+        inviter:
+          $ref: '#/components/schemas/User'
+        role:
+          type: string
+          enum: [ADMIN, MEMBER]
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        todoId:
+          type: string
+          format: uuid
+        authorId:
+          type: string
+          format: uuid
+        content:
+          type: string
+        mentionedUserIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        author:
+          $ref: '#/components/schemas/User'
+        mentionedUsers:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未认证
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 无权限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
