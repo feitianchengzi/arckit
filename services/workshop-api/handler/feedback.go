@@ -553,11 +553,6 @@ func DeleteFeedback(c *gin.Context) {
 		return
 	}
 
-	if member.Role != models.ProjectRoleOwner && member.Role != models.ProjectRoleAdmin {
-		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, "只有项目管理员或所有者可以删除反馈", nil))
-		return
-	}
-
 	deletedAt := time.Now().UTC()
 	data := gin.H{
 		"feedback_id": feedback.ID,

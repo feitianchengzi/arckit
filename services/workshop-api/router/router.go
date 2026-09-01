@@ -179,7 +179,7 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 	group.POST("/feedbacks", handler.CreateFeedback)                                   // 创建反馈
 	group.GET("/feedbacks", handler.GetFeedbacks)                                      // 查询反馈
 	group.PUT("/feedbacks/:id", handler.UpdateFeedback)                                // 更新反馈
-	group.DELETE("/feedbacks/:id", handler.DeleteFeedback)                             // 删除反馈（管理员/所有者）
+	group.DELETE("/feedbacks/:id", handler.DeleteFeedback)                             // 删除反馈（项目成员）
 	group.GET("/projects/:id/tags", handler.GetTags)                                   // 查询项目的所有标签
 	group.POST("/projects/:id/tags", handler.CreateTag)                                // 创建标签
 	group.PUT("/tags/:id", handler.UpdateTag)                                          // 更新标签
