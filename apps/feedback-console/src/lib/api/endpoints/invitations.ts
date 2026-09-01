@@ -1,0 +1,108 @@
+/**
+ * invitations API - 邀请管理接口
+ */
+
+import { apiClient } from '../client'
+import { handleResponse } from '../interceptors/response'
+import type { ProjectInvitation, ProjectRole } from '@/types'
+
+export interface CreateInvitationInput {
+  project_id: number
+  role: ProjectRole
+  expires_in_hours?: number // 0 表示永不过期
+  max_uses?: number // 最大使用次数，不传则默认1
+}
+
+export const invitationsApi = {
+  /**
+   * 创建邀请
+   * 后端路由: POST /todo/v1/user/projects/:id/invitations
+   * 后端参数: { role: string, expires_in: number } (expires_in 是小时数)
+   * 响应格式: { code: 'OK', data: { invite_code, invite_link, role, expires_at, created_at } }
+   */
+  create: async (input: CreateInvitationInput): Promise<ProjectInvitation> => {
+    const requestBody: any = {
+      role: input.role,
+      expires_in: input.expires_in_hours || 0, // 后端参数名是 expires_in（小时数）
+    }
+    
+    // 如果提供了 max_uses，则添加到请求体中
+    if (input.max_uses !== undefined && input.max_uses !== null) {
+      requestBody.max_uses = input.max_uses
+    }
+    
+    const response = await apiClient.post(
+      `/user/projects/${input.project_id}/invitations`,
+      requestBody
+    )
+    
+    const data = handleResponse<{
+      invite_code: string
+      invite_link?: string  // 后端可能返回邀请链接
+      role: string
+      expires_at?: string
+      created_at: string
+    }>(response)
+    
+    // 转换为前端的 ProjectInvitation 格式
+    return {
+      id: 0, // 后端响应中没有 id，设为 0
+      project_id: input.project_id,
+      invite_code: data.invite_code,
+      invite_link: data.invite_link, // 保留后端返回的链接（如果有）
+      role: data.role as ProjectRole,
+      inviter_id: 0, // 后端响应中没有 inviter_id
+      expires_at: data.expires_at || undefined,
+      created_at: data.created_at,
+      updated_at: data.created_at, // 后端响应中没有 updated_at，使用 created_at
+    }
+  },
+  
+  /**
+   * 获取项目的邀请列表
+   * 注意：后端目前不支持此接口，返回空数组
+   */
+  listByProject: async (projectId: string): Promise<ProjectInvitation[]> => {
+    // 后端没有获取邀请列表的接口，返回空数组
+    // TODO: 如果后端支持，可以添加此接口
+    return []
+  },
+  
+  /**
+   * 使用邀请码加入项目
+   * 后端路由: POST /workshop/v1/user/projects/join
+   * 请求体: { invite_code: string }
+   * 
+   * 注意：根据API文档，不需要 user_id 参数，网关会自动从 Token 中解析 UserID 并注入到请求头
+   * 
+   * @param inviteCode 邀请码
+   */
+  join: async (inviteCode: string): Promise<{ project_id: number }> => {
+    console.log('🔗 使用邀请码加入项目:', inviteCode)
+    const response = await apiClient.post(`/user/projects/join`, {
+      invite_code: inviteCode,
+    })
+    const data = handleResponse<any>(response)
+    
+    // 后端返回格式可能是: { id, project_id, user_id, role, project_name, created_at }
+    // 我们需要提取 project_id
+    const projectId = data?.project_id || data?.id
+    if (!projectId) {
+      throw new Error('无法获取项目ID')
+    }
+    
+    console.log('✅ 加入项目成功，项目ID:', projectId)
+    return { project_id: projectId }
+  },
+  
+  /**
+   * 删除邀请
+   * 注意：后端目前不支持此接口
+   */
+  delete: async (projectId: string, invitationId: string): Promise<void> => {
+    // 后端没有删除邀请的接口
+    // TODO: 如果后端支持，可以添加此接口
+    throw new Error('后端不支持删除邀请功能')
+  },
+}
+

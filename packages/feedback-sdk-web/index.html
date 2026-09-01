@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="产品反馈" />
+    <title>产品反馈</title>
+    <script>
+      ;(() => {
+        const closeEmbeddedSdk = () => {
+          if (document.documentElement.dataset.feedbackEmbed !== 'web' || window.parent === window) return
+          window.parent.postMessage({ source: 'feedback-sdk-web', type: 'feedback-sdk:close' }, '*')
+        }
+
+        const syncEmbedState = () => {
+          const params = new URLSearchParams(window.location.search)
+          const root = document.documentElement
+          if (params.get('embed') === 'web') {
+            root.dataset.feedbackEmbed = 'web'
+          } else {
+            delete root.dataset.feedbackEmbed
+          }
+
+          root.dataset.feedbackRoute = window.location.pathname.includes('/status') ? 'status' : 'submit'
+        }
+
+        const patchHistory = (method) => {
+          const original = window.history[method]
+          window.history[method] = function (...args) {
+            const result = original.apply(this, args)
+            syncEmbedState()
+            return result
+          }
+        }
+
+        syncEmbedState()
+        patchHistory('pushState')
+        patchHistory('replaceState')
+        window.addEventListener('popstate', syncEmbedState)
+        window.addEventListener('hashchange', syncEmbedState)
+        window.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') closeEmbeddedSdk()
+        })
+        document.addEventListener('mousedown', (event) => {
+          if (document.documentElement.dataset.feedbackEmbed !== 'web') return
+          if (event.target instanceof Element && event.target.closest('[data-feedback-sdk-shell]')) return
+          closeEmbeddedSdk()
+        })
+      })()
+    </script>
+    <style>
+      html[data-feedback-embed='web'],
+      html[data-feedback-embed='web'] body,
+      html[data-feedback-embed='web'] #root {
+        background: transparent !important;
+        overflow: hidden;
+      }
+
+      html[data-feedback-embed='web'] body {
+        overflow: hidden;
+      }
+
+      html[data-feedback-embed='web'] #root > div {
+        display: flex;
+        min-height: 100dvh;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        overflow: hidden;
+        background: rgba(15, 23, 42, 0.38) !important;
+        backdrop-filter: blur(2px);
+      }
+
+      html[data-feedback-embed='web'] #root > div > div {
+        width: 100%;
+        max-width: none;
+      }
+
+      html[data-feedback-embed='web'] #root > div > div > div {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 8px;
+        box-shadow: none;
+        letter-spacing: 0;
+      }
+
+      html[data-feedback-embed='web'][data-feedback-route='status'] #root > div > div > div {
+        max-width: 980px;
+        min-height: 620px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
