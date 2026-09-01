@@ -35,7 +35,7 @@ function fingerprint(value) {
 }
 
 function looksPlaceholder(line) {
-  return /(?:example|placeholder|replace[-_ ]?me|your[-_]|changeme|development-|dummy|sample|mock|fake|test[-_ ]|password123|access[-_ ]token|refresh[-_ ]token|token[-_ ]value|secret[-_ ]value|xxxx|<[^>]+>)/i.test(line);
+  return /(?:example|placeholder|replace[-_ ]?(?:me|with)|your[-_]|changeme|development-|dummy|sample|mock|fake|test[-_ ]|password123|access[-_ ]token|refresh[-_ ]token|token[-_ ]value|secret[-_ ]value|xxxx|<[^>]+>)/i.test(line);
 }
 
 function scanText({ repository, scope, object, file, text }) {
