@@ -101,7 +101,9 @@ app.whenReady().then(async () => {
   productFeedbackService = createProductFeedbackService({
     getAuthStatus: () => workshopService.getAuthStatus(),
     getCurrentUser: () => workshopService.getCurrentUser(),
-    surface: productFeedbackSurface
+    surface: productFeedbackSurface,
+    projectId: process.env.ARCORBIT_FEEDBACK_PROJECT_ID,
+    apiKey: process.env.ARCORBIT_FEEDBACK_API_KEY
   });
   productFeedbackService.onUnreadCount((count) => {
     if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:product-feedback-unread", count);

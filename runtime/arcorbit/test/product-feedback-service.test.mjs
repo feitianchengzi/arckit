@@ -17,6 +17,7 @@ function withService(options = {}) {
   };
   const service = createProductFeedbackService({
     apiKey: "test-feedback-key",
+    projectId: 107,
     getAuthStatus: async () => ({ authenticated: true }),
     getCurrentUser: async () => ({ id: 731 }),
     surface,
@@ -25,13 +26,13 @@ function withService(options = {}) {
   return { service, surfaceCalls };
 }
 
-test("product feedback is bundled for fixed Project 107 without user configuration", async () => {
+test("product feedback reports operator-injected configuration", async () => {
   const { service } = withService();
   assert.deepEqual(await service.getStatus(), {
     integration_mode: "sdk-webview",
     sdk_auth_mode: "apiKey",
     notifications_enabled: true,
-    credential_strategy: "bundled-static",
+    credential_strategy: "operator-injected",
     configured: true,
     project_id: 107,
     unread_count: 0
@@ -40,7 +41,7 @@ test("product feedback is bundled for fixed Project 107 without user configurati
   assert.equal(typeof service.clearConfig, "undefined");
 });
 
-test("product feedback opens the bundled apiKey SDK contract for the current Workshop user", async () => {
+test("product feedback opens the operator-configured apiKey SDK contract for the current Workshop user", async () => {
   const { service, surfaceCalls } = withService();
   assert.deepEqual(await service.open("submit"), { status: "opened", mode: "submit" });
   assert.deepEqual(surfaceCalls, [["open", {
@@ -95,7 +96,32 @@ test("product feedback only gates on Workshop login and stable identity", async 
 test("feedback modes are bounded", () => {
   assert.equal(normalizeProductFeedbackMode("status"), "status");
   assert.throws(() => normalizeProductFeedbackMode("external"), { code: "invalid_feedback_mode" });
-  assert.throws(() => withService({ apiKey: "" }), /apiKey is required/);
+});
+
+test("product feedback fails closed when operator configuration is absent", async () => {
+  const surface = {
+    async open() { throw new Error("must not open"); },
+    async prepare() { throw new Error("must not prepare"); },
+    async switchMode() {},
+    async retry() {},
+    close() {}
+  };
+  const service = createProductFeedbackService({
+    getAuthStatus: async () => ({ authenticated: true }),
+    getCurrentUser: async () => ({ id: 731 }),
+    surface
+  });
+  assert.deepEqual(await service.getStatus(), {
+    integration_mode: "sdk-webview",
+    sdk_auth_mode: "apiKey",
+    notifications_enabled: true,
+    credential_strategy: "operator-injected",
+    configured: false,
+    project_id: 0,
+    unread_count: 0
+  });
+  assert.deepEqual(await service.open(), { status: "unavailable", reason: "product_feedback_not_configured" });
+  assert.deepEqual(await service.refreshUnread(), { status: "unavailable", reason: "product_feedback_not_configured", unread_count: 0 });
 });
 
 test("product feedback exposes bounded unread state and prepares without opening", async () => {

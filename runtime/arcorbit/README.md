@@ -32,6 +32,10 @@ Runtime capability policy contains exactly two explicit bindings:
 
 Runtime has no fixed skill routing, skill allowlist for gap execution, execution-role registry, predicted path scope, or separate planning/review/commit Agent pipeline.
 
+## Operator-supplied product feedback configuration
+
+ArcOrbit does not embed its Feedback project credential in public source or packaged defaults. Operators that enable the built-in product-feedback surface must explicitly provide `ARCORBIT_FEEDBACK_PROJECT_ID` and `ARCORBIT_FEEDBACK_API_KEY` to the Desktop process. When either value is absent or invalid, ArcOrbit starts normally and the product-feedback surface fails closed as unconfigured. Public code never imports or reads the sibling `arckit-ops` repository; deployment tooling is responsible for supplying these values from a controlled secret source.
+
 ## One todo, one Codex thread
 
 The first Agent invocation starts a non-ephemeral Codex thread. Runtime writes the opaque thread id to its task binding file before starting the first turn. Every later gap, validation, repair, completion review, and Git closeout uses the same thread.

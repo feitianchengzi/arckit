@@ -7,8 +7,10 @@ import path from "node:path";
 
 const MAX_BLOB_BYTES = 4 * 1024 * 1024;
 const SKIP_WALK_DIRS = new Set([".git", "node_modules", "dist", "build", ".next", "out", "DerivedData", ".vite", ".npm-cache"]);
-const SENSITIVE_PATH = /(^|\/)(\.env(?:\.|$)|[^/]*\.(?:pem|key|p12|pfx|mobileprovision|keystore|jks)|credentials?(?:\.|$)|secrets?(?:\.|$)|google-services\.json$|GoogleService-Info\.plist$)/i;
+const SENSITIVE_PATH = /(^|\/)(\.env(?:[./]|$)|\.npmrc$|\.pypirc$|\.netrc$|\.dockercfg$|id_(?:rsa|dsa|ecdsa|ed25519)(?:[./]|$)|kubeconfig(?:[./]|$)|[^/]*\.(?:pem|key|p12|pfx|mobileprovision|keystore|jks|ovpn)|credentials?(?:[./]|$)|secrets?(?:[./]|$)|terraform\.tfstate(?:[./]|$)|google-services\.json$|GoogleService-Info\.plist$)|(^|\/)\.ssh\//i;
 const NON_PRODUCT_PATH = /(^|\/)(\.cursor|\.agents|\.claude|\.shared|\.arckit|\.tools|frontend-nextjs-backup|node_modules|dist|build|DerivedData|xcuserdata)(\/|$)|(^|\/)\.DS_Store$/;
+const BLOCKED_CATALOG = JSON.parse(fs.readFileSync(new URL("../monorepo/blocked-secret-fingerprints.json", import.meta.url), "utf8"));
+const BLOCKED_FINGERPRINTS = new Set(BLOCKED_CATALOG.fingerprints.map((item) => item.fingerprint));
 const RULES = [
   ["private-key", /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/],
   ["aws-access-key", /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/],
@@ -47,6 +49,7 @@ function scanText({ repository, scope, object, file, text }) {
       const match = line.match(pattern);
       if (!match) continue;
       if (["secret-literal", "secret-env-assignment"].includes(rule) && looksPlaceholder(line)) continue;
+      const matchedFingerprint = fingerprint(match[0]);
       findings.push({
         repository,
         scope,
@@ -54,7 +57,8 @@ function scanText({ repository, scope, object, file, text }) {
         path: file,
         line: index + 1,
         rule,
-        fingerprint: fingerprint(match[0]),
+        fingerprint: matchedFingerprint,
+        blocked: BLOCKED_FINGERPRINTS.has(matchedFingerprint),
         assignment_name: ["secret-literal", "secret-env-assignment"].includes(rule) ? match[0].split(/[=:]/, 1)[0].trim().slice(0, 80) : "",
         value_length: typeof match[1] === "string" ? match[1].length : match[0].length
       });
@@ -179,16 +183,22 @@ function auditRepository(repoArg) {
   };
 }
 
-const repos = process.argv.slice(2);
+const cliArgs = process.argv.slice(2);
+const failOnBlocked = cliArgs.includes("--fail-on-blocked");
+const repos = cliArgs.filter((arg) => arg !== "--fail-on-blocked");
 if (!repos.length) {
   console.error("Usage: audit-monorepo-sources.mjs <repo>...");
   process.exit(2);
 }
 
-const reports = repos.map(auditRepository);
+const reports = repos.map(auditRepository).map((report) => ({
+  ...report,
+  blocked_findings: report.findings.filter((finding) => finding.blocked)
+}));
 console.log(JSON.stringify({
   schema_version: "arckit-monorepo-source-audit/v1",
   generated_at: new Date().toISOString(),
   redaction: "No matched content or secret value is emitted; findings contain rule, path, line, object id, and a truncated SHA-256 fingerprint only.",
   reports
 }, null, 2));
+if (failOnBlocked && reports.some((report) => report.blocked_findings.length > 0)) process.exitCode = 1;

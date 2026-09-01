@@ -1,20 +1,13 @@
-export const ARCORBIT_FEEDBACK_PROJECT_ID = 107;
-
-// ArcOrbit ships this project-scoped credential with the desktop client.
-// Rotate this value and rebuild the app when the Feedback credential changes.
-const ARCORBIT_FEEDBACK_API_KEY = "ak_93d390476707d767e12c281cd9665d94718fb8f431bc9d7f48b7f2e142664257";
-
 export function createProductFeedbackService({
   getAuthStatus,
   getCurrentUser,
   surface,
-  projectId = ARCORBIT_FEEDBACK_PROJECT_ID,
-  apiKey = ARCORBIT_FEEDBACK_API_KEY
+  projectId,
+  apiKey
 }) {
   const configuredProjectId = positiveInteger(projectId);
   const configuredApiKey = String(apiKey || "").trim();
-  if (!configuredProjectId) throw new Error("Product feedback projectId must be a positive safe integer.");
-  if (!configuredApiKey) throw new Error("Product feedback apiKey is required.");
+  const configured = Boolean(configuredProjectId && configuredApiKey);
   let unreadCount = 0;
   const unreadListeners = new Set();
 
@@ -30,14 +23,15 @@ export function createProductFeedbackService({
       integration_mode: "sdk-webview",
       sdk_auth_mode: "apiKey",
       notifications_enabled: true,
-      credential_strategy: "bundled-static",
-      configured: true,
+      credential_strategy: "operator-injected",
+      configured,
       project_id: configuredProjectId,
       unread_count: unreadCount
     };
   }
 
   async function open(mode = "submit") {
+    if (!configured) return { status: "unavailable", reason: "product_feedback_not_configured" };
     const action = normalizeMode(mode);
     const resolved = await resolveRuntimeConfig();
     if (!resolved.config) return resolved.result;
@@ -46,6 +40,7 @@ export function createProductFeedbackService({
   }
 
   async function refreshUnread() {
+    if (!configured) return { status: "unavailable", reason: "product_feedback_not_configured", unread_count: 0 };
     const resolved = await resolveRuntimeConfig();
     if (!resolved.config) {
       setUnreadCount(0);

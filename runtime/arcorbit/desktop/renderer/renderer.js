@@ -4959,9 +4959,9 @@ function defaultProductFeedbackStatus() {
     integration_mode: "sdk-webview",
     sdk_auth_mode: "apiKey",
     notifications_enabled: true,
-    credential_strategy: "bundled-static",
-    configured: true,
-    project_id: 107,
+    credential_strategy: "operator-injected",
+    configured: false,
+    project_id: 0,
     unread_count: 0,
     updated_at: ""
   };

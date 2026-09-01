@@ -42,8 +42,8 @@ test("feedback IPC and remote WebContents stay bounded", async () => {
   assert.match(windowSource, /FeedbackSDK\.getUnreadCount\(\)/);
   assert.match(serviceSource, /feedbackV2AuthMode: "apiKey"/);
   assert.match(serviceSource, /feedbackV2NotificationsEnabled: true/);
-  assert.match(serviceSource, /ARCORBIT_FEEDBACK_PROJECT_ID = 107/);
-  assert.match(serviceSource, /credential_strategy: "bundled-static"/);
+  assert.doesNotMatch(serviceSource, /ARCORBIT_FEEDBACK_PROJECT_ID|ARCORBIT_FEEDBACK_API_KEY|bundled-static/);
+  assert.match(serviceSource, /credential_strategy: "operator-injected"/);
   assert.doesNotMatch(serviceSource, /session:/);
   assert.match(mainPreload, /getProductFeedbackStatus/);
   assert.doesNotMatch(mainPreload, /saveProductFeedbackConfig|clearProductFeedbackConfig/);

@@ -6,12 +6,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const BLOCKED_FINGERPRINTS = new Set([
-  "8f34e336a8a5306c", "c833818e180cee0e", "8af4d0eb40fdb36e", "5255d291cfb7c5c7",
-  "b5e0b9cb7deaac32", "38fd2040d7a795d9", "95fd118ed3457250", "02a4d2582cb9a56b",
-  "ea94be284d331295", "ba80ffd6d0024109", "75b4a00e7c532dbb", "a8785f90a5628b39",
-  "d2d51f63b1710e5e"
-]);
+const BLOCKED_CATALOG = JSON.parse(fs.readFileSync(new URL("../monorepo/blocked-secret-fingerprints.json", import.meta.url), "utf8"));
+const BLOCKED_FINGERPRINTS = new Set(BLOCKED_CATALOG.fingerprints
+  .filter((item) => item.scopes.includes("source-import"))
+  .map((item) => item.fingerprint));
 const RULES = [
   /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g,
   /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,

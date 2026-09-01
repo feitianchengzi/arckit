@@ -144,7 +144,11 @@ const fingerprints = [
   ["Workshop API historical JWT example", "ba80ffd6d0024109", "prove-invalid"],
   ["Todo Web Feedback API key", "75b4a00e7c532dbb", "rotate-or-revoke"],
   ["Todo Web historical OSS access key id", "a8785f90a5628b39", "rotate-or-revoke"],
-  ["Todo Web historical OSS access key secret", "d2d51f63b1710e5e", "rotate-or-revoke"]
+  ["Todo Web historical OSS access key secret", "d2d51f63b1710e5e", "rotate-or-revoke"],
+  ["Workshop API historical OSS temporary secret", "335ab3f4e999b3f9", "prove-invalid-or-rotate"],
+  ["Workshop API historical OSS security token", "382e833d12ada2c6", "prove-expired-or-revoke"],
+  ["Workshop API historical database password", "478c1b91d7adf773", "prove-invalid-or-rotate"],
+  ["ArcOrbit Feedback API key", "4d45357560c48842", "rotate-or-revoke"]
 ];
 const rows = fingerprints.map(([identifier, fp, action]) => `| ${identifier} | \`${fp}\` | ${action} | unassigned | pending |`).join("\n");
 writeTracked(opsRoot, "runbooks/credential-rotation.md", `# Credential rotation gate
@@ -172,6 +176,18 @@ for (const environment of environments) {
   writeTracked(opsRoot, `environments/${environment}/todo-web/config-contract.md`, `# Todo Web — ${environment}
 
 公开应用通过 \`VITE_FEEDBACK_API_KEY\` 等显式环境契约接收部署配置。tracked 文件只允许记录变量名、目标环境和秘密引用，不允许记录值。
+`);
+  writeTracked(opsRoot, `environments/${environment}/feedback-console/config-contract.md`, `# Feedback Console — ${environment}
+
+只记录 Feedback Console 的公开 endpoint、Project ID、功能开关和 secrets manager 引用。Feedback SDK API Key、OSS 凭据及客户专属覆盖值不得写入 tracked 文件。
+`);
+  writeTracked(opsRoot, `environments/${environment}/feedback-sdk-web/config-contract.md`, `# Feedback Web SDK — ${environment}
+
+只记录 SDK gateway/public-base 契约和秘密引用。API Key、会话令牌及客户专属配置必须由部署环境或受控 secrets manager 显式提供。
+`);
+  writeTracked(opsRoot, `environments/${environment}/arcorbit/config-contract.md`, `# ArcOrbit — ${environment}
+
+ArcOrbit 产品反馈由 \`ARCORBIT_FEEDBACK_PROJECT_ID\` 和 \`ARCORBIT_FEEDBACK_API_KEY\` 显式配置。tracked 文件只记录变量名和秘密引用，不记录实际值。
 `);
 }
 
@@ -212,7 +228,7 @@ if (trackedSecrets && trackedSecrets !== "secrets/README.md") {
 console.log(JSON.stringify({
   schema_version: "arckit-ops-bootstrap/v1",
   ops_root: opsRoot,
-  tracked_policy_files: 11,
+  tracked_policy_files: 20,
   ignored_secret_targets_verified: ignored.length,
   extracted_secret_values: 1 + documentValues.length,
   secret_values_emitted: false,

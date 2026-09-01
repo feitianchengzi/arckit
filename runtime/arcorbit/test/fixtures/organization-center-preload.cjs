@@ -205,7 +205,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   getProductFeedbackStatus: async () => ({
     integration_mode: "sdk-webview", sdk_auth_mode: "apiKey", notifications_enabled: true,
-    credential_strategy: "bundled-static", configured: true, project_id: 107, unread_count: 0
+    credential_strategy: "operator-injected", configured: true, project_id: 107, unread_count: 0
   }),
   openProductFeedback: async () => ({ status: "opened", mode: "submit" }),
   refreshProductFeedbackUnread: async () => ({ status: "ready", unread_count: 0 }),
