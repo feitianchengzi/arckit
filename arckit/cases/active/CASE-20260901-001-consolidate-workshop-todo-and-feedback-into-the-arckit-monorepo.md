@@ -4,7 +4,7 @@ Case: CASE-20260901-001
 Status: handoff
 Artifact Type: mixed
 Selected Gap: none
-Updated: 2026-09-01T05:50:21.160Z
+Updated: 2026-09-01T07:10:53.678Z
 
 ## User Intent
 
@@ -20,7 +20,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
   "status": "handoff",
   "artifact_type": "mixed",
   "created_at": "2026-09-01T04:12:15.983Z",
-  "updated_at": "2026-09-01T05:50:21.160Z",
+  "updated_at": "2026-09-01T07:10:53.678Z",
   "user_intent": "Merge the Workshop Todo backend, Todo web application, Feedback web applications, SDK, and iOS example into Arckit with a coherent directory structure, explicit multi-license boundaries, and a sibling private arckit-ops repository for non-public operational material.",
   "expected_outcome": "Arckit is the canonical public source monorepo for Arckit, ArcOrbit, Todo, and Feedback product code; non-public production and customer-specific operational material is isolated in a sibling arckit-ops repository; imported code builds and repository governance documents match the new boundary.",
   "project_state_ref": "arckit/project/state.record.json",
@@ -64,7 +64,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
     {
       "id": "FACT-20260901-001-004",
       "revision": 1,
-      "status": "accepted",
+      "status": "superseded",
       "statement": "A separate local arckit-ops Git workspace now owns private environment contracts, credential rotation records, and Git-ignored plaintext/quarantine material; a repeatable sanitized staging build mapped 701 current source files and found zero occurrences of all 13 known blocked fingerprints.",
       "basis": "The bootstrap and staging tools completed against the three audited source HEADs, verified representative secret targets with git check-ignore, enforced secret file mode 0600, emitted no secret values, and produced durable redacted reports.",
       "evidence": [
@@ -77,13 +77,42 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
     {
       "id": "FACT-20260901-001-005",
       "revision": 1,
-      "status": "accepted",
+      "status": "superseded",
       "statement": "The Workshop API, Todo Web, and Workshop Feedback histories were filtered and merged into their accepted Arckit monorepo destinations; root workspace governance and per-surface license boundaries are applied, supported builds and tests pass, and the final scan of 5,861 reachable text blobs reports zero sensitive paths and zero blocked credential fingerprints.",
       "basis": "Six local migration commits preserve filtered provenance, integrate all public product surfaces, centralize JavaScript workspace locking, document the license boundary, and record successful JavaScript, Go, Electron, and iOS validation plus the final reachable-history security scan.",
       "evidence": [
         "docs/monorepo/IMPORT_PROVENANCE.md",
         "docs/monorepo/VALIDATION.md",
         "commits b8cda68, 2f6a299, eb08eee, bdce54f, e14f3f4, c4dad71"
+      ]
+    },
+    {
+      "id": "FACT-20260901-001-004",
+      "revision": 2,
+      "status": "accepted",
+      "statement": "The sibling arckit-ops repository has a clean 20-file tracked policy surface with 15 environment contracts and a 17-entry redacted rotation gate; four plaintext or quarantine targets remain Git ignored with mode 0600, and the regenerated 707-file sanitized stage contains none of the 16 source-import blocked fingerprints.",
+      "basis": "The corrected private extraction inventory, committed ops contracts, ignore and permission checks, tracked-tree scan, and regenerated source stage provide repeatable redacted evidence.",
+      "evidence": [
+        "../arckit-ops commit b318717",
+        "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+        "docs/monorepo/SANITIZED_STAGE_REPORT.json",
+        "tools/scripts/bootstrap-arckit-ops.mjs",
+        "tools/scripts/prepare-monorepo-import.mjs"
+      ]
+    },
+    {
+      "id": "FACT-20260901-001-005",
+      "revision": 2,
+      "status": "accepted",
+      "statement": "The merged monorepo current HEAD contains none of the 17 cataloged blocked credential fingerprints, ArcOrbit obtains its Feedback credential only from explicit operator configuration and fails closed when unconfigured, and one removed ArcOrbit credential remains reachable only through pre-existing local history pending owner rotation or revocation and any separately authorized history rewrite.",
+      "basis": "The security remediation commit, full catalog scan, product regression evidence, and corrected validation report distinguish current-tree safety from the remaining history and owner gates.",
+      "evidence": [
+        "commit 27d8e48",
+        "runtime/arcorbit/src/product-feedback-service.mjs",
+        "runtime/arcorbit/env.example",
+        "tools/monorepo/blocked-secret-fingerprints.json",
+        "docs/monorepo/VALIDATION.md",
+        "post-commit audit: 0 current blocked, 1 history-only blocked"
       ]
     }
   ],
@@ -123,14 +152,14 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
     {
       "id": "IMPACT-20260901-001-003",
       "fact_id": "FACT-20260901-001-005",
-      "fact_revision": 1,
+      "fact_revision": 2,
       "target": {
         "kind": "software_decision",
         "ref": "security_privacy_compliance",
         "revision": 6
       },
       "effect": "threatened",
-      "reason": "The local repository is sanitized and verified, but provider-side credential rotation, revocation, expiry or invalidity and the owners' relicensing and publication authority cannot be proven from the workspace.",
+      "reason": "Current public source is clean and the boundary is complete, but all 17 provider-side statuses remain pending, one removed ArcOrbit credential remains history-reachable, and relicensing and publication authority remain owner-controlled.",
       "gap_ids": [
         "GAP-20260901-001-005"
       ],
@@ -320,9 +349,47 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "Explicit authorization for remote push and source repository archival if desired"
       ],
       "resolution": null
+    },
+    {
+      "id": "GAP-20260901-001-006",
+      "goal": "Correct the incomplete credential inventory, remove the ArcOrbit credential from current public source, complete arckit-ops coverage, and make the audit gate detect the full known boundary.",
+      "reason": "The prior security acceptance evidence covered only 13 fingerprints and overclaimed that all reachable history was clean.",
+      "responsibility": "agent",
+      "derived_from": [
+        "FACT-20260901-001-005"
+      ],
+      "blocked_by": [],
+      "priority_basis": {
+        "risk": "critical",
+        "user_impact": "prevents publishing an embedded credential"
+      },
+      "evidence_required": [
+        "ArcOrbit current source contains no embedded Feedback credential",
+        "Complete blocked-fingerprint catalog and corrected sensitive-path matching",
+        "arckit-ops rotation and environment-contract coverage",
+        "Current-tree, history, sanitized-stage, and product regression evidence"
+      ],
+      "status": "resolved",
+      "resolution": {
+        "id": "GAP-20260901-001-006",
+        "status": "resolved",
+        "outcome": "ArcOrbit now receives Feedback credentials only through explicit operator configuration and fails closed when absent; the catalog covers 17 fingerprints, source staging excludes all 16 inherited fingerprints, arckit-ops covers all five product surfaces and all 17 rotation entries, and the corrected scan reports zero blocked fingerprints in current HEAD with exactly one ArcOrbit fingerprint remaining history-only.",
+        "reason": "Public code, private contracts, audit tooling, regenerated staging evidence, focused and full regression evidence, and post-commit history scanning agree on the corrected boundary.",
+        "evidence": [
+          "commit 27d8e48",
+          "arckit-ops commit b318717",
+          "tools/monorepo/blocked-secret-fingerprints.json",
+          "docs/monorepo/VALIDATION.md",
+          "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+          "sanitized stage: 707 files, 16 fingerprints checked, 0 found",
+          "post-commit audit: 5,882 reachable text blobs, 0 current blocked, 1 history-only blocked",
+          "ArcOrbit regression: 556 passed, 23 skipped, 0 functional failures"
+        ],
+        "occurred_at": "2026-09-01T07:10:53.678Z"
+      }
     }
   ],
-  "content_revision": 4,
+  "content_revision": 5,
   "completion_review": {
     "status": "pending",
     "policy": {
@@ -1569,6 +1636,314 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
       ],
       "runtime_result_ref": "",
       "occurred_at": "2026-09-01T05:50:21.160Z"
+    },
+    {
+      "round": 5,
+      "transition_schema_version": "arckit-case-transition/v8",
+      "goal": "Accept the corrected public/private credential boundary while preserving the human release gate.",
+      "outcome": "completed",
+      "gap_selection": {
+        "mode": "fresh",
+        "basis": "A completeness re-audit of the accepted security claim found one public-runtime credential and three source-history credentials omitted from the original catalog, making the bounded remediation the highest-risk Agent-owned work in the active Case.",
+        "snapshot_token": "6c85c1d9bed41e7397e3483687f3040a1fc7c0b1997d82f28b8fca6f6b1b0ae8",
+        "selected_ref": "fresh-gap:CASE-20260901-001:GAP-20260901-001-006",
+        "comparison_summary": "Four Project gaps require separate Cases and the persisted release gap is human-owned; the fresh security remediation was immediately actionable, directly corrected an overstrong accepted claim, and reduced current-source exposure without taking owner-controlled release actions.",
+        "fresh_discovery_summary": "The audit catalog and ops coverage omitted four credentials, ArcOrbit embedded one of them in its current public source, and the sensitive-path matcher failed to classify files below secrets and credentials directories.",
+        "considered": [
+          {
+            "ref": "project-gap:GAP-agent-scenario-evaluation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "uncertainty": "high",
+              "risk": "high"
+            },
+            "reason": "It is outside this repository-consolidation Case."
+          },
+          {
+            "ref": "project-gap:GAP-runtime-resilience-and-adapters",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "General Runtime resilience is unrelated to correcting this migration security boundary."
+          },
+          {
+            "ref": "project-gap:GAP-security-real-project-validation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "This Case contributes evidence but cannot close the broader cross-project security-validation obligation."
+          },
+          {
+            "ref": "project-gap:GAP-cross-record-audit",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "high"
+            },
+            "reason": "The independent cross-record audit still requires its own Case."
+          },
+          {
+            "ref": "case-gap:CASE-20260901-001:GAP-20260901-001-005",
+            "source": "persisted",
+            "eligibility": "ready",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "dependency": "blocks public push and source repository archival"
+            },
+            "reason": "It is human-owned and still requires provider, legal, publication, and archival decisions."
+          },
+          {
+            "ref": "fresh-gap:CASE-20260901-001:GAP-20260901-001-006",
+            "source": "fresh",
+            "eligibility": "ready",
+            "disposition": "selected",
+            "priority_basis": {
+              "risk": "critical",
+              "user_impact": "prevents publishing an embedded credential"
+            },
+            "reason": "It was immediately actionable and removed the only cataloged credential from the current public tree while completing ops and scanner coverage."
+          }
+        ]
+      },
+      "selected_gap": {
+        "id": "GAP-20260901-001-006",
+        "goal": "Correct the incomplete credential inventory, remove the ArcOrbit credential from current public source, complete arckit-ops coverage, and make the audit gate detect the full known boundary.",
+        "reason": "The prior security acceptance evidence covered only 13 fingerprints and overclaimed that all reachable history was clean.",
+        "responsibility": "agent",
+        "derived_from": [
+          "FACT-20260901-001-005"
+        ],
+        "blocked_by": [],
+        "priority_basis": {
+          "risk": "critical",
+          "user_impact": "prevents publishing an embedded credential"
+        },
+        "evidence_required": [
+          "ArcOrbit current source contains no embedded Feedback credential",
+          "Complete blocked-fingerprint catalog and corrected sensitive-path matching",
+          "arckit-ops rotation and environment-contract coverage",
+          "Current-tree, history, sanitized-stage, and product regression evidence"
+        ]
+      },
+      "planned_transition": {
+        "goal": "Accept the corrected public/private credential boundary while preserving the human release gate.",
+        "expected_state_change": "The incomplete security claims are superseded by precise current-tree and history evidence; Agent-owned remediation is resolved and the remaining provider, legal, publication, archival, and optional history-rewrite decisions stay human-owned."
+      },
+      "accepted_state_delta": {
+        "resolved_gap": {
+          "id": "GAP-20260901-001-006",
+          "status": "resolved",
+          "outcome": "ArcOrbit now receives Feedback credentials only through explicit operator configuration and fails closed when absent; the catalog covers 17 fingerprints, source staging excludes all 16 inherited fingerprints, arckit-ops covers all five product surfaces and all 17 rotation entries, and the corrected scan reports zero blocked fingerprints in current HEAD with exactly one ArcOrbit fingerprint remaining history-only.",
+          "reason": "Public code, private contracts, audit tooling, regenerated staging evidence, focused and full regression evidence, and post-commit history scanning agree on the corrected boundary.",
+          "evidence": [
+            "commit 27d8e48",
+            "arckit-ops commit b318717",
+            "tools/monorepo/blocked-secret-fingerprints.json",
+            "docs/monorepo/VALIDATION.md",
+            "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+            "sanitized stage: 707 files, 16 fingerprints checked, 0 found",
+            "post-commit audit: 5,882 reachable text blobs, 0 current blocked, 1 history-only blocked",
+            "ArcOrbit regression: 556 passed, 23 skipped, 0 functional failures"
+          ]
+        },
+        "facts_added": [
+          {
+            "id": "FACT-20260901-001-004",
+            "revision": 2,
+            "status": "accepted",
+            "statement": "The sibling arckit-ops repository has a clean 20-file tracked policy surface with 15 environment contracts and a 17-entry redacted rotation gate; four plaintext or quarantine targets remain Git ignored with mode 0600, and the regenerated 707-file sanitized stage contains none of the 16 source-import blocked fingerprints.",
+            "basis": "The corrected private extraction inventory, committed ops contracts, ignore and permission checks, tracked-tree scan, and regenerated source stage provide repeatable redacted evidence.",
+            "evidence": [
+              "../arckit-ops commit b318717",
+              "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+              "docs/monorepo/SANITIZED_STAGE_REPORT.json",
+              "tools/scripts/bootstrap-arckit-ops.mjs",
+              "tools/scripts/prepare-monorepo-import.mjs"
+            ]
+          },
+          {
+            "id": "FACT-20260901-001-005",
+            "revision": 2,
+            "status": "accepted",
+            "statement": "The merged monorepo current HEAD contains none of the 17 cataloged blocked credential fingerprints, ArcOrbit obtains its Feedback credential only from explicit operator configuration and fails closed when unconfigured, and one removed ArcOrbit credential remains reachable only through pre-existing local history pending owner rotation or revocation and any separately authorized history rewrite.",
+            "basis": "The security remediation commit, full catalog scan, product regression evidence, and corrected validation report distinguish current-tree safety from the remaining history and owner gates.",
+            "evidence": [
+              "commit 27d8e48",
+              "runtime/arcorbit/src/product-feedback-service.mjs",
+              "runtime/arcorbit/env.example",
+              "tools/monorepo/blocked-secret-fingerprints.json",
+              "docs/monorepo/VALIDATION.md",
+              "post-commit audit: 0 current blocked, 1 history-only blocked"
+            ]
+          }
+        ],
+        "facts_superseded": [
+          {
+            "id": "FACT-20260901-001-004",
+            "revision": 1,
+            "reason": "The original private extraction inventory counted only 13 fingerprints, 27 assignments, 701 files, and three ignored targets; the completeness audit established broader exact counts.",
+            "evidence": [
+              "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+              "docs/monorepo/SANITIZED_STAGE_REPORT.json"
+            ]
+          },
+          {
+            "id": "FACT-20260901-001-005",
+            "revision": 1,
+            "reason": "The original claim that no blocked fingerprint remained reachable was too strong because one ArcOrbit credential existed in current source and remains in pre-existing history after current-source remediation.",
+            "evidence": [
+              "commit 27d8e48",
+              "docs/monorepo/VALIDATION.md",
+              "post-commit audit: 0 current blocked, 1 history-only blocked"
+            ]
+          }
+        ],
+        "impacts_added": [],
+        "impacts_updated": [
+          {
+            "id": "IMPACT-20260901-001-003",
+            "fact_id": "FACT-20260901-001-005",
+            "fact_revision": 2,
+            "target": {
+              "kind": "software_decision",
+              "ref": "security_privacy_compliance",
+              "revision": 6
+            },
+            "effect": "threatened",
+            "reason": "Current public source is clean and the boundary is complete, but all 17 provider-side statuses remain pending, one removed ArcOrbit credential remains history-reachable, and relicensing and publication authority remain owner-controlled.",
+            "gap_ids": [
+              "GAP-20260901-001-005"
+            ],
+            "evidence": [
+              "docs/monorepo/VALIDATION.md",
+              "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+              "../arckit-ops/runbooks/credential-rotation.md"
+            ]
+          }
+        ],
+        "gaps_added": [],
+        "gaps_cancelled": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "project_state_delta": {
+        "software_definition_changes": [],
+        "software_invariant_changes": [],
+        "project_gap_changes": [],
+        "selection_context_change": null,
+        "evidence": []
+      },
+      "invariant_assessment": {
+        "project_revision": 331,
+        "judgments": [
+          {
+            "invariant_ref": "product-expectations-remain-recoverable",
+            "disposition": "upheld",
+            "reason": "ArcOrbit's Feedback capability remains available under an explicit operator contract and its unconfigured behavior is durably documented and regression tested.",
+            "fact_refs": [
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "runtime/arcorbit/README.md",
+              "runtime/arcorbit/src/product-feedback-service.mjs",
+              "runtime/arcorbit/test/product-feedback-service.test.mjs"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "interaction-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "The normal configured Feedback journey is unchanged; this round changes only the operator-owned credential source and fail-closed deployment boundary.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "visual-language-remains-consistent",
+            "disposition": "not_relevant",
+            "reason": "No visual-language or presentation rule changed.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "technical-decisions-remain-explainable",
+            "disposition": "upheld",
+            "reason": "The public/private boundary now has one shared fingerprint catalog, explicit operator injection, fail-closed runtime behavior, complete ops contracts, and precise current-versus-history evidence.",
+            "fact_refs": [
+              "FACT-20260901-001-004",
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "commit 27d8e48",
+              "arckit-ops commit b318717",
+              "runtime/arcorbit/README.md",
+              "tools/monorepo/blocked-secret-fingerprints.json"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "accepted-facts-are-realized",
+            "disposition": "upheld",
+            "reason": "The corrected accepted facts are realized by both local commits, the clean current-tree audit, the exact history-only result, private ignore and permission checks, and passing regressions.",
+            "fact_refs": [
+              "FACT-20260901-001-004",
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "commit 27d8e48",
+              "arckit-ops commit b318717",
+              "docs/monorepo/VALIDATION.md",
+              "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "material-risks-have-credible-evidence",
+            "disposition": "threatened",
+            "reason": "The local exposure boundary is now measured precisely, while provider invalidity, history publication, relicensing rights, remote push, and archival still require owner evidence and decisions.",
+            "fact_refs": [
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "docs/monorepo/VALIDATION.md",
+              "../arckit-ops/runbooks/credential-rotation.md",
+              "post-commit audit: 0 current blocked, 1 history-only blocked"
+            ],
+            "gap_refs": [
+              "GAP-20260901-001-005"
+            ]
+          }
+        ]
+      },
+      "evidence": [
+        "commit 27d8e48",
+        "arckit-ops commit b318717",
+        "docs/monorepo/VALIDATION.md",
+        "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+        "sanitized stage: 707 files, 16 fingerprints checked, 0 found",
+        "post-commit audit: 5,882 reachable text blobs, 0 current blocked, 1 history-only blocked",
+        "ArcOrbit focused regression: 73 passed",
+        "ArcOrbit aggregate regression: 556 passed, 23 skipped, 0 functional failures"
+      ],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-09-01T07:10:53.678Z"
     }
   ],
   "case_resolution": {
@@ -1578,7 +1953,8 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
       "GAP-20260901-001-001",
       "GAP-20260901-001-002",
       "GAP-20260901-001-003",
-      "GAP-20260901-001-004"
+      "GAP-20260901-001-004",
+      "GAP-20260901-001-006"
     ],
     "remaining": [
       "GAP-20260901-001-005",
@@ -1625,7 +2001,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "decision_needed": "Confirm every credential runbook entry is rotated, revoked, expired, or otherwise invalid; confirm rights to apply the selected licenses; and decide whether to publish the merged history and archive the old source repositories."
       }
     },
-    "updated_at": "2026-09-01T05:50:21.160Z"
+    "updated_at": "2026-09-01T07:10:53.678Z"
   }
 }
 ```
