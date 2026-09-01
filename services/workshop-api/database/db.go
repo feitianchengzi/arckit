@@ -128,6 +128,9 @@ func initDB(forceMigration bool) error {
 		if err = Migrate(DB); err != nil {
 			return fmt.Errorf("failed to auto migrate: %w", err)
 		}
+		if err := backfillFeedbackTriageStatuses(DB); err != nil {
+			return fmt.Errorf("failed to backfill feedback triage statuses: %w", err)
+		}
 		log.Println("Database connected and migrated successfully with correct cascade delete constraints")
 	} else {
 		log.Println("Database connected successfully (auto migrate disabled)")
@@ -156,6 +159,10 @@ func Migrate(db *gorm.DB) error {
 		&models.Tag{},
 		&models.TaskAttachment{},
 		&models.Feedback{},
+		&models.FeedbackMessage{},
+		&models.FeedbackMessageAttachment{},
+		&models.FeedbackNotification{},
+		&models.FeedbackTaskLink{},
 		&models.ProjectFeedbackAccessKey{},
 		&models.ProjectEvent{},
 	)
@@ -180,6 +187,35 @@ func ValidateRuntimeSchema(db *gorm.DB) error {
 		return fmt.Errorf("required project event cursor index is missing; run the migrate command before starting the service")
 	}
 	return nil
+}
+
+func backfillFeedbackTriageStatuses(db *gorm.DB) error {
+	return db.Exec(`
+		UPDATE feedbacks AS f
+		SET triage_status = CASE
+			WHEN EXISTS (
+				SELECT 1
+				FROM feedback_task_links AS link
+				WHERE link.feedback_id = f.id
+					AND link.is_primary = TRUE
+					AND link.delete_at IS NULL
+			) THEN 'accepted'
+			WHEN f.status = 'ignored' THEN 'ignored'
+			WHEN f.status IN ('accepted', 'converted', 'in_progress', 'completed', 'released') THEN 'accepted'
+			ELSE 'pending'
+		END
+		WHERE COALESCE(NULLIF(BTRIM(f.triage_status), ''), 'pending') = 'pending'
+			AND (
+				f.status IN ('accepted', 'converted', 'in_progress', 'completed', 'released', 'ignored')
+				OR EXISTS (
+					SELECT 1
+					FROM feedback_task_links AS link
+					WHERE link.feedback_id = f.id
+						AND link.is_primary = TRUE
+						AND link.delete_at IS NULL
+				)
+			)
+	`).Error
 }
 
 // GetDB 获取数据库连接

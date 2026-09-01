@@ -21,15 +21,16 @@ var errFeedbackShortIDExists = errors.New("feedback short_id already exists")
 
 // CreateFeedbackRequest 创建反馈请求结构
 type CreateFeedbackRequest struct {
-	ProjectID    uint    `json:"project_id" binding:"required"` // 项目ID（必填）
-	Title        string  `json:"title" binding:"required"`      // 标题（必填）
-	Content      string  `json:"content" binding:"required"`    // 内容（必填）
-	CustomUserID *string `json:"custom_user_id,omitempty"`      // 自定义用户ID（可选）
-	UserPhone    *string `json:"user_phone,omitempty"`          // 用户手机号（可选）
-	UserEmail    *string `json:"user_email,omitempty"`          // 用户邮箱（可选）
-	CallbackURL  *string `json:"callback_url,omitempty"`        // 回调地址（可选）
-	File         *string `json:"file,omitempty"`                // 附件文件地址（可选）
-	Data         *string `json:"data,omitempty"`                // JSON字符串（可选）
+	ProjectID    uint                             `json:"project_id" binding:"required"` // 项目ID（必填）
+	Title        string                           `json:"title" binding:"required"`      // 标题（必填）
+	Content      string                           `json:"content" binding:"required"`    // 内容（必填）
+	Attachments  []FeedbackMessageAttachmentInput `json:"attachments,omitempty"`
+	CustomUserID *string                          `json:"custom_user_id,omitempty"` // 自定义用户ID（可选）
+	UserPhone    *string                          `json:"user_phone,omitempty"`     // 用户手机号（可选）
+	UserEmail    *string                          `json:"user_email,omitempty"`     // 用户邮箱（可选）
+	CallbackURL  *string                          `json:"callback_url,omitempty"`   // 回调地址（可选）
+	File         *string                          `json:"file,omitempty"`           // 附件文件地址（可选）
+	Data         *string                          `json:"data,omitempty"`           // JSON字符串（可选）
 }
 
 // UpdateFeedbackRequest 更新反馈请求结构
@@ -37,6 +38,7 @@ type UpdateFeedbackRequest struct {
 	ShortID      *string `json:"short_id,omitempty"`       // 短ID（可选）
 	Title        *string `json:"title,omitempty"`          // 标题（可选）
 	Content      *string `json:"content,omitempty"`        // 内容（可选）
+	Status       *string `json:"status,omitempty"`         // 反馈状态（可选）
 	CustomUserID *string `json:"custom_user_id,omitempty"` // 自定义用户ID（可选）
 	UserPhone    *string `json:"user_phone,omitempty"`     // 用户手机号（可选）
 	UserEmail    *string `json:"user_email,omitempty"`     // 用户邮箱（可选）
@@ -46,19 +48,28 @@ type UpdateFeedbackRequest struct {
 
 // FeedbackResponse 反馈响应结构
 type FeedbackResponse struct {
-	ID           uint    `json:"id"`                   // 反馈ID
-	ProjectID    uint    `json:"project_id"`           // 项目ID
-	ShortID      string  `json:"short_id"`             // 短ID
-	Title        string  `json:"title"`                // 标题
-	Content      string  `json:"content"`              // 内容
-	CustomUserID *string `json:"custom_user_id"`       // 自定义用户ID
-	UserPhone    *string `json:"user_phone"`           // 用户手机号
-	UserEmail    *string `json:"user_email"`           // 用户邮箱
-	File         *string `json:"file"`                 // 附件文件地址
-	Data         *string `json:"data"`                 // JSON字符串
-	CreatedAt    string  `json:"created_at"`           // 创建时间
-	UpdatedAt    string  `json:"updated_at"`           // 更新时间
-	DeletedAt    *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
+	ID             uint    `json:"id"`                   // 反馈ID
+	ProjectID      uint    `json:"project_id"`           // 项目ID
+	ShortID        string  `json:"short_id"`             // 短ID
+	Title          string  `json:"title"`                // 标题
+	Content        string  `json:"content"`              // 内容
+	Status         string  `json:"status"`               // 反馈状态
+	TriageStatus   string  `json:"triage_status"`        // Console 受理状态
+	CustomerStatus string  `json:"customer_status"`      // SDK 面向用户的状态
+	TaskID         *uint   `json:"task_id,omitempty"`    // 关联主待办 ID
+	TaskState      string  `json:"task_state,omitempty"` // 关联主待办状态
+	CustomUserID   *string `json:"custom_user_id"`       // 自定义用户ID
+	UserPhone      *string `json:"user_phone"`           // 用户手机号
+	UserEmail      *string `json:"user_email"`           // 用户邮箱
+	File           *string `json:"file"`                 // 附件文件地址
+	Data           *string `json:"data"`                 // JSON字符串
+	CreatedAt      string  `json:"created_at"`           // 创建时间
+	UpdatedAt      string  `json:"updated_at"`           // 更新时间
+	DeletedAt      *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
+
+	LastMessageAt          *string `json:"last_message_at,omitempty"`           // 最近消息时间
+	LastCustomerMessageAt  *string `json:"last_customer_message_at,omitempty"`  // 最近用户消息时间
+	LastDeveloperMessageAt *string `json:"last_developer_message_at,omitempty"` // 最近开发者消息时间
 }
 
 // GetFeedbacksRequest 查询反馈请求结构
@@ -85,21 +96,43 @@ func buildFeedbackResponse(feedback models.Feedback) FeedbackResponse {
 		deletedAtStr := feedback.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
 		deletedAt = &deletedAtStr
 	}
+	formatTimePtr := func(value *time.Time) *string {
+		if value == nil {
+			return nil
+		}
+		formatted := value.Format("2006-01-02T15:04:05Z07:00")
+		return &formatted
+	}
+	status := canonicalFeedbackStatus(feedback.Status)
+	if status == "" {
+		status = feedbackStatusFromData(feedback.Data, models.FeedbackStatusPending)
+	}
+	triageStatus := feedbackTriageStatus(feedback)
+	taskID, taskState := feedbackTaskInfoFromData(feedback.Data)
 
 	return FeedbackResponse{
-		ID:           feedback.ID,
-		ProjectID:    feedback.ProjectID,
-		ShortID:      feedback.ShortID,
-		Title:        feedback.Title,
-		Content:      feedback.Content,
-		CustomUserID: feedback.CustomUserID,
-		UserPhone:    feedback.UserPhone,
-		UserEmail:    feedback.UserEmail,
-		File:         feedback.File,
-		Data:         feedback.Data,
-		CreatedAt:    feedback.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:    feedback.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		DeletedAt:    deletedAt,
+		ID:             feedback.ID,
+		ProjectID:      feedback.ProjectID,
+		ShortID:        feedback.ShortID,
+		Title:          feedback.Title,
+		Content:        feedback.Content,
+		Status:         status,
+		TriageStatus:   triageStatus,
+		CustomerStatus: customerStatusFromFeedback(feedback),
+		TaskID:         taskID,
+		TaskState:      taskState,
+		CustomUserID:   feedback.CustomUserID,
+		UserPhone:      feedback.UserPhone,
+		UserEmail:      feedback.UserEmail,
+		File:           feedback.File,
+		Data:           feedback.Data,
+		CreatedAt:      feedback.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:      feedback.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		DeletedAt:      deletedAt,
+
+		LastMessageAt:          formatTimePtr(feedback.LastMessageAt),
+		LastCustomerMessageAt:  formatTimePtr(feedback.LastCustomerMessageAt),
+		LastDeveloperMessageAt: formatTimePtr(feedback.LastDeveloperMessageAt),
 	}
 }
 
@@ -178,6 +211,14 @@ func CreateFeedback(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
 		return
 	}
+	if isV2APIKeyRequest(c) {
+		customUserID := trimStringPtr(req.CustomUserID)
+		if customUserID == nil {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "V2 API Key 创建反馈时 custom_user_id 为必填项", nil))
+			return
+		}
+		req.CustomUserID = customUserID
+	}
 
 	db := middleware.GetDB(c)
 	if db == nil {
@@ -215,20 +256,52 @@ func CreateFeedback(c *gin.Context) {
 		ShortID:      shortID,
 		Title:        req.Title,
 		Content:      req.Content,
+		Status:       feedbackStatusFromData(req.Data, models.FeedbackStatusPending),
 		CustomUserID: req.CustomUserID,
 		UserPhone:    req.UserPhone,
 		UserEmail:    req.UserEmail,
 		File:         req.File,
 		Data:         req.Data,
 	}
+	var initialMessageAttachments []models.FeedbackMessageAttachment
+	if isV2APIKeyRequest(c) {
+		customUserID := ""
+		if req.CustomUserID != nil {
+			customUserID = *req.CustomUserID
+		}
+		attachments, err := buildFeedbackMessageAttachments(req.Attachments, feedbackAttachmentPrefix(req.ProjectID, customUserID))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+			return
+		}
+		initialMessageAttachments = attachments
+	}
 
 	var resp FeedbackResponse
+	var initialMessage models.FeedbackMessage
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&feedback).Error; err != nil {
 			if isUniqueViolation(err, "uniq_feedback_short_id") {
 				return errFeedbackShortIDExists
 			}
 			return err
+		}
+		if isV2Request(c) {
+			senderType := models.FeedbackMessageSenderDeveloper
+			senderUserID := &userID
+			var senderCustomUserID *string
+			if isAPIKeyRequest(c) {
+				senderType = models.FeedbackMessageSenderCustomer
+				senderUserID = nil
+				senderCustomUserID = req.CustomUserID
+			}
+			initialMessage, err = createInitialFeedbackMessage(tx, feedback, senderType, senderUserID, senderCustomUserID, initialMessageAttachments)
+			if err != nil {
+				return err
+			}
+			if err := createFeedbackNotificationsForMessage(tx, feedback, initialMessage); err != nil {
+				return err
+			}
 		}
 		if req.CallbackURL != nil && strings.TrimSpace(*req.CallbackURL) != "" {
 			if err := callFeedbackCallback(*req.CallbackURL, shortID); err != nil {
@@ -339,6 +412,20 @@ func UpdateFeedback(c *gin.Context) {
 		updates["short_id"] = trimmed
 	}
 
+	if req.Status != nil {
+		if isV2Request(c) {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "V2 反馈状态由受理决策和关联待办自动维护，请使用忽略或流转接口", nil))
+			return
+		}
+		status := canonicalFeedbackStatus(*req.Status)
+		if status == "" {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的反馈状态", nil))
+			return
+		}
+		updates["status"] = status
+		updates["data"] = mergeFeedbackData(feedback.Data, status, nil)
+	}
+
 	if req.CustomUserID != nil {
 		trimmed := strings.TrimSpace(*req.CustomUserID)
 		if trimmed == "" {
@@ -376,7 +463,18 @@ func UpdateFeedback(c *gin.Context) {
 		if trimmed == "" {
 			updates["data"] = nil
 		} else {
-			updates["data"] = trimmed
+			if statusValue, statusSet := updates["status"]; statusSet {
+				if statusText, ok := statusValue.(string); ok {
+					updates["data"] = mergeFeedbackData(&trimmed, statusText, nil)
+				} else {
+					updates["data"] = trimmed
+				}
+			} else {
+				updates["data"] = trimmed
+				if !isV2Request(c) {
+					updates["status"] = feedbackStatusFromData(&trimmed, feedback.Status)
+				}
+			}
 		}
 	}
 
@@ -410,7 +508,7 @@ func UpdateFeedback(c *gin.Context) {
 
 // DeleteFeedback 删除反馈
 // 认证级别: user (需要JWT认证)
-// 权限: 项目管理员/所有者
+// 权限: 项目成员
 func DeleteFeedback(c *gin.Context) {
 	feedbackIDStr := c.Param("id")
 	if feedbackIDStr == "" {
@@ -466,6 +564,9 @@ func DeleteFeedback(c *gin.Context) {
 		"deleted_at":  deletedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("feedback_id = ?", feedback.ID).Delete(&models.FeedbackNotification{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Delete(&feedback).Error; err != nil {
 			return err
 		}
@@ -495,6 +596,10 @@ func GetFeedbacks(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "查询参数至少需要提供一个条件", nil))
 		return
 	}
+	if isV2APIKeyRequest(c) && strings.TrimSpace(req.CustomUserID) == "" {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "V2 API Key 查询反馈时 custom_user_id 为必填项", nil))
+		return
+	}
 
 	db := middleware.GetDB(c)
 	if db == nil {
@@ -507,7 +612,7 @@ func GetFeedbacks(c *gin.Context) {
 		return
 	}
 
-	query := db.Model(&models.Feedback{}).Order("created_at DESC").Order("id DESC")
+	query := db.Model(&models.Feedback{})
 	if req.IncludeDeleted {
 		query = query.Unscoped()
 	}
@@ -549,7 +654,7 @@ func GetFeedbacks(c *gin.Context) {
 		return
 	}
 
-	query = query.Offset(pagination.Offset).Limit(pagination.Limit)
+	query = query.Order("created_at DESC").Order("id DESC").Offset(pagination.Offset).Limit(pagination.Limit)
 	var feedbacks []models.Feedback
 	if err := query.Find(&feedbacks).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈失败: "+err.Error(), nil))

@@ -370,6 +370,7 @@ func UpdateTask(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
+	oldState := task.State
 
 	// 6. 验证权限（canModifyTask内部会查询项目成员表）
 	canModify, err := canModifyTask(db, userID, task)
@@ -490,6 +491,7 @@ func UpdateTask(c *gin.Context) {
 		updates["completion_at"] = nil
 	}
 
+	var feedbackEvents []feedbackWorkflowEvent
 	if len(updates) > 0 {
 		if err := db.Transaction(func(tx *gorm.DB) error {
 			if err := tx.Model(&task).Updates(updates).Error; err != nil {
@@ -498,7 +500,25 @@ func UpdateTask(c *gin.Context) {
 			if err := tx.First(&task, task.ID).Error; err != nil {
 				return err
 			}
-			return recordProjectEvent(c, tx, task.ProjectID, userID, "task.updated", gin.H{"task_id": task.ID})
+			if req.State != nil && strings.TrimSpace(*req.State) != oldState {
+				var err error
+				feedbackEvents, err = syncLinkedFeedbacksFromTask(tx, task, oldState, userID)
+				if err != nil {
+					return err
+				}
+			}
+			if err := recordProjectEvent(c, tx, task.ProjectID, userID, "task.updated", gin.H{"task_id": task.ID}); err != nil {
+				return err
+			}
+			for _, event := range feedbackEvents {
+				if event.ProjectID == 0 || event.Event == "" {
+					continue
+				}
+				if err := recordProjectEvent(c, tx, event.ProjectID, userID, event.Event, event.Data); err != nil {
+					return err
+				}
+			}
+			return nil
 		}); err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskUpdateFailed, "更新任务失败: "+err.Error(), nil))
 			return
