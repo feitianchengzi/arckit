@@ -7,3 +7,17 @@
 # Generated Python artifacts
 __pycache__/
 *.py[cod]
+
+# Monorepo dependencies, generated output, and local configuration
+node_modules/
+dist/
+coverage/
+.npm-cache/
+.DS_Store
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+!**/env.*.example
+!**/env.*.template
+!**/env.template

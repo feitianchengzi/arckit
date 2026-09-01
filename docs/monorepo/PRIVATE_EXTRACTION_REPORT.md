@@ -14,4 +14,4 @@ The extraction found 27 current assignment values requiring isolation or owner r
 
 The rotation runbook stores only identifiers and truncated SHA-256 fingerprints. Credential owners must rotate, revoke, or prove invalid every listed item before any public push. New credential values must be supplied through a controlled secret manager or local ignored files, never committed to either repository as plaintext.
 
-Repeatable implementation: `tools/scripts/bootstrap-arckit-ops.mjs`.
+Repeatable implementation: `tools/scripts/bootstrap-arckit-ops.mjs`. The separate sanitized public-stage generator handles NUL-delimited Git paths so non-ASCII source names are preserved without relying on Git's quoted display format.

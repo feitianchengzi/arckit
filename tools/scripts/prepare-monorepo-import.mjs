@@ -41,7 +41,8 @@ function git(repo, args, encoding = "utf8") {
 }
 
 function trackedFiles(repo) {
-  return String(git(repo, ["ls-tree", "-r", "--name-only", "HEAD"])).trim().split("\n").filter(Boolean);
+  const output = git(repo, ["ls-tree", "-r", "-z", "--name-only", "HEAD"], null);
+  return output.toString("utf8").split("\0").filter(Boolean);
 }
 
 function readHead(repo, file) {
@@ -131,7 +132,7 @@ for (const file of trackedFiles(args["workshop-api"])) {
 
 const todoSanitize = new Set(["frontend/src/lib/feedbackSdk.ts", "frontend/env.template", "frontend/.env.production.example"]);
 for (const file of trackedFiles(args["todo-web"])) {
-  if (excluded(file) || file.startsWith("frontend/public/sdk/")) continue;
+  if ((excluded(file) && !todoSanitize.has(file)) || file.startsWith("frontend/public/sdk/")) continue;
   let target = "";
   if (file.startsWith("frontend/")) target = path.join("apps/todo-web", file.slice("frontend/".length));
   else if (file.startsWith("specs/")) target = path.join("apps/todo-web/docs/specs", file.slice("specs/".length));

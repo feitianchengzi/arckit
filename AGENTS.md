@@ -1,9 +1,29 @@
-# Arckit Skill Repository
+# Arckit Monorepo
 
 This repository stores reusable skills for AI-agent-assisted software development.
 Top-level directories can represent lifecycle stages or horizontal capability domains. Each directory can contain multiple
 agent capability types over time. Reusable skills must live under that directory's
 `skills/` directory.
+
+The repository also contains the Todo and Feedback product surfaces that exercise
+Arckit in real projects. Product code does not change the placement rules for
+reusable skills: skills still live only below the appropriate domain's `skills/`
+directory.
+
+## Product Directory Map
+
+- `apps/todo-web/`: Todo browser client.
+- `apps/feedback-console/`: Feedback administration console.
+- `services/workshop-api/`: shared Todo and Feedback Go service.
+- `packages/feedback-sdk-web/`: public Feedback web SDK surface.
+- `examples/feedback-ios/`: public iOS integration example.
+- `docs/workshop/`: public Todo and Feedback product/design documentation.
+- `runtime/arcorbit/`: ArcOrbit Desktop and Runtime product.
+
+JavaScript workspaces use the root `package.json` and `package-lock.json`. Do not
+restore per-workspace lockfiles. Go and Xcode projects keep their native module
+boundaries. Public code must not import or implicitly read sibling `arckit-ops`;
+deployment configuration is supplied explicitly by the operator.
 
 ## Arckit Scope
 

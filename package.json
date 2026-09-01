@@ -1,0 +1,27 @@
+{
+  "name": "arckit-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "workspaces": [
+    "apps/todo-web",
+    "apps/feedback-console",
+    "packages/feedback-sdk-web",
+    "runtime/arcorbit"
+  ],
+  "scripts": {
+    "build": "npm run build:todo && npm run build:feedback-console && npm run build:feedback-sdk",
+    "build:todo": "npm run build --workspace @arckit/todo-web",
+    "build:feedback-console": "npm run build --workspace @arckit/feedback-console",
+    "build:feedback-sdk": "npm run build --workspace @arckit/feedback-sdk-web",
+    "typecheck": "npm run build:check --workspace @arckit/todo-web && npm run build:check --workspace @arckit/feedback-console && npm run build:check --workspace @arckit/feedback-sdk-web",
+    "test": "npm run test:todo && npm run test:arcorbit && npm run test:workshop-api",
+    "test:todo": "npm test --workspace @arckit/todo-web",
+    "test:arcorbit": "npm test --workspace @arckit/arcorbit",
+    "test:workshop-api": "cd services/workshop-api && go test ./...",
+    "check": "npm run build && npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

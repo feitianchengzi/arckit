@@ -2,7 +2,21 @@
 
 Arckit 是面向真实软件项目的 Agent 协作与交接协议层。它让人类、Codex 类单 Agent 和多 Agent 自动化平台，能够围绕同一组项目事实、Case 状态、受边界约束的 Worker packet、证据和 handoff 持续推进工作。
 
-Arckit 采用 Apache License 2.0 开源。仓库中的 ArcOrbit Desktop 与 Runtime 采用 PolyForm Perimeter License 1.0.1，允许个人、团队和企业内部使用及修改，但不允许对外提供与 ArcOrbit 竞争的产品或服务，即使该产品或服务免费。完整范围见[中文许可说明](LICENSING.zh-CN.md)或 [English Licensing Guide](LICENSING.md)。
+Arckit 采用 Apache License 2.0 开源。仓库中的 ArcOrbit、Todo、Feedback Console 与 Workshop API 产品源码采用 PolyForm Perimeter License 1.0.1，允许个人、团队和企业内部使用及修改，但不允许对外提供竞争性产品或服务。Feedback Web SDK、iOS 示例和公共协议/文档继续采用 Apache-2.0。完整范围见[中文许可说明](LICENSING.zh-CN.md)或 [English Licensing Guide](LICENSING.md)。
+
+## Monorepo 产品目录
+
+| 路径 | 内容 |
+| --- | --- |
+| `apps/todo-web/` | Todo Web 客户端 |
+| `apps/feedback-console/` | Feedback 管理控制台 |
+| `services/workshop-api/` | Todo 与 Feedback 共用 Go API |
+| `packages/feedback-sdk-web/` | Apache-2.0 的 Feedback Web SDK |
+| `examples/feedback-ios/` | Apache-2.0 的 iOS 接入示例 |
+| `runtime/arcorbit/` | ArcOrbit Desktop 与 Runtime |
+| `docs/workshop/` | 可公开的 Workshop 产品与设计资料 |
+
+JavaScript 项目由根目录 npm workspace 和单一 `package-lock.json` 管理；Go API 保持独立 module。生产环境、客户覆盖层与明文秘密不进入本仓库，统一由同级私有工作区 `arckit-ops` 或受控 secrets manager 管理，公开构建不依赖该目录。
 
 这个仓库是 Arckit skills 的 source of truth，保存飞天橙子团队在真实 2B、2C 项目中验证过的协作方法，以及经过审查和本地化适配的外部方法。它不以堆积提示词或模拟固定研发流水线为目标，而是把可恢复的项目状态、稳定事实维护、工程诊断和安全交接整理成 Agent 能独立理解、可靠执行的能力包。
 
@@ -256,6 +270,7 @@ Arckit 当前优先验证的是：不同执行桥能否基于同一组仓库事�
 ## License
 
 - Arckit 及仓库中没有更具体许可证的内容：[Apache License 2.0](LICENSE)（[简体中文参考译文](LICENSE.zh-CN.md)）。
-- `runtime/arcorbit/`：[PolyForm Perimeter License 1.0.1](runtime/arcorbit/LICENSE)（[简体中文参考译文](runtime/arcorbit/LICENSE.zh-CN.md)）。
+- `runtime/arcorbit/`、`apps/todo-web/`、`apps/feedback-console/`、`services/workshop-api/`：[PolyForm Perimeter License 1.0.1](runtime/arcorbit/LICENSE)（[简体中文参考译文](runtime/arcorbit/LICENSE.zh-CN.md)）。
+- `packages/feedback-sdk-web/`、`examples/feedback-ios/` 和公共 Workshop 文档：Apache License 2.0。
 - 商业授权、OEM、白标或竞争性产品与服务：`hi@feitianchengzi.com`。
 - 商标规则与第三方组件边界见[中文商标规则](TRADEMARKS.zh-CN.md)和[中文许可说明](LICENSING.zh-CN.md)。

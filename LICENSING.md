@@ -17,27 +17,44 @@ not grant rights to the Arckit or ArcOrbit names, logos, or other trademarks.
 An unofficial Simplified Chinese reference translation is available in
 [LICENSE.zh-CN.md](LICENSE.zh-CN.md); the English license text controls.
 
-## ArcOrbit
+## Product Applications and Service
 
-The ArcOrbit Desktop and Runtime source under `runtime/arcorbit/` is licensed
-under the PolyForm Perimeter License 1.0.1 in
-[`runtime/arcorbit/LICENSE`](runtime/arcorbit/LICENSE).
+The following product surfaces are licensed under the PolyForm Perimeter
+License 1.0.1 found in their nearest `LICENSE` file:
+
+- `runtime/arcorbit/` — ArcOrbit Desktop and Runtime;
+- `apps/todo-web/` — Todo browser application;
+- `apps/feedback-console/` — Feedback administration console;
+- `services/workshop-api/` — shared Todo and Feedback service.
 
 That license permits use, modification, and distribution for permitted
 purposes, including personal use, team and enterprise internal use, and
 internal customization. It does not permit providing a product or service that
-competes with ArcOrbit, even if the competing product or service is free of
-charge.
+competes with the applicable product, even if the competing product or service
+is free of charge.
 
 An unofficial Simplified Chinese reference translation is available in
 [`runtime/arcorbit/LICENSE.zh-CN.md`](runtime/arcorbit/LICENSE.zh-CN.md); the
 English license text controls.
 
-A separate written commercial license is required to use ArcOrbit for a
-competing product or service, including an ArcOrbit substitute, hosted or
-managed ArcOrbit offering, white-label distribution, OEM distribution, or
-another externally provided product whose functionality or value competes with
-ArcOrbit.
+A separate written commercial license is required to use these product
+surfaces for a competing product or service, including a substitute, hosted or
+managed offering, white-label distribution, OEM distribution, or another
+externally provided product whose functionality or value competes with them.
+
+## Public SDKs and Examples
+
+`packages/feedback-sdk-web/`, `examples/feedback-ios/`, and `docs/workshop/`
+are licensed under Apache-2.0 through their nearest license or the repository
+root license. Their package metadata and local license files make this boundary
+explicit so SDK consumers do not inherit a product application license.
+
+## Private Operations
+
+The sibling `arckit-ops` workspace is not part of this repository and is not
+open source. It is all-rights-reserved and contains operational/customer
+overlays, secret references, and Git-ignored local quarantine material. Public
+Arckit builds and tests do not depend on it.
 
 Commercial licensing and authorized distribution inquiries: `hi@feitianchengzi.com`.
 
