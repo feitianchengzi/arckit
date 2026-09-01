@@ -6,7 +6,7 @@
 
 | ID | Status | Title | Selected Gap | Updated |
 | --- | --- | --- | --- | --- |
-| [CASE-20260901-001](active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md) | active | Consolidate Workshop Todo and Feedback into the Arckit monorepo | none | 2026-09-01T05:17:55.900Z |
+| [CASE-20260901-001](active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md) | handoff | Consolidate Workshop Todo and Feedback into the Arckit monorepo | none | 2026-09-01T05:50:21.160Z |
 
 ## Closed Cases
 

@@ -1,10 +1,10 @@
 # Consolidate Workshop Todo and Feedback into the Arckit monorepo
 
 Case: CASE-20260901-001
-Status: active
+Status: handoff
 Artifact Type: mixed
 Selected Gap: none
-Updated: 2026-09-01T05:17:55.900Z
+Updated: 2026-09-01T05:50:21.160Z
 
 ## User Intent
 
@@ -17,10 +17,10 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
   "schema_version": "development-case-record/v5",
   "id": "CASE-20260901-001",
   "title": "Consolidate Workshop Todo and Feedback into the Arckit monorepo",
-  "status": "active",
+  "status": "handoff",
   "artifact_type": "mixed",
   "created_at": "2026-09-01T04:12:15.983Z",
-  "updated_at": "2026-09-01T05:17:55.900Z",
+  "updated_at": "2026-09-01T05:50:21.160Z",
   "user_intent": "Merge the Workshop Todo backend, Todo web application, Feedback web applications, SDK, and iOS example into Arckit with a coherent directory structure, explicit multi-license boundaries, and a sibling private arckit-ops repository for non-public operational material.",
   "expected_outcome": "Arckit is the canonical public source monorepo for Arckit, ArcOrbit, Todo, and Feedback product code; non-public production and customer-specific operational material is isolated in a sibling arckit-ops repository; imported code builds and repository governance documents match the new boundary.",
   "project_state_ref": "arckit/project/state.record.json",
@@ -73,6 +73,18 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "tools/scripts/bootstrap-arckit-ops.mjs",
         "tools/scripts/prepare-monorepo-import.mjs"
       ]
+    },
+    {
+      "id": "FACT-20260901-001-005",
+      "revision": 1,
+      "status": "accepted",
+      "statement": "The Workshop API, Todo Web, and Workshop Feedback histories were filtered and merged into their accepted Arckit monorepo destinations; root workspace governance and per-surface license boundaries are applied, supported builds and tests pass, and the final scan of 5,861 reachable text blobs reports zero sensitive paths and zero blocked credential fingerprints.",
+      "basis": "Six local migration commits preserve filtered provenance, integrate all public product surfaces, centralize JavaScript workspace locking, document the license boundary, and record successful JavaScript, Go, Electron, and iOS validation plus the final reachable-history security scan.",
+      "evidence": [
+        "docs/monorepo/IMPORT_PROVENANCE.md",
+        "docs/monorepo/VALIDATION.md",
+        "commits b8cda68, 2f6a299, eb08eee, bdce54f, e14f3f4, c4dad71"
+      ]
     }
   ],
   "state_impacts": [
@@ -110,7 +122,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
     },
     {
       "id": "IMPACT-20260901-001-003",
-      "fact_id": "FACT-20260901-001-004",
+      "fact_id": "FACT-20260901-001-005",
       "fact_revision": 1,
       "target": {
         "kind": "software_decision",
@@ -118,13 +130,14 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "revision": 6
       },
       "effect": "threatened",
-      "reason": "Private extraction and current-source sanitization are now evidenced, but final reachable-history scanning and credential-owner rotation/invalidity confirmation remain mandatory before public push.",
+      "reason": "The local repository is sanitized and verified, but provider-side credential rotation, revocation, expiry or invalidity and the owners' relicensing and publication authority cannot be proven from the workspace.",
       "gap_ids": [
-        "GAP-20260901-001-004"
+        "GAP-20260901-001-005"
       ],
       "evidence": [
+        "docs/monorepo/VALIDATION.md",
         "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
-        "docs/monorepo/SANITIZED_STAGE_REPORT.json"
+        "../arckit-ops/runbooks/credential-rotation.md"
       ]
     },
     {
@@ -252,7 +265,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
     },
     {
       "id": "GAP-20260901-001-004",
-      "status": "open",
+      "status": "resolved",
       "goal": "Import the three source repositories with filtered provenance into the accepted monorepo destinations, apply the license boundary and workspace governance, prove the resulting current tree and reachable imported history are free of blocked material, and prepare the exact human public-release gate.",
       "reason": "The sanitized inputs and private boundary are now accepted, so the authorized local consolidation can be realized without importing forbidden history and can establish the final evidence scope owners must approve before publication.",
       "derived_from": [
@@ -273,10 +286,43 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "Build and test evidence for imported components",
         "Final public-release handoff for credential and relicensing owners"
       ],
+      "resolution": {
+        "id": "GAP-20260901-001-004",
+        "status": "resolved",
+        "outcome": "The three filtered source histories are merged into the governed Arckit monorepo destinations, root workspace and per-surface license boundaries are active, all supported builds and tests pass, and the final scan found zero sensitive paths and zero blocked fingerprints across 5,861 reachable text blobs.",
+        "reason": "The imported commits, provenance record, directory and licensing changes, build/test results, and reachable-history scan satisfy every required item for the local consolidation.",
+        "evidence": [
+          "docs/monorepo/IMPORT_PROVENANCE.md",
+          "docs/monorepo/VALIDATION.md",
+          "commits b8cda68, 2f6a299, eb08eee, bdce54f, e14f3f4, c4dad71",
+          "final history scan: 5,861 reachable text blobs, 0 sensitive paths, 0 blocked fingerprints"
+        ],
+        "occurred_at": "2026-09-01T05:50:21.160Z"
+      }
+    },
+    {
+      "id": "GAP-20260901-001-005",
+      "status": "open",
+      "goal": "Confirm every credential runbook entry is rotated, revoked, expired, or otherwise invalid; confirm rights to apply the selected licenses; and decide whether to publish the merged history and archive the old source repositories.",
+      "reason": "Credential-provider state, legal relicensing authority, remote publication, and repository archival are owner-controlled facts that cannot be established through local code or history inspection.",
+      "derived_from": [
+        "FACT-20260901-001-005"
+      ],
+      "blocked_by": [],
+      "priority_basis": {
+        "risk": "high",
+        "dependency": "blocks public push and source repository archival"
+      },
+      "responsibility": "human",
+      "evidence_required": [
+        "Completed ../arckit-ops/runbooks/credential-rotation.md with non-secret provider references",
+        "Owner confirmation of Apache-2.0 and PolyForm Perimeter 1.0.1 relicensing rights",
+        "Explicit authorization for remote push and source repository archival if desired"
+      ],
       "resolution": null
     }
   ],
-  "content_revision": 3,
+  "content_revision": 4,
   "completion_review": {
     "status": "pending",
     "policy": {
@@ -1249,24 +1295,80 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
       ],
       "runtime_result_ref": "",
       "occurred_at": "2026-09-01T05:17:55.900Z"
-    }
-  ],
-  "case_resolution": {
-    "status": "unresolved",
-    "stage": "working",
-    "satisfied": [
-      "GAP-20260901-001-001",
-      "GAP-20260901-001-002",
-      "GAP-20260901-001-003"
-    ],
-    "remaining": [
-      "GAP-20260901-001-004",
-      "impact:IMPACT-20260901-001-003"
-    ],
-    "blocked": [],
-    "reason": "2 Case obligation(s) remain.",
-    "candidate_gaps": [
-      {
+    },
+    {
+      "round": 4,
+      "transition_schema_version": "arckit-case-transition/v8",
+      "goal": "Accept the completed local monorepo migration and hand the final public-release gate to the repository and credential owners.",
+      "outcome": "completed",
+      "gap_selection": {
+        "mode": "candidate",
+        "basis": "The monorepo import gap is the only ready Case obligation and the final Agent-owned result before the owner-controlled public release gate.",
+        "snapshot_token": "4cc97262a1afc34df767cf4e8262b1ca958864c1878ea0c0c3b6991b68517692",
+        "selected_ref": "case-gap:CASE-20260901-001:GAP-20260901-001-004",
+        "comparison_summary": "Four unrelated Project gaps still require their own Cases; the selected migration gap is ready, high risk, directly required for Case completion, and now has complete local implementation and verification evidence.",
+        "fresh_discovery_summary": "The local migration is complete and clean; the remaining credential-provider state, relicensing authority, remote publication, and source-repository archival decisions are a distinct human-owned release gate.",
+        "considered": [
+          {
+            "ref": "project-gap:GAP-agent-scenario-evaluation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "uncertainty": "high",
+              "risk": "high"
+            },
+            "reason": "It is outside the repository consolidation Case."
+          },
+          {
+            "ref": "project-gap:GAP-runtime-resilience-and-adapters",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "Runtime resilience is unrelated to completing the authorized source consolidation."
+          },
+          {
+            "ref": "project-gap:GAP-security-real-project-validation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "This migration supplies useful evidence but does not complete the broader independent Project validation."
+          },
+          {
+            "ref": "project-gap:GAP-cross-record-audit",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "high"
+            },
+            "reason": "Cross-record auditing is unrelated to the requested monorepo import."
+          },
+          {
+            "ref": "case-gap:CASE-20260901-001:GAP-20260901-001-004",
+            "source": "persisted",
+            "eligibility": "ready",
+            "disposition": "selected",
+            "priority_basis": {
+              "blocking": "case completion",
+              "uncertainty": "",
+              "risk": "high",
+              "user_impact": "delivers requested monorepo"
+            },
+            "reason": "It is the sole ready Case gap and its implementation, provenance, security scan, licenses, builds, and tests are complete."
+          }
+        ]
+      },
+      "selected_gap": {
         "id": "GAP-20260901-001-004",
         "responsibility": "agent",
         "goal": "Import the three source repositories with filtered provenance into the accepted monorepo destinations, apply the license boundary and workspace governance, prove the resulting current tree and reachable imported history are free of blocked material, and prepare the exact human public-release gate.",
@@ -1289,24 +1391,241 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
           "Build and test evidence for imported components",
           "Final public-release handoff for credential and relicensing owners"
         ]
+      },
+      "planned_transition": {
+        "goal": "Accept the completed local monorepo migration and hand the final public-release gate to the repository and credential owners.",
+        "expected_state_change": "The Agent-owned import gap is resolved with durable provenance, build, test, license, and security evidence; only explicit owner confirmations remain open."
+      },
+      "accepted_state_delta": {
+        "resolved_gap": {
+          "id": "GAP-20260901-001-004",
+          "status": "resolved",
+          "outcome": "The three filtered source histories are merged into the governed Arckit monorepo destinations, root workspace and per-surface license boundaries are active, all supported builds and tests pass, and the final scan found zero sensitive paths and zero blocked fingerprints across 5,861 reachable text blobs.",
+          "reason": "The imported commits, provenance record, directory and licensing changes, build/test results, and reachable-history scan satisfy every required item for the local consolidation.",
+          "evidence": [
+            "docs/monorepo/IMPORT_PROVENANCE.md",
+            "docs/monorepo/VALIDATION.md",
+            "commits b8cda68, 2f6a299, eb08eee, bdce54f, e14f3f4, c4dad71",
+            "final history scan: 5,861 reachable text blobs, 0 sensitive paths, 0 blocked fingerprints"
+          ]
+        },
+        "facts_added": [
+          {
+            "id": "FACT-20260901-001-005",
+            "revision": 1,
+            "status": "accepted",
+            "statement": "The Workshop API, Todo Web, and Workshop Feedback histories were filtered and merged into their accepted Arckit monorepo destinations; root workspace governance and per-surface license boundaries are applied, supported builds and tests pass, and the final scan of 5,861 reachable text blobs reports zero sensitive paths and zero blocked credential fingerprints.",
+            "basis": "Six local migration commits preserve filtered provenance, integrate all public product surfaces, centralize JavaScript workspace locking, document the license boundary, and record successful JavaScript, Go, Electron, and iOS validation plus the final reachable-history security scan.",
+            "evidence": [
+              "docs/monorepo/IMPORT_PROVENANCE.md",
+              "docs/monorepo/VALIDATION.md",
+              "commits b8cda68, 2f6a299, eb08eee, bdce54f, e14f3f4, c4dad71"
+            ]
+          }
+        ],
+        "facts_superseded": [],
+        "impacts_added": [],
+        "impacts_updated": [
+          {
+            "id": "IMPACT-20260901-001-003",
+            "fact_id": "FACT-20260901-001-005",
+            "fact_revision": 1,
+            "target": {
+              "kind": "software_decision",
+              "ref": "security_privacy_compliance",
+              "revision": 6
+            },
+            "effect": "threatened",
+            "reason": "The local repository is sanitized and verified, but provider-side credential rotation, revocation, expiry or invalidity and the owners' relicensing and publication authority cannot be proven from the workspace.",
+            "gap_ids": [
+              "GAP-20260901-001-005"
+            ],
+            "evidence": [
+              "docs/monorepo/VALIDATION.md",
+              "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+              "../arckit-ops/runbooks/credential-rotation.md"
+            ]
+          }
+        ],
+        "gaps_added": [
+          {
+            "id": "GAP-20260901-001-005",
+            "status": "open",
+            "goal": "Confirm every credential runbook entry is rotated, revoked, expired, or otherwise invalid; confirm rights to apply the selected licenses; and decide whether to publish the merged history and archive the old source repositories.",
+            "reason": "Credential-provider state, legal relicensing authority, remote publication, and repository archival are owner-controlled facts that cannot be established through local code or history inspection.",
+            "derived_from": [
+              "FACT-20260901-001-005"
+            ],
+            "blocked_by": [],
+            "priority_basis": {
+              "risk": "high",
+              "dependency": "blocks public push and source repository archival"
+            },
+            "responsibility": "human",
+            "evidence_required": [
+              "Completed ../arckit-ops/runbooks/credential-rotation.md with non-secret provider references",
+              "Owner confirmation of Apache-2.0 and PolyForm Perimeter 1.0.1 relicensing rights",
+              "Explicit authorization for remote push and source repository archival if desired"
+            ],
+            "resolution": null
+          }
+        ],
+        "gaps_cancelled": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "project_state_delta": {
+        "software_definition_changes": [],
+        "software_invariant_changes": [],
+        "project_gap_changes": [],
+        "selection_context_change": null,
+        "evidence": []
+      },
+      "invariant_assessment": {
+        "project_revision": 331,
+        "judgments": [
+          {
+            "invariant_ref": "product-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "The migration preserves the imported products' existing behavior and establishes no new product semantics.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "interaction-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "Repository consolidation does not change an interaction contract.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "visual-language-remains-consistent",
+            "disposition": "not_relevant",
+            "reason": "Repository consolidation does not establish or revise visual-language facts.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "technical-decisions-remain-explainable",
+            "disposition": "upheld",
+            "reason": "The accepted monorepo architecture is realized with deterministic destination paths, filtered-history provenance, root workspace governance, explicit operator separation, and directory-level license boundaries.",
+            "fact_refs": [
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "arckit/tech/repository-governance/monorepo-solution.md",
+              "docs/monorepo/IMPORT_PROVENANCE.md",
+              "package.json",
+              "LICENSING.md"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "accepted-facts-are-realized",
+            "disposition": "upheld",
+            "reason": "The accepted migration claim is realized by the imported commits, current directory tree, workspace lock, license files, successful supported builds/tests, and clean history scan.",
+            "fact_refs": [
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "commits b8cda68, 2f6a299, eb08eee, bdce54f, e14f3f4, c4dad71",
+              "docs/monorepo/VALIDATION.md"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "material-risks-have-credible-evidence",
+            "disposition": "threatened",
+            "reason": "Local source and history safety have strong evidence, while credential-provider invalidity, relicensing rights, and publication authorization remain owner-controlled and explicitly gated.",
+            "fact_refs": [
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "docs/monorepo/VALIDATION.md",
+              "docs/monorepo/PRIVATE_EXTRACTION_REPORT.md",
+              "../arckit-ops/runbooks/credential-rotation.md"
+            ],
+            "gap_refs": [
+              "GAP-20260901-001-005"
+            ]
+          }
+        ]
+      },
+      "evidence": [
+        "commits b8cda68, 2f6a299, eb08eee, bdce54f, e14f3f4, c4dad71",
+        "docs/monorepo/IMPORT_PROVENANCE.md",
+        "docs/monorepo/VALIDATION.md",
+        "final history scan: clean=true, 5,861 reachable text blobs, 0 sensitive paths, 0 blocked fingerprints",
+        "root npm workspace install and three production builds passed",
+        "Todo tests passed 7/7 and ArcOrbit tests passed 555 with 23 skipped",
+        "go test ./... passed",
+        "iOS simulator xcodebuild passed with code signing disabled"
+      ],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-09-01T05:50:21.160Z"
+    }
+  ],
+  "case_resolution": {
+    "status": "unresolved",
+    "stage": "working",
+    "satisfied": [
+      "GAP-20260901-001-001",
+      "GAP-20260901-001-002",
+      "GAP-20260901-001-003",
+      "GAP-20260901-001-004"
+    ],
+    "remaining": [
+      "GAP-20260901-001-005",
+      "impact:IMPACT-20260901-001-003"
+    ],
+    "blocked": [],
+    "reason": "2 Case obligation(s) remain.",
+    "candidate_gaps": [
+      {
+        "id": "GAP-20260901-001-005",
+        "responsibility": "human",
+        "goal": "Confirm every credential runbook entry is rotated, revoked, expired, or otherwise invalid; confirm rights to apply the selected licenses; and decide whether to publish the merged history and archive the old source repositories.",
+        "reason": "Credential-provider state, legal relicensing authority, remote publication, and repository archival are owner-controlled facts that cannot be established through local code or history inspection.",
+        "derived_from": [
+          "FACT-20260901-001-005"
+        ],
+        "blocked_by": [],
+        "priority_basis": {
+          "blocking": "",
+          "uncertainty": "",
+          "risk": "high",
+          "user_impact": "",
+          "dependency": "blocks public push and source repository archival"
+        },
+        "evidence_required": [
+          "Completed ../arckit-ops/runbooks/credential-rotation.md with non-secret provider references",
+          "Owner confirmation of Apache-2.0 and PolyForm Perimeter 1.0.1 relicensing rights",
+          "Explicit authorization for remote push and source repository archival if desired"
+        ]
       }
     ],
     "loop_handoff": {
       "version": "loop-handoff/v2",
-      "status": "continue",
-      "next_responsibility": "agent",
-      "agent_continuation_available": true,
-      "human_decision_required": false,
-      "trigger_mode": "automatic",
-      "responsibility_reason": "The sanitized inputs and private boundary are now accepted, so the authorized local consolidation can be realized without importing forbidden history and can establish the final evidence scope owners must approve before publication.",
-      "next_prompt": "Continue CASE-20260901-001: compare the ready dynamic gaps and advance one evidence-backed transition.",
+      "status": "needs_human",
+      "next_responsibility": "human",
+      "agent_continuation_available": false,
+      "human_decision_required": true,
+      "trigger_mode": "user_decision",
+      "responsibility_reason": "Credential-provider state, legal relicensing authority, remote publication, and repository archival are owner-controlled facts that cannot be established through local code or history inspection.",
+      "next_prompt": "",
       "human_gate": {
-        "required": false,
-        "reason": "",
-        "decision_needed": ""
+        "required": true,
+        "reason": "Credential-provider state, legal relicensing authority, remote publication, and repository archival are owner-controlled facts that cannot be established through local code or history inspection.",
+        "decision_needed": "Confirm every credential runbook entry is rotated, revoked, expired, or otherwise invalid; confirm rights to apply the selected licenses; and decide whether to publish the merged history and archive the old source repositories."
       }
     },
-    "updated_at": "2026-09-01T05:17:55.900Z"
+    "updated_at": "2026-09-01T05:50:21.160Z"
   }
 }
 ```

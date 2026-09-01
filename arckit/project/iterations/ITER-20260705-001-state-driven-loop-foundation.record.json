@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-09-01T05:17:55.900Z",
+  "updated_at": "2026-09-01T05:50:21.160Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -3405,6 +3405,6 @@
     "evidence": [
       "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md"
     ],
-    "updated_at": "2026-09-01T05:17:55.900Z"
+    "updated_at": "2026-09-01T05:50:21.160Z"
   }
 }
