@@ -4,7 +4,7 @@ Case: CASE-20260901-001
 Status: handoff
 Artifact Type: mixed
 Selected Gap: none
-Updated: 2026-09-01T07:10:53.678Z
+Updated: 2026-09-01T09:31:16.887Z
 
 ## User Intent
 
@@ -20,7 +20,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
   "status": "handoff",
   "artifact_type": "mixed",
   "created_at": "2026-09-01T04:12:15.983Z",
-  "updated_at": "2026-09-01T07:10:53.678Z",
+  "updated_at": "2026-09-01T09:31:16.887Z",
   "user_intent": "Merge the Workshop Todo backend, Todo web application, Feedback web applications, SDK, and iOS example into Arckit with a coherent directory structure, explicit multi-license boundaries, and a sibling private arckit-ops repository for non-public operational material.",
   "expected_outcome": "Arckit is the canonical public source monorepo for Arckit, ArcOrbit, Todo, and Feedback product code; non-public production and customer-specific operational material is isolated in a sibling arckit-ops repository; imported code builds and repository governance documents match the new boundary.",
   "project_state_ref": "arckit/project/state.record.json",
@@ -113,6 +113,20 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "tools/monorepo/blocked-secret-fingerprints.json",
         "docs/monorepo/VALIDATION.md",
         "post-commit audit: 0 current blocked, 1 history-only blocked"
+      ]
+    },
+    {
+      "id": "FACT-20260901-001-006",
+      "revision": 1,
+      "status": "accepted",
+      "statement": "The repository owner explicitly authorized private publication of arckit-ops, and feitianchengzi/arckit-ops now exists on GitHub with PRIVATE visibility; main is synchronized at b318717 and the 20-file remote tracked tree excludes all ignored plaintext and quarantine material.",
+      "basis": "Direct owner authorization plus GitHub visibility metadata, branch synchronization, commit equality, and remote tree inspection.",
+      "evidence": [
+        "Current user instruction, 2026-09-01",
+        "https://github.com/feitianchengzi/arckit-ops",
+        "GitHub visibility: PRIVATE",
+        "local HEAD and origin/main: b318717",
+        "remote secrets tree: secrets/README.md only"
       ]
     }
   ],
@@ -387,9 +401,44 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         ],
         "occurred_at": "2026-09-01T07:10:53.678Z"
       }
+    },
+    {
+      "id": "GAP-20260901-001-007",
+      "goal": "Create the arckit-ops GitHub repository as private, connect the local repository, push main, and verify the remote contains only the approved tracked boundary.",
+      "reason": "The established local private operations repository required a durable private remote under the Arckit organization.",
+      "responsibility": "agent",
+      "derived_from": [
+        "FACT-20260901-001-004"
+      ],
+      "blocked_by": [],
+      "priority_basis": {
+        "user_impact": "establishes the required private remote",
+        "risk": "high"
+      },
+      "evidence_required": [
+        "GitHub visibility is PRIVATE",
+        "main tracks origin/main",
+        "remote commit equals local HEAD",
+        "remote tree contains no ignored secret material"
+      ],
+      "status": "resolved",
+      "resolution": {
+        "id": "GAP-20260901-001-007",
+        "status": "resolved",
+        "outcome": "GitHub repository feitianchengzi/arckit-ops exists with PRIVATE visibility, default branch main, and local main tracking origin/main at commit b318717; its remote tree has 20 tracked files and only secrets/README.md below secrets/.",
+        "reason": "GitHub metadata, local/remote commit equality, branch tracking, and remote tree inspection independently verify the requested private publication boundary.",
+        "evidence": [
+          "https://github.com/feitianchengzi/arckit-ops",
+          "GitHub visibility: PRIVATE",
+          "local HEAD and origin/main: b318717",
+          "remote tracked files: 20",
+          "remote secrets tree: secrets/README.md only"
+        ],
+        "occurred_at": "2026-09-01T09:31:16.887Z"
+      }
     }
   ],
-  "content_revision": 5,
+  "content_revision": 6,
   "completion_review": {
     "status": "pending",
     "policy": {
@@ -1944,6 +1993,241 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
       ],
       "runtime_result_ref": "",
       "occurred_at": "2026-09-01T07:10:53.678Z"
+    },
+    {
+      "round": 6,
+      "transition_schema_version": "arckit-case-transition/v8",
+      "goal": "Accept the verified private arckit-ops remote without changing the remaining public-release gate.",
+      "outcome": "completed",
+      "gap_selection": {
+        "mode": "fresh",
+        "basis": "The repository owner explicitly authorized creating a private remote for the already-established arckit-ops boundary, making remote creation and verified private publication the only actionable work in scope.",
+        "snapshot_token": "a2228877ca7da5d0a153663d167824e2928b7a99c9d9c2acd7c17f14e04e5f6d",
+        "selected_ref": "fresh-gap:CASE-20260901-001:GAP-20260901-001-007",
+        "comparison_summary": "Four Project gaps require separate Cases and GAP-005 still contains broader human credential, legal, public-release, and archival decisions; the fresh private-remote gap was explicitly authorized, bounded, and independently verifiable.",
+        "fresh_discovery_summary": "The owner required arckit-ops to exist as a private remote repository; GitHub authentication was restored and the organization namespace, permissions, target availability, and local tracked boundary were verified before creation.",
+        "considered": [
+          {
+            "ref": "project-gap:GAP-agent-scenario-evaluation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "uncertainty": "high",
+              "risk": "high"
+            },
+            "reason": "Outside this consolidation Case."
+          },
+          {
+            "ref": "project-gap:GAP-runtime-resilience-and-adapters",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "Unrelated to private repository publication."
+          },
+          {
+            "ref": "project-gap:GAP-security-real-project-validation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "This action contributes evidence but does not close the broader Project validation gap."
+          },
+          {
+            "ref": "project-gap:GAP-cross-record-audit",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "high"
+            },
+            "reason": "Requires its own Case."
+          },
+          {
+            "ref": "case-gap:CASE-20260901-001:GAP-20260901-001-005",
+            "source": "persisted",
+            "eligibility": "ready",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "dependency": "blocks public push and source repository archival"
+            },
+            "reason": "Private ops publication is only one bounded part; credential, licensing, public push, and archival decisions remain unresolved."
+          },
+          {
+            "ref": "fresh-gap:CASE-20260901-001:GAP-20260901-001-007",
+            "source": "fresh",
+            "eligibility": "ready",
+            "disposition": "selected",
+            "priority_basis": {
+              "user_impact": "establishes the required private remote",
+              "risk": "high"
+            },
+            "reason": "It was directly authorized and could be accepted through independent GitHub visibility, branch, commit, and tree verification."
+          }
+        ]
+      },
+      "selected_gap": {
+        "id": "GAP-20260901-001-007",
+        "goal": "Create the arckit-ops GitHub repository as private, connect the local repository, push main, and verify the remote contains only the approved tracked boundary.",
+        "reason": "The established local private operations repository required a durable private remote under the Arckit organization.",
+        "responsibility": "agent",
+        "derived_from": [
+          "FACT-20260901-001-004"
+        ],
+        "blocked_by": [],
+        "priority_basis": {
+          "user_impact": "establishes the required private remote",
+          "risk": "high"
+        },
+        "evidence_required": [
+          "GitHub visibility is PRIVATE",
+          "main tracks origin/main",
+          "remote commit equals local HEAD",
+          "remote tree contains no ignored secret material"
+        ]
+      },
+      "planned_transition": {
+        "goal": "Accept the verified private arckit-ops remote without changing the remaining public-release gate.",
+        "expected_state_change": "The private operations repository has a verified GitHub remote and synchronized main branch; credential, licensing, public Arckit publication, and archival obligations remain open."
+      },
+      "accepted_state_delta": {
+        "resolved_gap": {
+          "id": "GAP-20260901-001-007",
+          "status": "resolved",
+          "outcome": "GitHub repository feitianchengzi/arckit-ops exists with PRIVATE visibility, default branch main, and local main tracking origin/main at commit b318717; its remote tree has 20 tracked files and only secrets/README.md below secrets/.",
+          "reason": "GitHub metadata, local/remote commit equality, branch tracking, and remote tree inspection independently verify the requested private publication boundary.",
+          "evidence": [
+            "https://github.com/feitianchengzi/arckit-ops",
+            "GitHub visibility: PRIVATE",
+            "local HEAD and origin/main: b318717",
+            "remote tracked files: 20",
+            "remote secrets tree: secrets/README.md only"
+          ]
+        },
+        "facts_added": [
+          {
+            "id": "FACT-20260901-001-006",
+            "revision": 1,
+            "status": "accepted",
+            "statement": "The repository owner explicitly authorized private publication of arckit-ops, and feitianchengzi/arckit-ops now exists on GitHub with PRIVATE visibility; main is synchronized at b318717 and the 20-file remote tracked tree excludes all ignored plaintext and quarantine material.",
+            "basis": "Direct owner authorization plus GitHub visibility metadata, branch synchronization, commit equality, and remote tree inspection.",
+            "evidence": [
+              "Current user instruction, 2026-09-01",
+              "https://github.com/feitianchengzi/arckit-ops",
+              "GitHub visibility: PRIVATE",
+              "local HEAD and origin/main: b318717",
+              "remote secrets tree: secrets/README.md only"
+            ]
+          }
+        ],
+        "facts_superseded": [],
+        "impacts_added": [],
+        "impacts_updated": [],
+        "gaps_added": [],
+        "gaps_cancelled": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "project_state_delta": {
+        "software_definition_changes": [],
+        "software_invariant_changes": [],
+        "project_gap_changes": [],
+        "selection_context_change": null,
+        "evidence": []
+      },
+      "invariant_assessment": {
+        "project_revision": 331,
+        "judgments": [
+          {
+            "invariant_ref": "product-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "Creating the private operations remote does not change product capability or behavior.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "interaction-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "No user journey or interaction contract changes.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "visual-language-remains-consistent",
+            "disposition": "not_relevant",
+            "reason": "No visual expectation changes.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "technical-decisions-remain-explainable",
+            "disposition": "upheld",
+            "reason": "The accepted sibling-private-repository boundary is now durably realized on GitHub with verified visibility, branch, commit, and tracked-tree evidence.",
+            "fact_refs": [
+              "FACT-20260901-001-006"
+            ],
+            "evidence": [
+              "https://github.com/feitianchengzi/arckit-ops",
+              "GitHub visibility: PRIVATE",
+              "remote tracked files: 20"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "accepted-facts-are-realized",
+            "disposition": "upheld",
+            "reason": "The private remote claim is realized exactly by the synchronized GitHub repository and excludes ignored secret material.",
+            "fact_refs": [
+              "FACT-20260901-001-006"
+            ],
+            "evidence": [
+              "local HEAD and origin/main: b318717",
+              "remote secrets tree: secrets/README.md only"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "material-risks-have-credible-evidence",
+            "disposition": "threatened",
+            "reason": "Private repository exposure is controlled and verified, but provider invalidity, relicensing rights, public Arckit publication, history handling, and archival still require owner evidence and decisions.",
+            "fact_refs": [
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "GitHub visibility: PRIVATE",
+              "../arckit-ops/runbooks/credential-rotation.md"
+            ],
+            "gap_refs": [
+              "GAP-20260901-001-005"
+            ]
+          }
+        ]
+      },
+      "evidence": [
+        "https://github.com/feitianchengzi/arckit-ops",
+        "GitHub visibility: PRIVATE",
+        "main tracks origin/main",
+        "local HEAD and origin/main: b318717",
+        "remote tracked files: 20",
+        "remote secrets tree: secrets/README.md only"
+      ],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-09-01T09:31:16.887Z"
     }
   ],
   "case_resolution": {
@@ -1954,7 +2238,8 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
       "GAP-20260901-001-002",
       "GAP-20260901-001-003",
       "GAP-20260901-001-004",
-      "GAP-20260901-001-006"
+      "GAP-20260901-001-006",
+      "GAP-20260901-001-007"
     ],
     "remaining": [
       "GAP-20260901-001-005",
@@ -2001,7 +2286,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "decision_needed": "Confirm every credential runbook entry is rotated, revoked, expired, or otherwise invalid; confirm rights to apply the selected licenses; and decide whether to publish the merged history and archive the old source repositories."
       }
     },
-    "updated_at": "2026-09-01T07:10:53.678Z"
+    "updated_at": "2026-09-01T09:31:16.887Z"
   }
 }
 ```
