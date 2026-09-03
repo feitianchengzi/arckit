@@ -261,6 +261,13 @@ test("ChatCoordinator holds app-server approval until a typed decision and fails
     const approval = waiting.messages.find((message) => message.kind === "approval");
     assert.equal(waiting.sessions[0].status, "waiting_approval");
     assert.equal(approval.status, "pending");
+    assert.equal(typeof approval.approval_method, "string");
+    assert.equal(waiting.pending_approvals[0].approval_method, approval.approval_method);
+    assert.deepEqual(waiting.pending_approvals.map((item) => ({ session_id: item.session_id, project_id: item.project_id, request_id: item.approval_request_id })), [{
+      session_id: requested.session_id,
+      project_id: "PROJECT-1",
+      request_id: approval.approval_request_id
+    }]);
 
     await coordinator.decideApproval({
       session_id: requested.session_id,
@@ -270,6 +277,7 @@ test("ChatCoordinator holds app-server approval until a typed decision and fails
     const completed = await waitForChatTerminal(coordinator, starting.selected_session_id);
     assert.deepEqual(decisions, [false]);
     assert.equal(completed.messages.find((message) => message.kind === "approval").status, "failed");
+    assert.deepEqual(completed.pending_approvals, []);
   } finally {
     await coordinator.close();
     await fixture.cleanup();

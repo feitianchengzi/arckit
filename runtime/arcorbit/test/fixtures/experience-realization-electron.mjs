@@ -33,6 +33,7 @@ app.whenReady().then(async () => {
         return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
       };
       let visibleTextBelow11 = 0;
+      const textBelow11Details = [];
       let standardControlViolations = 0;
       let checkboxTargetViolations = 0;
       let selectableRowViolations = 0;
@@ -47,7 +48,9 @@ app.whenReady().then(async () => {
           const ownText = [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim());
           return ownText || node.matches("input, select, textarea");
         });
-        visibleTextBelow11 += textNodes.filter((node) => Number.parseFloat(getComputedStyle(node).fontSize) < 11).length;
+        const below11 = textNodes.filter((node) => Number.parseFloat(getComputedStyle(node).fontSize) < 11);
+        visibleTextBelow11 += below11.length;
+        textBelow11Details.push(...below11.map((node) => ({ page, tag: node.tagName, id: node.id, class_name: node.className, font_size: getComputedStyle(node).fontSize, text: node.textContent.trim().slice(0, 80) })));
         const controls = [...root.querySelectorAll('button, input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea, summary')].filter(visible);
         const pageControlViolations = controls.filter((node) => {
           const minimum = node.matches(".icon-button, .chat-code-block > button") ? 32 : 36;
@@ -81,6 +84,7 @@ app.whenReady().then(async () => {
       const keyboardSelectionChanged = Boolean(targetRow && before !== "true" && targetRow.getAttribute("aria-selected") === "true");
       const navigation = [...document.querySelectorAll(".primary-nav .nav-item")];
       const tableCell = document.querySelector(".platform-work-table td");
+      const tableFontPx = Number.parseFloat(getComputedStyle(tableCell).fontSize);
       document.querySelector('[data-page="chat"]').click();
       await new Promise((resolve) => setTimeout(resolve, 120));
       const conversationSample = document.querySelector(".chat-message-content") || document.createElement("div");
@@ -89,9 +93,29 @@ app.whenReady().then(async () => {
         conversationSample.textContent = "sample";
         document.body.append(conversationSample);
       }
+      const conversationFontPx = Number.parseFloat(getComputedStyle(conversationSample).fontSize);
+      document.querySelector('[data-page="today"]').click();
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const todayWorkspace = document.querySelector(".today-workspace");
+      const todayPanes = [...todayWorkspace.children].map((node) => node.getBoundingClientRect().width);
+      document.querySelector("#todayAddProjectButton").click();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const projectSource = document.querySelector('#platformActionFields [name="source"]');
+      const today = {
+        workspace_columns: getComputedStyle(todayWorkspace).gridTemplateColumns.split(" ").length,
+        pane_widths: todayPanes,
+        project_rows: document.querySelectorAll("#todayProjectRail .today-project-row").length,
+        responsibility_rows: document.querySelectorAll("#todayResponsibilityList .today-responsibility-row").length,
+        sheet_visible: !document.querySelector("#platformActionOverlay").classList.contains("hidden"),
+        sheet_title: document.querySelector("#platformActionTitle").textContent,
+        project_source_options: [...projectSource.options].map((option) => option.value),
+        page_remains_active: document.querySelector('[data-page-view="today"]').classList.contains("is-active")
+      };
+      document.querySelector("#closePlatformActionButton").click();
       return {
         pages,
         visible_text_below_11: visibleTextBelow11,
+        text_below_11_details: textBelow11Details,
         standard_control_violations: standardControlViolations,
         checkbox_target_violations: checkboxTargetViolations,
         selectable_row_violations: selectableRowViolations,
@@ -105,10 +129,19 @@ app.whenReady().then(async () => {
         current_run_single_line: currentRunSingleLine,
         core_navigation_vector_icons: navigation.filter((item) => item.querySelector("svg.ui-icon use")).length,
         core_navigation_text_icons: navigation.filter((item) => [...item.childNodes].some((node) => node.nodeType === Node.ELEMENT_NODE && node.matches("span") && node.textContent.trim())).length,
-        table_font_px: Number.parseFloat(getComputedStyle(tableCell).fontSize),
-        conversation_font_px: Number.parseFloat(getComputedStyle(conversationSample).fontSize)
+        table_font_px: tableFontPx,
+        conversation_font_px: conversationFontPx,
+        today
       };
     })()`);
+    window.setContentSize(1100, 800);
+    await wait(160);
+    result.today_narrow = await window.webContents.executeJavaScript(`(() => ({
+      project_rail_display: getComputedStyle(document.querySelector(".today-project-rail")).display,
+      workspace_columns: getComputedStyle(document.querySelector(".today-workspace")).gridTemplateColumns.split(" ").length,
+      responsibility_visible: document.querySelector(".today-responsibility-rail").getBoundingClientRect().width > 0,
+      operator_visible: document.querySelector(".today-operator").getBoundingClientRect().width > 0
+    }))()`);
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } finally {
     window.destroy();

@@ -527,6 +527,8 @@ function registerIpc() {
   ipcMain.handle("arckit:platform-workset-update", async (_event, input) => platformCoordinator.updateWorkset(input));
   ipcMain.handle("arckit:platform-workset-delete", async (_event, worksetId) => platformCoordinator.deleteWorkset(worksetId));
   ipcMain.handle("arckit:platform-workset-active", async (_event, worksetId) => platformCoordinator.setActiveWorkset(worksetId));
+  ipcMain.handle("arckit:platform-today-projects", async (_event, projectIds) => platformCoordinator.setTodayProjects(projectIds));
+  ipcMain.handle("arckit:platform-today-preference", async (_event, input) => platformCoordinator.setTodayPreference(input));
   ipcMain.handle("arckit:platform-workspace-preference", async (_event, projectId, input) => (
     platformCoordinator.setWorkspacePreference(projectId, input)
   ));

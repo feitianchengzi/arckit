@@ -8,11 +8,13 @@ Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-pla
 
 ## Today Workspace
 
-`today-workspace/interaction.md` 定义登录后个人推进首页：从 Project、Workset、Product Workspace、本地绑定、Setup Readiness、Work Task Projection、Automation participation、全局领取、活动 execution 和人工事项实时派生唯一下一步，不保存第二套 readiness 或 onboarding 完成状态。`default.html` 投影首次准备、总闸启动、健康多产品推进、人工事项、完成审查和部分未知；`readiness-details.html` 投影六项完整关系、无项目分流、连接/工作分离的多产品摘要、明确创建并委托和无权限责任交接。
+`today-workspace/interaction.md` 定义登录后的人工责任工作台。页面复用 PERSONAL、PRODUCT LIFECYCLE、ORGANIZATION 三组稳定主导航；项目栏持续表达多项目的配置状态、人工责任数量和最小自动状态；责任栏只在“需要你处理”“项目配置”间切换；操作台复用来源身份、权限、校验、幂等与恢复语义。`default.html` 投影三栏桌面主视图和两个模式，`readiness-details.html` 投影首次使用与多项目并行配置，`action-details.html` 投影各来源完整操作台，`action-continuity.html` 投影选择、提交、即时确认、冲突和重启恢复。
 
-Today 与目标页面共享原因而不复制写入：Organization Project Detail 负责本地绑定和项目授权的对象上下文，`task-browser/readiness-guidance.html` 负责待评审、执行人和任务所属项目缺口，`automation-workspace/eligibility-guidance.html` 负责候选全貌、全局总闸和队列资格，`chat-workspace/workspace-setup.html` 负责保留草稿的原位项目绑定。动作成功后目标页面留在原处 fresh-read；返回 Today 时重新选择唯一主动作。
+Today 不重新定义来源状态机，但在本页内直接承载来源声明的人工作业面：项目目录与 Setup Readiness 提供目录、项目能力和本机 participation 操作；Chat 提供 waiting_approval；Automation 提供 human handoff、external dependency 和 Recovery Center；Work 提供 pending_review、completed、blocked 与跨产品移动恢复；Feedback 提供已创建 Task 的仅重试关联。Automation 的复杂责任项在 Today 操作台中投影从自动执行到人再回到同一 task session/thread/Case 的有界接力时间线，不复制完整运行日志。
 
-Workset 只决定 Today 的观察范围；创建组织、邀请成员、加入 Workset、本地绑定、项目授权、任务状态和全局自动领取保持独立事实与显式动作。个人用户没有团队治理需求时，不把 Organization 或成员邀请放入固定准备路径。
+Workset 不裁剪 Today 的人工责任范围。每个项目独立计算可访问、本地目录、项目 Setup 和当前用户当前设备 Automation participation 四项完成事实；一个项目的配置阻塞不影响其他 ready 项目检查、运行或进入 Work。新建待办不属于 Today，任意项目 ready 后只提供前往 Work 新建待办的跨页引导。当前用户可直接选择本机 participation，该选择不修改组织角色、项目成员、其他用户或其他设备。
+
+来源确认后，操作台原地展示即时结果，对象随即移出 Today 并选择相邻责任项；Today 不保存已完成操作历史，完整历史和审计继续归属来源页面。
 
 ## Chat and Planned Workspaces
 

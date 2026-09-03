@@ -99,6 +99,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   updateWorkset: (input) => ipcRenderer.invoke("arckit:platform-workset-update", input),
   deleteWorkset: (worksetId) => ipcRenderer.invoke("arckit:platform-workset-delete", worksetId),
   setActiveWorkset: (worksetId) => ipcRenderer.invoke("arckit:platform-workset-active", worksetId),
+  setTodayProjects: (projectIds) => ipcRenderer.invoke("arckit:platform-today-projects", projectIds),
+  setTodayPreference: (input) => ipcRenderer.invoke("arckit:platform-today-preference", input),
   setWorkspacePreference: (projectId, input) => (
     ipcRenderer.invoke("arckit:platform-workspace-preference", projectId, input)
   ),

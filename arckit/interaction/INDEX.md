@@ -21,10 +21,12 @@
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系、项目邀请及任意成员本地绑定与管理员授权分界。✅ (13行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
   - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织项目连接引导与 Feedback 单行控制轨、会话自动/手动刷新、已读边界、剩余高度双栏、同记录恢复、共享图片查看和流转。✅ (168行)
-- today-workspace/ Today 个人推进首页：从现有事实选择唯一下一步，并在日常状态下汇总跨产品执行、人工事项与连接/工作全貌。✅
-  - default.html Today 主线框：首次准备唯一动作、总闸启动、健康多产品执行、人工事项、完成审查和部分未知。✅ (127行)
-  - readiness-details.html 准备关系子视图：六项完整关系、多产品摘要、任意成员本地绑定及项目授权无权限交接。✅ (72行)
-  - interaction.md Today 交互：动作优先级、事实派生、准备关系、多产品表达、创建委托、恢复与跨页面就地引导。✅ (212行)
+- today-workspace/ Today 人工责任工作台：以项目栏、需要你处理/项目配置双工作区和操作台管理多项目配置与跨来源人工介入。🟡
+  - default.html Today 主线框：真实三组主导航、跨项目责任、项目配置、零责任和来源未知。🟡 (21行)
+  - readiness-details.html 新用户子视图：前置门、项目目录、多项目并行检查、目录/Setup/本机参与和 Work 交接。🟡 (20行)
+  - action-details.html 来源操作台：Chat 权限、Automation 决策/外部依赖/恢复、Work 状态门与部分成功收口。🟡 (20行)
+  - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
+  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、直接操作与人机接力状态机。🟡 (217行)
 - chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，以 session 独立阅读位置进行本地 Codex 对话。✅
   - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
   - workspace-setup.html 工作区绑定子视图：任意可访问项目成员从 Chat 原位选择目录并检查 Setup Readiness，同时保留草稿。✅ (12行)

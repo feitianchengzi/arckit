@@ -7,7 +7,7 @@ import { authProjection, DEFAULT_WORKSHOP_BASE_URL, normalizeTaskSourceSettings 
 import { taskDisplayTitle } from "../task-display-title.mjs";
 import { normalizeWorkInspectorWidth, WORK_INSPECTOR_DEFAULT_WIDTH } from "./work-inspector-preference.mjs";
 
-export const DESKTOP_STORE_VERSION = 17;
+export const DESKTOP_STORE_VERSION = 18;
 const TASK_REHYDRATION_VERSION = 16;
 const PARTITION_MANIFEST_VERSION = "desktop-state-partitions/v1";
 const MESSAGE_PARTITION_VERSION = "desktop-session-messages/v1";
@@ -315,6 +315,7 @@ export function normalizeStore(store) {
 export function defaultPlatformState() {
   return {
     active_workset_id: "WORKSET-DEFAULT",
+    today_project_ids: [],
     worksets: [{
       id: "WORKSET-DEFAULT",
       name: "当前产品集",
@@ -324,7 +325,8 @@ export function defaultPlatformState() {
     }],
     workspace_preferences: {},
     ui_preferences: {
-      work_inspector_width_px: WORK_INSPECTOR_DEFAULT_WIDTH
+      work_inspector_width_px: WORK_INSPECTOR_DEFAULT_WIDTH,
+      today: { selected_project_id: "all", selected_mode: "", selected_item_id: "", drafts: {} }
     },
     task_sync: defaultTaskSyncState(),
     feedback_v2: {
@@ -403,6 +405,9 @@ export function normalizePlatformState(value = {}, automation = defaultAutomatio
   const activeWorksetId = worksets.some((workset) => workset.id === activeId)
     ? activeId
     : worksets[0].id;
+  const todayProjectIds = Array.isArray(value.today_project_ids)
+    ? [...new Set(value.today_project_ids.map((item) => String(item || "").trim()).filter(Boolean))]
+    : [...(worksets.find((workset) => workset.id === activeWorksetId)?.project_ids || [])];
   const preferences = value.workspace_preferences && typeof value.workspace_preferences === "object" && !Array.isArray(value.workspace_preferences)
     ? value.workspace_preferences
     : {};
@@ -413,8 +418,15 @@ export function normalizePlatformState(value = {}, automation = defaultAutomatio
   const uiPreferences = value.ui_preferences && typeof value.ui_preferences === "object" && !Array.isArray(value.ui_preferences)
     ? value.ui_preferences
     : {};
+  const todayPreference = uiPreferences.today && typeof uiPreferences.today === "object" && !Array.isArray(uiPreferences.today)
+    ? uiPreferences.today
+    : {};
+  const todayDrafts = todayPreference.drafts && typeof todayPreference.drafts === "object" && !Array.isArray(todayPreference.drafts)
+    ? Object.fromEntries(Object.entries(todayPreference.drafts).slice(0, 200).map(([id, draft]) => [String(id).slice(0, 240), String(draft || "").slice(0, 100_000)]).filter(([id]) => id))
+    : {};
   return {
     active_workset_id: activeWorksetId,
+    today_project_ids: todayProjectIds,
     worksets,
     workspace_preferences: Object.fromEntries(Object.entries(preferences).map(([projectId, preference]) => {
       const item = preference && typeof preference === "object" && !Array.isArray(preference) ? preference : {};
@@ -425,7 +437,13 @@ export function normalizePlatformState(value = {}, automation = defaultAutomatio
       }];
     })),
     ui_preferences: {
-      work_inspector_width_px: normalizeWorkInspectorWidth(uiPreferences.work_inspector_width_px)
+      work_inspector_width_px: normalizeWorkInspectorWidth(uiPreferences.work_inspector_width_px),
+      today: {
+        selected_project_id: String(todayPreference.selected_project_id || "all").slice(0, 120),
+        selected_mode: ["intervention", "configuration"].includes(todayPreference.selected_mode) ? todayPreference.selected_mode : "",
+        selected_item_id: String(todayPreference.selected_item_id || "").slice(0, 240),
+        drafts: todayDrafts
+      }
     },
     task_sync: normalizeTaskSyncState(value.task_sync, legacyAutomation, { requiresRehydration: requiresTaskRehydration }),
     feedback_v2: {

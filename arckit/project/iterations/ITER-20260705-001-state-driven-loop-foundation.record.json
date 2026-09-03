@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-09-01T14:35:37.354Z",
+  "updated_at": "2026-09-01T19:27:40.512Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -3257,6 +3257,30 @@
         "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "FACT-20260901-003-003",
+        "FACT-20260901-003-007",
+        "arckit/interaction/today-workspace/interaction.md",
+        "arckit/cases/active/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "FACT-20260901-003-001",
+        "FACT-20260901-003-007",
+        "arckit/interaction/today-workspace/interaction.md",
+        "arckit/cases/active/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md"
     }
   ],
   "acceptance": {
@@ -3399,15 +3423,16 @@
     "arckit/cases/closed/CASE-20260829-003-upgrade-arcorbit-codex-cli-installation-and-updates.md",
     "arckit/cases/closed/CASE-20260830-001-development-case.md",
     "arckit/cases/closed/CASE-20260830-002-arcorbit-desktop.md",
-    "arckit/cases/closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md"
+    "arckit/cases/closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md",
+    "arckit/cases/closed/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md",
+    "case_ref": "arckit/cases/closed/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md"
+      "arckit/cases/closed/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md"
     ],
-    "updated_at": "2026-09-01T14:35:37.354Z"
+    "updated_at": "2026-09-01T19:27:40.512Z"
   }
 }

@@ -60,12 +60,16 @@ export function createChatCoordinator({
     const explicitSelection = Object.prototype.hasOwnProperty.call(input, "session_id");
     const requestedId = String(explicitSelection ? input.session_id || "" : store.chat?.selected_session_id || "");
     const selected = sessions.find((session) => session.id === requestedId) || null;
+    const pendingApprovals = sessions.flatMap((session) => projectedSessionMessages(store.messages?.[session.id] || [], liveMessages.get(session.id))
+      .filter((message) => message.kind === "approval" && message.status === "pending")
+      .map((message) => ({ ...publicMessage(message), session_id: session.id, project_id: session.project_id, session_title: session.title })));
     return {
       generated_at: now(),
       projects: (store.projects || []).map(({ id, name }) => ({ id, name })),
       sessions: sessions.map(publicSession),
       selected_session_id: selected?.id || "",
       messages: selected ? projectedSessionMessages(store.messages?.[selected.id] || [], liveMessages.get(selected.id)).map(publicMessage) : [],
+      pending_approvals: pendingApprovals,
       draft: {
         project_id: String(selected?.project_id || store.chat?.draft?.project_id || ""),
         text: String(selected ? selected.draft || "" : store.chat?.draft?.text || "")
@@ -497,6 +501,7 @@ export function createChatCoordinator({
         status: "pending",
         approval_request_id: requestId,
         approval_method: request.method,
+        turn_id: session.turn_id,
         created_at: now(),
         updated_at: now()
       });
@@ -675,6 +680,8 @@ function publicMessage(message) {
     content: String(message.content || ""),
     status: String(message.status || "completed"),
     approval_request_id: String(message.approval_request_id || ""),
+    approval_method: String(message.approval_method || ""),
+    turn_id: String(message.turn_id || ""),
     created_at: String(message.created_at || ""),
     updated_at: String(message.updated_at || message.created_at || "")
   };

@@ -3,7 +3,7 @@ import { normalizeWorkset } from "./desktop/desktop-store.mjs";
 import { normalizeWorkInspectorWidth } from "./desktop/work-inspector-preference.mjs";
 import { taskAttachmentHasObjectKey } from "./work-task-attachment-content.mjs";
 
-const SECTION_NAMES = new Set(["overview", "organizations", "members", "tasks", "feedback", "tags"]);
+const SECTION_NAMES = new Set(["overview", "organizations", "members", "tasks", "feedback", "tags", "today"]);
 const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
 
 export function createPlatformCoordinator({ runManager, platformSource, workSync, automationCoordinator, now = () => new Date().toISOString() }) {
@@ -125,6 +125,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     ]);
     const selectedIds = new Set(activeWorkset?.project_ids || []);
     const selectedProjects = projectCatalog.filter((project) => selectedIds.has(String(project.id)));
+    const todayProjectIds = new Set(platform.today_project_ids || []);
     const automationProjects = new Map((automation.projects || []).map((project) => [String(project.id), project]));
 
     const governanceProjectMemberResults = governanceRequested
@@ -202,6 +203,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       user: automation.user,
       worksets: platform.worksets,
       active_workset: activeWorkset || null,
+      today_project_ids: [...todayProjectIds],
       ui_preferences: platform.ui_preferences,
       projects: projectCatalog.map((project) => projectProjection(project, automationProjects.get(String(project.id)))),
       organizations: governanceRequested ? organizations : [],
@@ -212,6 +214,10 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       project_members: projectMembers.map((member) => ({ ...member, project_name: projectCatalog.find((project) => String(project.id) === String(member.project_id))?.name || "" })),
       members: productWorkspaces.flatMap((workspace) => workspace.members),
       tasks: productWorkspaces.flatMap((workspace) => workspace.tasks),
+      today_tasks: sections.has("today")
+        ? projectCatalog.flatMap((project) => (localTaskResult(workProjection, String(project.id), {}, { tree: false }).value || [])
+          .map((task) => ({ ...task, project_id: String(project.id), project_name: String(project.name || "") })))
+        : [],
       task_trees: productWorkspaces.map((workspace) => workspace.task_tree).filter(Boolean),
       feedback_v1: productWorkspaces.flatMap((workspace) => workspace.feedback_v1),
       tags: productWorkspaces.flatMap((workspace) => workspace.tags),
@@ -386,6 +392,30 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     });
     await workSync.reconcile({ dispatch: false, reason: "workset-activated" });
     return { id };
+  }
+
+  async function setTodayProjects(projectIds = []) {
+    const ids = [...new Set((Array.isArray(projectIds) ? projectIds : []).map((item) => String(item || "").trim()).filter(Boolean))];
+    if (ids.length > 500) throw new TypeError("Today project scope cannot exceed 500 projects.");
+    await runManager.updateDesktopStore((store) => {
+      store.platform.today_project_ids = ids;
+      return store;
+    });
+    return { project_ids: ids };
+  }
+
+  async function setTodayPreference(input = {}) {
+    await runManager.updateDesktopStore((store) => {
+      const current = store.platform.ui_preferences.today || {};
+      store.platform.ui_preferences.today = {
+        selected_project_id: String(input.selected_project_id ?? current.selected_project_id ?? "all"),
+        selected_mode: String(input.selected_mode ?? current.selected_mode ?? ""),
+        selected_item_id: String(input.selected_item_id ?? current.selected_item_id ?? ""),
+        drafts: input.drafts && typeof input.drafts === "object" && !Array.isArray(input.drafts) ? input.drafts : current.drafts || {}
+      };
+      return store;
+    });
+    return { saved: true };
   }
 
   async function setWorkspacePreference(projectId, input = {}) {
@@ -680,6 +710,8 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     updateWorkset,
     deleteWorkset,
     setActiveWorkset,
+    setTodayProjects,
+    setTodayPreference,
     setWorkspacePreference,
     setWorkInspectorWidth,
     executeAction,

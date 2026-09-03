@@ -804,7 +804,28 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
     readFile(chatStateCoordinatorPath, "utf8")
   ]);
 
-  assert.match(html, /MULTI-PRODUCT TODAY/);
+  assert.match(html, /PERSONAL · TODAY/);
+  for (const id of ["todayProjectRail", "todayResponsibilityList", "todayOperator", "todayInterventionMode", "todayConfigurationMode"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.doesNotMatch(html, /跨产品下一步|todayPrimaryAction|todayMetricGrid|todayProductGrid|todayWorkList|todayAttentionList/);
+  assert.match(source, /deriveTodayWorkspace/);
+  assert.match(source, /async function performTodayAction\(item, action\)/);
+  assert.match(source, /async function openTodayProjectCatalog\(\)[\s\S]+从可访问项目中选择[\s\S]+新建个人项目[\s\S]+使用邀请码加入/);
+  assert.match(source, /api\.setTodayProjects\(nextIds\)/);
+  assert.match(source, /function hydrateTodayPreference\(preference = \{\}\)/);
+  assert.match(source, /api\.setTodayPreference\(preference\)/);
+  assert.doesNotMatch(source.match(/async function openTodayProjectCatalog\(\)[\s\S]*?\n\}/)?.[0] || "", /showPage\("organization"\)/);
+  assert.match(source, /setupByProject: state\.todaySetupByProject/);
+  assert.match(source, /sections: workSurface \? \["tasks"\] : \["overview", "organizations", "members", "tasks", "feedback", "today"\]/);
+  for (const capability of ["decideChatApproval", "submitIntervention", "confirmAutomationExternalDependency", "resolveAutomationRecovery", "submitAcceptanceFeedback", "retryFeedbackTaskLink", "setProjectParticipation"]) {
+    assert.match(source, new RegExp(capability));
+  }
+  assert.match(source, /state\.todaySubmittingItemId = item\.id[\s\S]*state\.todayResult = \{ item_id: item\.id/);
+  assert.match(source, /catch \(error\) \{\s*state\.todayActionError = error\?\.message \|\| String\(error\);\s*throw error;/);
+  assert.match(source, /delete state\.todayDrafts\[item\.id\]/);
+  assert.match(source, /来源已确认/);
+  assert.match(styles, /\.today-workspace \{[^}]*grid-template-columns: minmax\(210px, 250px\) minmax\(300px, 370px\) minmax\(420px, 1fr\)/);
   for (const page of ["today", "organization", "work", "command", "feedback"]) {
     assert.match(html, new RegExp(`data-page="${page}"`));
   }
@@ -1710,7 +1731,16 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /function setPlatformTaskSelectionIntent\(taskId = ""\) \{[\s\S]+markPlatformTaskSelectionIntent\(\);[\s\S]+state\.selectedPlatformTaskId = String\(taskId \|\| ""\)/);
   assert.match(source, /function invalidatePlatformTaskSelectionContext\(\) \{[\s\S]+state\.platformTaskSelectionContextEpoch \+= 1;[\s\S]+setPlatformTaskSelectionIntent\(""\);[\s\S]+async function logout\(\)[\s\S]+invalidatePlatformTaskSelectionContext\(\)/);
   assert.match(source, /data-platform-task-select[\s\S]+setPlatformTaskSelectionIntent\(row\.dataset\.platformTaskSelect\)/);
-  assert.match(source, /data-product-work[\s\S]+markPlatformTaskSelectionIntent\(\);\s+state\.selectedProjectId = button\.dataset\.productWork;\s+state\.platformWorkFilter = "";\s+showPage\("work"\)/);
+  assert.match(source, /data-today-open-work/);
+  assert.match(source, /function todayConfigurationActions\(item, setup\)/);
+  assert.match(source, /apply_project_setup: "确认写入项目环境"/);
+  assert.match(source, /recover_project_setup: "备份并恢复"/);
+  assert.match(source, /checkSetupReadinessForSelection\(item\.context\?\.local_project_id, \{ presentSetup: false \}\)/);
+  assert.match(source, /state\.todaySetupByProject\[localProjectId\] = await api\.applySetupPlan/);
+  assert.match(source, /state\.todaySetupByProject\[localProjectId\] = await api\.recoverSetupUpgrade/);
+  assert.match(source, /function renderTodaySourceContext\(item\)/);
+  assert.match(source, /work_replacement_recovery: "Work 移动收口"/);
+  assert.match(source, /retryTaskProjectReplacement\(item\.source_object_id\)/);
   assert.match(source, /function renderPlatformWork\(\)[\s\S]+state\.selectedPlatformTaskId = String\(tasks\[0\]\?\.id \|\| ""\)/);
   assert.match(source, /api\.onAutomationEvent\(\(\) => scheduleAutomationRefresh\(\)\)/);
   assert.match(source, /function scheduleAutomationRefresh\(delay = 80\)[\s\S]+if \(state\.refreshing\) \{\s*scheduleAutomationRefresh\(delay\);\s*return;\s*\}[\s\S]+refreshSnapshot\(\{ quiet: true \}\)/);

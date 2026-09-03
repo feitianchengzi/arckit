@@ -41,12 +41,11 @@ import {
 import {
   canManageProject,
   deriveAutomationGuidance,
-  deriveReadinessSteps,
   deriveTaskExecutorAutomationHelp,
-  deriveTodayGuidance,
   deriveWorkEligibilityGuidance,
   isCurrentProjectUser
 } from "../../src/desktop/today-guidance.mjs";
+import { deriveTodayWorkspace } from "../../src/desktop/today-workspace.mjs";
 
 const api = window.arckitDesktop;
 
@@ -135,6 +134,19 @@ const state = {
   codexInstallMethod: "",
   page: "today",
   selectedProjectId: "all",
+  todaySelectedProjectId: "all",
+  todayMode: "",
+  todaySelectedItemId: "",
+  todayProjectSearch: "",
+  todayDrafts: {},
+  todayResult: null,
+  todaySubmittingItemId: "",
+  todayActionError: "",
+  todaySetupByProject: {},
+  todaySetupOperationProjectId: "",
+  todayPreferenceHydrated: false,
+  todayPreferenceTimer: 0,
+  todayLastPersistedPreference: "",
   selectedState: "pending",
   acceptanceFeedbackOnly: false,
   selectedTaskId: "",
@@ -306,6 +318,12 @@ async function boot() {
     }
   }).catch(() => {});
   api.onSetupEvent((readiness) => {
+    if (state.todaySetupOperationProjectId) {
+      state.todaySetupByProject[state.todaySetupOperationProjectId] = readiness;
+      state.todayActionError = "";
+      if (state.page === "today") renderToday();
+      return;
+    }
     state.setup = readiness;
     state.setupActionError = "";
     renderSetup();
@@ -1133,7 +1151,7 @@ async function refreshSnapshot({ quiet = false, surface = "all" } = {}) {
         state: state.page === "tasks" ? state.selectedState : ""
       }),
       api.platformSnapshot({
-        sections: workSurface ? ["tasks"] : ["overview", "organizations", "members", "tasks", "feedback"],
+        sections: workSurface ? ["tasks"] : ["overview", "organizations", "members", "tasks", "feedback", "today"],
         task_filters: state.page === "work" ? platformTaskFilters() : {}
       }),
       workSurface ? Promise.resolve(state.authentication) : api.getAuthStatus()
@@ -1152,6 +1170,7 @@ async function refreshSnapshot({ quiet = false, surface = "all" } = {}) {
     invalidateTaskAttachmentCaches(state, { clearPending: identityChanged });
     state.snapshot = snapshot;
     state.platform = platform;
+    hydrateTodayPreference(platform.ui_preferences?.today);
     if (!workSurface) state.feedbackSnapshotEpoch += 1;
     syncWorkInspectorWidth(platform);
     const scopeIds = new Set((state.platform.organization_scopes || []).map((item) => String(item.id)));
@@ -1418,6 +1437,7 @@ async function refreshChat({ quiet = false, resetOwner = false } = {}) {
         result = await chatStateCoordinator.refresh({ quiet: nextQuiet, resetOwner: nextResetOwner });
       } finally {
         renderChat();
+        if (state.page === "today") renderToday();
       }
     }
     return result;
@@ -1699,78 +1719,434 @@ function renderWorkset() {
 }
 
 function renderToday() {
-  const platform = state.platform;
-  const workspaces = (platform.product_workspaces || []).filter(platformItemMatchesSelectedProject);
-  const tasks = (platform.tasks || []).filter(platformItemMatchesSelectedProject);
-  const ordinaryFeedback = (platform.feedback_v1 || []).filter(platformItemMatchesSelectedProject);
-  const openTasks = tasks.filter((task) => !task.terminal);
-  const attention = [
-    ...(platform.automation?.attention_items || []).map((item) => ({ ...item, kind_label: "人工介入" })),
-    ...(platform.automation?.recovery_items || []).map((item) => ({ ...item, kind_label: "恢复" })),
-    ...tasks.filter((task) => task.state === "blocked").map((task) => ({ ...task, task_id: task.id, kind_label: "待办阻塞", reason: task.content }))
-  ].filter(scopedTaskFilter);
-  const guidance = deriveTodayGuidance({
-    platform,
+  const view = deriveTodayWorkspace({
+    platform: state.platform,
     automation: state.snapshot,
     setup: state.setup,
-    authentication: state.authentication,
-    selectedProjectId: state.selectedProjectId
+    setupByProject: state.todaySetupByProject,
+    chat: chatState().snapshot,
+    feedbackLinkRecoveries: state.feedbackLinkRecoveries,
+    selectedProjectId: state.todaySelectedProjectId,
+    selectedMode: state.todayMode,
+    selectedItemId: state.todaySelectedItemId
   });
-  renderTodayPrimaryAction(guidance);
-  els.todaySummary.textContent = `${workspaces.length} 个产品在当前查看范围 · ${openTasks.length} 项未结束工作 · ${ordinaryFeedback.length} 条普通反馈。`;
-  els.platformHealthBadge.className = `health-badge ${platform.source_status === "healthy" ? "success" : platform.source_status === "degraded" ? "warning" : "danger"}`;
-  els.platformHealthBadge.textContent = platform.source_status === "healthy" ? "平台已同步" : platform.source_status === "degraded" ? "部分数据降级" : sourceStatusLabel(platform.source_status);
-  els.platformErrorHost.innerHTML = platform.errors.length
-    ? `<div class="platform-error"><strong>${platform.errors.length} 个数据区段未完成</strong><span>${escapeHtml([...new Set(platform.errors.map((item) => `${item.section}${item.project_id ? ` · ${projectName(item.project_id)}` : ""}`))].join("、"))}</span></div>`
+  state.todaySelectedProjectId = view.selected_project_id;
+  state.todayMode = view.mode;
+  state.todaySelectedItemId = view.selected_item_id;
+  const visibleProjects = view.projects.filter((project) => !state.todayProjectSearch || `${project.name} ${project.id}`.toLowerCase().includes(state.todayProjectSearch.toLowerCase()));
+  const sourceTone = state.platform.source_status === "healthy" ? "success" : state.platform.source_status === "degraded" ? "warning" : "danger";
+  els.todaySummary.textContent = view.counts.responsibilities
+    ? `${view.counts.responsibilities} 项明确责任正在等待你；普通工作继续留在各自页面。`
+    : "当前没有需要你介入的责任；这里只展示必要的自动状态。";
+  els.platformHealthBadge.className = `health-badge ${sourceTone}`;
+  els.platformHealthBadge.textContent = state.platform.source_status === "healthy" ? "来源已同步" : state.platform.source_status === "degraded" ? "部分来源未知" : sourceStatusLabel(state.platform.source_status);
+  els.todayFreshness.textContent = state.platform.generated_at ? `读取于 ${formatDateTime(state.platform.generated_at)}` : "尚无可信快照";
+  els.platformErrorHost.innerHTML = view.counts.unknown_sources
+    ? `<div class="platform-error"><strong>${view.counts.unknown_sources} 个来源状态未知</strong><span>保留最近可信责任；不会用 0 覆盖未知。</span><button class="secondary-button compact" data-today-retry-sources type="button">重试失败来源</button></div>`
     : "";
-  els.todayMetricGrid.innerHTML = [
-    metric("当前产品集", workspaces.length, state.platform.active_workset?.name || "尚未创建", "healthy"),
-    metric("待推进", tasks.filter((task) => ["pending_review", "pending"].includes(task.state)).length, "完整团队待办，不限当前执行人", ""),
-    metric("进行中", tasks.filter((task) => task.state === "in_progress").length, platform.automation?.active_execution ? "ArcOrbit 有 1 个活动执行" : "ArcOrbit 当前待命", "running"),
-    metric("需注意", attention.length, attention.length ? "阻塞、人工判断或恢复" : "当前没有异常", attention.length ? "attention" : ""),
-    metric("用户反馈", ordinaryFeedback.length, ordinaryFeedback.length ? "来自 Workshop Feedback" : "当前没有用户反馈", "")
+  els.todayInterventionCount.textContent = String(view.counts.responsibilities);
+  els.todayConfigurationCount.textContent = String(view.counts.configuration_incomplete);
+  document.querySelectorAll("[data-today-mode]").forEach((button) => {
+    const active = button.dataset.todayMode === view.mode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+    button.addEventListener("click", () => {
+      state.todayMode = button.dataset.todayMode;
+      state.todaySelectedItemId = "";
+      state.todayActionError = "";
+      scheduleTodayPreferencePersistence();
+      renderToday();
+    }, { once: true });
+  });
+  els.todayProjectSearch.value = state.todayProjectSearch;
+  els.todayProjectSearch.oninput = () => { state.todayProjectSearch = els.todayProjectSearch.value; renderToday(); };
+  els.todayProjectRail.innerHTML = [
+    `<button class="today-project-row ${view.selected_project_id === "all" ? "is-active" : ""}" data-today-project="all" type="button"><span><strong>全部项目</strong><small>${view.projects.length} 个相关项目</small></span><em>${view.counts.responsibilities}</em></button>`,
+    ...visibleProjects.map((project) => `<button class="today-project-row ${view.selected_project_id === project.id ? "is-active" : ""}" data-today-project="${escapeHtml(project.id)}" type="button"><i>${escapeHtml((project.name || "P").slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name || project.id)}</strong><small>${todayProjectStatus(project)}</small></span>${project.responsibility_count ? `<em>${project.responsibility_count}</em>` : ""}</button>`)
   ].join("");
-  els.todayProductGrid.innerHTML = workspaces.length ? workspaces.map((workspace) => {
-    const open = Object.entries(workspace.task_counts || {}).filter(([key]) => !["completed", "accepted", "cancelled"].includes(key)).reduce((sum, [, value]) => sum + Number(value || 0), 0);
-    const projectErrors = (platform.errors || []).filter((error) => !error.project_id || String(error.project_id) === String(workspace.id));
-    const connection = projectErrors.length
-      ? "连接状态部分未知"
-      : !workspace.local_project_path ? "仅远端 · 未绑定目录"
-        : !workspace.participating ? "本地已绑定 · 未授权领取"
-          : workspace.source_status === "healthy" ? "连接完整" : `连接 · ${workspace.source_status || "未知"}`;
-    const projectTasks = tasks.filter((task) => String(task.project_id) === String(workspace.id));
-    const running = (state.snapshot.active_executions || []).filter((execution) => String(execution.project_id) === String(workspace.id)).length;
-    const work = projectErrors.length
-      ? "当前工作部分未知"
-      : `${Number(workspace.task_counts?.pending_review || 0)} 待评审 · ${Number(workspace.task_counts?.pending || 0)} 待处理 · ${running} 运行`;
-    return `<button class="product-card" data-product-work="${escapeHtml(workspace.id)}" type="button"><span class="product-card-head"><i>${escapeHtml(workspace.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(workspace.name)}</strong><small>${escapeHtml(workspace.current_user_role || "member")} · ${escapeHtml(connection)}</small></span></span><span class="product-card-readiness"><span><small>项目连接</small><strong>${escapeHtml(connection)}</strong></span><span><small>当前工作</small><strong>${escapeHtml(work)}</strong></span></span><span class="product-card-stats"><b>${open}<small>未结束</small></b><b>${projectTasks.filter((task) => task.state === "completed").length}<small>待审查</small></b><b>${workspace.feedback_count}<small>反馈</small></b></span><span class="product-card-foot"><em class="status-pill ${projectErrors.length ? "blocked" : workspace.eligible ? "accepted" : "pending_review"}">${projectErrors.length ? "部分未知" : workspace.eligible ? "可自动执行" : workspace.participating ? "待满足执行条件" : "未授权自动领取"}</em><small>打开工作 →</small></span></button>`;
-  }).join("") : `<div class="empty-state platform-empty">当前产品集未选择产品。使用顶部“管理”选择一个或多个项目。</div>`;
-  els.todayProductGrid.querySelectorAll("[data-product-work]").forEach((button) => button.addEventListener("click", () => {
-    markPlatformTaskSelectionIntent();
-    state.selectedProjectId = button.dataset.productWork;
-    state.platformWorkFilter = "";
-    showPage("work");
+  els.todayProjectRail.querySelectorAll("[data-today-project]").forEach((button) => button.addEventListener("click", () => {
+    state.todaySelectedProjectId = button.dataset.todayProject;
+    state.todaySelectedItemId = "";
+    state.todayActionError = "";
+    scheduleTodayPreferencePersistence();
+    renderToday();
   }));
-  els.todayWorkList.innerHTML = openTasks.length ? `<div class="compact-list">${rankTasks(openTasks).slice(0, 8).map(platformTaskRow).join("")}</div>` : `<div class="empty-state compact">当前产品集没有未结束待办。</div>`;
-  els.todayAttentionList.innerHTML = attention.length ? `<div class="compact-list">${attention.slice(0, 8).map((item) => `<div class="compact-row attention"><span><strong>${escapeHtml(item.title || item.reason || item.task_id || "需要处理")}</strong><small>${escapeHtml(projectName(item.project_id))} · ${escapeHtml(item.kind_label)}</small></span><em>${escapeHtml(item.task_id || item.id || "")}</em></div>`).join("")}</div>` : `<div class="empty-state compact">当前没有人工介入、恢复或阻塞项。</div>`;
+  const items = view.mode === "configuration" ? view.configurations : view.interventions;
+  const readyHandoff = view.mode === "configuration" && view.non_human_summary.ready_projects > 0 && items.length
+    ? `<div class="today-ready-handoff"><span><strong>${view.non_human_summary.ready_projects} 个项目已可使用</strong><small>按真实需要到 Work 新建待办</small></span><button class="secondary-button compact" data-today-open-work type="button">前往 Work</button></div>`
+    : "";
+  els.todayResponsibilityList.innerHTML = items.length
+    ? `${readyHandoff}${items.map((item) => todayResponsibilityRow(item, view.selected_item_id)).join("")}`
+    : todayEmptyState(view);
+  els.todayResponsibilityList.querySelectorAll("[data-today-item]").forEach((button) => button.addEventListener("click", () => {
+    state.todaySelectedItemId = button.dataset.todayItem;
+    state.todayActionError = "";
+    scheduleTodayPreferencePersistence();
+    renderToday();
+  }));
+  els.todayAutomaticSummary.innerHTML = `<strong>系统状态</strong><span>${view.non_human_summary.ready_projects} 个项目可自动工作 · ${view.non_human_summary.running_projects} 个正在推进${view.non_human_summary.automatic_recovery_projects ? ` · ${view.non_human_summary.automatic_recovery_projects} 个自动恢复中` : ""}</span>`;
+  els.todayOperator.innerHTML = `${renderTodayResult()}${renderTodayOperator(view.selected_item, view)}`;
+  wireTodayOperatorDraft(view.selected_item);
+  els.todayOperator.querySelectorAll("[data-today-action]").forEach((button) => button.addEventListener("click", () => runAction(() => performTodayAction(view.selected_item, button.dataset.todayAction))));
+  els.todayResponsibilityList.querySelector("[data-today-open-work]")?.addEventListener("click", () => showPage("work"));
+  els.todayResponsibilityList.querySelector("[data-today-empty-add]")?.addEventListener("click", () => runAction(openTodayProjectCatalog));
+  els.todayAddProjectButton.onclick = () => runAction(openTodayProjectCatalog);
+  els.platformErrorHost.querySelector("[data-today-retry-sources]")?.addEventListener("click", () => runAction(() => refreshSnapshot()));
+  els.attentionNavCount.textContent = view.counts.unknown_sources ? `${view.counts.responsibilities}+?` : String(view.counts.responsibilities);
 }
 
-function renderTodayPrimaryAction(guidance) {
-  const workspace = guidance.workspace;
-  const userTasks = (state.snapshot.tasks || []).filter((task) => !workspace || String(task.project_id) === String(workspace.id));
-  const steps = deriveReadinessSteps({
-    workspace,
-    setup: state.setup,
-    automation: state.snapshot,
-    userTasks,
-    unknown: guidance.kind === "unknown"
+function renderTodayResult() {
+  if (!state.todayResult && !state.todayActionError) return "";
+  if (state.todayActionError) return `<div class="today-action-result is-error"><strong>来源未确认操作</strong><span>${escapeHtml(state.todayActionError)}</span></div>`;
+  return `<div class="today-action-result is-success"><strong>来源已确认</strong><span>${escapeHtml(state.todayResult.message)} · ${escapeHtml(state.todayResult.source_object_id || "")} · ${escapeHtml(formatDateTime(state.todayResult.confirmed_at))}</span></div>`;
+}
+
+function todayProjectStatus(project) {
+  if (!project.in_today_scope) return project.responsibility_count ? `${project.responsibility_count} 项需要你处理` : "责任来源项目";
+  if (project.configuration.blocker?.code === "project_source_unknown") return "状态未知";
+  if (!project.configuration.ready) return project.configuration.blocker?.label || "配置未完成";
+  if (project.automatic_status === "running") return "自动推进中";
+  return "配置完成 · 当前待命";
+}
+
+function todayResponsibilityRow(item, selectedId) {
+  const selected = item.id === selectedId ? "is-active" : "";
+  const label = todayKindLabel(item.kind);
+  return `<button class="today-responsibility-row ${selected}" data-today-item="${escapeHtml(item.id)}" type="button"><span class="today-responsibility-kind">${escapeHtml(label)}</span><strong>${escapeHtml(item.title || "需要处理")}</strong><p>${escapeHtml(item.reason || "")}</p><small>${escapeHtml(projectName(item.project_id))}${item.updated_at ? ` · ${escapeHtml(formatDateTime(item.updated_at))}` : ""}</small></button>`;
+}
+
+function todayKindLabel(kind) {
+  return ({ project_configuration: "项目配置", chat_approval: "Chat 授权", automation_attention: "Automation 决定", automation_recovery: "Automation 恢复", feedback_link_recovery: "Feedback 收口", work_replacement_recovery: "Work 移动收口", work_pending_review: "Work 确认", work_completed: "Work 验收", work_blocked: "Work 阻塞" })[kind] || "人工责任";
+}
+
+function todayEmptyState(view) {
+  if (view.mode === "configuration" && view.counts.configured_projects === 0) return `<div class="today-list-empty"><strong>先添加一个项目</strong><p>可以新建个人项目、从可访问目录选择，或使用邀请码加入。</p><button class="primary-button" data-today-empty-add type="button">添加项目</button></div>`;
+  if (view.mode === "configuration") return `<div class="today-list-empty"><strong>当前范围配置完成</strong><p>项目已满足 Automation 执行前置；创建待办请前往 Work。</p><button class="secondary-button" data-today-open-work type="button">前往 Work 新建待办</button></div>`;
+  return `<div class="today-list-empty"><strong>没有需要你处理的事情</strong><p>Automation 和其他页面会在责任明确交给你时发布到这里。</p></div>`;
+}
+
+function renderTodayOperator(item, view) {
+  if (!item) return `<div class="today-operator-empty"><span>✓</span><h2>${view.mode === "configuration" ? "选择一个项目继续配置" : "当前无需人工介入"}</h2><p>${view.mode === "configuration" ? "项目之间独立检查；配置一个项目不会中断其他项目。" : "普通待办、完整运行进度和已处理历史不会出现在 Today。"}</p></div>`;
+  const project = view.projects.find((candidate) => candidate.id === item.project_id) || item.context || {};
+  if (item.kind === "project_configuration") return renderTodayConfigurationOperator(item, project);
+  const draft = state.todayDrafts[item.id] || "";
+  const automationTimeline = item.source === "automation" ? `<section class="today-operator-section"><h3>人机接力</h3><div class="today-handoff-timeline"><span class="is-complete">自动执行</span><span class="is-current">等待你</span><span>来源校验</span><span>恢复原执行</span></div></section>` : "";
+  const contextRows = [
+    ["项目", project.name || projectName(item.project_id)],
+    ["来源", todayKindLabel(item.kind)],
+    ["对象", item.source_object_id || "—"],
+    ["最近同步", item.updated_at ? formatDateTime(item.updated_at) : "当前快照"]
+  ];
+  const needsDraft = item.source === "automation" || item.actions.includes("raise_acceptance_issue");
+  const busy = state.todaySubmittingItemId === item.id;
+  return `<div class="today-operator-scroll"><header class="today-operator-header"><div><p class="eyebrow">${escapeHtml(todayKindLabel(item.kind))}</p><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(project.name || projectName(item.project_id))}</p></div><span class="status-pill ${busy ? "in_progress" : "pending_review"}">${busy ? "提交中" : "等待你"}</span></header><section class="today-operator-section today-reason"><h3>为什么需要你</h3><p>${escapeHtml(item.reason)}</p><small>不处理会使当前来源对象保持等待或留下未收口事务。</small></section>${renderTodaySourceContext(item)}<section class="today-operator-section"><h3>关联身份</h3><dl class="today-facts">${contextRows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></section>${automationTimeline}<section class="today-operator-section"><h3>操作</h3>${needsDraft ? `<label class="today-field"><span>${item.actions.includes("raise_acceptance_issue") ? "验收问题或补充说明" : "补充说明"}</span><textarea data-today-draft rows="4" placeholder="切换项目或责任项不会丢失当前输入。">${escapeHtml(draft)}</textarea></label>` : `<p class="today-action-explanation">提交后由来源确认新状态；确认前不会从 Today 移除。</p>`}</section></div><footer class="today-operator-actions">${item.actions.map((action, index) => `<button class="${index === 0 ? "primary-button" : "secondary-button"}" data-today-action="${escapeHtml(action)}" type="button" ${busy ? "disabled aria-busy=\"true\"" : ""}>${busy ? "正在等待来源…" : escapeHtml(todayActionLabel(action))}</button>`).join("")}</footer>`;
+}
+
+function renderTodaySourceContext(item) {
+  if (item.source === "chat") return todayContextSection("请求边界", [
+    ["会话", item.context?.session_title || item.context?.session_id],
+    ["Turn", item.context?.turn_id],
+    ["Request", item.source_object_id],
+    ["工具动作", item.context?.approval_method || item.context?.content],
+    ["授权范围", "仅当前请求；拒绝结果同样返回原 turn"]
+  ]);
+  if (item.kind === "work_replacement_recovery") return todayContextSection("部分成功事务", [
+    ["源待办", item.source_task_id],
+    ["目标待办", item.target_task_id],
+    ["目标项目", projectName(item.target_project_id)],
+    ["恢复边界", "只删除源待办，绝不再次创建目标待办"]
+  ]);
+  if (item.source === "work") {
+    const issues = (item.acceptance_feedback_items || []).map((issue) => `<li><strong>${escapeHtml(issue.original_feedback || issue.title || issue.feedback_id || "验收问题")}</strong><small>${escapeHtml(issue.status || "unknown")}${issue.progress ? ` · ${escapeHtml(issue.progress)}` : ""}</small></li>`).join("");
+    return `<section class="today-operator-section"><h3>完整待办上下文</h3><p class="today-source-copy">${escapeHtml(item.content || item.blocked_reason || "来源未提供更多内容。")}</p><dl class="today-facts">${todayFactRows([["状态", item.state], ["提交者", item.creator_name || item.creator_id], ["执行人", item.executor_name || item.executor_id], ["版本", item.version], ["优先级", item.priority ?? item.raw?.priority]])}</dl>${issues ? `<details class="today-context-disclosure"><summary>验收问题 · ${(item.acceptance_feedback_items || []).length}</summary><ul>${issues}</ul></details>` : ""}</section>`;
+  }
+  if (item.source === "feedback") return todayContextSection("关联事务", [
+    ["Feedback", item.feedback_id || item.source_object_id],
+    ["已创建 Task", item.task_id],
+    ["事务身份", item.transaction_id || item.idempotency_key || item.source_item_id],
+    ["恢复边界", "只重试关联，不创建第二个 Task"]
+  ]);
+  if (item.source === "automation") return todayContextSection(item.kind === "automation_recovery" ? "恢复证据" : "决定上下文", [
+    ["Task", item.task_id],
+    ["Run / Execution", item.run_id || item.execution_id],
+    ["Case", item.case_id],
+    ["Thread / Session", item.thread_id || item.session_id],
+    ["冻结范围", item.freeze_scope || "当前项目 lane"],
+    ["恢复类型", item.source_kind || item.type]
+  ]);
+  return "";
+}
+
+function todayFactRows(rows) {
+  return rows.filter(([, value]) => value !== undefined && value !== null && String(value) !== "").map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join("");
+}
+
+function todayContextSection(title, rows) {
+  const facts = todayFactRows(rows);
+  return facts ? `<section class="today-operator-section"><h3>${escapeHtml(title)}</h3><dl class="today-facts">${facts}</dl></section>` : "";
+}
+
+function renderTodayConfigurationOperator(item, project) {
+  const configuration = item.configuration;
+  const setup = todayProjectSetup(project);
+  const setupDetails = configuration.blocker?.code === "setup_action_required" ? renderTodaySetupDetails(setup) : "";
+  const actions = todayConfigurationActions(item, setup);
+  return `<div class="today-operator-scroll"><header class="today-operator-header"><div><p class="eyebrow">PROJECT CONFIGURATION</p><h2>${escapeHtml(project.name || item.project_id)}</h2><p>当前设备上的 Automation 执行前置</p></div><span class="status-pill ${configuration.ready ? "accepted" : "pending_review"}">${configuration.ready ? "READY" : "待配置"}</span></header><section class="today-operator-section today-reason"><h3>当前唯一阻塞</h3><p>${escapeHtml(configuration.blocker?.label || "配置完成")}</p><small>待办数量、全局自动领取、队列和第一次运行不属于项目配置。</small></section><section class="today-operator-section"><h3>四项完成口径</h3><div class="today-readiness-list">${configuration.steps.map((step) => `<div class="${step.complete ? "is-complete" : ""}"><i>${step.complete ? "✓" : "○"}</i><span><strong>${escapeHtml(step.label)}</strong><small>${step.complete ? "已确认" : step.id === configuration.blocker?.code ? "当前" : "等待前置"}</small></span></div>`).join("")}</div></section>${setupDetails}<section class="today-operator-section"><h3>项目与设备</h3><dl class="today-facts"><div><dt>项目</dt><dd>${escapeHtml(project.name || item.project_id)}</dd></div><div><dt>本地目录</dt><dd>${escapeHtml(project.local_project_path || "尚未选择")}</dd></div><div><dt>参与范围</dt><dd>当前用户 · 当前设备</dd></div></dl></section></div><footer class="today-operator-actions">${actions.map((action, index) => `<button class="${index === 0 ? "primary-button" : "secondary-button"}" data-today-action="${escapeHtml(action)}" type="button">${escapeHtml(todayActionLabel(action))}</button>`).join("")}</footer>`;
+}
+
+function todayProjectSetup(project = {}) {
+  const projectId = String(project.id || "");
+  const localProjectId = String(project.local_project_id || "");
+  return state.todaySetupByProject[projectId] || state.todaySetupByProject[localProjectId] || null;
+}
+
+function todayConfigurationActions(item, setup) {
+  if (item.configuration?.blocker?.code !== "setup_action_required" || !setup) return item.actions;
+  if (setup.can_apply) return ["apply_project_setup", "check_setup"];
+  if (setup.can_recover) return ["recover_project_setup", "check_setup"];
+  if (["blocked", "conflict"].includes(setup.status)) return ["copy_project_setup_guide", "check_setup"];
+  return item.actions;
+}
+
+function renderTodaySetupDetails(setup) {
+  if (!setup) return "";
+  const counts = setup.drift?.counts || {};
+  const targets = (setup.plan?.project_roots || []).slice(0, 4);
+  const conflicts = setup.source_upgrade?.items || setup.drift?.conflicts || [];
+  return `<section class="today-operator-section"><h3>项目 Setup 事实</h3><dl class="today-facts"><div><dt>检查状态</dt><dd>${escapeHtml(String(setup.status || "unknown"))}</dd></div><div><dt>变更摘要</dt><dd>新增 ${Number(counts.missing || 0)} · 变化 ${Number(counts.changed || 0)} · 冲突 ${conflicts.length}</dd></div>${targets.length ? `<div class="wide"><dt>写入目标</dt><dd>${targets.map((target) => escapeHtml(target)).join("<br>")}</dd></div>` : ""}${setup.error?.message ? `<div class="wide"><dt>阻塞原因</dt><dd>${escapeHtml(setup.error.message)}</dd></div>` : ""}</dl><p class="today-action-explanation">写入或恢复会先显示准确边界并要求确认；操作完成后只重新计算此项目。</p></section>`;
+}
+
+function todayActionLabel(action) {
+  return ({ bind_workspace: "选择本地目录", check_setup: "重新检查项目环境", apply_project_setup: "确认写入项目环境", recover_project_setup: "备份并恢复", copy_project_setup_guide: "复制恢复说明", enable_project: "允许本机参与", retry_project_source: "重试项目来源", allow_once: "本次允许", decline_and_continue: "拒绝并继续", submit_intervention: "提交决定", confirm_external_dependency: "已处理，重新检查", retry_start: "重试同一启动", feedback_continue: "补充说明并继续", retry_case_reuse: "复用已有 Case", retry_as_new_case: "作为新事项继续", retry_sync: "重新同步", retry_cli_handoff: "重试交接", retry_complete: "重试写回", accept_server_state: "接受服务器事实", mark_blocked: "标记阻塞", confirm_work: "确认可处理", accept_work: "标记已验收", raise_acceptance_issue: "提出验收问题", return_work: "返回待处理", cancel_work: "取消待办", retry_feedback_link: "仅重试关联", retry_task_replacement: "重试删除源待办", keep_task_replacement: "保留两份" })[action] || action;
+}
+
+function wireTodayOperatorDraft(item) {
+  const textarea = els.todayOperator.querySelector("[data-today-draft]");
+  if (textarea && item) textarea.addEventListener("input", () => {
+    state.todayDrafts[item.id] = textarea.value;
+    scheduleTodayPreferencePersistence(300);
   });
-  const source = workspace ? `<span>${escapeHtml(workspace.name)}</span>` : "";
-  const actionButton = guidance.action_id
-    ? `<button class="${guidance.tone === "info" ? "secondary-button" : "primary-button"}" data-guidance-action="${escapeHtml(guidance.action_id)}" type="button">${escapeHtml(guidance.action_label)}</button>`
-    : "";
-  els.todayPrimaryAction.innerHTML = `<div class="today-primary-copy"><p class="eyebrow">唯一下一步 ${source}</p><h2>${escapeHtml(guidance.title)}</h2><p>${escapeHtml(guidance.reason)}</p></div><div class="today-primary-controls">${actionButton}<details class="today-readiness-details"><summary>查看全部准备关系</summary><div>${steps.map((step, index) => `<span class="readiness-step ${escapeHtml(step.status)}"><i>${step.status === "complete" ? "✓" : step.status === "unknown" ? "?" : index + 1}</i><strong>${escapeHtml(step.label)}</strong><small>${step.status === "complete" ? "完成" : step.status === "current" ? "当前" : step.status === "unknown" ? "未知" : "稍后"}</small></span>`).join("")}</div></details></div>`;
-  els.todayPrimaryAction.querySelector("[data-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(guidance)));
+}
+
+function todayPreference() {
+  return {
+    selected_project_id: state.todaySelectedProjectId,
+    selected_mode: state.todayMode,
+    selected_item_id: state.todaySelectedItemId,
+    drafts: state.todayDrafts
+  };
+}
+
+function hydrateTodayPreference(preference = {}) {
+  if (state.todayPreferenceHydrated) return;
+  state.todaySelectedProjectId = String(preference.selected_project_id || "all");
+  state.todayMode = ["intervention", "configuration"].includes(preference.selected_mode) ? preference.selected_mode : "";
+  state.todaySelectedItemId = String(preference.selected_item_id || "");
+  state.todayDrafts = preference.drafts && typeof preference.drafts === "object" ? { ...preference.drafts } : {};
+  state.todayPreferenceHydrated = true;
+  state.todayLastPersistedPreference = JSON.stringify(todayPreference());
+}
+
+function scheduleTodayPreferencePersistence(delay = 80) {
+  window.clearTimeout(state.todayPreferenceTimer);
+  state.todayPreferenceTimer = window.setTimeout(async () => {
+    const preference = todayPreference();
+    const serialized = JSON.stringify(preference);
+    if (serialized === state.todayLastPersistedPreference) return;
+    try {
+      await api.setTodayPreference(preference);
+      state.todayLastPersistedPreference = serialized;
+    } catch (error) {
+      showToast(`Today 状态保存失败：${error?.message || String(error)}`, true);
+    }
+  }, delay);
+}
+
+async function performTodayAction(item, action) {
+  if (!item || state.todaySubmittingItemId) return;
+  state.todaySubmittingItemId = item.id;
+  state.todayActionError = "";
+  state.todayResult = null;
+  renderToday();
+  try {
+    const draft = String(state.todayDrafts[item.id] || "").trim();
+    if (action === "allow_once" || action === "decline_and_continue") {
+      await api.decideChatApproval({ session_id: item.context?.session_id, request_id: item.source_object_id, decision: action === "allow_once" ? "accept" : "decline" });
+      await refreshChat({ quiet: true });
+    } else if (action === "submit_intervention") {
+      if (!draft) throw new Error("请先填写要交给 Agent 的决定或事实。");
+      await api.submitIntervention({ execution_id: item.execution_id || state.snapshot.selected_execution_id, taskId: item.task_id, message: draft });
+      await refreshSnapshot({ quiet: true });
+    } else if (action === "confirm_external_dependency") {
+      await api.confirmAutomationExternalDependency({ execution_id: item.execution_id || state.snapshot.selected_execution_id });
+      await refreshSnapshot({ quiet: true });
+    } else if (item.kind === "automation_recovery") {
+      if (action === "feedback_continue" && !draft) throw new Error("请先填写补充说明。");
+      await api.resolveAutomationRecovery({ recoveryId: item.source_item_id, action, message: action === "feedback_continue" ? draft : "" });
+      await refreshSnapshot({ quiet: true });
+    } else if (action === "confirm_work") {
+      await executeManagedAction("task.update", { task_id: item.source_object_id, state: "pending", expected_state: "pending_review" }, "待办已确认为待处理");
+    } else if (action === "accept_work") {
+      const openIssues = (item.acceptance_feedback_items || []).filter((issue) => !["resolved", "cancelled"].includes(issue.status));
+      if (openIssues.length) throw new Error(`仍有 ${openIssues.length} 个验收问题未解决，暂不能标记已验收。`);
+      await executeManagedAction("task.update", { task_id: item.source_object_id, state: "accepted", expected_state: "completed" }, "待办已验收");
+    } else if (action === "raise_acceptance_issue") {
+      if (!draft) throw new Error("请先描述验收问题。");
+      const idempotencyKey = globalThis.crypto?.randomUUID?.() || `${item.source_object_id}-${Date.now()}`;
+      await api.submitAcceptanceFeedback({ taskId: item.source_object_id, message: draft, idempotencyKey });
+      await refreshSnapshot({ quiet: true });
+    } else if (action === "return_work" || action === "cancel_work") {
+      const nextState = action === "return_work" ? "pending" : "cancelled";
+      await executeManagedAction("task.update", { task_id: item.source_object_id, state: nextState, expected_state: "blocked" }, action === "return_work" ? "待办已返回待处理" : "待办已取消");
+    } else if (action === "retry_feedback_link") {
+      await retryFeedbackTaskLink(item.source_object_id);
+    } else if (action === "retry_task_replacement") {
+      await retryTaskProjectReplacement(item.source_object_id);
+    } else if (action === "keep_task_replacement") {
+      await keepTaskProjectReplacement(item.source_object_id);
+    } else if (action === "bind_workspace") {
+      await bindProjectWorkspace(item.context, { surface: "today" });
+    } else if (action === "check_setup") {
+      await checkSetupReadinessForSelection(item.context?.local_project_id, { presentSetup: false });
+      await refreshSnapshot({ quiet: true });
+    } else if (["apply_project_setup", "recover_project_setup", "copy_project_setup_guide"].includes(action)) {
+      const completed = await performTodayProjectSetupAction(item, action);
+      if (!completed) return;
+      await refreshSnapshot({ quiet: true });
+    } else if (action === "enable_project") {
+      await api.setProjectParticipation(item.project_id, true);
+      await refreshSnapshot({ quiet: true });
+    } else if (action === "retry_project_source") {
+      await refreshSnapshot({ quiet: true });
+    } else {
+      throw new Error(`Today 尚不支持动作 ${action}。`);
+    }
+    delete state.todayDrafts[item.id];
+    state.todaySelectedItemId = "";
+    scheduleTodayPreferencePersistence();
+    state.todayResult = { item_id: item.id, source_object_id: item.source_object_id, message: `${todayKindLabel(item.kind)}已完成，来源状态已更新`, confirmed_at: new Date().toISOString() };
+  } catch (error) {
+    state.todayActionError = error?.message || String(error);
+    throw error;
+  } finally {
+    state.todaySubmittingItemId = "";
+    renderToday();
+    if (state.todayResult) window.setTimeout(() => { state.todayResult = null; if (state.page === "today") renderToday(); }, 4200);
+  }
+}
+
+async function performTodayProjectSetupAction(item, action) {
+  const localProjectId = String(item.context?.local_project_id || "");
+  const setup = todayProjectSetup(item.context);
+  if (!localProjectId || !setup) throw new Error("项目 Setup 事实已变化，请重新检查。");
+  if (action === "copy_project_setup_guide") {
+    await navigator.clipboard.writeText(setupRecoveryGuide(setup));
+    showToast("项目恢复说明已复制。", false);
+    return true;
+  }
+  state.todaySetupOperationProjectId = localProjectId;
+  try {
+    if (action === "apply_project_setup") {
+      const targets = (setup.plan?.project_roots || []).join("\n") || item.context?.local_project_path || localProjectId;
+      if (!window.confirm(`将按当前 fresh plan 写入此项目的受管理能力：\n\n${targets}\n\nPlan digest：${setup.plan?.digest || "未提供"}\n\n未列出的项目和目录不会改变。是否继续？`)) return false;
+      state.todaySetupByProject[localProjectId] = await api.applySetupPlan({ planDigest: setup.plan?.digest });
+      return true;
+    }
+    const upgrade = setup.source_upgrade || {};
+    const recoveryAction = upgrade.can_backup_and_restore
+      ? "backup-and-restore"
+      : upgrade.can_backup_and_reinstall
+        ? "backup-and-reinstall"
+        : upgrade.can_backup_and_overwrite_selected ? "backup-and-overwrite-selected" : "";
+    if (!recoveryAction) throw new Error("当前检查没有可执行的安全恢复路径，请复制恢复说明。");
+    let selectedPaths = [];
+    if (recoveryAction === "backup-and-overwrite-selected") {
+      const eligible = (upgrade.items || []).filter((entry) => entry.recovery_eligible);
+      const values = await openPlatformAction({
+        title: `恢复 ${item.context?.name || "项目"} 的 Setup`,
+        lead: `先备份所选同名能力，再使用当前 ArcOrbit 应用包恢复。备份位置：${upgrade.recovery_root || "由主进程确定"}`,
+        confirmLabel: "备份并恢复所选",
+        fields: [platformCheckboxGroup("paths", "选择可安全恢复的目标", eligible.map((entry) => ({ value: entry.path, label: entry.name || entry.path, detail: entry.reason || entry.path })))]
+      });
+      if (!values) return false;
+      selectedPaths = Array.isArray(values.paths) ? values.paths : values.paths ? [values.paths] : [];
+      if (!selectedPaths.length) throw new Error("请至少选择一个可恢复目标。");
+    } else if (!window.confirm("ArcOrbit 会先完整备份当前内容，再按 fresh assessment 恢复此项目的受管理能力。未列出的内容不会改变。是否继续？")) return false;
+    state.todaySetupByProject[localProjectId] = await api.recoverSetupUpgrade({ assessmentDigest: upgrade.digest, action: recoveryAction, selectedPaths });
+    return true;
+  } finally {
+    state.todaySetupOperationProjectId = "";
+  }
+}
+
+async function openTodayProjectCatalog() {
+  const selected = new Set((state.platform.today_project_ids || []).map(String));
+  const accessibleProjects = (state.platform.projects || []).filter((project) => !selected.has(String(project.id)));
+  const sourceField = platformField("source", "项目来源", {
+    type: "select",
+    value: accessibleProjects.length ? "accessible" : "create_personal",
+    options: [
+      { value: "accessible", label: "从可访问项目中选择" },
+      { value: "create_personal", label: "新建个人项目" },
+      { value: "invitation", label: "使用邀请码加入" }
+    ]
+  });
+  const action = openPlatformAction({
+    title: "添加项目到 Today",
+    lead: "项目会立即进入 Today 的独立配置流程；这里不创建待办，也不修改组织角色或其他设备。",
+    confirmLabel: "添加项目",
+    fields: [
+      sourceField,
+      `<div data-today-project-source="accessible">${platformCheckboxGroup("project_ids", "可访问项目（可多选）", accessibleProjects.map((project) => ({ value: project.id, label: project.name, detail: project.organization_id ? organizationName(project.organization_id) : "个人项目" })))}</div>`,
+      `<div data-today-project-source="create_personal">${platformField("name", "个人项目名称", { placeholder: "例如：ArcOrbit Desktop" })}${platformField("git_url", "Git 地址", { placeholder: "可选" })}</div>`,
+      `<div data-today-project-source="invitation">${platformField("invite_kind", "邀请类型", { type: "select", options: [{ value: "project", label: "项目邀请" }, { value: "organization", label: "组织邀请" }] })}${platformField("invite_code", "邀请码", { placeholder: "输入收到的邀请码" })}</div>`
+    ],
+    onSubmit: async (values) => {
+      const beforeIds = new Set((state.platform.projects || []).map((project) => String(project.id)));
+      let addedIds = [];
+      if (values.source === "accessible") {
+        addedIds = Array.isArray(values.project_ids) ? values.project_ids : values.project_ids ? [values.project_ids] : [];
+        if (!addedIds.length) throw new Error("请至少选择一个可访问项目。");
+      } else if (values.source === "create_personal") {
+        const name = String(values.name || "").trim();
+        if (!name) throw new Error("请输入个人项目名称。");
+        const created = await executeManagedAction("project.create", { name, git_url: String(values.git_url || "").trim() }, "个人项目已创建", { refresh: false });
+        const createdId = String(created?.id || created?.project?.id || "");
+        if (createdId) addedIds = [createdId];
+      } else {
+        const inviteCode = String(values.invite_code || "").trim();
+        if (!inviteCode) throw new Error("请输入邀请码。");
+        await executeManagedAction(values.invite_kind === "organization" ? "organization.join" : "project.join", { invite_code: inviteCode }, "邀请已确认", { refresh: false });
+      }
+      if (!addedIds.length) {
+        await refreshSnapshot({ quiet: true });
+        addedIds = (state.platform.projects || []).map((project) => String(project.id)).filter((id) => !beforeIds.has(id));
+      }
+      if (!addedIds.length) throw new Error("来源已确认，但未发现新加入的项目；请刷新来源后重试。");
+      const nextIds = [...new Set([...selected, ...addedIds.map(String)])];
+      await api.setTodayProjects(nextIds);
+      state.todayMode = "configuration";
+      state.todaySelectedProjectId = addedIds[0];
+      state.todaySelectedItemId = "";
+      scheduleTodayPreferencePersistence();
+      await refreshSnapshot({ quiet: true });
+      showToast(`已添加 ${addedIds.length} 个项目；正在分别计算配置状态。`);
+      return { close: true };
+    }
+  });
+  const sourceSelect = els.platformActionFields.querySelector('[name="source"]');
+  const syncSource = () => {
+    const activeSource = sourceSelect?.value || "accessible";
+    els.platformActionFields.querySelectorAll("[data-today-project-source]").forEach((section) => {
+      const active = section.dataset.todayProjectSource === activeSource;
+      section.classList.toggle("hidden", !active);
+      section.querySelectorAll("input, select, textarea").forEach((control) => { control.disabled = !active; });
+    });
+    els.confirmPlatformActionButton.textContent = activeSource === "accessible" ? "添加所选项目" : activeSource === "create_personal" ? "创建并添加" : "加入并添加";
+  };
+  sourceSelect?.addEventListener("change", syncSource);
+  syncSource();
+  await action;
 }
 
 async function performGuidanceAction(guidance, { task = guidance.task, workspace = guidance.workspace } = {}) {
@@ -1826,20 +2202,20 @@ function openWorkGuidanceTask(task, targetState = task?.state || "pending") {
   showPage("work");
 }
 
-async function bindProjectWorkspace(workspace) {
+async function bindProjectWorkspace(workspace, { surface = "setup" } = {}) {
   if (!workspace?.id) throw new Error("未找到要绑定的远端项目。");
   const localProject = await api.pickProject();
   if (!localProject) return;
-  await bindAutomationWorkspace(workspace.id, localProject.id);
+  await bindAutomationWorkspace(workspace.id, localProject.id, { surface });
   showToast(`${workspace.name || "项目"} 已绑定本地目录；正在使用 fresh 状态计算下一步。`);
 }
 
-async function bindAutomationWorkspace(remoteProjectId, localProjectId) {
+async function bindAutomationWorkspace(remoteProjectId, localProjectId, { surface = "setup" } = {}) {
   await api.bindAutomationProject(remoteProjectId, localProjectId);
   let setupError = null;
   if (localProjectId) {
     try {
-      await checkSetupReadinessForSelection(localProjectId);
+      await checkSetupReadinessForSelection(localProjectId, { presentSetup: surface !== "today" });
     } catch (error) {
       setupError = error;
     }
@@ -3203,6 +3579,7 @@ async function feedbackToTask(feedbackId) {
   } catch (error) {
     if (!error?.partial_result?.task_id) throw error;
     state.feedbackLinkRecoveries[String(feedback.id)] = {
+      project_id: String(feedback.project_id),
       task_id: String(error.partial_result.task_id),
       task_state: String(error.partial_result.task_state || values.task_state || "pending_review")
     };
@@ -4574,12 +4951,16 @@ function selectedSetupProjectId() {
   return String(currentProject()?.local_project_id || "");
 }
 
-async function checkSetupReadinessForSelection(projectId = selectedSetupProjectId()) {
+async function checkSetupReadinessForSelection(projectId = selectedSetupProjectId(), { presentSetup = true } = {}) {
   state.setupActionError = "";
   resetSetupCleanupSelection();
-  state.setup = await api.checkSetupReadiness(projectId ? { projectId } : undefined);
-  renderSetup();
-  return state.setup;
+  const readiness = await api.checkSetupReadiness(projectId ? { projectId } : undefined);
+  if (projectId) state.todaySetupByProject[String(projectId)] = readiness;
+  if (presentSetup) {
+    state.setup = readiness;
+    renderSetup();
+  } else if (state.page === "today") renderToday();
+  return readiness;
 }
 
 function resetSetupCleanupSelection() {
@@ -5001,12 +5382,21 @@ function normalizeChatSnapshot(value = {}) {
       created_at: String(message.created_at || ""),
       updated_at: String(message.updated_at || message.created_at || "")
     })) : [],
+    pending_approvals: Array.isArray(value.pending_approvals) ? value.pending_approvals.map((approval) => ({
+      ...approval,
+      id: String(approval.id || ""),
+      session_id: String(approval.session_id || ""),
+      project_id: String(approval.project_id || ""),
+      approval_request_id: String(approval.approval_request_id || ""),
+      content: String(approval.content || ""),
+      status: String(approval.status || "pending")
+    })) : [],
     draft: { ...defaults.draft, ...(value.draft || {}), project_id: String(value.draft?.project_id || ""), text: String(value.draft?.text || "") }
   };
 }
 
 function emptyChatSnapshot() {
-  return { generated_at: "", projects: [], sessions: [], selected_session_id: "", messages: [], draft: { project_id: "", text: "" } };
+  return { generated_at: "", projects: [], sessions: [], selected_session_id: "", messages: [], pending_approvals: [], draft: { project_id: "", text: "" } };
 }
 
 function emptySnapshot() {
@@ -5047,7 +5437,8 @@ function emptyPlatformSnapshot() {
     user: null,
     worksets: [],
     active_workset: null,
-    ui_preferences: { work_inspector_width_px: WORK_INSPECTOR_DEFAULT_WIDTH },
+    today_project_ids: [],
+    ui_preferences: { work_inspector_width_px: WORK_INSPECTOR_DEFAULT_WIDTH, today: { selected_project_id: "all", selected_mode: "", selected_item_id: "", drafts: {} } },
     projects: [],
     organizations: [],
     organization_scopes: [],
@@ -5057,6 +5448,7 @@ function emptyPlatformSnapshot() {
     product_workspaces: [],
     members: [],
     tasks: [],
+    today_tasks: [],
     task_trees: [],
     task_replacements: [],
     feedback_v1: [],

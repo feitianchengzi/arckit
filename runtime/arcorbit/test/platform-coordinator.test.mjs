@@ -101,6 +101,8 @@ test("platform coordinator composes a simultaneous multi-product snapshot withou
   const initial = await coordinator.getSnapshot({});
   assert.equal(initial.ui_preferences.work_inspector_width_px, 440);
   assert.deepEqual(initial.active_workset.project_ids, ["11", "12"]);
+  assert.deepEqual(initial.today_project_ids, ["11", "12"]);
+  assert.deepEqual(initial.today_tasks.map((item) => item.id), ["T-11", "T-12"]);
   assert.deepEqual(initial.product_workspaces.map((item) => item.name), ["Alpha", "Beta"]);
   assert.deepEqual(initial.tasks.map((item) => item.project_name), ["Alpha", "Beta"]);
   assert.deepEqual(initial.feedback_v1.map((item) => item.project_name), ["Alpha", "Beta"]);
@@ -113,6 +115,12 @@ test("platform coordinator composes a simultaneous multi-product snapshot withou
   await assert.rejects(() => coordinator.getFeedbackAttachmentUrl({ project_id: "11", feedback_id: "F-unknown", feedback_source: "v1" }), /不属于当前反馈记录/);
   assert.deepEqual(await coordinator.setWorkInspectorWidth(612.4), { work_inspector_width_px: 612 });
   assert.equal(store.platform.ui_preferences.work_inspector_width_px, 612);
+
+  assert.deepEqual(await coordinator.setTodayProjects(["12", "12"]), { project_ids: ["12"] });
+  assert.deepEqual(store.platform.today_project_ids, ["12"]);
+  assert.deepEqual(await coordinator.setTodayPreference({ selected_project_id: "12", selected_mode: "configuration", selected_item_id: "configuration:12", drafts: { "configuration:12": "draft" } }), { saved: true });
+  assert.equal(store.platform.ui_preferences.today.selected_project_id, "12");
+  assert.equal(store.platform.ui_preferences.today.drafts["configuration:12"], "draft");
 
   await coordinator.updateWorkset({ id: "WORKSET-DEFAULT", project_ids: ["12"] });
   assert.deepEqual(store.platform.worksets[0].project_ids, ["12"]);

@@ -161,7 +161,23 @@
 
         <div class="view-host">
           <section id="todayView" class="app-view is-active" data-page-view="today">
-            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">MULTI-PRODUCT TODAY</p><h1>今天跨哪些产品推进</h1><p id="todaySummary">产品集同步后汇总当前工作、风险与执行。</p></div><span id="platformHealthBadge" class="health-badge">等待同步</span></div><div id="platformErrorHost"></div><section id="todayPrimaryAction" class="panel-card today-primary-action" aria-live="polite"></section><div id="todayMetricGrid" class="metric-grid platform-metrics"></div><div id="todayProductGrid" class="product-grid"></div><div class="platform-two-column"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">☷</span><div><h2>跨产品下一步</h2><p>每项保留产品来源和真实服务状态</p></div></div></div><div id="todayWorkList"></div></section><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">!</span><div><h2>需要你处理</h2><p>人工判断、恢复和阻塞</p></div></div></div><div id="todayAttentionList"></div></section></div></div>
+            <div class="today-page">
+              <header class="today-heading"><div><p class="eyebrow">PERSONAL · TODAY</p><h1>需要你亲自处理的事情</h1><p id="todaySummary">只汇总会阻塞、悬置或尚未收口的人工责任。</p></div><div class="today-heading-status"><span id="platformHealthBadge" class="health-badge">等待同步</span><small id="todayFreshness">正在读取来源状态</small></div></header>
+              <div id="platformErrorHost"></div>
+              <div class="today-workspace">
+                <aside class="today-project-rail" aria-label="Today 项目范围">
+                  <div class="today-rail-heading"><div><p class="eyebrow">PROJECTS</p><h2>项目</h2></div><button id="todayAddProjectButton" class="icon-button" type="button" title="添加项目" aria-label="添加项目"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button></div>
+                  <label class="today-search"><span class="sr-only">搜索项目</span><input id="todayProjectSearch" type="search" placeholder="搜索项目"></label>
+                  <div id="todayProjectRail" class="today-project-list"></div>
+                </aside>
+                <section class="today-responsibility-rail" aria-label="Today 责任列表">
+                  <div class="today-mode-tabs" role="tablist" aria-label="Today 模式"><button id="todayInterventionMode" data-today-mode="intervention" role="tab" type="button">需要你处理 <em id="todayInterventionCount">0</em></button><button id="todayConfigurationMode" data-today-mode="configuration" role="tab" type="button">项目配置 <em id="todayConfigurationCount">0</em></button></div>
+                  <div id="todayResponsibilityList" class="today-responsibility-list" aria-live="polite"></div>
+                  <footer id="todayAutomaticSummary" class="today-automatic-summary"></footer>
+                </section>
+                <section id="todayOperator" class="today-operator" aria-live="polite" aria-label="责任操作台"></section>
+              </div>
+            </div>
           </section>
 
           <section id="chatView" class="app-view" data-page-view="chat">

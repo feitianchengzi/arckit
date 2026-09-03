@@ -471,6 +471,26 @@ test("desktop store migrates v14 Work Inspector width into a normalized global U
   assert.deepEqual(normalizeStore(migrated).platform, migrated.platform);
 });
 
+test("desktop store persists an independent Today project scope and migrates legacy users from the active Workset", () => {
+  const migrated = normalizeStore({
+    version: 17,
+    platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["a", "b"] }], active_workset_id: "WORKSET-DEFAULT" }
+  });
+  const explicit = normalizeStore({
+    version: DESKTOP_STORE_VERSION,
+    platform: {
+      today_project_ids: ["b", "b", " c "],
+      worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["a"] }],
+      ui_preferences: { today: { selected_project_id: "b", selected_mode: "configuration", selected_item_id: "configuration:b", drafts: { "configuration:b": "keep me" } } }
+    }
+  });
+
+  assert.deepEqual(migrated.platform.today_project_ids, ["a", "b"]);
+  assert.deepEqual(explicit.platform.today_project_ids, ["b", "c"]);
+  assert.deepEqual(explicit.platform.ui_preferences.today, { selected_project_id: "b", selected_mode: "configuration", selected_item_id: "configuration:b", drafts: { "configuration:b": "keep me" } });
+  assert.deepEqual(normalizeStore(explicit).platform.today_project_ids, ["b", "c"]);
+});
+
 test("desktop store restores the global Work Inspector width after reopening", async () => {
   const root = await mkdtemp(join(tmpdir(), "arckit-inspector-store-"));
   try {
