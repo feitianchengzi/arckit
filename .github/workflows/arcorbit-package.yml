@@ -74,10 +74,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: runtime/arcorbit/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - run: npm ci
-        working-directory: runtime/arcorbit
 
       - id: contract
         name: Validate immutable tag, commit, version, and baseline
@@ -154,10 +153,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: runtime/arcorbit/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - run: npm ci
-        working-directory: runtime/arcorbit
 
       - uses: actions/download-artifact@v4
         with:

@@ -4,7 +4,7 @@ Case: CASE-20260901-001
 Status: handoff
 Artifact Type: mixed
 Selected Gap: none
-Updated: 2026-09-01T09:31:16.887Z
+Updated: 2026-09-03T05:54:52.452Z
 
 ## User Intent
 
@@ -20,7 +20,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
   "status": "handoff",
   "artifact_type": "mixed",
   "created_at": "2026-09-01T04:12:15.983Z",
-  "updated_at": "2026-09-01T09:31:16.887Z",
+  "updated_at": "2026-09-03T05:54:52.452Z",
   "user_intent": "Merge the Workshop Todo backend, Todo web application, Feedback web applications, SDK, and iOS example into Arckit with a coherent directory structure, explicit multi-license boundaries, and a sibling private arckit-ops repository for non-public operational material.",
   "expected_outcome": "Arckit is the canonical public source monorepo for Arckit, ArcOrbit, Todo, and Feedback product code; non-public production and customer-specific operational material is isolated in a sibling arckit-ops repository; imported code builds and repository governance documents match the new boundary.",
   "project_state_ref": "arckit/project/state.record.json",
@@ -127,6 +127,34 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "GitHub visibility: PRIVATE",
         "local HEAD and origin/main: b318717",
         "remote secrets tree: secrets/README.md only"
+      ]
+    },
+    {
+      "id": "FACT-20260901-001-007",
+      "revision": 1,
+      "status": "accepted",
+      "statement": "The governed ArcOrbit packaging workflow is monorepo-aware: both jobs cache the root package-lock.json and perform the workspace installation from the repository root, while ArcOrbit-specific checks and packaging continue under runtime/arcorbit and no arckit-ops checkout or feedback credential embedding is introduced.",
+      "basis": "The workflow implementation, root npm workspace resolution, explicit regression assertions, and passing package-distribution tests establish the current packaging boundary.",
+      "evidence": [
+        ".github/workflows/arcorbit-package.yml",
+        "runtime/arcorbit/test/package-distribution.test.mjs",
+        "node --test runtime/arcorbit/test/package-distribution.test.mjs: 4 passed, 0 failed",
+        "npm prefix from runtime/arcorbit: repository root"
+      ]
+    },
+    {
+      "id": "FACT-20260901-001-008",
+      "revision": 1,
+      "status": "accepted",
+      "statement": "The local ArcOrbit package:local flow remains valid after consolidation: it resolves the Arckit root and sibling ArcForge root from runtime/arcorbit, builds only the current host-native unsigned target, consumes the monorepo-installed workspace dependencies, and has no arckit-ops dependency. On the current darwin/x64 host with version 0.1.0 and build ID shellfix, the generated DMG name is ArcOrbit-0.1.0-local.shellfix-local-shellfix-mac-x64.dmg; copying that file to ArcOrbit-local.dmg works but is coupled to those three naming inputs.",
+      "basis": "The implementation, host and plan probes, npm workspace tree, exact filename matcher, and focused regression tests establish both compatibility and the bounded hard-coding risk.",
+      "evidence": [
+        "runtime/arcorbit/scripts/build-local-distribution.mjs",
+        "runtime/arcorbit/test/local-distribution-build.test.mjs",
+        "node --test runtime/arcorbit/test/local-distribution-build.test.mjs: 4 passed, 0 failed",
+        "host probe: x86_64 and darwin/x64",
+        "build plan: expected shellfix artifact accepted",
+        "npm ls --workspace @arckit/arcorbit --depth=0: passed"
       ]
     }
   ],
@@ -436,9 +464,84 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         ],
         "occurred_at": "2026-09-01T09:31:16.887Z"
       }
+    },
+    {
+      "id": "GAP-20260901-001-008",
+      "goal": "Update the ArcOrbit GitHub packaging workflow to consume the monorepo root dependency lock and install from the workspace root, with regression coverage that prevents the stale child-lock path from returning.",
+      "reason": "The Todo and Feedback consolidation removed per-workspace lockfiles, but both ArcOrbit packaging jobs still configured setup-node against runtime/arcorbit/package-lock.json.",
+      "responsibility": "agent",
+      "derived_from": [
+        "FACT-20260901-001-002"
+      ],
+      "blocked_by": [],
+      "priority_basis": {
+        "blocking": "prevents the governed packaging workflow from resolving its npm cache dependency",
+        "user_impact": "restores ArcOrbit CI packaging after monorepo migration"
+      },
+      "evidence_required": [
+        "Both workflow jobs cache against the root package-lock.json",
+        "Both workflow jobs run npm ci from the repository root",
+        "ArcOrbit package-distribution regression passes",
+        "The workflow remains independent of arckit-ops and runtime feedback credentials"
+      ],
+      "status": "resolved",
+      "resolution": {
+        "id": "GAP-20260901-001-008",
+        "status": "resolved",
+        "outcome": "Both ArcOrbit workflow jobs now use package-lock.json for setup-node caching and execute npm ci from the repository root; the packaging regression explicitly verifies both occurrences and rejects runtime/arcorbit/package-lock.json and child-directory npm ci.",
+        "reason": "The workflow diff matches the monorepo workspace contract, npm prefix resolves the root from runtime/arcorbit, the focused distribution test passes 4/4, and git diff --check reports no errors.",
+        "evidence": [
+          ".github/workflows/arcorbit-package.yml",
+          "runtime/arcorbit/test/package-distribution.test.mjs",
+          "node --test runtime/arcorbit/test/package-distribution.test.mjs: 4 passed, 0 failed",
+          "git diff --check: passed",
+          "npm prefix from runtime/arcorbit: repository root"
+        ],
+        "occurred_at": "2026-09-03T05:47:09.558Z"
+      }
+    },
+    {
+      "id": "GAP-20260901-001-009",
+      "goal": "Determine whether the existing package:local command and its ArcOrbit-local.dmg copy step require changes after the monorepo and private-ops split.",
+      "reason": "The command predates the completed repository consolidation and hard-codes the generated x64 artifact name.",
+      "responsibility": "agent",
+      "derived_from": [
+        "FACT-20260901-001-002",
+        "FACT-20260901-001-007"
+      ],
+      "blocked_by": [],
+      "priority_basis": {
+        "user_impact": "confirms the operator's established local build command",
+        "uncertainty": "whether monorepo migration invalidated the script"
+      },
+      "evidence_required": [
+        "Current host and selected package target",
+        "Resolved Arckit and ArcForge repository roots",
+        "Expected shellfix artifact filename acceptance",
+        "Monorepo workspace dependency resolution",
+        "Focused local-distribution regression result",
+        "No arckit-ops dependency"
+      ],
+      "status": "resolved",
+      "resolution": {
+        "id": "GAP-20260901-001-009",
+        "status": "resolved",
+        "outcome": "No migration-driven local packaging script change is required. On the current darwin/x64 host, build-id shellfix selects package:mac:x64 and accepts ArcOrbit-0.1.0-local.shellfix-local-shellfix-mac-x64.dmg; the command resolves Arckit and sibling ArcForge correctly, uses the installed root workspace dependencies, and never reads arckit-ops. The final cp is valid now but remains intentionally coupled to version, build ID, and architecture.",
+        "reason": "Pure build-plan evaluation, npm workspace inspection, the script's explicit repository boundaries, help invocation, and four passing local-distribution tests agree on the current behavior without requiring a full installer build.",
+        "evidence": [
+          "runtime/arcorbit/scripts/build-local-distribution.mjs",
+          "runtime/arcorbit/test/local-distribution-build.test.mjs",
+          "runtime/arcorbit/README.md",
+          "node --test runtime/arcorbit/test/local-distribution-build.test.mjs: 4 passed, 0 failed",
+          "host probe: x86_64 and darwin/x64",
+          "build plan: macos-x64 and expected shellfix artifact accepted",
+          "npm ls --workspace @arckit/arcorbit --depth=0: passed"
+        ],
+        "occurred_at": "2026-09-03T05:54:52.452Z"
+      }
     }
   ],
-  "content_revision": 6,
+  "content_revision": 8,
   "completion_review": {
     "status": "pending",
     "policy": {
@@ -2228,6 +2331,484 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
       ],
       "runtime_result_ref": "",
       "occurred_at": "2026-09-01T09:31:16.887Z"
+    },
+    {
+      "round": 7,
+      "transition_schema_version": "arckit-case-transition/v8",
+      "goal": "Accept the monorepo-aware ArcOrbit packaging workflow without changing the private operations or release-authorization boundary.",
+      "outcome": "completed",
+      "gap_selection": {
+        "mode": "fresh",
+        "basis": "The repository owner authorized the bounded ArcOrbit packaging-workflow correction after the monorepo migration; the stale dependency-lock path was immediately actionable and could be verified without consuming the human release gate.",
+        "snapshot_token": "c01b880f5a764186f2198e2e24c9688540cd6eee88c89f0fe35c66a5cb3cc2da",
+        "selected_ref": "fresh-gap:CASE-20260901-001:GAP-20260901-001-008",
+        "comparison_summary": "Four Project gaps require separate Cases and GAP-005 remains human-owned; the fresh packaging repair directly completes a migration follow-up, is isolated to the governed workflow and its regression test, and does not authorize release or secret handling changes.",
+        "fresh_discovery_summary": "The ArcOrbit workflow referenced runtime/arcorbit/package-lock.json in both jobs even though the monorepo has one root package-lock.json; root npm workspace resolution confirmed that dependency installation belongs to the repository root.",
+        "considered": [
+          {
+            "ref": "project-gap:GAP-agent-scenario-evaluation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "uncertainty": "high",
+              "risk": "high"
+            },
+            "reason": "It requires a separate Case and is unrelated to the packaging lockfile repair."
+          },
+          {
+            "ref": "project-gap:GAP-runtime-resilience-and-adapters",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "General Runtime resilience and adapters are outside this monorepo packaging correction."
+          },
+          {
+            "ref": "project-gap:GAP-security-real-project-validation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "The workflow preserves the existing secret boundary but does not perform the broader real-project security validation."
+          },
+          {
+            "ref": "project-gap:GAP-cross-record-audit",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "high"
+            },
+            "reason": "The independent cross-record audit requires its own Case."
+          },
+          {
+            "ref": "case-gap:CASE-20260901-001:GAP-20260901-001-005",
+            "source": "persisted",
+            "eligibility": "ready",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "dependency": "blocks public push and source repository archival"
+            },
+            "reason": "It remains human-owned and covers credential, licensing, public publication, history, and archival decisions that this packaging repair must not consume."
+          },
+          {
+            "ref": "fresh-gap:CASE-20260901-001:GAP-20260901-001-008",
+            "source": "fresh",
+            "eligibility": "ready",
+            "disposition": "selected",
+            "priority_basis": {
+              "blocking": "prevents the governed packaging workflow from resolving its npm cache dependency",
+              "user_impact": "restores ArcOrbit CI packaging after monorepo migration"
+            },
+            "reason": "The owner explicitly authorized it, its scope was already established, and focused regression evidence can prove the correction."
+          }
+        ]
+      },
+      "selected_gap": {
+        "id": "GAP-20260901-001-008",
+        "goal": "Update the ArcOrbit GitHub packaging workflow to consume the monorepo root dependency lock and install from the workspace root, with regression coverage that prevents the stale child-lock path from returning.",
+        "reason": "The Todo and Feedback consolidation removed per-workspace lockfiles, but both ArcOrbit packaging jobs still configured setup-node against runtime/arcorbit/package-lock.json.",
+        "responsibility": "agent",
+        "derived_from": [
+          "FACT-20260901-001-002"
+        ],
+        "blocked_by": [],
+        "priority_basis": {
+          "blocking": "prevents the governed packaging workflow from resolving its npm cache dependency",
+          "user_impact": "restores ArcOrbit CI packaging after monorepo migration"
+        },
+        "evidence_required": [
+          "Both workflow jobs cache against the root package-lock.json",
+          "Both workflow jobs run npm ci from the repository root",
+          "ArcOrbit package-distribution regression passes",
+          "The workflow remains independent of arckit-ops and runtime feedback credentials"
+        ]
+      },
+      "planned_transition": {
+        "goal": "Accept the monorepo-aware ArcOrbit packaging workflow without changing the private operations or release-authorization boundary.",
+        "expected_state_change": "The validate and package jobs use the single root lockfile and root workspace installation; a focused test rejects the removed child lockfile and child-directory npm ci configuration."
+      },
+      "accepted_state_delta": {
+        "resolved_gap": {
+          "id": "GAP-20260901-001-008",
+          "status": "resolved",
+          "outcome": "Both ArcOrbit workflow jobs now use package-lock.json for setup-node caching and execute npm ci from the repository root; the packaging regression explicitly verifies both occurrences and rejects runtime/arcorbit/package-lock.json and child-directory npm ci.",
+          "reason": "The workflow diff matches the monorepo workspace contract, npm prefix resolves the root from runtime/arcorbit, the focused distribution test passes 4/4, and git diff --check reports no errors.",
+          "evidence": [
+            ".github/workflows/arcorbit-package.yml",
+            "runtime/arcorbit/test/package-distribution.test.mjs",
+            "node --test runtime/arcorbit/test/package-distribution.test.mjs: 4 passed, 0 failed",
+            "git diff --check: passed",
+            "npm prefix from runtime/arcorbit: repository root"
+          ]
+        },
+        "facts_added": [
+          {
+            "id": "FACT-20260901-001-007",
+            "revision": 1,
+            "status": "accepted",
+            "statement": "The governed ArcOrbit packaging workflow is monorepo-aware: both jobs cache the root package-lock.json and perform the workspace installation from the repository root, while ArcOrbit-specific checks and packaging continue under runtime/arcorbit and no arckit-ops checkout or feedback credential embedding is introduced.",
+            "basis": "The workflow implementation, root npm workspace resolution, explicit regression assertions, and passing package-distribution tests establish the current packaging boundary.",
+            "evidence": [
+              ".github/workflows/arcorbit-package.yml",
+              "runtime/arcorbit/test/package-distribution.test.mjs",
+              "node --test runtime/arcorbit/test/package-distribution.test.mjs: 4 passed, 0 failed",
+              "npm prefix from runtime/arcorbit: repository root"
+            ]
+          }
+        ],
+        "facts_superseded": [],
+        "impacts_added": [],
+        "impacts_updated": [],
+        "gaps_added": [],
+        "gaps_cancelled": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "project_state_delta": {
+        "software_definition_changes": [],
+        "software_invariant_changes": [],
+        "project_gap_changes": [],
+        "selection_context_change": null,
+        "evidence": []
+      },
+      "invariant_assessment": {
+        "project_revision": 336,
+        "judgments": [
+          {
+            "invariant_ref": "product-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "This correction changes CI dependency installation only and does not establish or revise an ArcOrbit product capability or acceptance meaning.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "interaction-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "No user action, application state, feedback, navigation, or recovery semantics change.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "visual-language-remains-consistent",
+            "disposition": "not_relevant",
+            "reason": "No visual-language or presentation rule changes.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "technical-decisions-remain-explainable",
+            "disposition": "upheld",
+            "reason": "The workflow now directly follows the repository's single-root-lock workspace contract and preserves the explicit runtime-only private configuration boundary.",
+            "fact_refs": [
+              "FACT-20260901-001-007"
+            ],
+            "evidence": [
+              ".github/workflows/arcorbit-package.yml",
+              "package.json",
+              "package-lock.json",
+              "runtime/arcorbit/README.md"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "accepted-facts-are-realized",
+            "disposition": "upheld",
+            "reason": "The accepted packaging fact is realized by both workflow job definitions and guarded by focused regression assertions that pass.",
+            "fact_refs": [
+              "FACT-20260901-001-007"
+            ],
+            "evidence": [
+              ".github/workflows/arcorbit-package.yml",
+              "runtime/arcorbit/test/package-distribution.test.mjs",
+              "node --test runtime/arcorbit/test/package-distribution.test.mjs: 4 passed, 0 failed"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "material-risks-have-credible-evidence",
+            "disposition": "threatened",
+            "reason": "The CI lockfile regression is controlled by focused tests, but the pre-existing credential-provider, relicensing, public publication, history, and archival risks remain owner-controlled and unresolved.",
+            "fact_refs": [
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "runtime/arcorbit/test/package-distribution.test.mjs",
+              "../arckit-ops/runbooks/credential-rotation.md"
+            ],
+            "gap_refs": [
+              "GAP-20260901-001-005"
+            ]
+          }
+        ]
+      },
+      "evidence": [
+        ".github/workflows/arcorbit-package.yml",
+        "runtime/arcorbit/test/package-distribution.test.mjs",
+        "node --test runtime/arcorbit/test/package-distribution.test.mjs: 4 passed, 0 failed",
+        "git diff --check: passed",
+        "npm prefix from runtime/arcorbit: repository root"
+      ],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-09-03T05:47:09.558Z"
+    },
+    {
+      "round": 8,
+      "transition_schema_version": "arckit-case-transition/v8",
+      "goal": "Accept an evidence-backed compatibility conclusion for the owner's existing local packaging command.",
+      "outcome": "completed",
+      "gap_selection": {
+        "mode": "fresh",
+        "basis": "The owner asked whether the established local ArcOrbit packaging command still needs migration changes; a bounded compatibility check was immediately actionable and precedes any optional convenience enhancement.",
+        "snapshot_token": "670729ac06aac15f955c172e86b873219ac67ff80aaf8641fe4aa6226096bbc0",
+        "selected_ref": "fresh-gap:CASE-20260901-001:GAP-20260901-001-009",
+        "comparison_summary": "Four Project gaps require separate Cases and GAP-005 remains human-owned; the fresh local-packaging compatibility check directly verifies the migrated repository's operator workflow without changing secrets, release authorization, or unrelated Runtime behavior.",
+        "fresh_discovery_summary": "The exact command relies on the host-native target and a hard-coded generated filename; the current host, build plan, workspace dependency tree, source boundaries, and focused tests were inspected to distinguish required migration work from an optional stable-alias improvement.",
+        "considered": [
+          {
+            "ref": "project-gap:GAP-agent-scenario-evaluation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "uncertainty": "high",
+              "risk": "high"
+            },
+            "reason": "It requires a separate Case and is unrelated to local packaging compatibility."
+          },
+          {
+            "ref": "project-gap:GAP-runtime-resilience-and-adapters",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "General Runtime resilience and adapters are outside this packaging command check."
+          },
+          {
+            "ref": "project-gap:GAP-security-real-project-validation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "medium"
+            },
+            "reason": "The check confirms no arckit-ops dependency but does not complete broader security validation."
+          },
+          {
+            "ref": "project-gap:GAP-cross-record-audit",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "urgency": "high"
+            },
+            "reason": "The independent cross-record audit requires its own Case."
+          },
+          {
+            "ref": "case-gap:CASE-20260901-001:GAP-20260901-001-005",
+            "source": "persisted",
+            "eligibility": "ready",
+            "disposition": "deferred",
+            "priority_basis": {
+              "risk": "high",
+              "dependency": "blocks public push and source repository archival"
+            },
+            "reason": "It remains human-owned and is not altered by validating an unsigned local development package."
+          },
+          {
+            "ref": "fresh-gap:CASE-20260901-001:GAP-20260901-001-009",
+            "source": "fresh",
+            "eligibility": "ready",
+            "disposition": "selected",
+            "priority_basis": {
+              "user_impact": "confirms the operator's established local build command",
+              "uncertainty": "whether monorepo migration invalidated the script"
+            },
+            "reason": "It was explicitly requested and could be resolved through read-only host, plan, dependency, source, and regression evidence."
+          }
+        ]
+      },
+      "selected_gap": {
+        "id": "GAP-20260901-001-009",
+        "goal": "Determine whether the existing package:local command and its ArcOrbit-local.dmg copy step require changes after the monorepo and private-ops split.",
+        "reason": "The command predates the completed repository consolidation and hard-codes the generated x64 artifact name.",
+        "responsibility": "agent",
+        "derived_from": [
+          "FACT-20260901-001-002",
+          "FACT-20260901-001-007"
+        ],
+        "blocked_by": [],
+        "priority_basis": {
+          "user_impact": "confirms the operator's established local build command",
+          "uncertainty": "whether monorepo migration invalidated the script"
+        },
+        "evidence_required": [
+          "Current host and selected package target",
+          "Resolved Arckit and ArcForge repository roots",
+          "Expected shellfix artifact filename acceptance",
+          "Monorepo workspace dependency resolution",
+          "Focused local-distribution regression result",
+          "No arckit-ops dependency"
+        ]
+      },
+      "planned_transition": {
+        "goal": "Accept an evidence-backed compatibility conclusion for the owner's existing local packaging command.",
+        "expected_state_change": "The Case records whether migration requires a script change and clearly separates any optional stable-output convenience from required compatibility work."
+      },
+      "accepted_state_delta": {
+        "resolved_gap": {
+          "id": "GAP-20260901-001-009",
+          "status": "resolved",
+          "outcome": "No migration-driven local packaging script change is required. On the current darwin/x64 host, build-id shellfix selects package:mac:x64 and accepts ArcOrbit-0.1.0-local.shellfix-local-shellfix-mac-x64.dmg; the command resolves Arckit and sibling ArcForge correctly, uses the installed root workspace dependencies, and never reads arckit-ops. The final cp is valid now but remains intentionally coupled to version, build ID, and architecture.",
+          "reason": "Pure build-plan evaluation, npm workspace inspection, the script's explicit repository boundaries, help invocation, and four passing local-distribution tests agree on the current behavior without requiring a full installer build.",
+          "evidence": [
+            "runtime/arcorbit/scripts/build-local-distribution.mjs",
+            "runtime/arcorbit/test/local-distribution-build.test.mjs",
+            "runtime/arcorbit/README.md",
+            "node --test runtime/arcorbit/test/local-distribution-build.test.mjs: 4 passed, 0 failed",
+            "host probe: x86_64 and darwin/x64",
+            "build plan: macos-x64 and expected shellfix artifact accepted",
+            "npm ls --workspace @arckit/arcorbit --depth=0: passed"
+          ]
+        },
+        "facts_added": [
+          {
+            "id": "FACT-20260901-001-008",
+            "revision": 1,
+            "status": "accepted",
+            "statement": "The local ArcOrbit package:local flow remains valid after consolidation: it resolves the Arckit root and sibling ArcForge root from runtime/arcorbit, builds only the current host-native unsigned target, consumes the monorepo-installed workspace dependencies, and has no arckit-ops dependency. On the current darwin/x64 host with version 0.1.0 and build ID shellfix, the generated DMG name is ArcOrbit-0.1.0-local.shellfix-local-shellfix-mac-x64.dmg; copying that file to ArcOrbit-local.dmg works but is coupled to those three naming inputs.",
+            "basis": "The implementation, host and plan probes, npm workspace tree, exact filename matcher, and focused regression tests establish both compatibility and the bounded hard-coding risk.",
+            "evidence": [
+              "runtime/arcorbit/scripts/build-local-distribution.mjs",
+              "runtime/arcorbit/test/local-distribution-build.test.mjs",
+              "node --test runtime/arcorbit/test/local-distribution-build.test.mjs: 4 passed, 0 failed",
+              "host probe: x86_64 and darwin/x64",
+              "build plan: expected shellfix artifact accepted",
+              "npm ls --workspace @arckit/arcorbit --depth=0: passed"
+            ]
+          }
+        ],
+        "facts_superseded": [],
+        "impacts_added": [],
+        "impacts_updated": [],
+        "gaps_added": [],
+        "gaps_cancelled": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "project_state_delta": {
+        "software_definition_changes": [],
+        "software_invariant_changes": [],
+        "project_gap_changes": [],
+        "selection_context_change": null,
+        "evidence": []
+      },
+      "invariant_assessment": {
+        "project_revision": 336,
+        "judgments": [
+          {
+            "invariant_ref": "product-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "This round verifies an operator build command and does not establish or revise product capability or acceptance behavior.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "interaction-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "No application interaction, navigation, state, feedback, or recovery semantics change.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "visual-language-remains-consistent",
+            "disposition": "not_relevant",
+            "reason": "No visual-language or presentation rule changes.",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "technical-decisions-remain-explainable",
+            "disposition": "upheld",
+            "reason": "The local build boundary is directly recoverable from code and documentation: Arckit and ArcForge are explicit inputs, host-native unsigned output is deliberate, and arckit-ops remains outside the build graph.",
+            "fact_refs": [
+              "FACT-20260901-001-008"
+            ],
+            "evidence": [
+              "runtime/arcorbit/scripts/build-local-distribution.mjs",
+              "runtime/arcorbit/README.md",
+              "package.json"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "accepted-facts-are-realized",
+            "disposition": "upheld",
+            "reason": "The accepted compatibility fact is realized by the current host plan, exact artifact matcher, resolved workspace tree, and passing focused tests.",
+            "fact_refs": [
+              "FACT-20260901-001-008"
+            ],
+            "evidence": [
+              "runtime/arcorbit/test/local-distribution-build.test.mjs",
+              "node --test runtime/arcorbit/test/local-distribution-build.test.mjs: 4 passed, 0 failed",
+              "build plan: expected shellfix artifact accepted"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "material-risks-have-credible-evidence",
+            "disposition": "threatened",
+            "reason": "The local filename coupling is bounded and evidenced, but the pre-existing credential-provider, relicensing, public publication, history, and archival risks remain owner-controlled and unresolved.",
+            "fact_refs": [
+              "FACT-20260901-001-005"
+            ],
+            "evidence": [
+              "runtime/arcorbit/test/local-distribution-build.test.mjs",
+              "../arckit-ops/runbooks/credential-rotation.md"
+            ],
+            "gap_refs": [
+              "GAP-20260901-001-005"
+            ]
+          }
+        ]
+      },
+      "evidence": [
+        "runtime/arcorbit/scripts/build-local-distribution.mjs",
+        "runtime/arcorbit/test/local-distribution-build.test.mjs",
+        "runtime/arcorbit/README.md",
+        "node --test runtime/arcorbit/test/local-distribution-build.test.mjs: 4 passed, 0 failed",
+        "host probe: x86_64 and darwin/x64",
+        "build plan: expected shellfix artifact accepted",
+        "npm ls --workspace @arckit/arcorbit --depth=0: passed"
+      ],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-09-03T05:54:52.452Z"
     }
   ],
   "case_resolution": {
@@ -2239,7 +2820,9 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
       "GAP-20260901-001-003",
       "GAP-20260901-001-004",
       "GAP-20260901-001-006",
-      "GAP-20260901-001-007"
+      "GAP-20260901-001-007",
+      "GAP-20260901-001-008",
+      "GAP-20260901-001-009"
     ],
     "remaining": [
       "GAP-20260901-001-005",
@@ -2286,7 +2869,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
         "decision_needed": "Confirm every credential runbook entry is rotated, revoked, expired, or otherwise invalid; confirm rights to apply the selected licenses; and decide whether to publish the merged history and archive the old source repositories."
       }
     },
-    "updated_at": "2026-09-01T09:31:16.887Z"
+    "updated_at": "2026-09-03T05:54:52.452Z"
   }
 }
 ```

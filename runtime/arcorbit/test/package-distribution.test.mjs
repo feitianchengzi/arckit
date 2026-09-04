@@ -184,6 +184,10 @@ test("Runtime package workflow is manual-only and consumes immutable release/pro
   assert.match(workflow, /arcforge_release:/);
   assert.match(workflow, /arcforge_sha256:/);
   assert.match(workflow, /validate-release-trigger\.mjs/);
+  assert.equal(workflow.match(/cache-dependency-path: package-lock\.json/g)?.length, 2);
+  assert.doesNotMatch(workflow, /runtime\/arcorbit\/package-lock\.json/);
+  assert.equal(workflow.match(/- run: npm ci/g)?.length, 2);
+  assert.doesNotMatch(workflow, /- run: npm ci\n\s+working-directory:/);
   assert.match(workflow, /xvfb-run --auto-servernum npm run check/);
   assert.match(workflow, /gh release download/);
   assert.match(workflow, /"os":"macos-15","platform":"mac","target":"macos-arm64"/);
