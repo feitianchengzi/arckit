@@ -120,6 +120,37 @@ test("workspace combines Chat, Automation, Work and Feedback actions with typed 
   assert.deepEqual(view.interventions[3].actions, ["retry_task_replacement", "keep_task_replacement"]);
 });
 
+test("completed Work responsibility preserves acceptance issue text, status, progress, and selection", () => {
+  const view = deriveTodayWorkspace({
+    selectedMode: "intervention",
+    selectedItemId: "work:done:completed",
+    platform: {
+      projects: [project("p1", { local_project_id: "l1", participating: true })],
+      tasks: [{
+        id: "done",
+        project_id: "p1",
+        executor_id: "me",
+        state: "completed",
+        acceptance_feedback_items: [{
+          feedback_id: "ISSUE-23",
+          original_feedback: "恢复后输入焦点丢失",
+          status: "running",
+          progress: "正在修复焦点恢复"
+        }]
+      }]
+    },
+    setup: { status: "ready" }
+  });
+
+  assert.equal(view.selected_item_id, "work:done:completed");
+  assert.deepEqual(view.selected_item.acceptance_feedback_items, [{
+    feedback_id: "ISSUE-23",
+    original_feedback: "恢复后输入焦点丢失",
+    status: "running",
+    progress: "正在修复焦点恢复"
+  }]);
+});
+
 test("project scope filters the lists without changing global Today counts", () => {
   const view = deriveTodayWorkspace({
     selectedMode: "intervention",

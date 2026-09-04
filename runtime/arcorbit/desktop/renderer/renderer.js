@@ -1857,8 +1857,9 @@ function renderTodaySourceContext(item) {
     ["恢复边界", "只删除源待办，绝不再次创建目标待办"]
   ]);
   if (item.source === "work") {
-    const issues = (item.acceptance_feedback_items || []).map((issue) => `<li><strong>${escapeHtml(issue.original_feedback || issue.title || issue.feedback_id || "验收问题")}</strong><small>${escapeHtml(issue.status || "unknown")}${issue.progress ? ` · ${escapeHtml(issue.progress)}` : ""}</small></li>`).join("");
-    return `<section class="today-operator-section"><h3>完整待办上下文</h3><p class="today-source-copy">${escapeHtml(item.content || item.blocked_reason || "来源未提供更多内容。")}</p><dl class="today-facts">${todayFactRows([["状态", item.state], ["提交者", item.creator_name || item.creator_id], ["执行人", item.executor_name || item.executor_id], ["版本", item.version], ["优先级", item.priority ?? item.raw?.priority]])}</dl>${issues ? `<details class="today-context-disclosure"><summary>验收问题 · ${(item.acceptance_feedback_items || []).length}</summary><ul>${issues}</ul></details>` : ""}</section>`;
+    const feedbackItems = item.acceptance_feedback_items || [];
+    const acceptanceIssues = item.state === "completed" ? `<div class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((issue) => `<div class="acceptance-feedback-item" data-today-acceptance-feedback="${escapeHtml(issue.feedback_id || "")}"><span><strong>${escapeHtml(issue.original_feedback || issue.title || issue.feedback_id || "验收问题")}</strong><small>${escapeHtml(issue.feedback_id || "")}${issue.progress ? ` · ${escapeHtml(issue.progress)}` : ""}</small></span><span class="status-pill ${feedbackTone(issue.status)}">${escapeHtml(issue.status || "unknown")}</span></div>`).join("") : `<div class="empty-state compact">尚未提出验收问题。</div>`}</div></div>` : "";
+    return `<section class="today-operator-section"><h3>完整待办上下文</h3><p class="today-source-copy">${escapeHtml(item.content || item.blocked_reason || "来源未提供更多内容。")}</p><dl class="today-facts">${todayFactRows([["状态", item.state], ["提交者", item.creator_name || item.creator_id], ["执行人", item.executor_name || item.executor_id], ["版本", item.version], ["优先级", item.priority ?? item.raw?.priority]])}</dl>${acceptanceIssues}</section>`;
   }
   if (item.source === "feedback") return todayContextSection("关联事务", [
     ["Feedback", item.feedback_id || item.source_object_id],
@@ -2022,7 +2023,7 @@ async function performTodayAction(item, action) {
       throw new Error(`Today 尚不支持动作 ${action}。`);
     }
     delete state.todayDrafts[item.id];
-    state.todaySelectedItemId = "";
+    if (action !== "raise_acceptance_issue") state.todaySelectedItemId = "";
     scheduleTodayPreferencePersistence();
     state.todayResult = { item_id: item.id, source_object_id: item.source_object_id, message: `${todayKindLabel(item.kind)}已完成，来源状态已更新`, confirmed_at: new Date().toISOString() };
   } catch (error) {

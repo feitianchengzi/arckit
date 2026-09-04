@@ -1759,6 +1759,21 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(styles, /\.task-markdown-link[^}]+cursor: pointer/);
 });
 
+test("Today directly renders acceptance issue progress and preserves valid selection after submission", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const sourceContext = source.slice(source.indexOf("function renderTodaySourceContext(item)"), source.indexOf("\nfunction todayFactRows"));
+  const actionFlow = source.slice(source.indexOf("async function performTodayAction(item, action)"), source.indexOf("\nasync function performTodayProjectSetupAction"));
+
+  assert.match(sourceContext, /验收问题与进展/);
+  assert.match(sourceContext, /class="acceptance-feedback-list"/);
+  assert.match(sourceContext, /issue\.original_feedback/);
+  assert.match(sourceContext, /issue\.status/);
+  assert.match(sourceContext, /issue\.progress/);
+  assert.doesNotMatch(sourceContext, /<details|today-context-disclosure/);
+  assert.match(actionFlow, /await api\.submitAcceptanceFeedback\([\s\S]+await refreshSnapshot\(\{ quiet: true \}\)/);
+  assert.match(actionFlow, /if \(action !== "raise_acceptance_issue"\) state\.todaySelectedItemId = ""/);
+});
+
 test("Work opens allowed Markdown links through a bounded main-process capability", async () => {
   const [main, preload] = await Promise.all([
     readFile(desktopMainPath, "utf8"),

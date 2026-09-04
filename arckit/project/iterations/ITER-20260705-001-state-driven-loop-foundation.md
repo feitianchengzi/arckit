@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-09-03T05:54:52.452Z
+Updated: 2026-09-04T06:41:01.178Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,7 +17,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260830-001-development-case.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260830-002-arcorbit-desktop.md)
 - software_decision.data_and_state: settled (arckit/cases/active/CASE-20260830-002-arcorbit-desktop.md)
 - software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260830-002-arcorbit-desktop.md)
@@ -27,6 +26,7 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.delivery_and_distribution: settled (arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260904-001-show-acceptance-issues-and-processing-status-directly-in-today.md)
 
 ## Remaining Project Gaps
 

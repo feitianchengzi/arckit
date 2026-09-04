@@ -24,9 +24,9 @@
 - today-workspace/ Today 人工责任工作台：以项目栏、需要你处理/项目配置双工作区和操作台管理多项目配置与跨来源人工介入。🟡
   - default.html Today 主线框：真实三组主导航、跨项目责任、项目配置、零责任和来源未知。🟡 (21行)
   - readiness-details.html 新用户子视图：前置门、项目目录、多项目并行检查、目录/Setup/本机参与和 Work 交接。🟡 (20行)
-  - action-details.html 来源操作台：Chat 权限、Automation 决策/外部依赖/恢复、Work 状态门与部分成功收口。🟡 (20行)
+  - action-details.html 来源操作台：Chat 权限、Automation 决策/外部依赖/恢复、Work 状态门、验收问题原位直显与部分成功收口。🟡 (22行)
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
-  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、直接操作与人机接力状态机。🟡 (217行)
+  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、验收问题原位直显、直接操作与人机接力状态机。🟡 (222行)
 - chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，以 session 独立阅读位置进行本地 Codex 对话。✅
   - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
   - workspace-setup.html 工作区绑定子视图：任意可访问项目成员从 Chat 原位选择目录并检查 Setup Readiness，同时保留草稿。✅ (12行)
