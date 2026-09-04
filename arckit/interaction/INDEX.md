@@ -26,7 +26,7 @@
   - readiness-details.html 新用户子视图：前置门、项目目录、多项目并行检查、目录/Setup/本机参与和 Work 交接。🟡 (20行)
   - action-details.html 来源操作台：Chat 权限、Automation 决策/外部依赖/恢复、Work 状态门、验收问题原位直显与部分成功收口。🟡 (22行)
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
-  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、验收问题原位直显、直接操作与人机接力状态机。🟡 (222行)
+  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (224行)
 - chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，以 session 独立阅读位置进行本地 Codex 对话。✅
   - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
   - workspace-setup.html 工作区绑定子视图：任意可访问项目成员从 Chat 原位选择目录并检查 Setup Readiness，同时保留草稿。✅ (12行)

@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-09-04T06:41:01.178Z",
+  "updated_at": "2026-09-04T07:27:46.431Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -3440,15 +3440,16 @@
     "arckit/cases/closed/CASE-20260830-002-arcorbit-desktop.md",
     "arckit/cases/closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md",
     "arckit/cases/closed/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md",
-    "arckit/cases/closed/CASE-20260904-001-show-acceptance-issues-and-processing-status-directly-in-today.md"
+    "arckit/cases/closed/CASE-20260904-001-show-acceptance-issues-and-processing-status-directly-in-today.md",
+    "arckit/cases/closed/CASE-20260904-002-stabilize-arcorbit-today-detail-rendering-across-background-refr.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260904-001-show-acceptance-issues-and-processing-status-directly-in-today.md",
+    "case_ref": "arckit/cases/closed/CASE-20260904-002-stabilize-arcorbit-today-detail-rendering-across-background-refr.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260904-001-show-acceptance-issues-and-processing-status-directly-in-today.md"
+      "arckit/cases/closed/CASE-20260904-002-stabilize-arcorbit-today-detail-rendering-across-background-refr.md"
     ],
-    "updated_at": "2026-09-04T06:41:01.178Z"
+    "updated_at": "2026-09-04T07:27:46.431Z"
   }
 }

@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 339
-Updated: 2026-09-04T06:41:01.178Z
+Revision: 341
+Updated: 2026-09-04T07:27:46.431Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-ArcOrbit Today 页面中的待验收事项在用户提出验收问题后，继续在当前责任上下文直接展示验收问题列表，以及每项问题的当前处理状态和进展。
+修复 ArcOrbit Today 页面第三栏详情在后台状态刷新时反复重绘并滚动到顶部的问题，确保修复落在正确的渲染生命周期和界面状态所有权边界。
 
 ## Active Work
 

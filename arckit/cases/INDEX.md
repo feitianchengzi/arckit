@@ -173,3 +173,4 @@
 | [CASE-20260901-002](closed/CASE-20260901-002-constrain-arcorbit-chat-content-overflow-to-its-parent-viewport.md) | closed | Constrain ArcOrbit Chat content overflow to its parent viewport | 2026-09-01T14:35:37.354Z |
 | [CASE-20260901-003](closed/CASE-20260901-003-implement-the-today-human-responsibility-workspace.md) | closed | Implement the Today human responsibility workspace | 2026-09-01T19:27:40.512Z |
 | [CASE-20260904-001](closed/CASE-20260904-001-show-acceptance-issues-and-processing-status-directly-in-today.md) | closed | Show acceptance issues and processing status directly in Today | 2026-09-04T06:41:01.178Z |
+| [CASE-20260904-002](closed/CASE-20260904-002-stabilize-arcorbit-today-detail-rendering-across-background-refr.md) | closed | Stabilize ArcOrbit Today detail rendering across background refreshes | 2026-09-04T07:27:46.431Z |

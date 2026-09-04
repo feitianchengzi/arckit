@@ -10,6 +10,7 @@ import {
 import { renderRestrictedMarkdown, resolveWorkTaskReference, workTaskReference, workTaskReferenceSelection } from "./restricted-markdown.mjs";
 import { summarizeAutomationExecution } from "../../src/desktop/automation-execution-summary.mjs";
 import { createConversationSurface } from "./conversation-surface.mjs";
+import { createKeyedDetailSurface } from "./keyed-detail-surface.mjs";
 import {
   buildTaskCommentContent,
   normalizeTaskAttachmentUrl,
@@ -278,6 +279,10 @@ const workbenchConversationSurface = createConversationSurface({
   formatTime,
   onExternalLink: (url) => runAction(() => api.openWorkExternalLink(url)),
   performAction: runAction,
+});
+const todayDetailSurface = createKeyedDetailSurface({
+  host: els.todayOperator,
+  scrollSelector: ".today-operator-scroll"
 });
 
 initializeWindowControls({
@@ -1785,9 +1790,14 @@ function renderToday() {
     renderToday();
   }));
   els.todayAutomaticSummary.innerHTML = `<strong>系统状态</strong><span>${view.non_human_summary.ready_projects} 个项目可自动工作 · ${view.non_human_summary.running_projects} 个正在推进${view.non_human_summary.automatic_recovery_projects ? ` · ${view.non_human_summary.automatic_recovery_projects} 个自动恢复中` : ""}</span>`;
-  els.todayOperator.innerHTML = `${renderTodayResult()}${renderTodayOperator(view.selected_item, view)}`;
+  todayDetailSurface.render({
+    contextId: `${view.mode}:${view.selected_item?.id || "empty"}`,
+    html: `${renderTodayResult()}${renderTodayOperator(view.selected_item, view)}`
+  });
   wireTodayOperatorDraft(view.selected_item);
-  els.todayOperator.querySelectorAll("[data-today-action]").forEach((button) => button.addEventListener("click", () => runAction(() => performTodayAction(view.selected_item, button.dataset.todayAction))));
+  els.todayOperator.querySelectorAll("[data-today-action]").forEach((button) => {
+    button.onclick = () => runAction(() => performTodayAction(view.selected_item, button.dataset.todayAction));
+  });
   els.todayResponsibilityList.querySelector("[data-today-open-work]")?.addEventListener("click", () => showPage("work"));
   els.todayResponsibilityList.querySelector("[data-today-empty-add]")?.addEventListener("click", () => runAction(openTodayProjectCatalog));
   els.todayAddProjectButton.onclick = () => runAction(openTodayProjectCatalog);
@@ -1829,7 +1839,6 @@ function renderTodayOperator(item, view) {
   if (!item) return `<div class="today-operator-empty"><span>✓</span><h2>${view.mode === "configuration" ? "选择一个项目继续配置" : "当前无需人工介入"}</h2><p>${view.mode === "configuration" ? "项目之间独立检查；配置一个项目不会中断其他项目。" : "普通待办、完整运行进度和已处理历史不会出现在 Today。"}</p></div>`;
   const project = view.projects.find((candidate) => candidate.id === item.project_id) || item.context || {};
   if (item.kind === "project_configuration") return renderTodayConfigurationOperator(item, project);
-  const draft = state.todayDrafts[item.id] || "";
   const automationTimeline = item.source === "automation" ? `<section class="today-operator-section"><h3>人机接力</h3><div class="today-handoff-timeline"><span class="is-complete">自动执行</span><span class="is-current">等待你</span><span>来源校验</span><span>恢复原执行</span></div></section>` : "";
   const contextRows = [
     ["项目", project.name || projectName(item.project_id)],
@@ -1839,7 +1848,7 @@ function renderTodayOperator(item, view) {
   ];
   const needsDraft = item.source === "automation" || item.actions.includes("raise_acceptance_issue");
   const busy = state.todaySubmittingItemId === item.id;
-  return `<div class="today-operator-scroll"><header class="today-operator-header"><div><p class="eyebrow">${escapeHtml(todayKindLabel(item.kind))}</p><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(project.name || projectName(item.project_id))}</p></div><span class="status-pill ${busy ? "in_progress" : "pending_review"}">${busy ? "提交中" : "等待你"}</span></header><section class="today-operator-section today-reason"><h3>为什么需要你</h3><p>${escapeHtml(item.reason)}</p><small>不处理会使当前来源对象保持等待或留下未收口事务。</small></section>${renderTodaySourceContext(item)}<section class="today-operator-section"><h3>关联身份</h3><dl class="today-facts">${contextRows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></section>${automationTimeline}<section class="today-operator-section"><h3>操作</h3>${needsDraft ? `<label class="today-field"><span>${item.actions.includes("raise_acceptance_issue") ? "验收问题或补充说明" : "补充说明"}</span><textarea data-today-draft rows="4" placeholder="切换项目或责任项不会丢失当前输入。">${escapeHtml(draft)}</textarea></label>` : `<p class="today-action-explanation">提交后由来源确认新状态；确认前不会从 Today 移除。</p>`}</section></div><footer class="today-operator-actions">${item.actions.map((action, index) => `<button class="${index === 0 ? "primary-button" : "secondary-button"}" data-today-action="${escapeHtml(action)}" type="button" ${busy ? "disabled aria-busy=\"true\"" : ""}>${busy ? "正在等待来源…" : escapeHtml(todayActionLabel(action))}</button>`).join("")}</footer>`;
+  return `<div class="today-operator-scroll"><header class="today-operator-header"><div><p class="eyebrow">${escapeHtml(todayKindLabel(item.kind))}</p><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(project.name || projectName(item.project_id))}</p></div><span class="status-pill ${busy ? "in_progress" : "pending_review"}">${busy ? "提交中" : "等待你"}</span></header><section class="today-operator-section today-reason"><h3>为什么需要你</h3><p>${escapeHtml(item.reason)}</p><small>不处理会使当前来源对象保持等待或留下未收口事务。</small></section>${renderTodaySourceContext(item)}<section class="today-operator-section"><h3>关联身份</h3><dl class="today-facts">${contextRows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></section>${automationTimeline}<section class="today-operator-section"><h3>操作</h3>${needsDraft ? `<label class="today-field"><span>${item.actions.includes("raise_acceptance_issue") ? "验收问题或补充说明" : "补充说明"}</span><textarea data-today-draft data-detail-focus-key="draft" rows="4" placeholder="切换项目或责任项不会丢失当前输入。"></textarea></label>` : `<p class="today-action-explanation">提交后由来源确认新状态；确认前不会从 Today 移除。</p>`}</section></div><footer class="today-operator-actions">${item.actions.map((action, index) => `<button class="${index === 0 ? "primary-button" : "secondary-button"}" data-today-action="${escapeHtml(action)}" type="button" ${busy ? "disabled aria-busy=\"true\"" : ""}>${busy ? "正在等待来源…" : escapeHtml(todayActionLabel(action))}</button>`).join("")}</footer>`;
 }
 
 function renderTodaySourceContext(item) {
@@ -1923,10 +1932,14 @@ function todayActionLabel(action) {
 
 function wireTodayOperatorDraft(item) {
   const textarea = els.todayOperator.querySelector("[data-today-draft]");
-  if (textarea && item) textarea.addEventListener("input", () => {
-    state.todayDrafts[item.id] = textarea.value;
-    scheduleTodayPreferencePersistence(300);
-  });
+  if (textarea && item) {
+    const draft = state.todayDrafts[item.id] || "";
+    if (textarea !== document.activeElement && textarea.value !== draft) textarea.value = draft;
+    textarea.oninput = () => {
+      state.todayDrafts[item.id] = textarea.value;
+      scheduleTodayPreferencePersistence(300);
+    };
+  }
 }
 
 function todayPreference() {
