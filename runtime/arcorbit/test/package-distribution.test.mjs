@@ -80,7 +80,7 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
       "--provider-manifest", externalManifestPath, "--provider-sha256", archiveSha, "--provider-release", "tf/v0.1.0-b1",
       "--provider-repository", "feitianchengzi/arcforge", "--target", "macos-arm64", "--signing", "disabled", "--source-commit", "b".repeat(40), "--build-root", packageBuildRoot
     ], { cwd: runtimeRoot });
-    await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "disabled", "--notarize", "false", "--platform", "mac", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
+    await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "disabled", "--platform", "mac", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
 
     const resourcesRoot = path.join(packageBuildRoot, "resources");
     const lockPath = path.join(resourcesRoot, "provisioning", "distribution-lock.json");
@@ -136,20 +136,20 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     assert.equal(localLock.build.workflow, "local-build");
     assert.equal(localLock.signing.requestedMode, "disabled");
 
-    await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "required", "--notarize", "true", "--platform", "mac", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
+    await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "required", "--platform", "mac", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
     const requiredMacConfig = JSON.parse(await readFile(path.join(packageBuildRoot, "electron-builder.generated.json"), "utf8"));
     assert.equal(requiredMacConfig.forceCodeSigning, true);
     assert.equal(requiredMacConfig.mac.hardenedRuntime, true);
-    assert.equal(requiredMacConfig.mac.notarize, true);
+    assert.equal(requiredMacConfig.mac.notarize, false);
     assert.equal(Object.hasOwn(requiredMacConfig.mac, "identity"), false);
     assert.equal(requiredMacConfig.dmg.sign, true);
 
-    await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "required", "--notarize", "false", "--platform", "win", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
+    await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "required", "--platform", "win", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
     const requiredWindowsConfig = JSON.parse(await readFile(path.join(packageBuildRoot, "electron-builder.generated.json"), "utf8"));
     assert.equal(requiredWindowsConfig.forceCodeSigning, true);
     assert.equal(Object.hasOwn(requiredWindowsConfig.win, "sign"), false);
 
-    await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "disabled", "--notarize", "false", "--platform", "linux", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
+    await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "disabled", "--platform", "linux", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
     const unsignedLinuxConfig = JSON.parse(await readFile(path.join(packageBuildRoot, "electron-builder.generated.json"), "utf8"));
     assert.equal(unsignedLinuxConfig.forceCodeSigning, false);
     assert.deepEqual(unsignedLinuxConfig.linux.target, ["AppImage"]);
@@ -205,11 +205,19 @@ test("Runtime package workflow is manual-only and consumes immutable release/pro
   assert.match(workflow, /macOS notarization authentication: \$notarization_auth/);
   assert.match(workflow, /effective_signing=disabled/);
   assert.match(workflow, /SIGNING: \$\{\{ steps\.signing\.outputs\.effective_signing \}\}/);
+  assert.doesNotMatch(workflow, /build-package-config\.mjs[^\n]*--notarize/);
   assert.doesNotMatch(workflow, /required Windows signing secrets are missing/);
   assert.doesNotMatch(workflow, /WIN_CSC_LINK/);
   assert.match(workflow, /codesign --verify --deep --strict/);
-  assert.match(workflow, /xcrun stapler validate/);
-  assert.match(workflow, /spctl --assess --type execute/);
+  assert.match(workflow, /xcrun notarytool submit "\$dmg_path" --key "\$APPLE_API_KEY" --key-id "\$APPLE_API_KEY_ID" --issuer "\$APPLE_API_ISSUER" --wait/);
+  assert.match(workflow, /xcrun notarytool submit "\$dmg_path" --apple-id "\$APPLE_ID" --password "\$APPLE_APP_SPECIFIC_PASSWORD" --team-id "\$APPLE_TEAM_ID" --wait/);
+  assert.match(workflow, /xcrun stapler staple "\$dmg_path"/);
+  assert.match(workflow, /xcrun stapler validate "\$dmg_path"/);
+  assert.match(workflow, /spctl --assess --type open --context context:primary-signature/);
+  assert.doesNotMatch(workflow, /xcrun stapler validate "\$app_path"/);
+  assert.equal(workflow.indexOf('xcrun notarytool submit "$dmg_path"') > workflow.indexOf("- name: Build installer"), true);
+  assert.equal(workflow.indexOf("- name: Finalize artifact attestations") > workflow.indexOf('spctl --assess --type open'), true);
+  assert.match(workflow, /notarization_result=verified-outermost-dmg-by-platform-gate/);
   assert.match(workflow, /prepare-release-assets\.mjs --root release-assets/);
   assert.match(workflow, /--verify-tag/);
   assert.doesNotMatch(workflow, /git tag|git push/);

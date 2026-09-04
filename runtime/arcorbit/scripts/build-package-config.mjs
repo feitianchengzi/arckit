@@ -11,7 +11,6 @@ const lock = JSON.parse(await readFile(path.join(buildRoot, "resources", "provis
 const pkg = JSON.parse(await readFile(path.join(runtimeRoot, "package.json"), "utf8"));
 const outputPath = path.join(buildRoot, "electron-builder.generated.json");
 const resourcesFrom = path.relative(runtimeRoot, path.join(buildRoot, "resources")) || ".";
-const notarize = options.signing !== "disabled" && options.notarize === "true";
 const config = {
   appId: "com.feitianchengzi.arckit.runtime",
   productName: "ArcOrbit",
@@ -31,7 +30,9 @@ const config = {
     category: "public.app-category.developer-tools",
     target: ["dmg"],
     hardenedRuntime: options.signing !== "disabled",
-    notarize,
+    // The downloadable DMG is the outermost distribution container. The
+    // workflow notarizes and staples it only after electron-builder finishes.
+    notarize: false,
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
     ...(options.signing === "disabled" ? { identity: null } : {})
@@ -46,4 +47,4 @@ await mkdir(path.dirname(outputPath), { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(config, null, 2)}\n`);
 console.log(outputPath);
 
-function parseArgs(args) { const result = {}; for (let index = 0; index < args.length; index += 1) { if (args[index] === "--signing") result.signing = args[++index]; else if (args[index] === "--notarize") result.notarize = args[++index]; else if (args[index] === "--platform") result.platform = args[++index]; else if (args[index] === "--build-root") result.buildRoot = args[++index]; } return result; }
+function parseArgs(args) { const result = {}; for (let index = 0; index < args.length; index += 1) { if (args[index] === "--signing") result.signing = args[++index]; else if (args[index] === "--platform") result.platform = args[++index]; else if (args[index] === "--build-root") result.buildRoot = args[++index]; } return result; }

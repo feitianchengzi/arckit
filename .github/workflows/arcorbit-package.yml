@@ -241,7 +241,7 @@ jobs:
           set -euo pipefail
           archive="$(find ../../provider-input -maxdepth 1 -name 'arcforge-provider-*.tgz' -type f -print -quit)"
           node scripts/prepare-distribution.mjs --release-tag "$RELEASE_TAG" --provider-archive "$archive" --provider-manifest ../../provider-input/arcforge-provider.manifest.json --provider-sha256 "$PROVIDER_SHA256" --provider-release "$PROVIDER_RELEASE" --provider-repository "$PROVIDER_REPOSITORY" --target "$TARGET" --signing "$SIGNING" --source-commit "$SOURCE_COMMIT" --repository "$REPOSITORY" --workflow "$WORKFLOW" --run-id "$RUN_ID" --run-attempt "$RUN_ATTEMPT" --source-ref "$SOURCE_REF"
-          node scripts/build-package-config.mjs --signing "$SIGNING" --notarize '${{ steps.signing.outputs.notarize }}' --platform '${{ matrix.platform }}'
+          node scripts/build-package-config.mjs --signing "$SIGNING" --platform '${{ matrix.platform }}'
 
       - name: Smoke-test packaged provider and skill payload
         working-directory: runtime/arcorbit
@@ -253,11 +253,6 @@ jobs:
           CSC_LINK: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.MAC_CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.signing.outputs.effective_signing == 'disabled' && 'false' || 'true' }}
-          APPLE_API_KEY_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_ID || '' }}
-          APPLE_API_ISSUER: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_ISSUER || '' }}
-          APPLE_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_BASE64 == '' && secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_BASE64 == '' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
         run: npm run ${{ matrix.script }}
 
       - name: Verify macOS signature
@@ -267,8 +262,36 @@ jobs:
         run: |
           set -euo pipefail
           app_path="$(find release -type d -name '*.app' -print -quit)"
+          dmg_path="$(find release -maxdepth 1 -type f -name '*.dmg' -print -quit)"
           test -n "$app_path"
+          test -n "$dmg_path"
           codesign --verify --deep --strict --verbose=2 "$app_path"
+          codesign --verify --verbose=2 "$dmg_path"
+
+      - name: Notarize and staple macOS distribution
+        if: steps.signing.outputs.notarize == 'true' && matrix.platform == 'mac'
+        working-directory: runtime/arcorbit
+        shell: bash
+        env:
+          NOTARIZATION_AUTH: ${{ steps.signing.outputs.notarization_auth }}
+          APPLE_API_KEY_ID: ${{ steps.signing.outputs.notarization_auth == 'api-key' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ steps.signing.outputs.notarization_auth == 'api-key' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_ID: ${{ steps.signing.outputs.notarization_auth == 'apple-id' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ steps.signing.outputs.notarization_auth == 'apple-id' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ steps.signing.outputs.notarization_auth == 'apple-id' && secrets.APPLE_TEAM_ID || '' }}
+        run: |
+          set -euo pipefail
+          dmg_path="$(find release -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "$dmg_path"
+          if [[ "$NOTARIZATION_AUTH" == api-key ]]; then
+            xcrun notarytool submit "$dmg_path" --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+          elif [[ "$NOTARIZATION_AUTH" == apple-id ]]; then
+            xcrun notarytool submit "$dmg_path" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          else
+            echo "Unsupported macOS notarization authentication: $NOTARIZATION_AUTH" >&2
+            exit 1
+          fi
+          xcrun stapler staple "$dmg_path"
 
       - name: Verify macOS notarization
         if: steps.signing.outputs.notarize == 'true' && matrix.platform == 'mac'
@@ -276,10 +299,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          app_path="$(find release -type d -name '*.app' -print -quit)"
-          test -n "$app_path"
-          xcrun stapler validate "$app_path"
-          spctl --assess --type execute --verbose=2 "$app_path"
+          dmg_path="$(find release -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "$dmg_path"
+          xcrun stapler validate "$dmg_path"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg_path"
 
       - name: Verify Windows signature
         if: steps.signing.outputs.signing_result == 'signed' && matrix.platform == 'win'
@@ -297,7 +320,7 @@ jobs:
           set -euo pipefail
           notarization_result=not-requested
           if [[ '${{ steps.signing.outputs.notarize }}' == true ]]; then
-            notarization_result=verified-by-platform-gate
+            notarization_result=verified-outermost-dmg-by-platform-gate
           fi
           node scripts/finalize-package-artifacts.mjs --signing-result '${{ steps.signing.outputs.signing_result }}' --notarization-result "$notarization_result"
 

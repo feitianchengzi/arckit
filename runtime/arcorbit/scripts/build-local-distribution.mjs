@@ -151,7 +151,6 @@ export async function runLocalBuild(options = {}) {
   await run(process.execPath, [
     "scripts/build-package-config.mjs",
     "--signing", plan.signing,
-    "--notarize", "false",
     "--platform", plan.host.platform
   ], runtimeRoot);
   await run(npm, ["run", "smoke:distribution"], runtimeRoot);
