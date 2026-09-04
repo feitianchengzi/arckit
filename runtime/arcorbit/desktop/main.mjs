@@ -283,7 +283,7 @@ app.on("before-quit", async (event) => {
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
     productFeedbackService?.close();
-    imageViewer?.close();
+    imageViewer?.close({ force: true });
     await skillProvisioningManager?.waitForIdle();
     await codexSetupManager?.waitForIdle();
     await runManager.abortActiveRuns({

@@ -1,12 +1,15 @@
 import { basename, extname } from "node:path";
 
-export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile, preloadFile, loadImage, getParentWindow = () => null }) {
+export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile, preloadFile, loadImage, getParentWindow = () => null, platform = process.platform }) {
   let window = null;
   let ready = false;
   let generation = 0;
   let state = { status: "idle" };
   let currentImage = null;
   let currentInput = null;
+  let allowClose = false;
+  let waitingForFullScreenExit = false;
+  let finishFullScreenClose = null;
 
   async function open(input) {
     currentInput = { ...input };
@@ -63,14 +66,25 @@ export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile,
     return Boolean(window && !window.isDestroyed() && sender === window.webContents);
   }
 
-  function close() {
+  function close({ force = false } = {}) {
     generation += 1;
-    if (window && !window.isDestroyed()) window.close();
+    if (!window || window.isDestroyed()) return;
+    if (!force) {
+      window.close();
+      return;
+    }
+    allowClose = true;
+    clearPendingFullScreenClose();
+    if (typeof window.destroy === "function") window.destroy();
+    else window.close();
   }
 
   function ensureWindow() {
     if (window && !window.isDestroyed()) return;
     ready = false;
+    allowClose = false;
+    waitingForFullScreenExit = false;
+    finishFullScreenClose = null;
     window = new BrowserWindow({
       parent: getParentWindow?.() || undefined,
       width: 980,
@@ -88,8 +102,31 @@ export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile,
       ready = true;
       sendState();
     });
+    window.on("close", (event) => {
+      if (allowClose || platform !== "darwin" || !window?.isFullScreen?.()) return;
+      event.preventDefault();
+      if (waitingForFullScreenExit) return;
+      waitingForFullScreenExit = true;
+      const closingWindow = window;
+      finishFullScreenClose = () => {
+        if (window !== closingWindow || closingWindow.isDestroyed()) return;
+        const parentWindow = getParentWindow?.();
+        finishFullScreenClose = null;
+        waitingForFullScreenExit = false;
+        allowClose = true;
+        closingWindow.close();
+        if (parentWindow && !parentWindow.isDestroyed()) {
+          parentWindow.show();
+          parentWindow.focus();
+        }
+      };
+      closingWindow.once("leave-full-screen", finishFullScreenClose);
+      closingWindow.setFullScreen(false);
+    });
     window.on("closed", () => {
       generation += 1;
+      clearPendingFullScreenClose();
+      allowClose = false;
       ready = false;
       currentImage = null;
       currentInput = null;
@@ -101,6 +138,14 @@ export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile,
 
   function sendState() {
     if (ready && window && !window.isDestroyed()) window.webContents.send("arckit:image-viewer-state", state);
+  }
+
+  function clearPendingFullScreenClose() {
+    if (finishFullScreenClose && window && !window.isDestroyed()) {
+      window.removeListener("leave-full-screen", finishFullScreenClose);
+    }
+    finishFullScreenClose = null;
+    waitingForFullScreenExit = false;
   }
 
   function assertViewerSender(sender) {

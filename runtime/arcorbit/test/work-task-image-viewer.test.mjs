@@ -113,3 +113,160 @@ test("a managed viewer can retry a failed image load without exposing the input 
   assert.deepEqual(await viewer.retry(window.webContents), { opened: true });
   assert.equal(attempts, 2);
 });
+
+test("a normal image viewer close remains immediate", async () => {
+  const window = createCloseAwareWindow({ fullScreen: false });
+  const viewer = createImageViewer({
+    BrowserWindow: class { constructor() { return window; } },
+    dialog: {},
+    writeFile: async () => {},
+    shellFile: "index.html",
+    preloadFile: "preload.cjs",
+    loadImage: loadedImage,
+    platform: "darwin"
+  });
+
+  await viewer.open({ object_key: "screen.png" });
+  window.close();
+
+  assert.equal(window.destroyed, true);
+  assert.equal(window.fullScreenExitRequests, 0);
+});
+
+test("a non-macOS fullscreen image viewer keeps the platform-native close behavior", async () => {
+  const window = createCloseAwareWindow({ fullScreen: true });
+  const viewer = createImageViewer({
+    BrowserWindow: class { constructor() { return window; } },
+    dialog: {},
+    writeFile: async () => {},
+    shellFile: "index.html",
+    preloadFile: "preload.cjs",
+    loadImage: loadedImage,
+    platform: "win32"
+  });
+
+  await viewer.open({ object_key: "screen.png" });
+  window.close();
+
+  assert.equal(window.destroyed, true);
+  assert.equal(window.fullScreenExitRequests, 0);
+});
+
+test("a macOS native-fullscreen image viewer exits fullscreen before one real close", async () => {
+  const window = createCloseAwareWindow({ fullScreen: true });
+  const parentWindow = createParentWindow();
+  const viewer = createImageViewer({
+    BrowserWindow: class { constructor() { return window; } },
+    dialog: {},
+    writeFile: async () => {},
+    shellFile: "index.html",
+    preloadFile: "preload.cjs",
+    loadImage: loadedImage,
+    getParentWindow: () => parentWindow,
+    platform: "darwin"
+  });
+
+  await viewer.open({ object_key: "screen.png" });
+  window.close();
+  window.close();
+
+  assert.equal(window.destroyed, false);
+  assert.equal(window.fullScreenExitRequests, 1);
+  assert.equal(window.acceptedCloseCount, 0);
+
+  window.completeFullScreenExit();
+
+  assert.equal(window.destroyed, true);
+  assert.equal(window.acceptedCloseCount, 1);
+  assert.equal(parentWindow.showCount, 1);
+  assert.equal(parentWindow.focusCount, 1);
+});
+
+test("application shutdown force-destroys a viewer waiting to leave native fullscreen", async () => {
+  const window = createCloseAwareWindow({ fullScreen: true });
+  const viewer = createImageViewer({
+    BrowserWindow: class { constructor() { return window; } },
+    dialog: {},
+    writeFile: async () => {},
+    shellFile: "index.html",
+    preloadFile: "preload.cjs",
+    loadImage: loadedImage,
+    platform: "darwin"
+  });
+
+  await viewer.open({ object_key: "screen.png" });
+  window.close();
+  viewer.close({ force: true });
+  window.completeFullScreenExit();
+
+  assert.equal(window.destroyed, true);
+  assert.equal(window.destroyCount, 1);
+  assert.equal(window.acceptedCloseCount, 0);
+});
+
+function createCloseAwareWindow({ fullScreen }) {
+  class FakeWebContents extends EventEmitter {
+    setWindowOpenHandler() {}
+    send() {}
+  }
+  class FakeWindow extends EventEmitter {
+    constructor() {
+      super();
+      this.webContents = new FakeWebContents();
+      this.destroyed = false;
+      this.fullScreen = fullScreen;
+      this.fullScreenExitRequests = 0;
+      this.acceptedCloseCount = 0;
+      this.destroyCount = 0;
+    }
+    loadFile() { this.webContents.emit("did-finish-load"); }
+    show() {}
+    focus() {}
+    setTitle() {}
+    isDestroyed() { return this.destroyed; }
+    isFullScreen() { return this.fullScreen; }
+    setFullScreen(value) {
+      assert.equal(value, false);
+      this.fullScreenExitRequests += 1;
+    }
+    completeFullScreenExit() {
+      this.fullScreen = false;
+      this.emit("leave-full-screen");
+    }
+    close() {
+      let prevented = false;
+      this.emit("close", { preventDefault: () => { prevented = true; } });
+      if (prevented || this.destroyed) return;
+      this.acceptedCloseCount += 1;
+      this.destroyed = true;
+      this.emit("closed");
+    }
+    destroy() {
+      if (this.destroyed) return;
+      this.destroyCount += 1;
+      this.destroyed = true;
+      this.emit("closed");
+    }
+  }
+  return new FakeWindow();
+}
+
+async function loadedImage() {
+  return {
+    bytes: new Uint8Array([1]),
+    data_url: "data:image/png;base64,AQ==",
+    content_type: "image/png",
+    file_name: "screen.png"
+  };
+}
+
+function createParentWindow() {
+  return {
+    destroyed: false,
+    showCount: 0,
+    focusCount: 0,
+    isDestroyed() { return this.destroyed; },
+    show() { this.showCount += 1; },
+    focus() { this.focusCount += 1; }
+  };
+}

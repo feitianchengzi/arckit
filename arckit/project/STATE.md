@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 343
-Updated: 2026-09-04T15:50:03.397Z
+Revision: 345
+Updated: 2026-09-04T16:51:11.370Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-ArcOrbit Today 页面第三栏的待办详情需要提供编辑能力，使用户能够直接修正有问题的待办内容。
+解决 ArcOrbit 主窗口处于全屏模式时，从待办附件等入口打开图片查看器并按 Escape 关闭后，主窗口错误变黑的问题。
 
 ## Active Work
 
