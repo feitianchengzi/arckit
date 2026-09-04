@@ -1762,8 +1762,11 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
 test("Today directly renders acceptance issue progress and preserves valid selection after submission", async () => {
   const source = await readFile(rendererPath, "utf8");
   const todayRender = source.slice(source.indexOf("function renderToday()"), source.indexOf("\nfunction renderTodayResult"));
+  const todayOperator = source.slice(source.indexOf("function renderTodayOperator(item, view)"), source.indexOf("\nfunction renderTodaySourceContext"));
   const sourceContext = source.slice(source.indexOf("function renderTodaySourceContext(item)"), source.indexOf("\nfunction todayFactRows"));
   const actionFlow = source.slice(source.indexOf("async function performTodayAction(item, action)"), source.indexOf("\nasync function performTodayProjectSetupAction"));
+  const editFlow = source.slice(source.indexOf("async function editTodayTaskContent(item)"), source.indexOf("\nasync function submitTaskEdit"));
+  const manageRule = source.slice(source.indexOf("function canManagePlatformTask(task)"), source.indexOf("\nfunction servicePriority"));
 
   assert.match(source, /createKeyedDetailSurface/);
   assert.match(todayRender, /todayDetailSurface\.render\(\{[\s\S]+contextId: `\$\{view\.mode\}:\$\{view\.selected_item\?\.id \|\| "empty"\}`/);
@@ -1777,6 +1780,13 @@ test("Today directly renders acceptance issue progress and preserves valid selec
   assert.doesNotMatch(sourceContext, /<details|today-context-disclosure/);
   assert.match(actionFlow, /await api\.submitAcceptanceFeedback\([\s\S]+await refreshSnapshot\(\{ quiet: true \}\)/);
   assert.match(actionFlow, /if \(action !== "raise_acceptance_issue"\) state\.todaySelectedItemId = ""/);
+  assert.match(todayOperator, /item\.source === "work" && canManagePlatformTask\(item\)/);
+  assert.match(todayOperator, /data-today-edit-task/);
+  assert.match(todayRender, /editTodayTaskContent\(view\.selected_item\)/);
+  assert.match(editFlow, /platformField\("content", "待办内容", \{ type: "textarea", required: true, value: item\.content \?\? "" \}\)/);
+  assert.match(editFlow, /executeManagedAction\("task\.update", \{ task_id: taskId, expected_state: expectedState, content \}/);
+  assert.doesNotMatch(editFlow, /platformField\("(?:project_id|state|executor_id|father_id|priority|tag_ids)"/);
+  assert.match(manageRule, /if \(task\.state !== "in_progress"\) return true;[\s\S]+findWorkspace\(task\.project_id\)/);
 });
 
 test("Work opens allowed Markdown links through a bounded main-process capability", async () => {

@@ -1798,6 +1798,9 @@ function renderToday() {
   els.todayOperator.querySelectorAll("[data-today-action]").forEach((button) => {
     button.onclick = () => runAction(() => performTodayAction(view.selected_item, button.dataset.todayAction));
   });
+  els.todayOperator.querySelector("[data-today-edit-task]")?.addEventListener("click", () => {
+    runAction(() => editTodayTaskContent(view.selected_item));
+  });
   els.todayResponsibilityList.querySelector("[data-today-open-work]")?.addEventListener("click", () => showPage("work"));
   els.todayResponsibilityList.querySelector("[data-today-empty-add]")?.addEventListener("click", () => runAction(openTodayProjectCatalog));
   els.todayAddProjectButton.onclick = () => runAction(openTodayProjectCatalog);
@@ -1848,7 +1851,10 @@ function renderTodayOperator(item, view) {
   ];
   const needsDraft = item.source === "automation" || item.actions.includes("raise_acceptance_issue");
   const busy = state.todaySubmittingItemId === item.id;
-  return `<div class="today-operator-scroll"><header class="today-operator-header"><div><p class="eyebrow">${escapeHtml(todayKindLabel(item.kind))}</p><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(project.name || projectName(item.project_id))}</p></div><span class="status-pill ${busy ? "in_progress" : "pending_review"}">${busy ? "提交中" : "等待你"}</span></header><section class="today-operator-section today-reason"><h3>为什么需要你</h3><p>${escapeHtml(item.reason)}</p><small>不处理会使当前来源对象保持等待或留下未收口事务。</small></section>${renderTodaySourceContext(item)}<section class="today-operator-section"><h3>关联身份</h3><dl class="today-facts">${contextRows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></section>${automationTimeline}<section class="today-operator-section"><h3>操作</h3>${needsDraft ? `<label class="today-field"><span>${item.actions.includes("raise_acceptance_issue") ? "验收问题或补充说明" : "补充说明"}</span><textarea data-today-draft data-detail-focus-key="draft" rows="4" placeholder="切换项目或责任项不会丢失当前输入。"></textarea></label>` : `<p class="today-action-explanation">提交后由来源确认新状态；确认前不会从 Today 移除。</p>`}</section></div><footer class="today-operator-actions">${item.actions.map((action, index) => `<button class="${index === 0 ? "primary-button" : "secondary-button"}" data-today-action="${escapeHtml(action)}" type="button" ${busy ? "disabled aria-busy=\"true\"" : ""}>${busy ? "正在等待来源…" : escapeHtml(todayActionLabel(action))}</button>`).join("")}</footer>`;
+  const editTaskButton = item.source === "work" && canManagePlatformTask(item)
+    ? `<button class="secondary-button" data-today-edit-task="${escapeHtml(item.source_object_id || "")}" type="button" ${busy ? "disabled" : ""}>编辑待办</button>`
+    : "";
+  return `<div class="today-operator-scroll"><header class="today-operator-header"><div><p class="eyebrow">${escapeHtml(todayKindLabel(item.kind))}</p><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(project.name || projectName(item.project_id))}</p></div><span class="status-pill ${busy ? "in_progress" : "pending_review"}">${busy ? "提交中" : "等待你"}</span></header><section class="today-operator-section today-reason"><h3>为什么需要你</h3><p>${escapeHtml(item.reason)}</p><small>不处理会使当前来源对象保持等待或留下未收口事务。</small></section>${renderTodaySourceContext(item)}<section class="today-operator-section"><h3>关联身份</h3><dl class="today-facts">${contextRows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></section>${automationTimeline}<section class="today-operator-section"><h3>操作</h3>${needsDraft ? `<label class="today-field"><span>${item.actions.includes("raise_acceptance_issue") ? "验收问题或补充说明" : "补充说明"}</span><textarea data-today-draft data-detail-focus-key="draft" rows="4" placeholder="切换项目或责任项不会丢失当前输入。"></textarea></label>` : `<p class="today-action-explanation">提交后由来源确认新状态；确认前不会从 Today 移除。</p>`}</section></div><footer class="today-operator-actions">${editTaskButton}${item.actions.map((action, index) => `<button class="${index === 0 ? "primary-button" : "secondary-button"}" data-today-action="${escapeHtml(action)}" type="button" ${busy ? "disabled aria-busy=\"true\"" : ""}>${busy ? "正在等待来源…" : escapeHtml(todayActionLabel(action))}</button>`).join("")}</footer>`;
 }
 
 function renderTodaySourceContext(item) {
@@ -3358,6 +3364,25 @@ async function editTask(taskId, { focusField = "" } = {}) {
   await action;
 }
 
+async function editTodayTaskContent(item) {
+  if (!item || item.source !== "work" || !canManagePlatformTask(item)) throw new Error("当前待办不可编辑。");
+  const taskId = String(item.source_object_id || "");
+  const expectedState = String(item.state || "");
+  const action = openPlatformAction({
+    title: `编辑待办 ${taskId}`,
+    lead: "在 Today 只修正待办内容；状态、执行人、优先级、标签、父待办和产品继续在 Work 管理。",
+    confirmLabel: "保存内容",
+    fields: [platformField("content", "待办内容", { type: "textarea", required: true, value: item.content ?? "" })],
+    onSubmit: async (values) => {
+      const content = String(values.content || "").trim();
+      if (!content) throw new Error("请填写待办内容。");
+      await executeManagedAction("task.update", { task_id: taskId, expected_state: expectedState, content }, "待办内容已更新");
+      return { close: true };
+    }
+  });
+  await action;
+}
+
 async function submitTaskEdit(task, rawValues) {
   const values = normalizeTaskFormValues(rawValues, { emptyPriority: "null" });
   const targetProjectId = String(values.project_id || "");
@@ -4041,7 +4066,11 @@ function findPlatformTask(id) {
   return value;
 }
 function findFeedback(id) { const value = state.platform.feedback_v1.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到反馈。"); return value; }
-function canManagePlatformTask(task) { const role = findWorkspace(task.project_id).current_user_role; return task.state !== "in_progress" || ["owner", "admin"].includes(role) || isCurrentProjectUser(task.executor_id, projectCurrentUserExecutorId(task.project_id)); }
+function canManagePlatformTask(task) {
+  if (task.state !== "in_progress") return true;
+  const role = findWorkspace(task.project_id).current_user_role;
+  return ["owner", "admin"].includes(role) || isCurrentProjectUser(task.executor_id, projectCurrentUserExecutorId(task.project_id));
+}
 function servicePriority(value) { const number = Number(value || 0); return number > 0 ? Math.max(0, 100 - number) : 0; }
 function workshopTaskPriority(task) {
   const raw = task?.raw?.priority;

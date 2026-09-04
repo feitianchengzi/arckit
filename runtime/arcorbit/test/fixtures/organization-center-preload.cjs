@@ -17,6 +17,7 @@ let acceptanceActionBarrier = null;
 let settingsBarrier = null;
 let createdTaskSequence = 0;
 let taskReplacementScenario = "success";
+let taskUpdateFailure = "";
 const feedbackV2ImageTest = process.env.ARCORBIT_ELECTRON_FEEDBACK_V2_TEST === "1";
 const workAcceptanceReplacementTest = process.env.ARCORBIT_WORK_ACCEPTANCE_REPLACEMENT_TEST === "1";
 const workAcceptanceLogoutTest = process.env.ARCORBIT_WORK_ACCEPTANCE_LOGOUT_TEST === "1";
@@ -320,6 +321,11 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   updateWorkset: async (input) => { calls.push(["updateWorkset", input]); platform.active_workset.project_ids = input.project_ids; return input; },
   executePlatformAction: async (command, input) => {
     calls.push([command, input]);
+    if (command === "task.update" && taskUpdateFailure) {
+      const message = taskUpdateFailure;
+      taskUpdateFailure = "";
+      throw new Error(message);
+    }
     if (command === "task.update" && acceptanceActionBarrier) {
       const barrier = acceptanceActionBarrier;
       const task = platform.tasks.find((item) => String(item.id) === String(input.task_id));
@@ -329,6 +335,18 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
       await barrier.release;
       if (acceptanceActionBarrier === barrier) acceptanceActionBarrier = null;
       return task || { id: String(input.task_id), state: String(input.state) };
+    }
+    if (command === "task.update") {
+      const task = platform.tasks.find((item) => String(item.id) === String(input.task_id));
+      const automationTask = automation.tasks.find((item) => String(item.id) === String(input.task_id));
+      for (const target of [task, automationTask].filter(Boolean)) {
+        for (const key of ["content", "state", "executor_id", "father_id", "tags"]) {
+          if (Object.hasOwn(input, key)) target[key] = input[key];
+        }
+        if (Object.hasOwn(input, "priority")) target.raw = { ...(target.raw || {}), priority: input.priority };
+      }
+      for (const listener of workSyncListeners) listener({ type: "work.changed", task_id: String(input.task_id) });
+      return task || { id: String(input.task_id), state: String(input.state || input.expected_state || "") };
     }
     if (command === "task.attachments.list") return taskAttachments[String(input.task_id)] || [];
     if (command === "task.attachment.create") return { id: `TA-${String(input.task_id)}-NEW`, task_id: String(input.task_id), creator_id: "7", type: input.type, content: input.content };
@@ -451,6 +469,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   getTestChatStreamState: async () => ({ emitted: chatStreamEmitted, active: Boolean(chatStreamTimer) }),
   emitTestChatEvent: async (event) => { for (const listener of chatListeners) listener(event); },
   setTestTaskReplacementScenario: async (value) => { taskReplacementScenario = String(value || "success"); },
+  failNextTestTaskUpdate: async (message) => { taskUpdateFailure = String(message || "Fixture task update failed"); },
   setTestPlatformSnapshotDelay: async (value) => { workQueryDelayMs = Math.max(0, Number(value) || 0); },
   queueTestPlatformWorkQueries: async (scenarios) => {
     workQueryScenarios = (Array.isArray(scenarios) ? scenarios : []).map((scenario) => ({

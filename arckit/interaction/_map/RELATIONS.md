@@ -10,7 +10,7 @@ Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-pla
 
 `today-workspace/interaction.md` 定义登录后的人工责任工作台。页面复用 PERSONAL、PRODUCT LIFECYCLE、ORGANIZATION 三组稳定主导航；项目栏持续表达多项目的配置状态、人工责任数量和最小自动状态；责任栏只在“需要你处理”“项目配置”间切换；操作台复用来源身份、权限、校验、幂等与恢复语义。`default.html` 投影三栏桌面主视图和两个模式，`readiness-details.html` 投影首次使用与多项目并行配置，`action-details.html` 投影各来源完整操作台，`action-continuity.html` 投影选择、提交、即时确认、冲突和重启恢复。
 
-Today 不重新定义来源状态机，但在本页内直接承载来源声明的人工作业面：项目目录与 Setup Readiness 提供目录、项目能力和本机 participation 操作；Chat 提供 waiting_approval；Automation 提供 human handoff、external dependency 和 Recovery Center；Work 提供 pending_review、completed、blocked 与跨产品移动恢复；Feedback 提供已创建 Task 的仅重试关联。Automation 的复杂责任项在 Today 操作台中投影从自动执行到人再回到同一 task session/thread/Case 的有界接力时间线，不复制完整运行日志。
+Today 不重新定义来源状态机，但在本页内直接承载来源声明的人工作业面：项目目录与 Setup Readiness 提供目录、项目能力和本机 participation 操作；Chat 提供 waiting_approval；Automation 提供 human handoff、external dependency 和 Recovery Center；Work 提供不依赖 Workset 辅助目录的内容纠偏 Sheet、pending_review、completed、blocked 与跨产品移动恢复，所有修改仍走 Work-owned 服务器确认路径；Feedback 提供已创建 Task 的仅重试关联。Automation 的复杂责任项在 Today 操作台中投影从自动执行到人再回到同一 task session/thread/Case 的有界接力时间线，不复制完整运行日志。
 
 Workset 不裁剪 Today 的人工责任范围。每个项目独立计算可访问、本地目录、项目 Setup 和当前用户当前设备 Automation participation 四项完成事实；一个项目的配置阻塞不影响其他 ready 项目检查、运行或进入 Work。新建待办不属于 Today，任意项目 ready 后只提供前往 Work 新建待办的跨页引导。当前用户可直接选择本机 participation，该选择不修改组织角色、项目成员、其他用户或其他设备。
 

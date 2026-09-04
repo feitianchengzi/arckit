@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 341
-Updated: 2026-09-04T07:27:46.431Z
+Revision: 343
+Updated: 2026-09-04T15:50:03.397Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-修复 ArcOrbit Today 页面第三栏详情在后台状态刷新时反复重绘并滚动到顶部的问题，确保修复落在正确的渲染生命周期和界面状态所有权边界。
+ArcOrbit Today 页面第三栏的待办详情需要提供编辑能力，使用户能够直接修正有问题的待办内容。
 
 ## Active Work
 
