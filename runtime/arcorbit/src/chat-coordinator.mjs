@@ -418,9 +418,7 @@ export function createChatCoordinator({
     if (event.type === "codex.item.started") {
       const item = event.params?.item || {};
       if (["commandExecution", "fileChange", "toolCall", "webSearch"].includes(item.type)) {
-        upsertLiveMessage(sessionId, {
-          role: "tool", kind: "tool", item_id: String(item.id || "tool"), content: toolSummary(item), status: "running"
-        });
+        upsertToolMessage(sessionId, item, "running");
         scheduleStreamNotification(sessionId);
       }
       return;
@@ -428,9 +426,7 @@ export function createChatCoordinator({
     if (event.type === "codex.item.completed") {
       const item = event.params?.item || {};
       if (["commandExecution", "fileChange", "toolCall", "webSearch"].includes(item.type)) {
-        upsertLiveMessage(sessionId, {
-          role: "tool", kind: "tool", item_id: String(item.id || "tool"), content: toolSummary(item), status: toolSucceeded(item) ? "completed" : "failed"
-        });
+        upsertToolMessage(sessionId, item, toolSucceeded(item) ? "completed" : "failed");
         await persistLiveMessage(sessionId, { itemId: String(item.id || "tool"), kind: "tool" });
         changed("chat.message.committed", sessionId);
       } else if (item.type === "agentMessage") {
@@ -567,6 +563,15 @@ export function createChatCoordinator({
 
   function changed(type, sessionId = "") {
     emitter.emit("event", { type, session_id: sessionId, occurred_at: now() });
+  }
+
+  function upsertToolMessage(sessionId, item, status) {
+    const itemId = String(item.id || "tool");
+    const previous = liveMessages.get(sessionId)?.get(liveMessageKey(itemId, "tool"));
+    upsertLiveMessage(sessionId, {
+      role: "tool", kind: "tool", item_id: itemId,
+      content: toolSummary(item, previous?.content), status
+    });
   }
 
   function upsertLiveMessage(sessionId, input) {
@@ -717,11 +722,27 @@ function approvalSummary(request) {
   return `批准 Codex 操作：${request.method}`;
 }
 
-function toolSummary(item) {
+function toolSummary(item, previousContent = "") {
   if (item.type === "commandExecution") return String(item.command || item.cmd || "运行命令").slice(0, 400);
-  if (item.type === "fileChange") return "更新项目文件";
+  if (item.type === "fileChange") return fileChangeSummary(item) || previousContent || "更新项目文件";
   if (item.type === "webSearch") return String(item.query || "搜索资料").slice(0, 400);
   return String(item.name || item.tool || "使用工具").slice(0, 400);
+}
+
+function fileChangeSummary(item) {
+  const pathValue = (value) => typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f]/g, " ").trim() : "";
+  const readPath = (change) => pathValue(change?.path) || pathValue(change?.filePath);
+  const paths = [...new Set((Array.isArray(item.changes) ? item.changes : []).map(readPath).filter(Boolean))];
+  if (!paths.length) {
+    const fallback = readPath(item);
+    if (fallback) paths.push(fallback);
+  }
+  if (!paths.length) return "";
+  const targets = paths.slice(0, 3).map((path) => {
+    const characters = Array.from(path);
+    return characters.length <= 120 ? path : `${characters.slice(0, 48).join("")}…${characters.slice(-71).join("")}`;
+  });
+  return `更新 ${targets.join("、")}${paths.length > 3 ? ` 等 ${paths.length} 个文件` : ""}`;
 }
 
 function toolSucceeded(item) {

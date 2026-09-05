@@ -5,6 +5,98 @@ import { join } from "node:path";
 import test from "node:test";
 import { createChatCoordinator } from "../src/chat-coordinator.mjs";
 import { createDesktopStore } from "../src/desktop/desktop-store.mjs";
+import { renderConversationSurfaceMessage } from "../desktop/renderer/conversation-surface.mjs";
+
+test("Chat file changes preserve bounded real targets through streaming, persistence and restart", async () => {
+  const fixture = await chatFixture();
+  const longPath = `src/${"nested/".repeat(40)}important-file.js`;
+  const examples = [
+    { fields: { changes: [{ path: "src/view.js" }] }, expected: "更新 src/view.js" },
+    { fields: { changes: [{ path: "src/view.js" }, { filePath: "src/style.css" }, { path: "src/view.js" }] }, expected: "更新 src/view.js、src/style.css" },
+    { fields: { changes: [null, 42, {}, { path: {} }, { path: " ", filePath: "src/fallback.js" }] }, expected: "更新 src/fallback.js" },
+    { fields: { changes: { path: "not-an-array.js" }, path: "top-level.js" }, expected: "更新 top-level.js" },
+    { fields: { changes: [], filePath: "C:\\project\\view.js" }, expected: "更新 C:\\project\\view.js" },
+    { fields: { changes: null }, expected: "更新项目文件" },
+    { fields: { changes: [null, { path: 123 }, { path: "\n" }], path: {} }, expected: "更新项目文件" },
+    { fields: { changes: [{ path: "src/<img src=x onerror=alert(1)>&.js" }] }, expected: "更新 src/<img src=x onerror=alert(1)>&.js" },
+    { fields: { changes: [{ path: "src/多 字符😀.js" }] }, expected: "更新 src/多 字符😀.js" },
+    { fields: { changes: [{ path: longPath }] }, includes: ["src/", "…", "important-file.js"] },
+    { fields: { changes: Array.from({ length: 20 }, (_, index) => ({ path: `src/file-${index}.js` })) }, expected: "更新 src/file-0.js、src/file-1.js、src/file-2.js 等 20 个文件" },
+    { fields: { changes: [{ path: "src/line\nbreak.js" }] }, expected: "更新 src/line break.js" },
+    { fields: {}, completed: { changes: [{ path: "src/late.js" }] }, expected: "更新项目文件", finalExpected: "更新 src/late.js" },
+    { fields: { changes: [{ path: "src/known.js" }] }, completed: {}, expected: "更新 src/known.js" },
+    { fields: { changes: [{ path: "src/before.js" }] }, completed: { changes: [{ path: "src/after.js" }] }, expected: "更新 src/before.js", finalExpected: "更新 src/after.js" }
+  ];
+  let release;
+  let ready;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const projected = new Promise((resolve) => { ready = resolve; });
+  let reopened;
+  const coordinator = createChatCoordinator({
+    ...fixture.options,
+    createAdapter: () => ({
+      async *runTurn({ options }) {
+        await options.onThreadBound({ threadId: "THREAD-FILES", resumed: false });
+        yield { type: "codex.turn.started", turn_id: "TURN-FILES" };
+        for (const [index, example] of examples.entries()) {
+          yield { type: "codex.item.started", params: { item: { id: `FILE-${index}`, type: "fileChange", ...example.fields, diff: "RAW_DIFF_MUST_NOT_RENDER" } } };
+        }
+        ready();
+        await gate;
+        for (const [index, example] of examples.entries()) {
+          yield { type: "codex.item.completed", params: { item: { id: `FILE-${index}`, type: "fileChange", ...(example.completed ?? example.fields), diff: "RAW_DIFF_MUST_NOT_RENDER" } } };
+        }
+        yield { type: "codex.turn.completed", turn_id: "TURN-FILES", turn: { status: "completed" } };
+      },
+      async interrupt() { release(); },
+      close() {}
+    })
+  });
+  const verify = (messages, completed) => {
+    const tools = messages.filter((message) => message.role === "tool");
+    assert.equal(tools.length, examples.length);
+    for (const [index, example] of examples.entries()) {
+      const message = tools[index];
+      const expected = completed ? example.finalExpected ?? example.expected : example.expected;
+      if (expected) assert.equal(message.content, expected, `file example ${index}`);
+      for (const part of example.includes || []) assert.ok(message.content.includes(part), part);
+      assert.ok(Array.from(message.content).length <= 400);
+      assert.equal(message.status, completed ? "completed" : "running");
+      const html = renderConversationSurfaceMessage(message);
+      assert.doesNotMatch(html, /<img|RAW_DIFF_MUST_NOT_RENDER|"changes"/);
+      if (index === 7) assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;&amp;\.js/);
+      if (index === 0) assert.match(html, /更新 src\/view\.js/);
+    }
+    return tools.map((message) => message.id);
+  };
+  try {
+    const sent = await coordinator.send({ project_id: "PROJECT-1", client_request_id: "REQUEST-FILES", text: "Update files" });
+    await projected;
+    const sessionId = sent.selected_session_id;
+    const liveIds = verify((await coordinator.getSnapshot({ session_id: sessionId })).messages, false);
+    release();
+    const completed = await waitForChatTerminal(coordinator, sessionId);
+    assert.deepEqual(verify(completed.messages, true), liveIds);
+    const stored = await fixture.options.runManager.readDesktopStore();
+    assert.deepEqual(verify(stored.messages[sessionId], true), liveIds);
+    // A historical summary contains no source path and must not acquire invented targets.
+    await fixture.options.runManager.updateDesktopStore((draft) => {
+      draft.messages[sessionId].push({ id: "LEGACY-FILE", role: "tool", kind: "tool", content: "更新项目文件", status: "completed" });
+      return draft;
+    });
+    await coordinator.close();
+    const freshStore = createDesktopStore({ dataDir: fixture.root, runsDir: join(fixture.root, "runs"), storePath: join(fixture.root, "desktop-store.json") });
+    reopened = createChatCoordinator({ ...fixture.options, runManager: { ...fixture.options.runManager, readDesktopStore: freshStore.readStore, updateDesktopStore: freshStore.updateStore } });
+    const restored = await reopened.getSnapshot({ session_id: sessionId });
+    assert.deepEqual(verify(restored.messages.filter((message) => message.id !== "LEGACY-FILE"), true), liveIds);
+    assert.equal(restored.messages.find((message) => message.id === "LEGACY-FILE").content, "更新项目文件");
+  } finally {
+    release();
+    await coordinator.close();
+    await reopened?.close();
+    await fixture.cleanup();
+  }
+});
 
 test("ChatCoordinator creates isolated persistent Chat sessions and resumes their thread", async () => {
   const fixture = await chatFixture();
@@ -589,6 +681,7 @@ async function chatFixture() {
     getSettings: async () => ({ codex_proxy: { enabled: false, url: "" } })
   };
   return {
+    root,
     options: {
       runManager,
       getCodexExecutable: () => ({ command: "codex", pathEntries: [] }),

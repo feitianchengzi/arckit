@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-09-05T05:12:39.343Z",
-    "revision": 348
+    "updated_at": "2026-09-05T06:48:52.616Z",
+    "revision": 350
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -112,7 +112,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "调查 Codex 是否提供 Model 和 Level 清单接口；可获取时提供动态配置，否则提供人工输入框，并将默认配置改为 gpt-6-astra high。",
+      "current_focus": "解决 AI 对话消息列表只显示“更新项目文件”、无法直接知道修改了哪些文件的问题。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

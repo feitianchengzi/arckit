@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 348
-Updated: 2026-09-05T05:12:39.343Z
+Revision: 350
+Updated: 2026-09-05T06:48:52.616Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-调查 Codex 是否提供 Model 和 Level 清单接口；可获取时提供动态配置，否则提供人工输入框，并将默认配置改为 gpt-6-astra high。
+解决 AI 对话消息列表只显示“更新项目文件”、无法直接知道修改了哪些文件的问题。
 
 ## Active Work
 
