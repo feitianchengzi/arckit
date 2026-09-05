@@ -176,3 +176,4 @@
 | [CASE-20260904-002](closed/CASE-20260904-002-stabilize-arcorbit-today-detail-rendering-across-background-refr.md) | closed | Stabilize ArcOrbit Today detail rendering across background refreshes | 2026-09-04T07:27:46.431Z |
 | [CASE-20260904-003](closed/CASE-20260904-003-enable-task-editing-in-the-today-detail-pane.md) | closed | Enable task editing in the Today detail pane | 2026-09-04T15:50:03.397Z |
 | [CASE-20260904-004](closed/CASE-20260904-004-development-case.md) | closed | 修复全屏模式关闭图片查看器后主窗口黑屏 | 2026-09-04T16:51:11.370Z |
+| [CASE-20260905-001](closed/CASE-20260905-001-arcorbit-codex-model-level.md) | closed | ArcOrbit 设置页支持 Codex Model 与 Level 配置 | 2026-09-05T05:12:39.343Z |

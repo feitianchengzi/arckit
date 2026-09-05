@@ -31,6 +31,9 @@ test("ChatCoordinator creates isolated persistent Chat sessions and resumes thei
       ["user", "Explain the architecture"], ["assistant", "answer-1"]
     ]);
 
+    assert.equal(calls[0].options.model, "gpt-6-astra");
+    assert.equal(calls[0].options.reasoningEffort, "high");
+    fixture.options.runManager.getSettings = async () => ({ codex: { model: "custom-model", reasoning_effort: "ultra" } });
     snapshot = await coordinator.send({
       session_id: sessionId, client_request_id: "REQUEST-2", text: "Continue"
     });
@@ -39,6 +42,8 @@ test("ChatCoordinator creates isolated persistent Chat sessions and resumes thei
     assert.equal(calls[0].options.resultKind, "chat");
     assert.equal(Object.hasOwn(calls[0].options, "outputSchema"), false);
     assert.equal(calls[1].options.threadId, "THREAD-1");
+    assert.equal(calls[1].options.model, "custom-model");
+    assert.equal(calls[1].options.reasoningEffort, "ultra");
     assert.equal(adapterCount, 1);
     assert.equal(snapshot.messages.filter((message) => message.role === "user").length, 2);
 

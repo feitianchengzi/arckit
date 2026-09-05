@@ -45,6 +45,42 @@ Store 对 Chat 持久化以下状态：
 - 以 `turn/interrupt` 停止当前 turn，并对活动 turn、client close 与进程异常给出可恢复终态。
 - 处理 command single-flight、workspace roots、sandbox、approval policy 和用户 approval request。
 
+### Codex Model / Level 接口调查（2026-09-05）
+
+Codex app-server 提供 `model/list`，Level 对应 reasoning effort。请求在 `initialize` 响应及 `initialized` 通知之后发出，接受 `cursor`、`limit`、`includeHidden`；响应为 `data` 与 `nextCursor`。每个模型提供执行用 `model`、展示用 `displayName`、`supportedReasoningEfforts` 和 `defaultReasoningEffort`。级别选项包含 `reasoningEffort` 与说明，不能用一个固定全局 Level 枚举替代模型自身清单。默认查询只包含 picker-visible 模型；隐藏模型并不等于不存在。
+
+本机 `codex-cli 0.153.4` 的 `app-server generate-ts` 产物确认上述契约；`TurnStartParams` 的执行参数是 `model` 和 `effort`，两者均可覆盖当前及后续 turn。生成的 `ReasoningEffort` 为字符串。证据来源包括 [OpenAI app-server 文档](https://learn.chatgpt.com/docs/app-server#list-models-modellist)，以及本机生成的 `v2/ModelListParams.ts`、`v2/ModelListResponse.ts`、`v2/Model.ts`、`v2/ReasoningEffortOption.ts` 和 `v2/TurnStartParams.ts`。
+
+实际探测采用 ArcOrbit 的 `JsonRpcStdioClient` 启动 PATH 中的 Codex，只执行握手和清单查询，没有创建 thread 或模型 turn。查询参数为 `limit=2`、`includeHidden=false`，后续页使用前页游标；共返回四页、七个模型，末页游标为空：
+
+| model | supportedReasoningEfforts | defaultReasoningEffort |
+| --- | --- | --- |
+| gpt-6-astra | low, medium, high, xhigh, max, ultra | medium |
+| gpt-5.6-sol | low, medium, high, xhigh, max, ultra | low |
+| gpt-5.6-terra | low, medium, high, xhigh, max, ultra | medium |
+| gpt-5.6-luna | low, medium, high, xhigh, max | medium |
+| gpt-5.5 | low, medium, high, xhigh | medium |
+| gpt-5.4-mini | low, medium, high, xhigh | medium |
+| gpt-5.3-codex-spark | low, medium, high, xhigh | high |
+
+这是该版本和本机 Codex 上下文中的观察结果，不是产品内置清单，也不证明所有账户、provider 或安装版本均能执行这些模型。用户指定的 ArcOrbit 默认值 `gpt-6-astra / high` 存在于本次清单；它不同于清单推荐的 `medium`，不能被服务端推荐值静默替换。沙箱内首次探测在握手前退出，获授权在沙箱外重试成功；该结果不能归因为 API 不存在。
+
+### Codex 配置与清单执行契约
+
+`src/codex-model-settings.mjs` 统一定义 Desktop 默认 gpt-6-astra / high 与逐字段归一化。Desktop Store 独占 `settings.codex.model`、`settings.codex.reasoning_effort` 控制事实，公开投影只暴露文本偏好；保存 patch 验证文本类型、1–200 字符、无控制字符并 trim，未知模型和级别保留。缺失或非法存储字段按字段使用默认值，更新无关设置不清除有效用户值。不写用户全局 Codex config。
+
+`desktop-run-manager.listCodexModels` 在主进程解析当前 executable 和 PATH，并读取保存的代理 context。无参数 IPC `arckit:list-codex-models` 只调用该方法；Renderer 不提供 method、argv、cwd、environment 或凭据。`src/codex-model-catalog.mjs` 通过既有 `JsonRpcStdioClient` 创建独立 app-server，只执行 initialize、initialized、model/list，从不创建或恢复 thread。全查询超时 10 秒，每页请求 100 项，最多 50 页和 1000 个模型，检测游标重复及畸形页；只有分页完成才发布清单，任何失败均丢弃部分结果。finally 关闭 client；原始 stderr 不进入 Renderer，只投影固定非敏感恢复说明。
+
+Renderer 的 `codex-settings-form.mjs` 提供可编辑 datalist，按模型更新 Level 候选并保留当前输入。清单与保存有独立反馈，打开周期和查询序号隔离过期响应；清单不成为设置事实源。“保存 Codex 配置”只写两个字段；“保存并同步”包含两字段和既有任务源/代理草稿。查询使用保存值而非代理草稿。
+
+ChatCoordinator 每次 consumeTurn 读取保存的 model / reasoning_effort，作为 `model` / `reasoningEffort` options 提交共享 adapter。DesktopRunManager 在每次 Run 启动读取并固定偏好，将实际选择记录在 Run 的 `model` / `reasoning_effort`，通过 `--model` / `--reasoning-effort` 传至 CLI；显式调用参数仍优先于 Desktop 偏好。state-driven runner 持续复用启动 options，直至该 Run 结束，包括后续轮次和收尾。独立 CLI 不读取 Desktop Store。
+
+共享 adapter 每次 turn/start 使用 `model` 和 `effort`，不通过替代 thread 实现配置变更。保存对下一条 Chat 消息与下一次 Automation Run 生效；正在执行的任务保持已提交参数。交互式 CLI 接力继续 codex resume 原 thread，不另加 Desktop 配置覆盖。清单成功不是执行授权，模型不支持、账户限制或执行失败仍走既有恢复路径。
+
+行为证据由 `test/codex-model-settings.test.mjs`、`test/desktop-run-manager.test.mjs`、`test/chat-coordinator.test.mjs` 和 `test/codex-app-server-adapter.test.mjs` 覆盖默认值、持久化、完整分页及失败、草稿保持、参数贯通和同 thread 连续性。实际本机清单证据限于前述版本与上下文，不外推为其它账户、安装或 WSL transport 已验证。
+
+2026-09-05 验证：完整 ArcOrbit check 在授权执行环境为 585 passed、26 skipped、0 failed；新增真实 Electron 设置页行为测试通过，覆盖候选、草稿、保存恢复与失败重试；补充可信查询上下文测试后的定向套件 24 passed、0 failed。本机新清单实现只读查询返回 7 个模型，Astra 支持 high。沙箱内两个既有 Electron 进程被终止及 Codex 查询不可用分别经授权重跑确认，未作为功能成功证据。
+
 ### Windows Codex executable 边界
 
 Windows Desktop 对 Codex executable 使用单一、可验证的解析结果。常规检查中，显式 `ARCORBIT_CODEX_BIN` 优先，其后是 `PATH` 中的原生 `codex.exe` 或 npm `codex.cmd`、`%APPDATA%\npm\codex.cmd`、官方 standalone installer 使用的 `%USERPROFILE%\.local\bin`，最后是 Codex Desktop 在 `%LOCALAPPDATA%\OpenAI\Codex\bin` 准备的 versioned per-user runtime 和无版本 fallback。安装、更新或显式迁移完成后的 fresh discovery 临时把 standalone 候选置于首位，以验证 ArcOrbit 已实际切换到受管理 executable；其它候选仍按常规顺序作为失败回退。每个候选必须先通过 `--version`；不可访问的商店 package 目录、缺失文件和启动失败候选只形成诊断，不得被保存成 ready binding。

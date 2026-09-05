@@ -1,3 +1,4 @@
+import { normalizeCodexSettings } from "../codex-model-settings.mjs";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -604,6 +605,7 @@ export function normalizeWorkset(value) {
 
 export function defaultSettings() {
   return {
+    codex: normalizeCodexSettings(),
     codex_proxy: {
       enabled: false,
       url: "http://127.0.0.1:7890"
@@ -638,6 +640,7 @@ export function normalizeSettings(settings = {}) {
     ? settings.task_source
     : {};
   return {
+    codex: normalizeCodexSettings(settings.codex),
     codex_proxy: {
       enabled: Boolean(proxy.enabled),
       url: String(proxy.url || defaults.codex_proxy.url).trim() || defaults.codex_proxy.url
@@ -656,6 +659,7 @@ export function publicSettings(settings = {}) {
   const taskSource = normalized.task_source;
   const exposesDebugHeaders = taskSource.auth_mode === "headers";
   return {
+    codex: normalized.codex,
     codex_proxy: normalized.codex_proxy,
     task_source: {
       enabled: taskSource.enabled,

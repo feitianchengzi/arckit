@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   interruptChat: (input) => ipcRenderer.invoke("arckit:chat-interrupt", input),
   decideChatApproval: (input) => ipcRenderer.invoke("arckit:chat-approval-decision", input),
   getSettings: () => ipcRenderer.invoke("arckit:get-settings"),
+  listCodexModels: () => ipcRenderer.invoke("arckit:list-codex-models"),
   updateSettings: (input) => ipcRenderer.invoke("arckit:update-settings", input),
   getProductFeedbackStatus: () => ipcRenderer.invoke("arckit:product-feedback-status"),
   openProductFeedback: (mode) => ipcRenderer.invoke("arckit:product-feedback-open", mode),

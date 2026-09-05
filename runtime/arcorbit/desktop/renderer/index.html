@@ -329,7 +329,16 @@
               <div class="settings-advanced-content"><label class="toggle-row"><input id="taskSourceEnabled" type="checkbox"><span><strong>启用任务源</strong><small>通过主进程同步当前用户项目与待办</small></span></label><label class="field"><span>服务根地址</span><input id="taskSourceBaseUrl" type="url" placeholder="https://api.feitianchengzi.com"></label><div class="field-grid"><label class="field"><span>服务名</span><input id="taskSourceServiceName" type="text" placeholder="workshop"></label><label class="field"><span>认证模式</span><select id="taskSourceAuthMode"><option value="nebula">Workshop 登录</option><option value="bearer">Bearer Token（调试）</option><option value="headers">用户请求头（调试）</option></select></label></div><div id="tokenAuthFields"><label class="field"><span>访问令牌</span><input id="taskSourceToken" type="password" placeholder="保留为空则不修改现有令牌"></label></div><div id="headerAuthFields" class="field-grid"><label class="field"><span>用户 ID</span><input id="taskSourceUserId" type="text"></label><label class="field"><span>用户名</span><input id="taskSourceUsername" type="text"></label><label class="field"><span>App ID</span><input id="taskSourceAppId" type="text"></label><label class="field"><span>Session ID</span><input id="taskSourceSessionId" type="text"></label></div></div>
             </details>
           </section>
-          <section class="codex-settings-section"><h3>Codex Runtime</h3><label class="toggle-row"><input id="codexProxyEnabled" type="checkbox"><span><strong>使用代理</strong><small>仅注入新启动的 Codex app-server run</small></span></label><label class="field"><span>代理地址</span><input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890"></label></section>
+          <section class="codex-settings-section"><h3>Codex Runtime</h3>
+            <div class="field-grid">
+              <label class="field"><span>Model</span><input id="codexModel" type="text" list="codexModelOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexModelOptions"></datalist></label>
+              <label class="field"><span>Level（推理级别）</span><input id="codexEffort" type="text" list="codexEffortOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexEffortOptions"></datalist></label>
+            </div>
+            <p class="settings-lead">默认 gpt-6-astra / high。保存后对下一条 Chat 消息及下一次 Automation Run 生效，正在运行的任务保持启动时配置。</p>
+            <p id="codexCatalogFeedback" class="auth-feedback" role="status" aria-live="polite"></p>
+            <div class="settings-actions"><button id="refreshCodexModelsButton" class="secondary-button" type="button">刷新清单</button><button id="saveCodexSettingsButton" class="primary-button" type="button">保存 Codex 配置</button></div>
+            <p id="codexSettingsFeedback" class="auth-feedback" role="status" aria-live="polite"></p>
+            <label class="toggle-row"><input id="codexProxyEnabled" type="checkbox"><span><strong>使用代理</strong><small>仅注入新启动的 Codex app-server run</small></span></label><label class="field"><span>代理地址</span><input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890"></label></section>
         </div>
         <div class="settings-actions"><button id="saveSettingsButton" class="primary-button" type="button">保存并同步</button></div>
       </section>

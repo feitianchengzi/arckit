@@ -234,6 +234,9 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           model: effectiveOptions.model || null,
           input: [{ type: "text", text: prompt }]
         };
+        if (effectiveOptions.reasoningEffort) {
+          turnStartParams.effort = effectiveOptions.reasoningEffort;
+        }
         if (effectiveOptions.outputSchema) {
           turnStartParams.outputSchema = effectiveOptions.outputSchema;
         }

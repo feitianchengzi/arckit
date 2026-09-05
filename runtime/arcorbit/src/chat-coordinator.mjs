@@ -1,3 +1,4 @@
+import { normalizeCodexSettings } from "./codex-model-settings.mjs";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
@@ -239,7 +240,10 @@ export function createChatCoordinator({
       const executable = normalizeExecutable(getCodexExecutable());
       const settings = await runManager.getSettings();
       const env = prependPath(buildRuntimeEnv({ ...process.env }, settings), executable.pathEntries);
+      const codexSettings = normalizeCodexSettings(settings.codex);
       const options = {
+        model: codexSettings.model,
+        reasoningEffort: codexSettings.reasoning_effort,
         resultKind: "chat",
         threadKey: `chat:${sessionId}`,
         threadId: located.session.thread_id || "",

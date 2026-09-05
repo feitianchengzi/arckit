@@ -8,7 +8,7 @@
 
 `arcorbit/state-condition-ledger-solution.md` 定义安装包中 trusted ledger resources 的语义契约。安装供应链只校验、定位和打包这些资源，不复制其写回逻辑。
 
-`arcorbit/desktop-execution-solution.md` 定义安装完成后的自由 Chat、Automation Desktop session 与共享 Codex Conversation 层。Setup Readiness 是两类 session 的项目级前置 gate，不进入 Chat transcript、task session、Case Loop 或 execution lease。
+`arcorbit/desktop-execution-solution.md` 定义安装完成后的自由 Chat、Automation Desktop session、共享 Codex Conversation 层，以及消费 `arckit/spec/arcorbit-distribution.md` 的 Model/Level 设置、清单查询与执行生效契约；交互投影位于 `arckit/interaction/automation-workspace/authentication.html`。Setup Readiness 是两类 session 的项目级前置 gate，不进入 Chat transcript、task session、Case Loop 或 execution lease。
 
 `arcorbit/platform-composition-solution.md` 定义 Workshop 组织/项目/成员/待办/普通反馈与 ArcOrbit 本地 Product Workspace、独立 Organization Center、多产品 workset 和既有 Automation execution plane 的组合边界；它只消费 `arcorbit/desktop-execution-solution.md` 的公开投影和命令，不改变 Runtime Kernel。
 

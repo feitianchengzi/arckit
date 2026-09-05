@@ -9,6 +9,7 @@ test("one app-server client starts one persistent thread and reuses it for every
   const first = await collect(adapter.runTurn({
     projectRoot: "/workspace/project", prompt: "first gap",
     options: {
+      model: "gpt-6-astra", reasoningEffort: "high",
       resultKind: "agent-loop-result",
       threadKey: "agent-loop:TASK-1",
       onThreadBound: async (value) => {
@@ -19,7 +20,7 @@ test("one app-server client starts one persistent thread and reuses it for every
   }));
   const second = await collect(adapter.runTurn({
     projectRoot: "/workspace/project", prompt: "next gap",
-    options: { resultKind: "agent-loop-result", threadKey: "agent-loop:TASK-1" }
+    options: { resultKind: "agent-loop-result", threadKey: "agent-loop:TASK-1", model: "custom-model", reasoningEffort: "ultra" }
   }));
   adapter.close();
 
@@ -29,6 +30,10 @@ test("one app-server client starts one persistent thread and reuses it for every
   const turnStarts = client.requests.filter(({ method }) => method === "turn/start");
   assert.equal(turnStarts[0].params.threadId, "THREAD-1");
   assert.equal(turnStarts[1].params.threadId, "THREAD-1");
+  assert.equal(turnStarts[0].params.model, "gpt-6-astra");
+  assert.equal(turnStarts[0].params.effort, "high");
+  assert.equal(turnStarts[1].params.model, "custom-model");
+  assert.equal(turnStarts[1].params.effort, "ultra");
   assert.equal(first.some(({ type }) => type === "codex.thread.start.completed"), true);
   assert.equal(second.some(({ type }) => type === "codex.thread.reused"), true);
   assert.equal(binding[0].threadId, "THREAD-1");

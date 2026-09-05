@@ -10,6 +10,8 @@
 
 对应技术事实位于 `arckit/tech/arcorbit/installer-supply-chain.md`；Runtime 持续执行语义仍由 `arckit/tech/arcorbit/solution.md` 定义。
 
+`arcorbit-distribution.md` 同时定义 Codex Model/Level 的本地偏好、动态候选、人工兜底及生效时机；账号设置投影位于 `arckit/interaction/automation-workspace/authentication.html`，清单、持久化和参数传递契约位于 `arckit/tech/arcorbit/desktop-execution-solution.md`。
+
 ## Agent 软件研发操作层
 
 阅读顺序是 `problem-background.md`、`solution-principles.md`、`product-concepts.md`、`product-architecture.md`、`skill-architecture.md`、`controller-worker-loop.md`。`loop-engineering-research.md` 是研究输入，按需在修订 loop、runtime 或外部 adapter 相关规格前读取。

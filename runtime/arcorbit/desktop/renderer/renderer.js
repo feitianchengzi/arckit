@@ -1,3 +1,5 @@
+import { createCodexSettingsForm } from "./codex-settings-form.mjs";
+import { normalizeCodexSettings } from "../../src/codex-model-settings.mjs";
 import {
   isConversationSurfaceMessageVisible,
   mergeAutomationTranscript,
@@ -210,6 +212,17 @@ let platformActionBusy = false;
 let platformActionDisabledControls = new Map();
 
 const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map((element) => [element.id, element]));
+const codexSettingsForm = createCodexSettingsForm({
+  api,
+  elements: {
+    model: els.codexModel, effort: els.codexEffort,
+    modelList: els.codexModelOptions, effortList: els.codexEffortOptions,
+    refreshButton: els.refreshCodexModelsButton, saveButton: els.saveCodexSettingsButton,
+    feedback: els.codexSettingsFeedback, catalogFeedback: els.codexCatalogFeedback,
+    generalSaveButton: els.saveSettingsButton
+  },
+  onSaved: (settings) => { state.settings = normalizeSettings(settings); }
+});
 let refreshQueued = false;
 let automationRefreshQueued = false;
 let chatRefreshTimer = null;
@@ -4770,6 +4783,7 @@ async function openSettings({ loginGate = false } = {}) {
   renderSettingsForm();
   renderSettingsSurface();
   els.settingsOverlay.classList.remove("hidden");
+  if (!state.loginGate) void codexSettingsForm.refresh();
   document.body.classList.remove("auth-pending");
 }
 
@@ -4824,6 +4838,7 @@ function renderSettingsForm() {
   els.taskSourceUsername.value = settings.task_source.username;
   els.taskSourceAppId.value = settings.task_source.app_id;
   els.taskSourceSessionId.value = settings.task_source.session_id;
+  codexSettingsForm.reset(settings);
   els.codexProxyEnabled.checked = settings.codex_proxy.enabled;
   els.codexProxyUrl.value = settings.codex_proxy.url;
   renderAuthMode();
@@ -4944,32 +4959,39 @@ function startVerificationCooldown() {
 }
 
 async function saveSettings() {
-  state.settings = normalizeSettings(await api.updateSettings({
-    task_source: {
-      enabled: els.taskSourceEnabled.checked,
-      base_url: els.taskSourceBaseUrl.value,
-      service_name: els.taskSourceServiceName.value,
-      auth_mode: els.taskSourceAuthMode.value,
-      access_token: els.taskSourceToken.value,
-      user_id: els.taskSourceUserId.value,
-      username: els.taskSourceUsername.value,
-      app_id: els.taskSourceAppId.value,
-      session_id: els.taskSourceSessionId.value
-    },
-    codex_proxy: {
-      enabled: els.codexProxyEnabled.checked,
-      url: els.codexProxyUrl.value
-    }
-  }));
-  state.authentication = normalizeAuthentication(await api.getAuthStatus());
-  closeSettings();
-  await api.syncWork();
-  await refreshSnapshot();
-  showToast(!state.authentication.authenticated
-    ? "设置已保存，请登录 Workshop 后同步。"
-    : ["healthy", "degraded"].includes(state.snapshot.source_status)
-      ? "设置已保存并完成同步。"
-      : "设置已保存，但任务同步未完成。");
+  const codex = codexSettingsForm.read();
+  const unlockSave = codexSettingsForm.lockSave();
+  try {
+    state.settings = normalizeSettings(await api.updateSettings({
+      codex,
+      task_source: {
+        enabled: els.taskSourceEnabled.checked,
+        base_url: els.taskSourceBaseUrl.value,
+        service_name: els.taskSourceServiceName.value,
+        auth_mode: els.taskSourceAuthMode.value,
+        access_token: els.taskSourceToken.value,
+        user_id: els.taskSourceUserId.value,
+        username: els.taskSourceUsername.value,
+        app_id: els.taskSourceAppId.value,
+        session_id: els.taskSourceSessionId.value
+      },
+      codex_proxy: {
+        enabled: els.codexProxyEnabled.checked,
+        url: els.codexProxyUrl.value
+      }
+    }));
+    state.authentication = normalizeAuthentication(await api.getAuthStatus());
+    closeSettings();
+    await api.syncWork();
+    await refreshSnapshot();
+    showToast(!state.authentication.authenticated
+      ? "设置已保存，请登录 Workshop 后同步。"
+      : ["healthy", "degraded"].includes(state.snapshot.source_status)
+        ? "设置已保存并完成同步。"
+        : "设置已保存，但任务同步未完成。");
+  } finally {
+    unlockSave();
+  }
 }
 
 async function openProductFeedback() {
@@ -5355,6 +5377,7 @@ function escapeHtml(value) {
 function normalizeSettings(value = {}) {
   const defaults = defaultSettings();
   return {
+    codex: normalizeCodexSettings(value.codex),
     codex_proxy: { ...defaults.codex_proxy, ...(value.codex_proxy || {}) },
     task_source: { ...defaults.task_source, ...(value.task_source || {}) }
   };
@@ -5362,6 +5385,7 @@ function normalizeSettings(value = {}) {
 
 function defaultSettings() {
   return {
+    codex: normalizeCodexSettings(),
     codex_proxy: { enabled: false, url: "http://127.0.0.1:7890" },
     task_source: { enabled: true, base_url: "https://api.feitianchengzi.com", service_name: "workshop", auth_mode: "nebula", access_token_configured: false, user_id: "", username: "", app_id: "arckit-runtime", session_id: "" }
   };

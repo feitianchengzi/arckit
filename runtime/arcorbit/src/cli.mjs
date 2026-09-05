@@ -176,6 +176,8 @@ function parseRunOptions(args) {
       options.approvalPolicy = requiredValue(args, ++index, arg);
     } else if (arg === "--model") {
       options.model = requiredValue(args, ++index, arg);
+    } else if (arg === "--reasoning-effort") {
+      options.reasoningEffort = requiredValue(args, ++index, arg);
     } else if (arg === "--codex-bin") {
       options.codexBin = requiredValue(args, ++index, arg);
     } else if (arg === "--task-id") {
@@ -368,7 +370,7 @@ function printHelp() {
 Usage:
   arcorbit init-project [--project <path>] [--name <name>] [--intent <text>]
   arcorbit run [--project <path>] [--task <text>] [--task-id <id>] [--thread-id <id>] [--thread-binding-file <path>] [--runtime-context <json>] [--max-no-progress-rounds <count>] [--max-agent-repair-attempts <count>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
-  arcorbit run --adapter codex-app-server [--stream-events] [--supervise-stdin|--supervise-parent-port]
+  arcorbit run --adapter codex-app-server [--model <name>] [--reasoning-effort <level>] [--stream-events] [--supervise-stdin|--supervise-parent-port]
   arcorbit probe-app-server [--project <path>] [--json]
   arcorbit analyze-lifecycle --file <events.jsonl>
   arcorbit validate-result --file <runtime-result.json>

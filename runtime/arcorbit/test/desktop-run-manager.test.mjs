@@ -235,6 +235,19 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
 
   try {
     await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-1", task: "Use Codex", adapter: "codex-app-server" });
+    assert.deepEqual((await manager.getSettings()).codex, { model: "gpt-6-astra", reasoning_effort: "high" });
+    assert.equal(calls[0].args[calls[0].args.indexOf("--model") + 1], "gpt-6-astra");
+    assert.equal(calls[0].args[calls[0].args.indexOf("--reasoning-effort") + 1], "high");
+    await manager.updateSettings({ codex: { model: "custom-model", reasoning_effort: "ultra" } });
+    await manager.updateSettings({ codex_proxy: { enabled: false } });
+    assert.deepEqual((await manager.getSettings()).codex, { model: "custom-model", reasoning_effort: "ultra" });
+    await assert.rejects(manager.updateSettings({ codex: { model: " " } }));
+    const reloaded = createDesktopRunManager({ runtimeRoot: dataDir, dataDir });
+    assert.deepEqual((await reloaded.getSettings()).codex, { model: "custom-model", reasoning_effort: "ultra" });
+    await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-2", task: "Next" });
+    assert.equal(calls[1].args[calls[1].args.indexOf("--model") + 1], "custom-model");
+    assert.equal(calls[1].args[calls[1].args.indexOf("--reasoning-effort") + 1], "ultra");
+    assert.equal(calls[0].args[calls[0].args.indexOf("--model") + 1], "gpt-6-astra");
     const codexIndex = calls[0].args.indexOf("--codex-bin");
     assert.equal(calls[0].args[codexIndex + 1], "/fixture/nvm/bin/codex");
     const pathKey = Object.keys(calls[0].options.env).find((key) => key.toUpperCase() === "PATH");
@@ -242,6 +255,34 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
   } finally {
     await manager.abortActiveRuns({ graceMs: 0 });
     destroyChildren(children);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("model catalog uses trusted executable and saved proxy without accepting Renderer execution parameters", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arcorbit-catalog-context-"));
+  await writeStore(dataDir, dataDir);
+  let observed;
+  let fail = false;
+  const manager = createDesktopRunManager({ runtimeRoot: dataDir, dataDir,
+    getCodexExecutable: () => ({ command: "/active/codex", pathEntries: ["/active"] }),
+    queryModelCatalog: async (options) => {
+      observed = options;
+      if (fail) throw new Error("private-provider-secret");
+      return { status: "available", models: [] };
+    }
+  });
+  try {
+    await manager.updateSettings({ codex_proxy: { enabled: true, url: "http://127.0.0.1:17890" } });
+    assert.deepEqual(await manager.listCodexModels({ command: "/untrusted", cwd: "/untrusted", env: {} }), { status: "available", models: [] });
+    assert.equal(observed.command, "/active/codex");
+    assert.equal(observed.cwd, dataDir);
+    assert.equal(observed.env.HTTPS_PROXY, "http://127.0.0.1:17890");
+    fail = true;
+    const failure = await manager.listCodexModels();
+    assert.equal(failure.status, "unavailable");
+    assert.equal(JSON.stringify(failure).includes("private-provider-secret"), false);
+  } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
 });

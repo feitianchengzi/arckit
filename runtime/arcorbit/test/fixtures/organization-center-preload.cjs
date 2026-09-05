@@ -1,6 +1,9 @@
 const { contextBridge } = require("electron");
 
 const calls = [];
+let codexSettings = { model: "gpt-6-astra", reasoning_effort: "high" };
+let codexSaveFails = false;
+let codexCatalogFails = false;
 const automationListeners = new Set();
 const workSyncListeners = new Set();
 const chatListeners = new Set();
@@ -215,7 +218,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
       await barrier.release;
       if (settingsBarrier === barrier) settingsBarrier = null;
     }
-    return { task_source: { enabled: true, auth_mode: "nebula" }, codex_proxy: {} };
+    return { task_source: { enabled: true, auth_mode: "nebula" }, codex_proxy: {}, codex: codexSettings };
   },
   getProductFeedbackStatus: async () => ({
     integration_mode: "sdk-webview", sdk_auth_mode: "apiKey", notifications_enabled: true,
@@ -501,7 +504,21 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     authentication: { status: "logged_out", authenticated: false },
     requires_confirmation: false
   } : undefined,
-  updateSettings: noOp,
+  listCodexModels: async () => {
+    calls.push(["listCodexModels"]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return codexCatalogFails ? { status: "unavailable", models: [] } : { status: "available", models: [
+      { model: "gpt-6-astra", displayName: "Astra", reasoningEfforts: ["high", "medium"] },
+      { model: "test-model", displayName: "Test model", reasoningEfforts: ["low", "max"] }
+    ] };
+  },
+  setTestCodexFailures: async (input) => { codexSaveFails = input.save; codexCatalogFails = input.catalog; },
+  updateSettings: async (input) => {
+    calls.push(["updateSettings", input]);
+    if (codexSaveFails) throw new Error("fixture disk failure");
+    if (input.codex) codexSettings = { ...codexSettings, ...input.codex };
+    return { task_source: { enabled: true, auth_mode: "nebula" }, codex_proxy: {}, codex: codexSettings };
+  },
   setTestRecoveryItems: async (items) => { automation.recovery_items = items; },
   setTestActiveExecutions: async (items) => { automation.active_executions = Array.isArray(items) ? items : []; },
   armTestPlatformSnapshotBarrier: async () => {

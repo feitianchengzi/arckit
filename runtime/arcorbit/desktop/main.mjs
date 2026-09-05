@@ -460,6 +460,7 @@ function registerIpc() {
     return chatCoordinator.decideApproval(input);
   });
   ipcMain.handle("arckit:get-settings", async () => runManager.getSettings());
+  ipcMain.handle("arckit:list-codex-models", async () => runManager.listCodexModels());
   ipcMain.handle("arckit:update-settings", async (_event, input) => runManager.updateSettings(input));
   ipcMain.handle("arckit:product-feedback-status", async () => productFeedbackService.getStatus());
   ipcMain.handle("arckit:product-feedback-open", async (_event, mode) => productFeedbackService.open(mode));

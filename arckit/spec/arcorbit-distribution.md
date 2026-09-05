@@ -6,6 +6,20 @@ ArcOrbit 通过可追溯的桌面安装包交付。内部用户只需要取得�
 
 安装包是一次完整产品交付，不要求用户另行 clone Arckit 或 ArcForge 仓库，也不要求先安装 ArcForge Desktop、ArcForge CLI、Node、npm 或 Homebrew。Codex CLI 缺失、版本不可验证或尚未登录时，Setup Readiness 提供官方 standalone 安装、更新和显式登录恢复流程；操作系统权限、外部任务源账号和签名信任仍属于对应平台的显式前置条件。
 
+## Codex Model 与 Level 设置
+
+ArcOrbit 的账号与 Runtime 设置支持修改当前设备的 Codex Model 和 Level（推理级别）。Model 候选来自当前 Codex 的可见模型清单，Level 候选来自所选模型支持的推理级别。两个字段始终可手动编辑；清单加载中、查询失败、接口不可用、空清单或当前值不在清单时，用户仍能输入、保存及重试查询。清单只是候选信息，不代表账户已经获得模型执行授权。
+
+未配置或存储字段非法时，Model 默认 gpt-6-astra，Level 默认 high。已有有效用户配置按字段保留，安装升级、应用重启、账户切换和清单刷新均不重置选择；清单推荐默认级别不覆盖用户配置。保存要求每个值为 1–200 个字符的非空文本，去除首尾空白并拒绝控制字符，不要求人工输入必须出现在清单中。
+
+“保存 Codex 配置”只保存 Model 和 Level，并在设置页原位反馈结果；“保存并同步”同时保存设置草稿并执行既有 Workshop 同步。只有持久保存成功才显示配置已保存，失败保留草稿供重试。查询使用已保存的代理设置，未保存的代理草稿不参与查询。
+
+保存值对下一条开始执行的 Chat 消息和下一次 Automation Run 生效。正在运行的 Chat turn、Automation Run 及其后续自动轮次保持各自启动时配置；变更配置不创建替代 thread、不打断已有执行。人工接管的交互式 Codex CLI 继续恢复原 thread，并遵循其已有配置；独立启动的 CLI 不读取 ArcOrbit Desktop 偏好。实际模型执行失败仍使用既有 Chat 和 Automation 恢复入口。
+
+本地 Model/Level 偏好不改写用户全局 Codex 配置，也不改变 Workshop 账户、项目治理或执行授权。查询由可信主进程执行；页面只能发起固定清单请求并取得非敏感候选。
+
+验收覆盖缺省值、按字段保存和重启恢复、未知当前值保留、完整分页及中途失败、超时关闭、人工输入重试、异步刷新不覆盖草稿、Chat 同 thread 下一条消息采用新值，以及 Automation Run 参数固定与下一次 Run 采用新值。
+
 ## 产品身份
 
 `ArcOrbit` 是监督式 Desktop/Runtime 产品的正式名称。`Arckit Runtime` 只表示该产品的历史名称，不作为新界面、安装包、文档标题或开发入口的当前品牌。

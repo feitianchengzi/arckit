@@ -1,3 +1,5 @@
+import { normalizeCodexSettings, validateCodexSettingsPatch } from "./codex-model-settings.mjs";
+import { queryCodexModelCatalog } from "./codex-model-catalog.mjs";
 import { EventEmitter } from "node:events";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -48,6 +50,7 @@ export function createDesktopRunManager({
   dataDir,
   nodeBin = process.env.ARCORBIT_NODE_BIN || process.env.ARCKIT_NODE_BIN || process.execPath,
   getCodexExecutable = () => ({ command: process.env.ARCORBIT_CODEX_BIN || process.env.ARCKIT_CODEX_BIN || "codex", pathEntries: [] }),
+  queryModelCatalog = queryCodexModelCatalog,
   spawnProcess = spawn,
   runtimeHost = null,
   ensureProject = ensureArckitProject
@@ -444,6 +447,19 @@ export function createDesktopRunManager({
     return publicSettings(store.settings);
   }
 
+  async function listCodexModels() {
+    try {
+      const store = await readStore();
+      const executable = normalizeCodexExecutable(getCodexExecutable());
+      return await queryModelCatalog({
+        command: executable.command, cwd: runtimeCwd,
+        env: buildRuntimeEnv(prependRuntimePath({ ...process.env }, executable.pathEntries), store.settings)
+      });
+    } catch {
+      return { status: "unavailable", models: [], message: "暂时无法获取 Codex 清单，可手动输入 Model 和 Level，或稍后重试。" };
+    }
+  }
+
   async function getTaskSourceSettings() {
     const store = await readStore();
     return { ...store.settings.task_source };
@@ -467,6 +483,7 @@ export function createDesktopRunManager({
   }
 
   async function updateSettings(input = {}) {
+    if (Object.hasOwn(input, "codex")) validateCodexSettingsPatch(input.codex);
     let nextSettings;
     await updateStore((store) => {
       const currentTaskSource = store.settings?.task_source || {};
@@ -501,6 +518,7 @@ export function createDesktopRunManager({
       nextSettings = normalizeSettings({
         ...store.settings,
         ...input,
+        codex: { ...store.settings?.codex, ...input.codex },
         codex_proxy: {
           ...store.settings?.codex_proxy,
           ...input.codex_proxy
@@ -664,8 +682,11 @@ export function createDesktopRunManager({
       ? join(dataDir, "thread-bindings", project.id, `${stableTaskKey(input.taskId)}.json`)
       : "";
     const persistedThreadBinding = threadBindingFile ? await readThreadBinding(threadBindingFile) : null;
+    const codexSettings = normalizeCodexSettings(store.settings?.codex);
     const run = {
       id: runId,
+      model: input.model || codexSettings.model,
+      reasoning_effort: input.reasoningEffort || codexSettings.reasoning_effort,
       project_id: project.id,
       session_id: input.sessionId || "",
       task_id: String(input.taskId || ""),
@@ -737,9 +758,7 @@ export function createDesktopRunManager({
     } else {
       args.push("--adapter", run.adapter, host.controlMode === "parent-port" ? "--supervise-parent-port" : "--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
       args.push("--codex-bin", codexExecutable.command);
-      if (input.model) {
-        args.push("--model", input.model);
-      }
+      args.push("--model", run.model, "--reasoning-effort", run.reasoning_effort);
     }
 
     const child = host.spawn(runtimeBin, args, {
@@ -1257,6 +1276,7 @@ export function createDesktopRunManager({
     listMessages,
     addMessage,
     getSettings,
+    listCodexModels,
     getTaskSourceSettings,
     replaceTaskSourceSettings,
     updateSettings,
