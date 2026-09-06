@@ -15,6 +15,7 @@ import {
   GenerateApiKeyResponse,
   ApiKeyInfo,
   ListApiKeysResponse,
+	UserProfile,
 } from '@/types/auth'
 import { getAccessToken } from '@/lib/utils/tokenManager'
 
@@ -29,6 +30,14 @@ const gatewayClient: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 })
+
+export interface NotificationEmailPreference {
+	account_email?: string
+	custom_email?: string
+	effective_email?: string
+	source: 'custom' | 'account' | 'none'
+	has_email: boolean
+}
 
 // 请求拦截器：为需要认证的接口添加 Authorization 头
 gatewayClient.interceptors.request.use(
@@ -56,6 +65,43 @@ gatewayClient.interceptors.request.use(
  * 网关 API
  */
 export const gatewayApi = {
+	/** 获取反馈订阅的有效收件邮箱。独立邮箱优先，未设置时回退账号邮箱。 */
+	getNotificationEmail: async (): Promise<NotificationEmailPreference> => {
+		const response = await gatewayClient.get<{ code: string; data: NotificationEmailPreference }>(
+			'/auth-server/v1/user/notification-email'
+		)
+		return response.data.data
+	},
+
+	/** 向待设置的独立订阅邮箱发送专用验证码。 */
+	sendNotificationEmailVerification: async (email: string): Promise<void> => {
+		await gatewayClient.post('/auth-server/v1/user/notification-email/verification', { email })
+	},
+
+	/** 验证并保存独立订阅邮箱。 */
+	setNotificationEmail: async (email: string, code: string): Promise<NotificationEmailPreference> => {
+		const response = await gatewayClient.put<{ code: string; data: NotificationEmailPreference }>(
+			'/auth-server/v1/user/notification-email',
+			{ email, code }
+		)
+		return response.data.data
+	},
+
+	/** 清除独立订阅邮箱，恢复使用账号邮箱。 */
+	deleteNotificationEmail: async (): Promise<NotificationEmailPreference> => {
+		const response = await gatewayClient.delete<{ code: string; data: NotificationEmailPreference }>(
+			'/auth-server/v1/user/notification-email'
+		)
+		return response.data.data
+	},
+
+	/** 获取当前账号资料，用于显示邮件通知的目标邮箱。 */
+	getUserProfile: async (): Promise<UserProfile> => {
+		const response = await gatewayClient.get<{ code: string; data: UserProfile }>(
+			'/user-service/v1/user/profile'
+		)
+		return response.data.data
+	},
   /**
    * 发送验证码
    * POST /auth-server/v1/public/send_verification

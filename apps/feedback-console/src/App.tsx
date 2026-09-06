@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 
 // 页面组件
@@ -16,6 +16,7 @@ import FeedbackProjectDetailPage from '@/pages/FeedbackProjectDetailPage'
 import FeedbackCaseDemoPage from '@/pages/FeedbackCaseDemoPage'
 import FeedbackProjectSettingsPage from '@/pages/FeedbackProjectSettingsPage'
 import FeedbackProjectMembersPage from '@/pages/FeedbackProjectMembersPage'
+import FeedbackEmailDetailPage from '@/pages/FeedbackEmailDetailPage'
 import { ToastHost } from '@/components/ui/ToastHost'
 
 // 布局组件
@@ -38,6 +39,18 @@ function LegacyProjectSettingsRedirect() {
   return <Navigate to={`/feedbacks/projects/${id}/settings`} replace />
 }
 
+function FeedbackProjectRoute() {
+  const [searchParams] = useSearchParams()
+  const feedbackId = Number(searchParams.get('feedback_id'))
+
+  // 兼容已经发出的旧邮件：旧链接使用项目页 query，新版统一进入独立详情页。
+  if (Number.isInteger(feedbackId) && feedbackId > 0) {
+    return <Navigate to={`/feedbacks/email/${feedbackId}`} replace />
+  }
+
+  return <FeedbackProjectDetailPage />
+}
+
 function App() {
   const { initialize } = useAuthStore()
 
@@ -58,6 +71,12 @@ function App() {
       <Route path="/join/:code" element={<JoinProjectPage />} />
       <Route path="/join-organization/:code" element={<JoinOrganizationPage />} />
 
+      {/* 邮件深链：保留登录与项目成员校验，但不加载复杂的管理台布局 */}
+      <Route
+        path="/feedbacks/email/:feedbackId"
+        element={<AuthGuard><FeedbackEmailDetailPage /></AuthGuard>}
+      />
+
       {/* 受保护的路由 */}
       <Route element={<AuthGuard><DashboardLayout /></AuthGuard>}>
         <Route path="/" element={<Navigate to="/feedbacks" replace />} />
@@ -76,7 +95,7 @@ function App() {
         <Route path="/feedbacks/case-demo" element={<FeedbackCaseDemoPage />} />
         <Route path="/feedbacks/projects/:id/settings" element={<FeedbackProjectSettingsPage />} />
         <Route path="/feedbacks/projects/:id/members" element={<FeedbackProjectMembersPage />} />
-        <Route path="/feedbacks/projects/:id" element={<FeedbackProjectDetailPage />} />
+        <Route path="/feedbacks/projects/:id" element={<FeedbackProjectRoute />} />
         <Route path="/organizations/:id" element={<OrganizationDetailPage />} />
         <Route path="/organizations/:id/invite" element={<InviteOrganizationPage />} />
         <Route path="/settings" element={<SettingsPage />} />

@@ -50,7 +50,13 @@ export function useProject(projectId: string) {
           // 如果没有，则使用 project.organization_id
           const organizationId = params?.organizationId ?? project.organization_id
           
-          return { project, organizationId }
+          return {
+            project: {
+              ...project,
+              organization_id: project.organization_id ?? organizationId,
+            },
+            organizationId,
+          }
         }
       }
     }

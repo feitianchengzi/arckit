@@ -157,7 +157,7 @@ export default function OrganizationDetailPage() {
   const removeMemberMutation = useMutation({
     mutationFn: (input: { organization_id: number; target_user_id: number }) => 
       organizationsApi.removeMember(input),
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizationMembers', organizationId] });
       // 刷新组织列表（退出组织后需要更新）
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
@@ -232,7 +232,7 @@ export default function OrganizationDetailPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-0 sm:p-3 lg:p-6">
       <Card>
         <Card.Header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -309,10 +309,10 @@ export default function OrganizationDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {members.map(member => (
                   <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-surface-hover transition-colors">
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <Avatar user={{ id: member.user_id, username: member.username, avatar: member.avatar }} size="sm" />
-                      <div>
-                      <p className="font-medium flex items-center gap-2">
+                      <div className="min-w-0">
+                      <p className="flex items-center gap-2 truncate font-medium">
                         {member.username}
                         {member.is_me && <span className="text-xs text-foreground-secondary font-normal">(我)</span>}
                       </p>
@@ -343,7 +343,7 @@ export default function OrganizationDetailPage() {
                     </div>
                     
                     {/* 操作按钮 */}
-                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex shrink-0 items-center opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                       {member.is_me ? (
                         <Button 
                           variant="ghost" 

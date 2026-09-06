@@ -25,9 +25,9 @@ later without changing the conversation contract.
 | New V2 client | Uses separate notification APIs | Opt-in per project/client |
 
 The server writes notification records only for V2-created messages and V2
-workflow system messages **after** a project is explicitly allowlisted through
-`FEEDBACK_V2_NOTIFICATION_PROJECT_IDS`. The default empty value means no
-notification row is written and notification endpoints return `404`; deployment
+workflow system messages after a project is included in
+`FEEDBACK_V2_NOTIFICATION_PROJECT_IDS`, or for every project when it is `*`.
+The default empty value means no notification row is written and notification endpoints return `404`; deployment
 does not change existing V2 traffic or create a sudden unread backlog.
 
 ## Data Model
@@ -144,11 +144,11 @@ marking only the opened feedback as read.
 ### Console
 
 Set `VITE_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS` to an explicit comma-separated
-allowlist, for example `78`. The current V2 project allowlist does not imply
-notification enrollment.
+allowlist, or `*` to enable every V2 project in the Console. The current V2
+project allowlist does not imply notification enrollment.
 
 The Workshop service must independently set
-`FEEDBACK_V2_NOTIFICATION_PROJECT_IDS=78`. The browser flag only controls UI
+`FEEDBACK_V2_NOTIFICATION_PROJECT_IDS=*`. The browser flag only controls UI
 requests; the service allowlist controls whether notification data exists.
 
 When enabled, the Console fetches the new notification API, displays a compact
@@ -193,9 +193,9 @@ The migration creates only a new table and indexes. It neither changes old
 tables nor backfills data.
 
 Keep `FEEDBACK_V2_NOTIFICATION_PROJECT_IDS` empty for the first code deploy.
-After health checks, set it to only the test project (for example `78`) and
-restart the service. Only then turn on the Console and SDK client flags for
-that project.
+After health checks, set it to a test project (for example `78`) or `*` for
+all projects, then restart the service. Turn on the Console and SDK client
+flags only where an unread indicator is desired.
 
 Rollback order:
 

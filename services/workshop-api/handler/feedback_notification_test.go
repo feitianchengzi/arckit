@@ -63,6 +63,14 @@ func TestFeedbackNotificationsEnabledForProject(t *testing.T) {
 	if feedbackNotificationsEnabledForProject(78) {
 		t.Fatal("an empty rollout allowlist must disable notification writes")
 	}
+
+	t.Setenv("FEEDBACK_V2_NOTIFICATION_PROJECT_IDS", "*")
+	if !feedbackNotificationsEnabledForProject(78) || !feedbackNotificationsEnabledForProject(999) {
+		t.Fatal("the wildcard rollout setting should enable notifications for every project")
+	}
+	if feedbackNotificationsEnabledForProject(0) {
+		t.Fatal("the wildcard rollout setting must not enable an invalid project")
+	}
 }
 
 func TestNormalizeFeedbackNotificationIDs(t *testing.T) {

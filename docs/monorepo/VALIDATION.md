@@ -7,7 +7,7 @@ Validation date: 2026-09-01
 - Three audited source histories were filtered and merged through commits `2f6a299`, `eb08eee`, and `bdce54f`.
 - The integrated public source and governance commit is `e14f3f4`.
 - `git fsck --no-dangling` passed for every filtered source repository before merge.
-- The source-import scan checks 16 blocked credential fingerprints. A regenerated sanitized stage contains 707 files and zero blocked matches.
+- The source-import scan checks 16 blocked credential fingerprints. The 2026-09-06 regenerated sanitized stage contains 710 files and zero blocked matches.
 - The current public tree contains none of the 17 cataloged blocked fingerprints.
 - One removed ArcOrbit Feedback credential remains reachable only through Arckit's pre-existing local history. This is a publication blocker until the credential owner rotates or revokes it; rewriting public history, if still desired afterward, requires separate explicit approval.
 - Residual heuristic findings are existing test fixtures, invalid placeholders, documentation interpolation/storage keys, or scanners checking for private-key markers. They do not match any blocked source fingerprint.
@@ -28,14 +28,14 @@ Validation date: 2026-09-01
 |---|---|---|
 | JavaScript workspace graph | `npm ls --workspaces --depth=0` | passed |
 | Todo Web | root `npm run build` | Vite production build passed (594 modules) |
-| Feedback Console | root `npm run build` | Vite production build passed (588 modules) |
+| Feedback Console | root `npm run build` | Vite production build passed (590 modules) |
 | Feedback Web SDK | root `npm run build` | Vite production build passed (54 modules) |
 | Todo Web tests | `npm test --workspace @arckit/todo-web` | 7/7 passed |
 | ArcOrbit tests | `npm test --workspace @arckit/arcorbit`, plus direct out-of-sandbox reruns for the two sandbox-aborted Electron fixtures | 556 passed, 23 skipped, 0 functional failures |
 | Workshop API | `go test ./...` | passed for all packages |
 | Feedback iOS example | `xcodebuild ... CODE_SIGNING_ALLOWED=NO build` with DerivedData in `/private/tmp` | build succeeded for arm64 and x86_64 simulator |
 
-The imported Todo source retains a pre-existing strict TypeScript debt: its `build:check` command reports unused-symbol and model-typing errors even though the production Vite build and tests pass. The root `typecheck` command keeps that stricter baseline visible without misrepresenting it as a migration regression.
+The imported Todo and Feedback Console sources retain pre-existing strict TypeScript debt: their `build:check` commands report unused-symbol and model-typing errors even though the production Vite builds pass and Todo tests pass. The root `typecheck` command keeps that stricter baseline visible without misrepresenting it as a migration regression.
 
 ## Public-release gate
 

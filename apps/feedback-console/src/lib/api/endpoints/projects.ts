@@ -4,6 +4,7 @@
 
 import { apiClient } from '../client'
 import { handleResponse, handlePaginatedResponse } from '../interceptors/response'
+import { organizationsApi } from './organizations'
 import type { Project } from '@/types'
 
 export interface CreateProjectInput {
@@ -98,11 +99,44 @@ export const projectsApi = {
    * 我们从项目列表中查找对应的项目
    */
   getById: async (id: string, organizationId?: number | null): Promise<Project> => {
-    // 由于后端不支持直接通过ID获取项目详情 (返回404)，
-    // 我们先获取项目列表，然后从中查找目标项目
-    // 如果已知 organizationId，则只获取该组织的项目列表
-    const projects = await projectsApi.list({ organizationId })
-    const project = projects.find((p) => p.id.toString() === id)
+    // 由于后端不支持直接通过 ID 获取项目详情，先在当前组织中查找。
+    // 邮件深链等入口可能没有正确的组织上下文；未命中时再从当前用户可访问的
+    // 全部项目中查找，让项目页自行恢复 organizationId。
+    const scopedProjects = await projectsApi.list({ organizationId })
+    let project = scopedProjects.find((p) => p.id.toString() === id)
+
+    if (project && typeof organizationId === 'number') {
+      project = {
+        ...project,
+        organization_id: project.organization_id ?? organizationId,
+      }
+    }
+
+    if (!project) {
+      const allProjects = await projectsApi.list()
+      project = allProjects.find((p) => p.id.toString() === id)
+    }
+
+    if (!project) {
+      const organizations = await organizationsApi.list()
+      const organizationProjects = await Promise.all(
+        organizations
+          .filter((organization) => organization.id !== organizationId)
+          .map(async (organization) => {
+            try {
+              const projects = await projectsApi.list({ organizationId: organization.id })
+              return projects.map((item) => ({
+                ...item,
+                organization_id: item.organization_id ?? organization.id,
+              }))
+            } catch {
+              // One inaccessible/deleted organization must not prevent other workspaces loading.
+              return []
+            }
+          })
+      )
+      project = organizationProjects.flat().find((item) => item.id.toString() === id)
+    }
     
     if (!project) {
       throw new Error('Project not found')

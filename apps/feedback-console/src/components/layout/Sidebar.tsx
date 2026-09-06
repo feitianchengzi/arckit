@@ -117,8 +117,10 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   }, [])
 
   const handleLogout = () => {
+    if (!window.confirm(`确定退出当前账户“${displayUsername}”吗？`)) return
     logout()
     navigate('/login')
+    onClose?.()
   }
   
   const displayUsername = mounted && user?.username 
@@ -144,6 +146,14 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     if (window.innerWidth < 1024 && onClose) {
       onClose()
     }
+  }
+
+  const handleOrganizationSelect = (organizationId: number | null) => {
+    setCurrentOrganizationId(organizationId)
+    const href = organizationId
+      ? (isFeedbackSection ? buildFeedbackOrganizationPath(organizationId) : buildOrganizationPath(organizationId))
+      : (isFeedbackSection ? '/feedbacks' : '/projects')
+    handleNavClick(href)
   }
   
   const handleCreateOrgSuccess = () => {
@@ -181,14 +191,13 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   return (
     <aside
       className={clsx(
-        // 基础样式 - 使用 relative 定位，类似 Android RelativeLayout
-        'relative bg-surface-elevated border-r border-border flex flex-col',
-        'w-[320px] z-50',
+        // 始终脱离主内容的 flex 布局；关闭时仅通过 transform 移出视口，不占据页面宽度
+        'fixed left-0 top-0 flex flex-col border-r border-border bg-surface-elevated',
+        'z-50 w-[min(22rem,calc(100vw-1rem))] shadow-2xl lg:w-[320px] lg:shadow-none',
         'transition-colors',
         // 桌面端：固定定位，不随内容滚动
         'lg:fixed lg:top-0 lg:left-0 lg:translate-x-0 lg:block',
-        // 移动端/平板端：固定定位，支持滑动动画
-        'fixed top-0 left-0',
+        // 移动端/平板端：支持滑动动画
         'transform transition-transform duration-300 ease-in-out',
         {
           // 移动端/平板端：根据 isOpen 状态控制显示/隐藏（桌面端忽略此状态）
@@ -198,40 +207,149 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         className
       )}
       aria-label="主导航"
-      style={{ height: '100vh', maxHeight: '100vh' }}
+      style={{ height: '100dvh', maxHeight: '100dvh' }}
     >
-
-      {/* 移动端/平板端：关闭按钮 */}
-      <div className="lg:hidden absolute top-0 right-0 p-4 z-20">
-        <button
-          onClick={onClose}
-          className={clsx(
-            'w-10 h-10 flex items-center justify-center',
-            'text-foreground-secondary hover:text-foreground',
-            'hover:bg-surface-hover',
-            'active:bg-surface-active',
-            'rounded-lg transition-colors',
-            'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
-          )}
-          aria-label="关闭菜单"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      <div className="flex h-full min-h-0 flex-col lg:hidden">
+        <div className="flex items-center gap-3 border-b border-divider px-4 py-3">
+          <Avatar user={user} size="md" showTooltip={false} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-foreground">{displayUsername}</p>
+            <p className="text-xs text-foreground-tertiary">当前登录账户</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
+            aria-label="关闭菜单"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 border-b border-divider px-4 py-3">
+          <button
+            type="button"
+            onClick={() => handleNavClick('/settings')}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-surface px-2 text-xs font-semibold text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
+          >
+            <SettingsIcon />
+            设置
+          </button>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-surface px-2 text-xs font-semibold text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
+          >
+            {theme === 'dark' ? <MoonIcon /> : <SunIcon />}
+            {theme === 'dark' ? '深色' : '浅色'}
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-error-lighter px-2 text-xs font-semibold text-error transition-colors hover:bg-error-light"
+          >
+            <LogoutIcon />
+            退出
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 border-b border-divider px-4 py-3">
+          <button
+            type="button"
+            onClick={() => {
+              onClose?.()
+              void handleOpenFeedback('submit')
+            }}
+            disabled={feedbackOpening !== null}
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60"
+          >
+            <SubmitFeedbackIcon />
+            提交反馈
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose?.()
+              void handleOpenFeedback('status')
+            }}
+            disabled={feedbackOpening !== null}
+            className="relative flex min-h-11 items-center justify-center gap-2 rounded-xl border border-divider bg-surface text-sm font-semibold text-foreground transition-colors hover:bg-surface-hover disabled:opacity-60"
+          >
+            <StatusFeedbackIcon />
+            我的反馈
+            {feedbackUnreadCount > 0 ? (
+              <span className="rounded-full bg-error px-1.5 py-0.5 text-[10px] leading-none text-white">
+                {feedbackUnreadCount > 99 ? '99+' : feedbackUnreadCount}
+              </span>
+            ) : null}
+          </button>
+        </div>
+
+        <div className="border-b border-divider px-4 py-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-foreground-tertiary">工作空间</p>
+            <button
+              type="button"
+              onClick={() => setShowCreateOrgDialog(true)}
+              className="rounded-lg px-2 text-xs font-semibold text-primary hover:bg-primary-lighter"
+            >
+              新建组织
+            </button>
+          </div>
+          <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+            <button
+              type="button"
+              onClick={() => handleOrganizationSelect(null)}
+              className={clsx(
+                'min-h-9 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors',
+                !currentOrganizationId
+                  ? 'border-primary bg-primary-lighter text-primary'
+                  : 'border-divider bg-surface text-foreground-secondary'
+              )}
+            >
+              个人项目
+            </button>
+            {organizations.map((organization) => (
+              <button
+                key={organization.id}
+                type="button"
+                onClick={() => handleOrganizationSelect(organization.id)}
+                className={clsx(
+                  'min-h-9 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors',
+                  currentOrganizationId === organization.id
+                    ? 'border-primary bg-primary-lighter text-primary'
+                    : 'border-divider bg-surface text-foreground-secondary'
+                )}
+              >
+                {organization.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center justify-between px-4 pb-2 pt-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-foreground">{headerTitle}</p>
+              <p className="text-xs text-foreground-tertiary">{projectCount} 个项目</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCreateProjectDialog(true)}
+              className="rounded-lg bg-primary-lighter px-3 text-xs font-semibold text-primary hover:bg-primary-light"
+            >
+              新增项目
+            </button>
+          </div>
+          <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <ProjectListContent onItemClick={handleNavClick} organizationId={currentOrganizationId} />
+          </div>
+        </div>
       </div>
 
-      <div className="flex flex-1 min-h-0 h-full">
+      <div className="hidden h-full min-h-0 flex-1 lg:flex">
         <div className="flex w-20 flex-col border-r border-border min-h-0 h-full bg-surface-elevated">
           <div className="flex-1 overflow-y-auto py-3">
             <div className="flex items-center justify-center pb-3">
@@ -438,88 +556,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   )
 }
 
-// ==================== 子组件 ====================
-
-interface NavItemProps {
-  icon: React.ReactNode
-  label: string
-  href: string
-  exact?: boolean // 是否精确匹配（默认 false，匹配路径前缀）
-  onClick?: (href: string) => void // 点击回调
-}
-
-function NavItem({ icon, label, href, exact = false, onClick }: NavItemProps) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const pathname = location.pathname
-  
-  // 判断是否选中：精确匹配或路径前缀匹配
-  const isActive = exact 
-    ? pathname === href 
-    : pathname?.startsWith(href) || false
-  
-  const handleClick = () => {
-    if (onClick) {
-      onClick(href)
-    } else {
-      navigate(href)
-    }
-  }
-  
-  return (
-    <button
-      onClick={handleClick}
-      className={clsx(
-        'w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors',
-        'min-h-[44px]', // 移动端触摸优化
-        {
-          'bg-primary-light text-primary font-medium': isActive,
-          'text-foreground hover:bg-surface-hover': !isActive,
-        }
-      )}
-      aria-current={isActive ? 'page' : undefined}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  )
-}
-
 // ==================== 图标组件 ====================
-
-function ProjectsIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-    </svg>
-  )
-}
-
-function TasksIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-    </svg>
-  )
-}
-
-function LogoIcon() {
-  return (
-    <svg 
-      className="w-8 h-8 text-primary" 
-      fill="none" 
-      viewBox="0 0 24 24" 
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" 
-      />
-    </svg>
-  )
-}
 
 function FeedbackIcon() {
   return (
@@ -550,6 +587,40 @@ function FeedbackSpinnerIcon() {
     <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <circle className="opacity-20" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={3} />
       <path className="opacity-80" fill="currentColor" d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 0 0-6-6V3Z" />
+    </svg>
+  )
+}
+
+function SettingsIcon() {
+  return (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.37.34.71.6 1 .3.3.68.43 1.1.4H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" />
+    </svg>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path strokeLinecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" />
+    </svg>
+  )
+}
+
+function LogoutIcon() {
+  return (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" />
     </svg>
   )
 }

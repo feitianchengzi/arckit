@@ -18,6 +18,8 @@ Arckit 采用 Apache License 2.0 开源。仓库中的 ArcOrbit、Todo、Feedbac
 
 JavaScript 项目由根目录 npm workspace 和单一 `package-lock.json` 管理；Go API 保持独立 module。生产环境、客户覆盖层与明文秘密不进入本仓库，统一由同级私有工作区 `arckit-ops` 或受控 secrets manager 管理，公开构建不依赖该目录。
 
+自 2026-09-06 起，本仓库是 Todo Web、Feedback Console、Feedback Web SDK、Feedback iOS 示例及共享 Workshop API 的主要开发源（source of truth）。原 `workshop-todo-website`、`Workshop-Feedbacks` 与 `workshop-todo` 仓库仅作为迁移期参考并逐步退役；后续产品修改应首先在本仓库对应目录完成。
+
 这个仓库是 Arckit skills 的 source of truth，保存飞天橙子团队在真实 2B、2C 项目中验证过的协作方法，以及经过审查和本地化适配的外部方法。它不以堆积提示词或模拟固定研发流水线为目标，而是把可恢复的项目状态、稳定事实维护、工程诊断和安全交接整理成 Agent 能独立理解、可靠执行的能力包。
 
 ## 产品主轴：Project State → Case → Loop

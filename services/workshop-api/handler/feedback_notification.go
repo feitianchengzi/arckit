@@ -18,15 +18,18 @@ import (
 
 const maxFeedbackNotificationReadIDs = 100
 
-// FEEDBACK_V2_NOTIFICATION_PROJECT_IDS is deliberately an opt-in server-side
-// rollout gate. An empty value means deployed V2 clients retain their current
-// behavior and no notification rows are written.
+// FEEDBACK_V2_NOTIFICATION_PROJECT_IDS accepts a comma-separated project
+// allowlist or "*". An empty value disables notification writes.
 func feedbackNotificationsEnabledForProject(projectID uint) bool {
 	if projectID == 0 {
 		return false
 	}
 	for _, rawID := range strings.Split(os.Getenv("FEEDBACK_V2_NOTIFICATION_PROJECT_IDS"), ",") {
-		parsed, err := strconv.ParseUint(strings.TrimSpace(rawID), 10, 64)
+		value := strings.TrimSpace(rawID)
+		if value == "*" {
+			return true
+		}
+		parsed, err := strconv.ParseUint(value, 10, 64)
 		if err == nil && uint(parsed) == projectID {
 			return true
 		}

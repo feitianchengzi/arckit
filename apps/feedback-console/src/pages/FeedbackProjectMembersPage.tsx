@@ -99,8 +99,8 @@ export default function FeedbackProjectMembersPage() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-7rem)] min-h-0 w-full max-w-6xl flex-col gap-4 overflow-hidden lg:h-[calc(100vh-4.5rem)]">
-      <header className="flex shrink-0 items-center justify-between gap-4 rounded-lg border border-divider bg-surface-elevated px-4 py-3">
+    <div className="mx-auto flex h-[calc(100dvh-5rem)] min-h-0 w-full max-w-6xl flex-col gap-3 overflow-hidden sm:gap-4 lg:h-[calc(100vh-4.5rem)]">
+      <header className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-divider bg-surface-elevated px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
@@ -115,7 +115,7 @@ export default function FeedbackProjectMembersPage() {
           </button>
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold text-foreground">项目成员 · {project.name}</h1>
-            <p className="mt-0.5 text-xs text-foreground-secondary">组织成员加入项目后，才能查看和处理该项目的反馈。</p>
+            <p className="mt-0.5 hidden text-xs text-foreground-secondary sm:block">组织成员加入项目后，才能查看和处理该项目的反馈。</p>
           </div>
         </div>
         <span className="shrink-0 rounded-md bg-surface px-2.5 py-1 text-xs text-foreground-secondary">
@@ -123,8 +123,8 @@ export default function FeedbackProjectMembersPage() {
         </span>
       </header>
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:overflow-hidden">
-        <section className="min-h-0 overflow-y-auto rounded-lg border border-divider bg-surface-elevated p-4">
+      <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)] lg:overflow-hidden">
+        <section className="min-h-0 overflow-y-auto rounded-lg border border-divider bg-surface-elevated p-3 sm:p-4">
           <ProjectMemberList
             members={members}
             projectId={numericProjectId}
@@ -133,7 +133,7 @@ export default function FeedbackProjectMembersPage() {
           />
         </section>
 
-        <section className="min-h-0 overflow-y-auto rounded-lg border border-divider bg-surface-elevated p-4">
+        <section className="min-h-0 overflow-y-auto rounded-lg border border-divider bg-surface-elevated p-3 sm:p-4">
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-foreground">从组织添加</h2>
             <p className="mt-1 text-sm text-foreground-secondary">
