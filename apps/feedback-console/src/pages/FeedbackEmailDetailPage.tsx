@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { FeedbackConversationPanel } from '@/components/features/FeedbackConversationPanel'
 import { Avatar } from '@/components/ui'
+import { useDesktopViewport } from '@/hooks/useDesktopViewport'
 import { feedbackV2Client } from '@/lib/api/feedbackV2Client'
 import type { Feedback } from '@/lib/api/endpoints/feedbacks'
 import { buildFeedbackProjectPath } from '@/lib/utils/projectRouting'
@@ -50,6 +51,7 @@ function MessageIcon() {
 
 export default function FeedbackEmailDetailPage() {
   const navigate = useNavigate()
+  const isDesktop = useDesktopViewport()
   const currentUser = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   const { feedbackId = '' } = useParams<{ feedbackId: string }>()
@@ -100,10 +102,14 @@ export default function FeedbackEmailDetailPage() {
     navigate(`/login?redirect=${encodeURIComponent(redirect)}`, { replace: true })
   }
 
+  if (isDesktop && feedback) {
+    return <Navigate to={`${consolePath}?feedback_id=${feedback.id}`} replace />
+  }
+
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="sticky top-0 z-sticky border-b border-divider bg-surface/95 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-16 w-full max-w-3xl items-center justify-between gap-2 px-3 py-2 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
               <MessageIcon />
@@ -136,23 +142,12 @@ export default function FeedbackEmailDetailPage() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-col px-4 py-5 sm:px-6 sm:py-8 lg:max-w-7xl lg:px-8 lg:py-6">
+      <main className="mx-auto flex w-full max-w-3xl flex-col px-4 py-5 sm:px-6 sm:py-8">
         {loading ? (
-          <div
-            className="space-y-4 lg:grid lg:h-[calc(100dvh-7rem)] lg:min-h-[40rem] lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] lg:gap-0 lg:space-y-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-divider"
-            aria-label="正在加载反馈"
-          >
-            <div className="space-y-4 lg:border-r lg:border-divider lg:bg-surface lg:p-8">
-              <div className="h-4 w-28 animate-pulse rounded bg-surface-active" />
-              <div className="h-9 w-3/4 animate-pulse rounded bg-surface-active" />
-              <div className="hidden space-y-3 pt-10 lg:block">
-                <div className="h-3 w-16 animate-pulse rounded bg-surface-active" />
-                <div className="h-5 w-32 animate-pulse rounded bg-surface-active" />
-                <div className="h-3 w-16 animate-pulse rounded bg-surface-active" />
-                <div className="h-5 w-40 animate-pulse rounded bg-surface-active" />
-              </div>
-            </div>
-            <div className="h-[55dvh] animate-pulse rounded-2xl bg-surface-active lg:h-full lg:rounded-none" />
+          <div className="space-y-4" aria-label="正在加载反馈">
+            <div className="h-4 w-28 animate-pulse rounded bg-surface-active" />
+            <div className="h-9 w-3/4 animate-pulse rounded bg-surface-active" />
+            <div className="h-[55dvh] animate-pulse rounded-2xl bg-surface-active" />
           </div>
         ) : null}
 
@@ -193,12 +188,9 @@ export default function FeedbackEmailDetailPage() {
         ) : null}
 
         {!loading && feedback ? (
-          <article className="overflow-hidden rounded-2xl border border-divider bg-surface shadow-sm lg:grid lg:h-[calc(100dvh-7rem)] lg:min-h-[40rem] lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-            <aside
-              aria-label="反馈摘要"
-              className="flex flex-col border-b border-divider px-4 py-5 sm:px-6 sm:py-6 lg:min-h-0 lg:border-b-0 lg:border-r lg:px-8 lg:py-8"
-            >
-              <div className="flex flex-wrap items-center gap-2 text-xs text-foreground-tertiary lg:hidden">
+          <article className="overflow-hidden rounded-2xl border border-divider bg-surface shadow-sm">
+            <header className="border-b border-divider px-4 py-5 sm:px-6 sm:py-6">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-foreground-tertiary">
                 <span className="font-semibold text-primary">#{feedback.short_id}</span>
                 <span aria-hidden="true">·</span>
                 <time>{formatDate(feedback.created_at)}</time>
@@ -206,38 +198,15 @@ export default function FeedbackEmailDetailPage() {
                   {statusLabel}
                 </span>
               </div>
-
-              <div className="hidden items-center justify-between gap-3 lg:flex">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground-tertiary">邮件反馈</p>
-                <span className="rounded-full bg-primary-lighter px-2.5 py-1 text-xs font-semibold text-primary">
-                  {statusLabel}
-                </span>
-              </div>
-
-              <h1 className="mt-3 text-balance text-xl font-semibold leading-8 text-foreground sm:text-2xl lg:mt-6 lg:text-[1.75rem] lg:leading-9">
+              <h1 className="mt-3 text-balance text-xl font-semibold leading-8 text-foreground sm:text-2xl">
                 {feedback.title || '未命名反馈'}
               </h1>
               <p className="mt-2 text-sm leading-6 text-foreground-secondary">
                 你可以在这里查看完整反馈、图片附件与沟通记录，并直接回复用户。
               </p>
+            </header>
 
-              <dl className="mt-auto hidden border-t border-divider pt-6 lg:grid lg:gap-5">
-                <div>
-                  <dt className="text-xs font-medium text-foreground-tertiary">反馈编号</dt>
-                  <dd className="mt-1 text-sm font-semibold text-foreground">#{feedback.short_id}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-foreground-tertiary">提交时间</dt>
-                  <dd className="mt-1 text-sm text-foreground-secondary">{formatDate(feedback.created_at)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-foreground-tertiary">所属项目</dt>
-                  <dd className="mt-1 text-sm text-foreground-secondary">项目 #{feedback.project_id}</dd>
-                </div>
-              </dl>
-            </aside>
-
-            <div className="h-[calc(100dvh-15rem)] min-h-[32rem] max-h-[52rem] lg:h-auto lg:min-h-0 lg:max-h-none">
+            <div className="h-[calc(100dvh-15rem)] min-h-[32rem] max-h-[52rem]">
               <FeedbackConversationPanel
                 feedbackId={feedback.id}
                 projectId={feedback.project_id}

@@ -18,6 +18,7 @@ import FeedbackProjectSettingsPage from '@/pages/FeedbackProjectSettingsPage'
 import FeedbackProjectMembersPage from '@/pages/FeedbackProjectMembersPage'
 import FeedbackEmailDetailPage from '@/pages/FeedbackEmailDetailPage'
 import { ToastHost } from '@/components/ui/ToastHost'
+import { useDesktopViewport } from '@/hooks/useDesktopViewport'
 
 // 布局组件
 import DashboardLayout from '@/layouts/DashboardLayout'
@@ -41,10 +42,11 @@ function LegacyProjectSettingsRedirect() {
 
 function FeedbackProjectRoute() {
   const [searchParams] = useSearchParams()
+  const isDesktop = useDesktopViewport()
   const feedbackId = Number(searchParams.get('feedback_id'))
 
-  // 兼容已经发出的旧邮件：旧链接使用项目页 query，新版统一进入独立详情页。
-  if (Number.isInteger(feedbackId) && feedbackId > 0) {
+  // 兼容已经发出的旧邮件：移动端进入精简详情，桌面端保留完整项目工作区。
+  if (Number.isInteger(feedbackId) && feedbackId > 0 && !isDesktop) {
     return <Navigate to={`/feedbacks/email/${feedbackId}`} replace />
   }
 
