@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>内部工作台 — 产品支持链路设计稿</title>
+    <link rel="stylesheet" href="../../../../../runtime/arcorbit/desktop/renderer/styles.css">
+    <link rel="stylesheet" href="./prototype.css">
+  </head>
+  <body data-page="workbench">
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-today" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></symbol>
+      <symbol id="icon-chat" viewBox="0 0 24 24"><path d="M5 5.5h14v10H9l-4 3v-13Z"></path><path d="M8 9h8M8 12h5"></path></symbol>
+      <symbol id="icon-idea" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"></path><path d="M8.5 15.5A7 7 0 1 1 15.5 15.5c-1 .7-1.5 1.4-1.5 2.5h-4c0-1.1-.5-1.8-1.5-2.5Z"></path></symbol>
+      <symbol id="icon-work" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path><circle cx="7" cy="6" r="1"></circle><circle cx="7" cy="12" r="1"></circle><circle cx="7" cy="18" r="1"></circle></symbol>
+      <symbol id="icon-release" viewBox="0 0 24 24"><path d="M12 20V5M7 10l5-5 5 5"></path><path d="M5 20h14"></path></symbol>
+      <symbol id="icon-operations" viewBox="0 0 24 24"><path d="M4 18 9 13l4 3 7-9"></path><path d="M15 7h5v5"></path></symbol>
+      <symbol id="icon-feedback" viewBox="0 0 24 24"><path d="M5 5h14v11H9l-4 3V5Z"></path><path d="M8 9h8M8 12h6"></path></symbol>
+      <symbol id="icon-organization" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"></circle><circle cx="17" cy="9" r="2.5"></circle><path d="M3 20c.4-4 2.1-6 5-6s4.6 2 5 6M14 20c.2-2.7 1.3-4.2 3.4-4.2 2 0 3.2 1.4 3.6 4.2"></path></symbol>
+      <symbol id="icon-engineering" viewBox="0 0 24 24"><path d="m8 6-4 6 4 6M16 6l4 6-4 6M14 4l-4 16"></path></symbol>
+      <symbol id="icon-sync" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"></path><path d="M6.2 8A7 7 0 0 1 18.8 7M17.8 16A7 7 0 0 1 5.2 17"></path></symbol>
+    </svg>
+    <div class="desktop-app">
+      <header class="titlebar">
+        <div class="sync-state"><i></i><span>产品支持链路</span></div>
+        <div class="titlebar-drag">ArcOrbit</div>
+        <div class="window-controls"></div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
+        <nav class="primary-nav" id="primaryNav" aria-label="主导航"></nav>
+        <div class="sidebar-footer">
+          <button class="profile-button" type="button">
+            <span class="account-avatar brand-mark">张</span>
+            <strong>张三</strong>
+            <small>处理人</small>
+          </button>
+        </div>
+      </aside>
+
+      <main class="app-stage">
+        <header class="commandbar">
+          <div class="breadcrumbs"><strong>Acme Console</strong><span id="crumbTail">今日待处理</span></div>
+          <div class="commandbar-actions">
+            <label class="control-rail-select" style="display:flex;align-items:center;gap:6px;"><span class="sr-only">客户筛选</span><select id="customerFilter" aria-label="客户筛选"></select></label>
+            <label class="control-rail-select" style="display:flex;align-items:center;gap:6px;"><span class="sr-only">项目筛选</span><select id="projectFilter" aria-label="项目筛选"></select></label>
+            <button class="primary-button" id="newProjectButton" type="button">新建项目</button>
+            <button class="icon-button" type="button" title="同步" aria-label="同步"><svg class="ui-icon" aria-hidden="true"><use href="#icon-sync"></use></svg></button>
+          </div>
+        </header>
+        <div class="view-host">
+          <section class="app-view" data-page-view="today" id="viewToday"></section>
+          <section class="app-view" data-page-view="feedback" id="viewFeedback"></section>
+          <section class="app-view" data-page-view="work" id="viewWork"></section>
+          <section class="app-view" data-page-view="drafts" id="viewDrafts"></section>
+          <section class="app-view" data-page-view="org" id="viewOrg"></section>
+        </div>
+      </main>
+    </div>
+    <div id="modalRoot"></div>
+    <script src="./prototype.js"></script>
+  </body>
+</html>
