@@ -67,3 +67,5 @@ Intervention Workbench 从 Command Center 的人工关注项或历史运行按�
 - `runtime/arcorbit/desktop/renderer/index.html`
 - `../../hoewo/workshop-desktop/docs/domain.md`
 - `../../hoewo/workshop-desktop/docs/decisions.md`（D-006、D-018：项目任务源与本地工作区绑定边界）
+
+Product 管理以 `arckit/spec/agentic-software-development/arcorbit-product-management.md` 为产品源，技术协议在 `arckit/tech/arcorbit/product-management-solution.md`；页面为 `product-list` → `product-detail`、`idea-workspace` → `idea-add`，Today 通过 `today-workspace/product-continuity.html` 续接原对象。原 Lifecycle 页面保持独立。

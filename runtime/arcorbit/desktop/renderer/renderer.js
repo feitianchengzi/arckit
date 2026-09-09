@@ -1,3 +1,5 @@
+import { createProductSurface } from "./product-surface.mjs";
+import { createConversationComposer } from "./conversation-composer.mjs";
 import { createCodexSettingsForm } from "./codex-settings-form.mjs";
 import { normalizeCodexSettings } from "../../src/codex-model-settings.mjs";
 import {
@@ -274,6 +276,7 @@ const chatStateCoordinator = createChatStateCoordinator({
   setTimer: window.setTimeout.bind(window),
   clearTimer: window.clearTimeout.bind(window)
 });
+let chatComposer;
 const chatConversationSurface = createConversationSurface({
   element: els.chatTranscript,
   jumpButton: els.chatJumpLatestButton,
@@ -285,6 +288,16 @@ const chatConversationSurface = createConversationSurface({
   }),
   onExternalLink: (url) => runAction(() => api.openWorkExternalLink(url)),
   performAction: runAction,
+});
+const productSurface = createProductSurface({
+  api, normalizeChatSnapshot, formatTime, performAction: runAction,
+  getPlatform: () => state.platform,
+  navigate: async (page, projectId, feedbackId) => {
+    if (projectId) state.selectedProjectId = String(projectId);
+    if (feedbackId) state.selectedFeedbackId = String(feedbackId);
+    showPage(page);
+    if (["feedback", "organization", "command"].includes(page)) await refreshSnapshot();
+  }
 });
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
@@ -571,22 +584,13 @@ function wireEvents() {
     await chatStateCoordinator.deleteCurrentSession();
     renderChat();
   }));
-  els.chatInput.addEventListener("input", () => {
-    chatStateCoordinator.setDraft(els.chatInput.value);
-    renderChatComposer();
+  chatComposer = createConversationComposer({
+    input: els.chatInput, sendButton: els.chatSendButton, stopButton: els.chatStopButton, hint: els.chatComposerHint,
+    onInput: text => { chatStateCoordinator.setDraft(text); renderChatComposer(); },
+    onSend: sendChat,
+    onStop: async () => { if (selectedChatSession()) await chatStateCoordinator.interruptCurrentSession(); renderChat(); },
+    performAction: runAction
   });
-  els.chatInput.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    runAction(sendChat);
-  });
-  els.chatSendButton.addEventListener("click", () => runAction(sendChat));
-  els.chatStopButton.addEventListener("click", () => runAction(async () => {
-    const session = selectedChatSession();
-    if (!session) return;
-    await chatStateCoordinator.interruptCurrentSession();
-    renderChat();
-  }));
   els.syncButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.automationRefreshButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.productFeedbackButton.addEventListener("click", () => runAction(openProductFeedback));
@@ -1619,16 +1623,9 @@ function renderChatComposer() {
   const session = selectedChatSession();
   const project = selectedChatProject();
   const active = isChatActive(session?.status);
-  if (els.chatInput.value !== chat.draft) els.chatInput.value = chat.draft;
-  els.chatInput.disabled = !project;
-  els.chatInput.placeholder = project ? "向 Codex 提问或说明希望它在当前项目中完成什么…" : "先配置本地 Product Workspace…";
-  els.chatSendButton.disabled = !project || active || chat.sending || !chat.draft.trim();
-  els.chatSendButton.classList.toggle("hidden", active);
-  els.chatStopButton.classList.toggle("hidden", !active);
-  els.chatStopButton.disabled = session?.status === "interrupting";
-  els.chatComposerHint.textContent = active
-    ? session?.status === "waiting_approval" ? "Codex 正在等待你的审批；也可以随时停止。" : "回答进行中；停止后保留已有内容，可在同一 thread 继续。"
-    : "Enter 发送 · Shift+Enter 换行";
+  chatComposer?.render({draft:chat.draft,available:Boolean(project),active,sending:chat.sending,
+    stopping:session?.status === "interrupting",waiting:session?.status === "waiting_approval",
+    placeholder:project ? "向 Codex 提问或说明希望它在当前项目中完成什么…" : "先配置本地 Product Workspace…"});
 }
 
 async function sendChat() {
@@ -1674,7 +1671,7 @@ function renderWorkSurface() {
 
 function renderPageVisibility() {
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
-  const navigationPage = state.page === "tasks" ? "work" : ["workbench", "recovery"].includes(state.page) ? "command" : state.page;
+  const navigationPage = state.page === "product-detail" ? "product" : state.page === "idea-add" ? "idea" : state.page === "tasks" ? "work" : ["workbench", "recovery"].includes(state.page) ? "command" : state.page;
   document.querySelectorAll("[data-page]").forEach((button) => button.classList.toggle("is-active", button.dataset.page === navigationPage));
 }
 
@@ -1701,13 +1698,13 @@ function renderCommandBar() {
     ? organizationScope?.name || "个人项目"
     : project?.name || state.platform.active_workset?.name || "项目集全部";
   els.pageTitle.textContent = {
-    today: "Today", chat: "Chat", idea: "Idea", organization: "Organization", engineering: "Engineering",
+    today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
     work: "Work", feedback: "Feedback", command: "Automation", release: "Release", operations: "Operations",
     tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
   }[state.page] || "ArcOrbit";
   els.automationEnabled.checked = Boolean(state.snapshot.enabled);
   els.automationEnabled.disabled = !state.authentication.authenticated;
-  els.productSetCluster.classList.toggle("hidden", organizationCapabilityPage);
+  els.productSetCluster.classList.toggle("hidden", organizationCapabilityPage || ["product", "product-detail", "idea-add"].includes(state.page));
   renderProductFeedbackTrigger();
 }
 
@@ -1737,6 +1734,7 @@ function renderWorkset() {
 }
 
 function renderToday() {
+  productSurface.renderToday();
   const view = deriveTodayWorkspace({
     platform: state.platform,
     automation: state.snapshot,
@@ -4750,6 +4748,11 @@ function invalidatePlatformTaskSelectionContext() {
 
 function showPage(page) {
   state.page = page;
+  if (["product", "product-detail", "idea", "idea-add"].includes(page)) {
+    renderPageVisibility(); renderNavigation(); renderCommandBar();
+    productSurface.show(page).catch(error => showToast(error.message));
+    return;
+  }
   if (page === "chat") {
     renderPageVisibility();
     renderNavigation();
@@ -4899,6 +4902,7 @@ async function login() {
       code: els.authCode.value
     }));
     state.settings = normalizeSettings(await api.getSettings());
+    productSurface.reset();
     workQueryState.clear();
     state.workQuery = { key: "", projection: null, loading: false, error: "" };
     els.authCode.value = "";
@@ -4926,6 +4930,7 @@ async function logout() {
       result = await api.logoutAuth({ confirm_active_task: true });
     }
     state.authentication = normalizeAuthentication(result.authentication);
+    productSurface.reset();
     invalidatePlatformTaskSelectionContext();
     state.settings = normalizeSettings(await api.getSettings());
     state.snapshot = emptySnapshot();

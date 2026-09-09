@@ -16,30 +16,28 @@
 - setup-readiness/ 环境准备页面：冷启动与新关联检查、无副作用项目查看、Codex installation inventory/安装建议/owner-specific 更新、无默认值显式认证、项目写入确认、用户级迁移、同名 skill 选择与备份覆盖、事务 apply 与阻塞恢复。✅
   - default.html 环境准备线框：检查触发边界、Codex 缺失/安装/认证选择/登录复核、可见项目写入摘要、managed-stale 清理、执行、完成、升级迁移和失败恢复。✅ (177行)
   - interaction.md 环境准备交互：冷启动/新关联/主动重试、纯查看不检查、Codex inventory/安装建议/更新状态、两级无默认认证、用户级 managed 迁移、备份恢复与异常恢复。✅ (243行)
-- platform-workspace/ 多产品平台应用壳：以三组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、会话新鲜度与同记录恢复的主工作台式 Feedback 和 Organization 行为。✅
-  - default.html 平台应用壳线框：三组导航、全局产品范围、Feedback 单行控制轨、会话未读与刷新、窄窗口收敛、剩余高度双栏、已忽略恢复和转待办恢复状态。✅ (177行)
+- platform-workspace/ 多产品平台应用壳：以四组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、会话新鲜度与同记录恢复的主工作台式 Feedback 和 Organization 行为。✅
+  - default.html 平台应用壳线框：四组导航、全局产品范围、Feedback 单行控制轨、会话未读与刷新、窄窗口收敛、剩余高度双栏、已忽略恢复和转待办恢复状态。✅ (177行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系、项目邀请及任意成员本地绑定与管理员授权分界。✅ (13行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
-  - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织项目连接引导与 Feedback 单行控制轨、会话自动/手动刷新、已读边界、剩余高度双栏、同记录恢复、共享图片查看和流转。✅ (168行)
+  - interaction.md 平台交互：四组导航、产品范围/治理解耦、组织项目连接引导与 Feedback 单行控制轨、会话自动/手动刷新、已读边界、剩余高度双栏、同记录恢复、共享图片查看和流转。✅ (169行)
 - today-workspace/ Today 人工责任工作台：以项目栏、需要你处理/项目配置双工作区和操作台管理多项目配置、跨来源人工介入及 Work 内容纠偏。🟡
   - default.html Today 主线框：真实三组主导航、跨项目责任、项目配置、零责任和来源未知。🟡 (21行)
   - readiness-details.html 新用户子视图：前置门、项目目录、多项目并行检查、目录/Setup/本机参与和 Work 交接。🟡 (20行)
   - action-details.html 来源操作台：Chat 权限、Automation 决策/外部依赖/恢复、Work 内容纠偏与失败保留、状态门、验收问题原位直显及部分成功收口。🟡 (26行)
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
-  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (233行)
+  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (236行)
+  - product-continuity.html 产品续接：添加 Idea、独立新消息和本机草稿。✅ (5行)
 - chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，以 session 独立阅读位置进行本地 Codex 对话。✅
   - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、具体变更文件、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
   - workspace-setup.html 工作区绑定子视图：任意可访问项目成员从 Chat 原位选择目录并检查 Setup Readiness，同时保留草稿。✅ (12行)
   - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、具体文件目标、内容宽度隔离、session 独立滚动、Composer、恢复和 Automation 隔离。✅ (124行)
-- idea-workspace/ Idea 页面：创意探索、团队讨论、证据与风险比较，以及确认后的正式项目转换预览。✅
-  - default.html Idea 线框：创意漏斗、详情、团队观点与开始项目动作。✅ (14行)
-  - interaction.md Idea 交互：探索/讨论/确认状态、团队观点和项目转换边界。✅ (35行)
 - release-workspace/ Release 页面：版本候选、发布门禁、跨平台产物和上线健康监控计划。✅
   - default.html Release 线框：release train、验证与签名门禁、产物和上线观察。✅ (13行)
-  - interaction.md Release 交互：发版准备、人工授权、线上监控和未接入边界。✅ (34行)
+  - interaction.md Release 交互：发版准备、人工授权、线上监控和未接入边界。✅ (33行)
 - operations-workspace/ Operations 页面：外部市场动作、渠道内容、负责人、时间窗口和效果信号回流。✅
   - default.html Operations 线框：运营动作、受众与渠道、内容主题和示意效果信号。✅ (14行)
-  - interaction.md Operations 交互：待发布/进行中/已复盘状态、回流关系和外部平台边界。✅ (34行)
+  - interaction.md Operations 交互：待发布/进行中/已复盘状态、回流关系和外部平台边界。✅ (33行)
 - engineering-profile/ Engineering 页面：选择、编辑、比较和应用由 State、领域能力及生命周期解释组成的 Domain Profile。✅
   - default.html Engineering 线框：Profile Library、State/Capabilities 编辑、跨行业比较与 Apply 确认。✅ (29行)
   - interaction.md Engineering 交互：Profile 草稿管理、变更预览、稳定 Loop Kernel 与无真实写入边界。✅ (42行)
@@ -59,3 +57,15 @@
   - task-form.html 待办表单子视图：创建/编辑产品切换、执行人 Automation 资格提示、跨产品复制确认、目标字段联动和分步失败恢复。✅ (45行)
   - readiness-guidance.html 执行资格子视图：待评审确认、执行人不匹配、成员本地连接动作和远端治理责任交接。✅ (39行)
   - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、新建执行人 Automation 提示、编辑七状态兜底、Inspector 引导动作、持久宽度、紧凑分区、跨产品受控替换与图片浏览。✅ (305行)
+- product-list/ Product 列表：浏览全部可访问项目与本机 Idea，查找并进入产品长期上下文。✅
+  - default.html Product 列表状态与恢复。✅ (62行)
+  - interaction.md Product 列表状态与恢复。✅ (23行)
+- product-detail/ Product 详情：查看并维护产品状态、理念、资产与项目关系，从同一产品进入已有能力页面。✅
+  - default.html Product 详情状态与恢复。✅ (101行)
+  - interaction.md Product 详情状态与恢复。✅ (25行)
+- idea-workspace/ Idea 列表：展示当前设备保存的 Idea，并提供继续整理、接入和查看已关联产品的入口。✅
+  - default.html Idea 列表状态与恢复。✅ (62行)
+  - interaction.md Idea 列表状态与恢复。✅ (23行)
+- idea-add/ 添加 Idea：从空白或材料建立可恢复 Idea，在可编辑资料区与对话区协作完成接入。✅
+  - default.html 添加 Idea状态与恢复。✅ (159行)
+  - interaction.md 添加 Idea状态与恢复。✅ (30行)

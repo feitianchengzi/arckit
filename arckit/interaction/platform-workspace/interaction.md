@@ -2,7 +2,7 @@
 
 ## 产品定位
 
-ArcOrbit 是在本地项目上开发多个软件产品的平台。Today 与 Chat 承接个人即时协作；Idea、Work、Automation、Release、Operations 和 Feedback 表达产品全生命周期；Organization 与 Engineering 分别表达组织治理和当前领域模型。用户不需要为了日常研发再登录 Workshop 待办或反馈网页，但 Workshop 仍拥有共享业务事实。
+ArcOrbit 是在本地项目上开发多个软件产品的平台。Product 目录与详情提供产品长期上下文，原 Lifecycle 页面持续保留。Today 与 Chat 承接个人即时协作；Idea、Work、Automation、Release、Operations 和 Feedback 表达产品全生命周期；Organization 与 Engineering 分别表达组织治理和当前领域模型。用户不需要为了日常研发再登录 Workshop 待办或反馈网页，但 Workshop 仍拥有共享业务事实。
 
 ## 事实边界
 
@@ -35,7 +35,8 @@ ArcOrbit 是在本地项目上开发多个软件产品的平台。Today 与 Chat
 左侧导航分为三个职责组：
 
 - `PERSONAL`：Today、Chat；Today 使用当前 Workset，Chat 可以选择产品上下文但保持自由讨论边界；
-- `PRODUCT LIFECYCLE`：Idea、Work、Automation、Release、Operations、Feedback；Work、Automation 与 Feedback 保留真实平台行为，Idea、Release 与 Operations 是计划展示页；
+- `PRODUCT`：Product 目录和详情。
+- `PRODUCT LIFECYCLE`：Idea、Work、Automation、Release、Operations、Feedback；Work、Automation 与 Feedback 保留真实平台行为，Idea 提供临时录入与仓库正式资料恢复，Release 与 Operations 是计划展示页；
 - `ORGANIZATION`：Organization、Engineering；Organization 保留真实治理行为，Engineering 是管理 State Model、Capability Mapping 与 Lifecycle Mapping 的 Domain Profile 计划工作台。
 
 英文界面统一显示 `Release` 与 `Operations`，中文说明分别使用“发布”和“运营”。入口顺序固定为 Today、Chat；Idea、Work、Automation、Release、Operations、Feedback；Organization、Engineering。
@@ -109,7 +110,7 @@ Today 依据顶部产品集观察范围组合当前用户最值得处理的一�
 
 ### Chat、Idea、Release、Operations 与 Engineering
 
-五个入口各自打开独立稳定页签。Chat 提供绑定单个本地 Product Workspace 的真实 Codex 自由对话，并保持与 Automation 及产品对象转换隔离；Idea 展示创意、团队讨论与正式项目转换；Release 展示发版准备和线上监控；Operations 展示对外市场动作；Engineering 展示 Profile Library 和编辑器，用户可以在计划层选择、复制、编辑、比较和 Apply Domain Profile。Profile 把 Project/Case 的领域 State 定义、预期/现状/诊断能力映射以及同一生命周期的领域解释作为一组替换；通用 Loop Kernel 与产品流程保持稳定。
+五个入口各自打开独立稳定页签。Chat 提供绑定单个本地 Product Workspace 的真实 Codex 自由对话，并保持与 Automation 及产品对象转换隔离；Idea 从本机临时库和当前产品集关联目录恢复，通过独立添加页的表单与 Agent 对话完成正式接入；Release 展示发版准备和线上监控；Operations 展示对外市场动作；Engineering 展示 Profile Library 和编辑器，用户可以在计划层选择、复制、编辑、比较和 Apply Domain Profile。Profile 把 Project/Case 的领域 State 定义、预期/现状/诊断能力映射以及同一生命周期的领域解释作为一组替换；通用 Loop Kernel 与产品流程保持稳定。
 
 这些页面的详细交互策略分别位于 `../chat-workspace/`、`../idea-workspace/`、`../release-workspace/`、`../operations-workspace/` 和 `../engineering-profile/`。Chat 的会话、消息、停止与恢复是真实本地行为；Chat 不转换其他对象。其余页面的写入或转换动作保持计划展示，不产生真实副作用。
 

@@ -178,3 +178,4 @@
 | [CASE-20260904-004](closed/CASE-20260904-004-development-case.md) | closed | 修复全屏模式关闭图片查看器后主窗口黑屏 | 2026-09-04T16:51:11.370Z |
 | [CASE-20260905-001](closed/CASE-20260905-001-arcorbit-codex-model-level.md) | closed | ArcOrbit 设置页支持 Codex Model 与 Level 配置 | 2026-09-05T05:12:39.343Z |
 | [CASE-20260905-002](closed/CASE-20260905-002-arcorbit-ai.md) | closed | ArcOrbit AI 对话直接展示变更文件 | 2026-09-05T06:48:52.616Z |
+| [CASE-20260909-001](closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md) | closed | Implement product-centered ArcOrbit management and Agent-assisted Idea intake | 2026-09-09T08:48:33.157Z |

@@ -4,15 +4,16 @@
 
 本文定义 ArcOrbit 的真实 Chat，以及用于团队计划对齐的 Idea、Release、Operations 和 Engineering 工作空间，并说明它们与现有 Today、Work、Automation、Feedback 和 Organization 的关系。
 
-Chat 是由 Codex app-server 驱动的本地项目自由对话工作空间。Idea、Release、Operations 和 Engineering 是产品方向的可交互展示面；它们使用 ArcOrbit 已有的项目、待办、反馈、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和发布工作流事实组织示意内容，但不因此宣称新的服务端、市场平台、监控平台或 Agent 执行能力已经接入。
+Chat 是由 Codex app-server 驱动的本地项目自由对话工作空间。Release、Operations 和 Engineering 是产品方向的可交互展示面；它们使用 ArcOrbit 已有的项目、待办、反馈、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和发布工作流事实组织示意内容，但不因此宣称新的服务端、市场平台、监控平台或 Agent 执行能力已经接入。
 
 ## 主导航信息架构
 
-左侧主导航使用三个稳定职责组，并在英文界面中保持统一英文入口名：
+左侧主导航保留既有职责组并增加 Product 入口，并在英文界面中保持统一英文入口名：
 
 1. `PERSONAL`：Today、Chat。
-2. `PRODUCT LIFECYCLE`：Idea、Work、Automation、Release、Operations、Feedback。
-3. `ORGANIZATION`：Organization、Engineering。
+2. `PRODUCT`：Product。
+3. `PRODUCT LIFECYCLE`：Idea、Work、Automation、Release、Operations、Feedback。
+4. `ORGANIZATION`：Organization、Engineering。
 
 中文语义分别为“个人”“产品全生命周期”“组织能力”。`发布` 在英文界面中显示为 `Release`，`运营` 显示为 `Operations`；同一界面不混用中英文入口名。
 
@@ -29,7 +30,7 @@ Organization 保留组织治理职责。Engineering 位于其下方，是 Domain
 - Chat 会话列表直接按本地 Product Workspace 分组，不要求先选择项目；新对话在首条消息发送前显式显示并允许切换目标工作区。没有可用本地工作区时保留草稿，但不启动对话。
 - Chat 会话、消息、Codex thread 绑定和运行状态由 ArcOrbit 本地持久化，不写入 Workshop、Project State、Case 或 Automation queue。
 - Chat 中的工具和文件操作继续受 Codex sandbox、workspace roots 与 approval policy 约束；Renderer 不获得 Codex 进程、凭据、文件系统或通用 RPC 权限。
-- Idea、Release、Operations 和 Engineering 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
+- Release、Operations 和 Engineering 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
 - 计划示例优先来自 ArcOrbit 当前真实对象与约束，不虚构已接入的远端接口、权限或自动化结果。
 - 未建立真实写入合约的计划动作以“计划动作”“示意”或不可用状态表达，不产生远端记录、Runtime Run、Project State transition 或发布授权。
 - Chat 与 Idea、Work 等正式形态之间没有转换、关联或来源写入；自由对话只保留为独立 Chat 会话。
@@ -83,21 +84,7 @@ Chat 不提供附件、语音、共享链接、跨设备同步、会话分支或
 
 ## Idea
 
-### 目标
-
-Idea 承接创意探索、机会描述、用户信号和团队讨论，在进入正式项目之前形成可比较、可澄清的产品创意。
-
-### 主要内容
-
-- 处于探索、讨论和已确认状态的创意列表；
-- 问题、目标用户、价值假设、证据和主要风险摘要；
-- 来自 Chat、Feedback 或团队输入的来源标识；
-- 团队成员观点与待确认问题；
-- 将已确认创意转为正式 Project 的计划动作。
-
-### 边界
-
-Idea 不是 Workshop Project、Project State 或 Case 的别名。创意只有经过明确确认并建立正式项目上下文后，才进入 Work、Automation 和后续生命周期；当前展示页不创建远端项目。
+Idea 的真实产品能力以 [Product 管理与 Idea 接入](arcorbit-product-management.md) 为准。该能力建立独立场景会话和产品事实，不改变普通 Chat 的自由对话边界。
 
 ## Release / 发布
 
@@ -176,9 +163,9 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 
 ## 验收口径
 
-- 左侧导航完整显示三个职责组和十项入口，顺序与本文一致。
+- 左侧导航完整显示四个职责组和十一项入口，顺序与本文一致。
 - `Release` 与 `Operations` 在英文界面使用英文，在中文说明中分别对应“发布”和“运营”。
-- 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，其余四个页面展示符合本规格的计划内容。
+- 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，Idea 遵守 Product 管理规格，其余三个页面展示符合本规格的计划内容。
 - 页面明确区分真实 Chat 状态、真实项目事实、计划示例和未接入动作。
 - Chat 会话列表不依赖预先选择项目，直接按 Product Workspace 分组；每组默认最多显示最近 10 个会话，超出时可从组底部查看并收起完整历史。
 - Chat 新对话在首条消息发送前显式显示目标 Product Workspace，允许保留草稿快速切换；发送后项目归属固定，不能迁移既有 thread。

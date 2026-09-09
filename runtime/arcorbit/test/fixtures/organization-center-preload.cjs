@@ -1,4 +1,4 @@
-const { contextBridge } = require("electron");
+const { contextBridge, ipcRenderer } = require("electron");
 
 const calls = [];
 let codexSettings = { model: "gpt-6-astra", reasoning_effort: "high" };
@@ -204,6 +204,14 @@ const testChatSnapshot = async (input = {}) => {
   return testChatSnapshotValue(requested);
 };
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  ...(process.env.ARCORBIT_PRODUCT_FIXTURE === "1" ? {
+    productSnapshot: input => ipcRenderer.invoke("fixture:product-snapshot", input),
+    productDetail: id => ipcRenderer.invoke("fixture:product-detail", id),
+    productCommand: (action,input) => ipcRenderer.invoke("fixture:product-command",action,input),
+    productChat: input => ipcRenderer.invoke("fixture:product-chat",input),
+    pickProductMaterial: input => ipcRenderer.invoke("fixture:product-pick",input),
+    onProductEvent: listener => { const fn=(_e,event)=>listener(event);ipcRenderer.on("fixture:product-event",fn);return ()=>ipcRenderer.off("fixture:product-event",fn); }
+  } : {}),
   getWindowState: async () => ({ maximized: false, minimized: false }),
   minimizeWindow: noOp,
   toggleMaximizeWindow: async () => ({ maximized: false, minimized: false }),

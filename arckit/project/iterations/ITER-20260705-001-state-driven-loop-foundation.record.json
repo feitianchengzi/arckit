@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-09-05T06:48:52.616Z",
+  "updated_at": "2026-09-09T08:48:33.157Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -3352,6 +3352,104 @@
         "arckit/cases/active/CASE-20260905-001-arcorbit-codex-model-level.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260905-001-arcorbit-codex-model-level.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_intent_and_scope",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-product-management.md",
+        "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
+        "runtime/arcorbit/src/chat-coordinator.mjs",
+        "runtime/arcorbit/src/platform-coordinator.mjs",
+        "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-product-management.md",
+        "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
+        "runtime/arcorbit/src/chat-coordinator.mjs",
+        "runtime/arcorbit/src/platform-coordinator.mjs",
+        "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/cases/evidence/CASE-20260909-001/verification.md",
+        "arckit/spec/agentic-software-development/arcorbit-product-management.md",
+        "arckit/tech/arcorbit/product-management-solution.md",
+        "runtime/arcorbit/src/product-coordinator.mjs",
+        "runtime/arcorbit/src/product-git.mjs",
+        "runtime/arcorbit/desktop/renderer/product-surface.mjs",
+        "runtime/arcorbit/test/product-management.test.mjs",
+        "runtime/arcorbit/test/product-surface.test.mjs",
+        "definition/skills/arckit-product-assets/SKILL.md",
+        "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "data_and_state",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/cases/evidence/CASE-20260909-001/verification.md",
+        "arckit/spec/agentic-software-development/arcorbit-product-management.md",
+        "arckit/tech/arcorbit/product-management-solution.md",
+        "runtime/arcorbit/src/product-coordinator.mjs",
+        "runtime/arcorbit/src/product-git.mjs",
+        "runtime/arcorbit/desktop/renderer/product-surface.mjs",
+        "runtime/arcorbit/test/product-management.test.mjs",
+        "runtime/arcorbit/test/product-surface.test.mjs",
+        "definition/skills/arckit-product-assets/SKILL.md",
+        "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "external_integrations",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/cases/evidence/CASE-20260909-001/verification.md",
+        "arckit/spec/agentic-software-development/arcorbit-product-management.md",
+        "arckit/tech/arcorbit/product-management-solution.md",
+        "runtime/arcorbit/src/product-coordinator.mjs",
+        "runtime/arcorbit/src/product-git.mjs",
+        "runtime/arcorbit/desktop/renderer/product-surface.mjs",
+        "runtime/arcorbit/test/product-management.test.mjs",
+        "runtime/arcorbit/test/product-surface.test.mjs",
+        "definition/skills/arckit-product-assets/SKILL.md",
+        "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/cases/evidence/CASE-20260909-001/verification.md",
+        "arckit/spec/agentic-software-development/arcorbit-product-management.md",
+        "arckit/tech/arcorbit/product-management-solution.md",
+        "runtime/arcorbit/src/product-coordinator.mjs",
+        "runtime/arcorbit/src/product-git.mjs",
+        "runtime/arcorbit/desktop/renderer/product-surface.mjs",
+        "runtime/arcorbit/test/product-management.test.mjs",
+        "runtime/arcorbit/test/product-surface.test.mjs",
+        "definition/skills/arckit-product-assets/SKILL.md",
+        "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
     }
   ],
   "acceptance": {
@@ -3501,15 +3599,16 @@
     "arckit/cases/closed/CASE-20260904-003-enable-task-editing-in-the-today-detail-pane.md",
     "arckit/cases/closed/CASE-20260904-004-development-case.md",
     "arckit/cases/closed/CASE-20260905-001-arcorbit-codex-model-level.md",
-    "arckit/cases/closed/CASE-20260905-002-arcorbit-ai.md"
+    "arckit/cases/closed/CASE-20260905-002-arcorbit-ai.md",
+    "arckit/cases/closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260905-002-arcorbit-ai.md",
+    "case_ref": "arckit/cases/closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260905-002-arcorbit-ai.md"
+      "arckit/cases/closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
     ],
-    "updated_at": "2026-09-05T06:48:52.616Z"
+    "updated_at": "2026-09-09T08:48:33.157Z"
   }
 }

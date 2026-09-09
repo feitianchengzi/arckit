@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ArcOrbit</title>
     <link rel="stylesheet" href="./styles.css">
-  </head>
+    <link rel="stylesheet" href="./product.css">
+</head>
   <body class="auth-pending">
     <svg class="icon-sprite" aria-hidden="true">
       <symbol id="icon-today" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></symbol>
@@ -124,8 +125,10 @@
           <button class="nav-item is-active" data-page="today" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><em id="attentionNavCount">0</em></button>
           <button class="nav-item" data-page="chat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chat"></use></svg><strong>Chat</strong><em>Codex</em></button>
 
+          <p class="nav-label">PRODUCT</p>
+          <button class="nav-item" data-page="product" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Product</strong></button>
           <p class="nav-label">PRODUCT LIFECYCLE</p>
-          <button class="nav-item" data-page="idea" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong><em>6</em></button>
+          <button class="nav-item" data-page="idea" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong></button>
           <button class="nav-item" data-page="work" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Work</strong><em id="workNavCount">0</em></button>
           <button class="nav-item" data-page="command" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-automation"></use></svg><strong>Automation</strong><em id="automationNavCount">0</em></button>
           <button class="nav-item" data-page="release" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong><em>2</em></button>
@@ -164,6 +167,7 @@
             <div class="today-page">
               <header class="today-heading"><div><p class="eyebrow">PERSONAL · TODAY</p><h1>需要你亲自处理的事情</h1><p id="todaySummary">只汇总会阻塞、悬置或尚未收口的人工责任。</p></div><div class="today-heading-status"><span id="platformHealthBadge" class="health-badge">等待同步</span><small id="todayFreshness">正在读取来源状态</small></div></header>
               <div id="platformErrorHost"></div>
+              <div id="todayProductContinuity" class="today-product-continuity"></div>
               <div class="today-workspace">
                 <aside class="today-project-rail" aria-label="Today 项目范围">
                   <div class="today-rail-heading"><div><p class="eyebrow">PROJECTS</p><h2>项目</h2></div><button id="todayAddProjectButton" class="icon-button" type="button" title="添加项目" aria-label="添加项目"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button></div>
@@ -197,8 +201,24 @@
             </div>
           </section>
 
-          <section id="ideaView" class="app-view" data-page-view="idea">
-            <div class="page planning-page"><div class="page-heading split-heading"><div><p class="eyebrow">PRODUCT LIFECYCLE · IDEA</p><h1>从机会探索到正式项目</h1><p>把来自 Chat、Feedback 和团队讨论的信号组织为可比较、可确认的产品创意。</p></div><span class="plan-status">PLAN VIEW · 不创建 Project</span></div><div class="metric-grid planning-metrics"><div class="metric-card"><span>探索中</span><strong>3</strong><small>问题与用户仍待澄清</small></div><div class="metric-card running"><span>讨论中</span><strong>2</strong><small>团队观点正在收敛</small></div><div class="metric-card healthy"><span>已确认</span><strong>1</strong><small>可以预览正式项目</small></div><div class="metric-card"><span>外部信号</span><strong>18</strong><small>来自 Feedback 与 Chat</small></div></div><div class="planning-three-column idea-plan-layout"><section class="panel-card planning-list-panel"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h2>创意漏斗</h2><p>按状态和来源组织</p></div></div></div><div class="planning-list"><button class="planning-list-item" type="button"><strong>行业 State Profile</strong><small>讨论中 · 来自 Chat</small></button><button class="planning-list-item is-active" type="button"><strong>发布健康摘要</strong><small>已确认 · 来自团队</small></button><button class="planning-list-item" type="button"><strong>反馈趋势周报</strong><small>探索中 · 来自 Feedback</small></button></div></section><section class="panel-card planning-detail"><div class="section-title-row"><div><span class="section-icon">✓</span><div><h2>发布健康摘要</h2><p>已确认 · ArcOrbit</p></div></div><span class="status-pill completed">READY</span></div><div class="planning-card-body"><div class="planning-callout"><strong>要解决的问题</strong><small>产品负责人无法在同一处连接 release intent、产物验证和上线事件。</small></div><div class="planning-detail-grid"><div><span>目标用户</span><strong>产品负责人、交付负责人</strong></div><div><span>当前依据</span><strong>标签约束、构建验证、Runtime events</strong></div><div><span>价值假设</span><strong>降低发版信息对齐成本</strong></div><div><span>主要风险</span><strong>真实监控 adapter 尚未建立</strong></div></div></div></section><aside class="inspector-card planning-inspector"><span class="plan-kicker">TEAM DISCUSSION</span><h2>3 条观点</h2><div class="planning-comment"><strong>Glare</strong><p>先把发布与监控的整体关系展示出来。</p></div><div class="planning-comment"><strong>Lin</strong><p>真实监控需作为独立 adapter 验证。</p></div><div class="planning-callout"><strong>转换预览</strong><small>项目名：ArcOrbit Release Intelligence<br>来源：IDEA-006</small></div><button class="primary-button full-width" type="button" disabled>开始项目 · 示意</button></aside></div></div>
+          <section id="productView" class="app-view" data-page-view="product"><div id="productListHost" class="product-page"></div></section>
+          <section id="productDetailView" class="app-view" data-page-view="product-detail"><div id="productDetailHost" class="product-page"></div></section>
+          <section id="ideaView" class="app-view" data-page-view="idea"><div id="ideaListHost" class="product-page"></div></section>
+          <section id="ideaAddView" class="app-view" data-page-view="idea-add">
+            <div class="product-intake-page">
+              <header class="product-heading"><div><p class="eyebrow">IDEA</p><h1 id="ideaTitle">添加 Idea</h1><p id="ideaStatus">选择文件夹，或从空白开始。</p></div><button id="ideaBack" class="secondary-button" type="button">返回 Idea</button></header>
+              <div id="ideaStart" class="product-empty"><h2>把想法放进 ArcOrbit</h2><p>已有代码、原型或设计稿均可作为起点。</p><button id="ideaFolder" class="primary-button" type="button">选择文件夹</button><button id="ideaBlank" class="secondary-button" type="button">创建空白 Idea</button></div>
+              <div id="ideaBody" class="product-intake-body hidden">
+                <section id="ideaEditor" class="product-editor" aria-label="Idea 内容与接入方案"></section>
+                <section class="product-conversation" aria-label="Idea Agent 协作">
+                  <header><strong>一起整理这个产品</strong><small id="ideaChatStatus">Agent 的建议可以在左侧修改和采纳。</small><button id="ideaChatRetry" class="text-button" type="button">重试连接</button></header>
+                  <div id="ideaChatError" role="alert"></div>
+                  <div id="ideaTranscript" class="conversation-surface chat-transcript" aria-live="polite"></div>
+                  <button id="ideaJump" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
+                  <footer class="chat-composer"><textarea id="ideaChatInput" rows="3" placeholder="说明这个 Idea，或让 Agent 先看看材料…"></textarea><div class="chat-composer-foot"><small id="ideaChatHint"></small><button id="ideaChatStop" class="secondary-button hidden" type="button">停止</button><button id="ideaChatSend" class="primary-button" type="button">发送</button></div></footer>
+                </section>
+              </div>
+            </div>
           </section>
 
           <section id="organizationView" class="app-view" data-page-view="organization">

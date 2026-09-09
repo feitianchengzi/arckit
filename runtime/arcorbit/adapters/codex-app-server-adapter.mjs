@@ -73,6 +73,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           });
           client.onRequest((message) => handleServerRequest({
             message,
+            state: activeTurn?.state,
             queue: activeTurn?.queue || new AsyncEventQueue(),
             options: activeTurn?.options || tracedOptions,
             activeCommands,
@@ -146,7 +147,8 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
               approvalsReviewer: "user",
               model: effectiveOptions.model || null,
-              runtimeWorkspaceRoots: [projectRoot]
+              runtimeWorkspaceRoots: [projectRoot],
+              ...(effectiveOptions.dynamicTools ? { dynamicTools: effectiveOptions.dynamicTools } : {})
             });
             state.threadId = readId(fallback?.thread);
             if (!state.threadId) throw new Error("Thread recovery fallback did not return a thread id.");
@@ -187,7 +189,8 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
               approvalsReviewer: "user",
               model: effectiveOptions.model || null,
-              runtimeWorkspaceRoots: [projectRoot]
+              runtimeWorkspaceRoots: [projectRoot],
+              ...(effectiveOptions.dynamicTools ? { dynamicTools: effectiveOptions.dynamicTools } : {})
             });
             state.threadId = readId(threadStartResult?.thread);
             if (!state.threadId) {
@@ -232,7 +235,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
           approvalsReviewer: "user",
           model: effectiveOptions.model || null,
-          input: [{ type: "text", text: prompt }]
+          input: [{ type: "text", text: prompt }, ...(effectiveOptions.skillInputs || [])]
         };
         if (effectiveOptions.reasoningEffort) {
           turnStartParams.effort = effectiveOptions.reasoningEffort;
@@ -397,7 +400,7 @@ function isMissingThreadError(error) {
   return /thread/.test(text) && /(not found|unknown|missing|404)/.test(text);
 }
 
-async function handleServerRequest({ message, queue, options, activeCommands, commandItems }) {
+async function handleServerRequest({ message, state, queue, options, activeCommands, commandItems }) {
   queue.push({
     type: `codex.server_request.${message.method.replaceAll("/", ".")}`,
     method: message.method,
@@ -406,6 +409,17 @@ async function handleServerRequest({ message, queue, options, activeCommands, co
   });
 
   switch (message.method) {
+    case "item/tool/call": {
+      const params = message.params || {};
+      try {
+        if (!state || state.completed || params.threadId !== state.threadId || (state.turnId && params.turnId !== state.turnId)) throw new Error("Tool call does not belong to the active scene turn.");
+        if (typeof options.dynamicToolProvider !== "function" || !options.dynamicTools?.some(tool => tool.name === params.tool)) throw new Error("This tool is unavailable in this conversation.");
+        const result = await options.dynamicToolProvider(params);
+        return { success: true, contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
+      } catch (error) {
+        return { success: false, contentItems: [{ type: "inputText", text: error.message }] };
+      }
+    }
     case "currentTime/read":
       return { currentTimeAt: Math.floor(Date.now() / 1000) };
     case "item/commandExecution/requestApproval": {

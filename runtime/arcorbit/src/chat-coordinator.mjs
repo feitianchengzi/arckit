@@ -12,6 +12,7 @@ export function createChatCoordinator({
   getCodexExecutable,
   setupReadinessPreflight = async () => {},
   createAdapter = createCodexAppServerAdapter,
+  getTurnContext = async () => ({}),
   approvalTimeoutMs = 5 * 60_000,
   streamNotifyMs = 32,
   now = () => new Date().toISOString(),
@@ -241,7 +242,9 @@ export function createChatCoordinator({
       const settings = await runManager.getSettings();
       const env = prependPath(buildRuntimeEnv({ ...process.env }, settings), executable.pathEntries);
       const codexSettings = normalizeCodexSettings(settings.codex);
+      const context = await getTurnContext({ project, sessionId, text });
       const options = {
+        ...context.options,
         model: codexSettings.model,
         reasoningEffort: codexSettings.reasoning_effort,
         resultKind: "chat",
@@ -254,7 +257,7 @@ export function createChatCoordinator({
         onThreadBound: (binding) => bindThread(sessionId, binding)
       };
       owner.adapterStarted = true;
-      for await (const event of owner.adapter.runTurn({ projectRoot: project.path, prompt: text, options })) {
+      for await (const event of owner.adapter.runTurn({ projectRoot: project.path, prompt: context.prompt || text, options })) {
         await projectEvent(sessionId, event);
       }
     } catch (error) {
@@ -417,7 +420,7 @@ export function createChatCoordinator({
     }
     if (event.type === "codex.item.started") {
       const item = event.params?.item || {};
-      if (["commandExecution", "fileChange", "toolCall", "webSearch"].includes(item.type)) {
+      if (["commandExecution", "fileChange", "toolCall", "webSearch", "dynamicToolCall"].includes(item.type)) {
         upsertToolMessage(sessionId, item, "running");
         scheduleStreamNotification(sessionId);
       }
@@ -425,7 +428,7 @@ export function createChatCoordinator({
     }
     if (event.type === "codex.item.completed") {
       const item = event.params?.item || {};
-      if (["commandExecution", "fileChange", "toolCall", "webSearch"].includes(item.type)) {
+      if (["commandExecution", "fileChange", "toolCall", "webSearch", "dynamicToolCall"].includes(item.type)) {
         upsertToolMessage(sessionId, item, toolSucceeded(item) ? "completed" : "failed");
         await persistLiveMessage(sessionId, { itemId: String(item.id || "tool"), kind: "tool" });
         changed("chat.message.committed", sessionId);
@@ -723,6 +726,7 @@ function approvalSummary(request) {
 }
 
 function toolSummary(item, previousContent = "") {
+  if (item.type === "dynamicToolCall") return `${item.tool || "产品工具"}\n输入：${JSON.stringify(item.arguments || {})}\n结果：${JSON.stringify(item.contentItems || item.result || [])}`.slice(0, 30000);
   if (item.type === "commandExecution") return String(item.command || item.cmd || "运行命令").slice(0, 400);
   if (item.type === "fileChange") return fileChangeSummary(item) || previousContent || "更新项目文件";
   if (item.type === "webSearch") return String(item.query || "搜索资料").slice(0, 400);
@@ -746,6 +750,7 @@ function fileChangeSummary(item) {
 }
 
 function toolSucceeded(item) {
+  if (item.type === "dynamicToolCall") return item.success !== false;
   const code = item.exitCode ?? item.exit_code;
   return code === undefined || code === null || code === 0;
 }

@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
+import { createProductCoordinator } from "../src/product-coordinator.mjs";
 import { createChatCoordinator } from "../src/chat-coordinator.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
 import { createCodexExecutableResolver } from "../src/codex-executable-resolver.mjs";
@@ -52,6 +53,7 @@ let mainWindow;
 let runManager;
 let automationCoordinator;
 let chatCoordinator;
+let productCoordinator;
 let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
@@ -181,6 +183,42 @@ app.whenReady().then(async () => {
     workSync: workSyncCoordinator,
     automationCoordinator
   });
+  const productSkillRoot = app.isPackaged
+    ? join(process.resourcesPath, "provisioning", "arckit-skills", "definition", "skills", "arckit-product-assets")
+    : resolve(runtimeRoot, "../../definition/skills/arckit-product-assets");
+  const productProtocol = await import(pathToFileURL(join(productSkillRoot, "scripts/product-assets.mjs")).href);
+  productCoordinator = createProductCoordinator({
+    dataDir: join(app.getPath("userData"), "products"),
+    protocol: productProtocol,
+    skillPath: join(productSkillRoot, "SKILL.md"),
+    getPlatform: () => platformCoordinator.getSnapshot({ sections: ["organizations"] }),
+    getAccountScope: async () => {
+      const auth = await workshopService.getAuthStatus();
+      if (!auth.authenticated) return "";
+      const settings = await runManager.getTaskSourceSettings();
+      let claims = {};
+      try { claims = JSON.parse(Buffer.from(String(settings.access_token || "").split(".")[1] || "", "base64url").toString()); } catch {}
+      const id = settings.user_id || claims.user_id || claims.sub || settings.username;
+      return id ? `${settings.base_url}:${id}` : "";
+    },
+    executePlatform: (action, input) => platformCoordinator.executeAction(action, input),
+    getSettings: () => runManager.getSettings(),
+    getCodexExecutable: () => codexExecutableResolver.getResolved(),
+    assertCodexReady: () => codexSetupManager.assertReady(),
+    bindWorkspace: async (remoteId, path) => {
+      const local = await runManager.addProject(path);
+      await automationCoordinator.bindProject(remoteId, local.id);
+      const snapshot = await platformCoordinator.getSnapshot({ sections: [] });
+      const workset = snapshot.active_workset;
+      if (workset && !workset.project_ids.map(String).includes(String(remoteId))) {
+        await platformCoordinator.updateWorkset({ id: workset.id, project_ids: [...workset.project_ids, String(remoteId)] });
+      }
+      await skillProvisioningManager.check({ quiet: true });
+    }
+  });
+  productCoordinator.onEvent(event => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("arckit:product-event", event);
+  });
   imageViewer = createImageViewer({
     BrowserWindow,
     dialog,
@@ -282,6 +320,7 @@ app.on("before-quit", async (event) => {
     }
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
+    await productCoordinator?.close();
     productFeedbackService?.close();
     imageViewer?.close({ force: true });
     await skillProvisioningManager?.waitForIdle();
@@ -427,6 +466,35 @@ function registerIpc() {
 
   ipcMain.handle("arckit:list-runs", async (_event, filter) => runManager.listRuns(filter));
   ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => runManager.listMessages(projectId, sessionId));
+  ipcMain.handle("arckit:product-snapshot", async (event, input = {}) => {
+    assertMainRenderer(event);
+    return input.refresh ? productCoordinator.refresh() : productCoordinator.snapshot();
+  });
+  ipcMain.handle("arckit:product-detail", async (event, id) => {
+    assertMainRenderer(event); return productCoordinator.detail(String(id));
+  });
+  ipcMain.handle("arckit:product-command", async (event, action, input = {}) => {
+    assertMainRenderer(event);
+    // Renderer never supplies filesystem grants; native dialogs own those.
+    if (input.material_path || input.workspace || input.scope) throw new Error("不允许指定产品工作环境。");
+    return productCoordinator.command(action, input);
+  });
+  ipcMain.handle("arckit:product-pick-material", async (event, input = {}) => {
+    assertMainRenderer(event);
+    const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"], title: input.copy ? "选择复制材料的父目录" : "选择 Idea 材料目录" });
+    if (result.canceled || !result.filePaths[0]) return null;
+    if (input.copy) return productCoordinator.copyMaterial(String(input.id), result.filePaths[0]);
+    return input.id ? productCoordinator.chooseMaterial(String(input.id), result.filePaths[0]) : productCoordinator.command("create", {material_path:result.filePaths[0]});
+  });
+  ipcMain.handle("arckit:product-open-asset", async (event, input) => {
+    assertMainRenderer(event);
+    const path = await productCoordinator.assetLocation(String(input.id), String(input.path));
+    const error = await shell.openPath(path); if (error) throw new Error(error);
+    return { opened: true };
+  });
+  ipcMain.handle("arckit:product-chat", async (event, input) => {
+    assertMainRenderer(event); return productCoordinator.chatAction(input);
+  });
   ipcMain.handle("arckit:chat-snapshot", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.getSnapshot(input);

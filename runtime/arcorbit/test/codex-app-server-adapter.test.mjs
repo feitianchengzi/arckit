@@ -399,3 +399,28 @@ class RetryableErrorClient extends FakeClient {
     return { turn };
   }
 }
+
+test('scene dynamic tools use app-server request responses and reject foreign thread calls', async () => {
+  class ToolClient extends FakeClient {
+    results=[];
+    async request(method,params) {
+      if(method!=='turn/start')return super.request(method,params);
+      this.requests.push({method,params});const turn={id:'TURN-DYNAMIC'};
+      queueMicrotask(async()=>{
+        this.emit('turn/started',{threadId:params.threadId,turn});
+        for(const threadId of ['OTHER-THREAD',params.threadId]) {
+          this.results.push(await this.requestHandlers[0]({id:'CALL-'+threadId,method:'item/tool/call',params:{threadId,turnId:turn.id,callId:'CALL',tool:'product_context',arguments:{}}}));
+        }
+        this.emit('turn/completed',{threadId:params.threadId,turn});
+      });return {turn};
+    }
+  }
+  const client=new ToolClient();let calls=0;
+  const adapter=createCodexAppServerAdapter({clientFactory:()=>client});
+  const tools=[{type:'function',name:'product_context',description:'Current record',inputSchema:{type:'object',properties:{},additionalProperties:false}}];
+  const skills=[{type:'skill',name:'arckit-product-assets',path:'/trusted/SKILL.md'}];
+  await collect(adapter.runTurn({projectRoot:'/workspace/idea',prompt:'read current idea',options:{resultKind:'chat',dynamicTools:tools,skillInputs:skills,dynamicToolProvider:async()=>{calls++;return {revision:3};}}}));adapter.close();
+  assert.deepEqual(client.requests.find(r=>r.method==='thread/start').params.dynamicTools,tools);
+  assert.deepEqual(client.requests.find(r=>r.method==='turn/start').params.input[1],skills[0]);
+  assert.equal(calls,1);assert.equal(client.results[0].success,false);assert.deepEqual(client.results[1],{success:true,contentItems:[{type:'inputText',text:'{"revision":3}'}]});
+});

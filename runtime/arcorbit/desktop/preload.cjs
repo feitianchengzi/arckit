@@ -54,6 +54,17 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   pickProject: () => ipcRenderer.invoke("arckit:pick-project"),
   listRuns: (filter) => ipcRenderer.invoke("arckit:list-runs", filter),
   listMessages: (projectId, sessionId) => ipcRenderer.invoke("arckit:list-messages", projectId, sessionId),
+  productSnapshot: (input) => ipcRenderer.invoke("arckit:product-snapshot", input),
+  productDetail: (id) => ipcRenderer.invoke("arckit:product-detail", id),
+  productCommand: (action, input) => ipcRenderer.invoke("arckit:product-command", action, input),
+  pickProductMaterial: (input) => ipcRenderer.invoke("arckit:product-pick-material", input),
+  openProductAsset: (input) => ipcRenderer.invoke("arckit:product-open-asset", input),
+  productChat: (input) => ipcRenderer.invoke("arckit:product-chat", input),
+  onProductEvent: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on("arckit:product-event", handler);
+    return () => ipcRenderer.off("arckit:product-event", handler);
+  },
   chatSnapshot: (input) => ipcRenderer.invoke("arckit:chat-snapshot", input),
   createChat: (input) => ipcRenderer.invoke("arckit:chat-create", input),
   selectChat: (input) => ipcRenderer.invoke("arckit:chat-select", input),

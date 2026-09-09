@@ -29,7 +29,7 @@ assert.match(result.work_inspector_content, /👩‍💻/);
 assert.equal(result.current_run_display_title.includes("\n"), false);
 assert.equal(result.current_run_display_title.endsWith("…"), true);
 assert.equal(result.current_run_single_line, true);
-assert.equal(result.core_navigation_vector_icons, 10);
+assert.equal(result.core_navigation_vector_icons, 11);
 assert.equal(result.core_navigation_text_icons, 0);
 assert.equal(result.table_font_px, 14);
 assert.equal(result.conversation_font_px, 15);

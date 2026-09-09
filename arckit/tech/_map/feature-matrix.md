@@ -10,3 +10,5 @@
 | `arcorbit/realtime-synchronization-solution.md` | ✅ | PostgreSQL 持久项目事件、项目 WebSocket 游标恢复、Work-owned REST/mutation 同步、本地任务状态发布、Automation 消费和人工 Gate 隔离。 |
 | `arcorbit/product-feedback-integration.md` | ✅ | ArcOrbit 自身 Project 107、Feedback SDK WebView V2、受限 Electron WebContents、内置静态 API Key、稳定 Workshop 用户身份、未读事件/角标和失败关闭。 |
 | `repository-governance/monorepo-solution.md` | ✅ | Todo/Feedback 源码目录、过滤历史、多许可证优先级、公开配置契约、私有 arckit-ops 边界和安全门禁。 |
+
+| Product / Idea / Today 续接 | ✅ | 产品目录与详情、空白/材料接入、双区协作、显式状态、Git 共享冲突与来源恢复。 |
