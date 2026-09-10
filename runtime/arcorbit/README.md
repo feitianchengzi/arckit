@@ -152,6 +152,8 @@ npm --prefix runtime/arcorbit run check
 
 ## Local provider and Runtime build
 
+Native terminal builds support Python 3.13 through `@electron/rebuild` 3.7.2 and its updated `@electron/node-gyp`. The root `package.json` override also applies this rebuilder to `app-builder-lib` 25.1.8, whose default dependency is the older 3.6.1. Keep the override and the Runtime dev dependency aligned until the packager is upgraded. Install dependencies from the repository root with `npm ci` to use the shared lockfile; a global `node-gyp` install does not replace this build dependency. Build failures print both child output streams, including the underlying native compiler diagnostics.
+
 With `arckit` and `arcforge` checked out as sibling directories and dependencies already installed in both repositories, run this command from the Arckit repository root:
 
 ```bash
@@ -196,3 +198,16 @@ Automation task starts have an independent Setup Readiness preflight in addition
 The embedded `distribution-lock.json` binds those inputs before packaging. Because a file cannot contain its own final digest, each completed installer also has an external `distribution-attestation.json` that binds the installer SHA-256 to the embedded lock digest; the downloadable `checksums.txt` sits beside the installers so its relative filenames verify directly. Actions artifacts are always retained; attaching them to a GitHub Release requires the explicit `draft-release` option and never publishes or mutates an already published release.
 
 For a private ArcForge repository, configure the minimal read-only `ARCFORGE_READ_TOKEN` repository secret. Target signing secrets live in the workflow-selected `internal`, `beta`, or `appstore` GitHub Environment. `required` applies to macOS packaging and needs `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`, and either `APPLE_API_KEY_BASE64` plus its key ID/issuer/team ID or the Apple ID credential set. The API-key secret contains the base64-encoded `.p8` bytes; the macOS job validates and decodes them into an owner-only file under `RUNNER_TEMP`, exports only that temporary path as `APPLE_API_KEY`, and prefers API-key authentication when both credential sets exist. Electron Builder signs the app and final disk image without notarizing the intermediate app; after the DMG exists, the workflow submits that outermost distribution container to Apple's notary service, staples its ticket, and requires the DMG Gatekeeper assessment to pass before checksums or attestations are generated. Windows and Linux packages are currently built and attested as unsigned regardless of the macOS signing gate. The governed workflow defaults to `required`; `disabled` remains an explicit unsigned macOS internal-test choice, while `auto` records and verifies a macOS signature only when credentials were available.
+
+
+## Release 本地交付工作台
+
+Release 使用顶部已有产品集和项目范围。项目已关联本地目录后，可以在页面内运行 package scripts、自定义命令、多个 Shell 终端、Git 操作与源码编辑，并使用与 Chat 相同的 Agent 消息和输入组件。后台任务按启动时的账号、项目、目录保留；切换项目不会转移或终止任务。停止 Agent 回答不会停止构建。
+
+开发启动仍使用 `npm run desktop --workspace @arckit/arcorbit`，前置脚本自动构建 xterm/Monaco 离线资源。直接调用 `scripts/build-package-config.mjs` 也会构建这些资源并准备 node-pty 辅助程序权限。Git 使用本机安装和已有凭据；初次签名、凭据输入及完整交互 Git 可使用内置 Shell。
+
+高级 Git 入口优先使用随包 Lazygit，其次发现登录 Shell 中的 Lazygit。不存在时页面显示未安装，保留内置 Git 与终端。构建者可以显式运行 `npm run prepare:lazygit --workspace @arckit/arcorbit -- darwin-x64`（也支持 darwin-arm64、win32-x64、linux-x64/arm64），脚本按版本清单校验 SHA-256，打包配置仅收录与分发目标对应的现有二进制及许可证；启动应用不会下载软件。
+
+验证入口：`npm run test:release --workspace @arckit/arcorbit`；设置 `ARCORBIT_RELEASE_ELECTRON_TEST=1` 后运行 `npm run test:release:electron --workspace @arckit/arcorbit`。Electron 测试使用临时仓库、真实 Git/进程/编辑器和确定性 Agent 替身，不调用真实发布渠道。`scripts/prepare-release-asar-smoke.mjs` 可用已安装依赖准备离线 ASAR 验证载荷；它不代替签名安装包验证。
+
+源码文本编辑上限 2 MiB；执行保留最近 200 条已结束记录，每条保留最多 512 KiB 日志，Agent 分页读取。应用退出清理受管理进程，异常退出后未结束记录标记中断，不通过旧 PID 恢复。发布渠道、健康监控和自动回滚尚未接入；可以执行项目既有命令并查看真实结果。

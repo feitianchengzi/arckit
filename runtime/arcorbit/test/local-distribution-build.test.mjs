@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { createRequire } from "node:module";
 import {
   createLocalBuildPlan,
   isCurrentLocalArtifact,
@@ -8,6 +11,38 @@ import {
   parseArgs,
   resolveHostBuild
 } from "../scripts/build-local-distribution.mjs";
+
+test("the packager resolves the Python 3.13 compatible native rebuilder", () => {
+  const require = createRequire(import.meta.url);
+  const builderRequire = createRequire(require.resolve("app-builder-lib/package.json"));
+  const rebuildRequire = createRequire(builderRequire.resolve("@electron/rebuild/package.json"));
+  assert.equal(builderRequire("@electron/rebuild/package.json").version, require("@electron/rebuild/package.json").version);
+  const gyp = rebuildRequire("@electron/node-gyp/package.json");
+  assert.ok(Number(gyp.version.split(".")[0]) >= 10, `Python 3.13 requires node-gyp >= 10; resolved ${gyp.version}`);
+});
+
+test("local build preserves child diagnostics on success and failure without swallowing exit status", async () => {
+  const moduleUrl = new URL("../scripts/build-local-distribution.mjs", import.meta.url).href;
+  for (const exitCode of [0, 23]) {
+    const childCode = `process.stdout.write('builder stdout diagnostic\\n'); process.stderr.write('builder stderr diagnostic\\n'); process.exitCode = ${exitCode};`;
+    const driverCode = `
+      import { runLocalBuildCommand } from ${JSON.stringify(moduleUrl)};
+      try {
+        await runLocalBuildCommand(process.execPath, ['-e', ${JSON.stringify(childCode)}], process.cwd());
+      } catch (error) { process.exitCode = error.code; }
+    `;
+    let output;
+    try {
+      output = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", driverCode]);
+      assert.equal(exitCode, 0, "a failed build must reject");
+    } catch (error) {
+      assert.equal(error.code, exitCode);
+      output = error;
+    }
+    assert.match(output.stdout, /builder stdout diagnostic\n/);
+    assert.match(output.stderr, /builder stderr diagnostic\n/);
+  }
+});
 
 test("local Runtime build selects only supported host-native package targets", () => {
   assert.deepEqual(resolveHostBuild("darwin", "arm64"), {

@@ -18,9 +18,9 @@ Workset 不裁剪 Today 的人工责任范围。每个项目独立计算可访�
 
 ## Chat and Planned Workspaces
 
-`chat-workspace/` 定义绑定本地 Product Workspace 的真实 Codex 自由对话、原位工作区绑定、session/thread 生命周期、流式消息、停止、权限、删除和失败恢复；`idea-workspace/` 定义创意探索、团队讨论与正式项目转换预览；`release-workspace/` 定义发版准备和上线监控计划；`operations-workspace/` 定义外部市场动作和效果信号回流；`engineering-profile/` 把 Project/Case State 的软件工程定义与维护预期事实、实现现状和问题定位的领域 Skills 组合为一个 Domain Profile，并明确排除 entry skills。
+`chat-workspace/` 定义绑定本地 Product Workspace 的真实 Codex 自由对话、原位工作区绑定、session/thread 生命周期、流式消息、停止、权限、删除和失败恢复；`idea-workspace/` 定义创意探索、团队讨论与正式项目转换预览；`release-workspace/` 定义已有工作区上的真实终端、Git、源码、构建与场景 Agent；`operations-workspace/` 定义外部市场动作和效果信号回流；`engineering-profile/` 把 Project/Case State 的软件工程定义与维护预期事实、实现现状和问题定位的领域 Skills 组合为一个 Domain Profile，并明确排除 entry skills。
 
-五个页面共同消费 `arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md`。Chat 通过 `arckit/tech/arcorbit/desktop-execution-solution.md` 复用 Codex transport 与中性消息投影，同时隔离 state-driven Runtime、Automation lease 和 ledger；它不提供 Idea/Work 转换。其余页面只使用当前真实 Project、Task、Feedback、Run、ledger、代码/配置/测试/运行证据和 release workflow 事实组织展示，不建立新的服务端、发布、监控、市场或 registry 写入合约；Idea 的转换、Release 的发布、Operations 的外部动作和 Engineering 的 Profile 管理保持计划动作。
+Chat、Operations 和 Engineering 消费 `arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md`。Chat 通过 `arckit/tech/arcorbit/desktop-execution-solution.md` 复用 Codex transport 与中性消息投影，同时隔离 state-driven Runtime、Automation lease 和 ledger；它不提供 Idea/Work 转换。其余页面只使用当前真实 Project、Task、Feedback、Run、ledger、代码/配置/测试/运行证据和 release workflow 事实组织展示，不建立新的服务端、发布、监控、市场或 registry 写入合约；Idea 的产品转换使用独立 Product 规格，Release 本地执行使用独立 Release 规格；外部渠道发布、Operations 外部动作和 Engineering Profile 管理仍依实际接入。
 
 Organization Center 复用 Workshop Organization、OrganizationMember 和 Project Member，并由组织角色决定全部项目或参与项目可见性。成员页不生成项目邀请；项目页只生成一次性通用邀请。Work 读取完整七状态团队待办；普通反馈读取 Workshop Feedback V1。现有直接加成员授权、邀请列表/撤销、Feedback V2 与待办历史能力未成立时保持 unavailable。
 
@@ -69,3 +69,5 @@ Intervention Workbench 从 Command Center 的人工关注项或历史运行按�
 - `../../hoewo/workshop-desktop/docs/decisions.md`（D-006、D-018：项目任务源与本地工作区绑定边界）
 
 Product 管理以 `arckit/spec/agentic-software-development/arcorbit-product-management.md` 为产品源，技术协议在 `arckit/tech/arcorbit/product-management-solution.md`；页面为 `product-list` → `product-detail`、`idea-workspace` → `idea-add`，Today 通过 `today-workspace/product-continuity.html` 续接原对象。原 Lifecycle 页面保持独立。
+
+Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。

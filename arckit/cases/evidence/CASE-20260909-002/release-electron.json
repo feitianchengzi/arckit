@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "checks": [
+    "actual Release overview",
+    "real shell task exits successfully",
+    "offline ESM Monaco diff worker",
+    "real stage and commit",
+    "real Monaco edit and atomic save",
+    "shared Chat components with real scene tool",
+    "Electron utilityProcess PTY input and resize",
+    "parallel project ownership",
+    "three desktop viewports"
+  ],
+  "geometry": [
+    {
+      "width": 1500,
+      "scroll": 1500
+    },
+    {
+      "width": 1280,
+      "scroll": 1280
+    },
+    {
+      "width": 1100,
+      "scroll": 1100
+    }
+  ],
+  "errors": [],
+  "runtime_root": "/Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/runtime/arcorbit",
+  "bundled_lazygit": ""
+}

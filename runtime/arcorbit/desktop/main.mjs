@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
+import { createReleaseCoordinator } from "../src/release/release-coordinator.mjs";
 import { createProductCoordinator } from "../src/product-coordinator.mjs";
 import { createChatCoordinator } from "../src/chat-coordinator.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
@@ -54,6 +55,7 @@ let runManager;
 let automationCoordinator;
 let chatCoordinator;
 let productCoordinator;
+let releaseCoordinator;
 let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
@@ -183,12 +185,36 @@ app.whenReady().then(async () => {
     workSync: workSyncCoordinator,
     automationCoordinator
   });
+  releaseCoordinator = createReleaseCoordinator({
+    dataDir: join(app.getPath("userData"), "release"),
+    lazygitPath: join(app.isPackaged ? process.resourcesPath : join(runtimeRoot,"build-tools",`${process.platform}-${process.arch}`), ...(app.isPackaged ? ["lazygit"] : []), process.platform === "win32" ? "lazygit.exe" : "lazygit"),
+    getPlatform: () => platformCoordinator.getSnapshot({ sections: [] }),
+    getAccountScope: async () => {
+      const auth = await workshopService.getAuthStatus();
+      if (!auth.authenticated) return "";
+      const settings = await runManager.getTaskSourceSettings();
+      let claims = {};
+      try { claims = JSON.parse(Buffer.from(String(settings.access_token || "").split(".")[1] || "", "base64url").toString()); } catch {}
+      const id = settings.user_id || claims.user_id || claims.sub || settings.username;
+      return id ? `${settings.base_url}:${id}` : "";
+    },
+    getSettings: () => runManager.getSettings(),
+    getCodexExecutable: () => codexExecutableResolver.getResolved(),
+    assertCodexReady: () => codexSetupManager.assertReady(),
+    spawnHost: () => utilityProcess.fork(join(runtimeRoot, "src/release/process-host.mjs"), [], { serviceName: "ArcOrbit Terminal", stdio: "pipe" }),
+    confirm: async ({title, message, detail}) => (await dialog.showMessageBox(mainWindow, {type:"warning", title, message, detail, buttons:["取消", "执行"], defaultId:0, cancelId:0})).response === 1,
+    openPath: async path => { const error = await shell.openPath(path); if(error) throw new Error(error); }
+  });
+  releaseCoordinator.onEvent(event => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("arckit:release-event", event);
+  });
   const productSkillRoot = app.isPackaged
     ? join(process.resourcesPath, "provisioning", "arckit-skills", "definition", "skills", "arckit-product-assets")
     : resolve(runtimeRoot, "../../definition/skills/arckit-product-assets");
   const productProtocol = await import(pathToFileURL(join(productSkillRoot, "scripts/product-assets.mjs")).href);
   productCoordinator = createProductCoordinator({
     dataDir: join(app.getPath("userData"), "products"),
+    privateRoot: app.getPath("userData"),
     protocol: productProtocol,
     skillPath: join(productSkillRoot, "SKILL.md"),
     getPlatform: () => platformCoordinator.getSnapshot({ sections: ["organizations"] }),
@@ -320,6 +346,7 @@ app.on("before-quit", async (event) => {
     }
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
+    await releaseCoordinator?.close();
     await productCoordinator?.close();
     productFeedbackService?.close();
     imageViewer?.close({ force: true });
@@ -416,6 +443,10 @@ function combinedSetupReadiness(
 }
 
 function registerIpc() {
+  ipcMain.handle("arckit:release-snapshot", async event => { assertMainRenderer(event); return releaseCoordinator.snapshot(); });
+  ipcMain.handle("arckit:release-detail", async (event, id) => { assertMainRenderer(event); return releaseCoordinator.detail(String(id)); });
+  ipcMain.handle("arckit:release-command", async (event, action, input = {}) => { assertMainRenderer(event); return releaseCoordinator.command(action, input); });
+  ipcMain.handle("arckit:release-chat", async (event, input) => { assertMainRenderer(event); return releaseCoordinator.chatAction(input); });
   ipcMain.handle("arckit:window-state", async (event) => {
     assertMainRenderer(event);
     return mainWindowState(mainWindow);
@@ -485,6 +516,12 @@ function registerIpc() {
     if (result.canceled || !result.filePaths[0]) return null;
     if (input.copy) return productCoordinator.copyMaterial(String(input.id), result.filePaths[0]);
     return input.id ? productCoordinator.chooseMaterial(String(input.id), result.filePaths[0]) : productCoordinator.command("create", {material_path:result.filePaths[0]});
+  });
+  ipcMain.handle("arckit:product-pick-workspace", async (event, input = {}) => {
+    assertMainRenderer(event);
+    const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"], title: "选择正式 Git 工作目录（空文件夹或对应仓库）" });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return productCoordinator.chooseWorkspace(String(input.id), result.filePaths[0]);
   });
   ipcMain.handle("arckit:product-open-asset", async (event, input) => {
     assertMainRenderer(event);
@@ -557,6 +594,7 @@ function registerIpc() {
     if (snapshot.active_executions?.length) {
       await automationCoordinator.stopAll();
     }
+    await releaseCoordinator?.closeScope();
     const authentication = await workshopService.logout();
     productFeedbackService.resetSession();
     await workSyncCoordinator.clearSession();

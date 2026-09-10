@@ -1,4 +1,4 @@
 interface:
   display_name: "产品资产维护"
   short_description: "整理 Idea 与维护可共享的产品状态、理念和资产引用"
-  default_prompt: "使用 $arckit-product-assets 恢复当前产品事实，读取授权材料，提出可修改的资料建议，并核对写入回执；状态不靠活动推断，区分本机保存与 Git 共享。"
+  default_prompt: "使用 $arckit-product-assets 恢复当前产品事实与界面选项语义，核对正式目录及材料处理，读取授权材料，按证据自主探索环境，提出可修改的资料建议，并核对已确认写入的回执；状态不靠活动推断，区分本机保存与 Git 共享。"

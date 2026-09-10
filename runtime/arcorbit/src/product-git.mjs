@@ -1,14 +1,9 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-const exec = promisify(execFile);
+export { runLocalCommand as runProductCommand } from './local-command-runtime.mjs';
+import { runLocalCommand as runProductCommand } from './local-command-runtime.mjs';
 export const PRODUCT_BRANCH = 'refs/heads/arcorbit/product';
-export async function runProductCommand(bin, args, options = {}) {
-  const { stdout } = await exec(bin, args, { timeout: 60000, maxBuffer: 2_000_000, ...options });
-  return stdout.trim();
-}
 export function githubUrl(value) {
   const url = String(value || '').trim();
   if (!/^(https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?\/?$/.test(url)) throw new Error('请输入不含凭据的 GitHub 仓库地址。');
@@ -20,7 +15,7 @@ export function createProductGit({ protocol, run = runProductCommand, allowLocal
     await mkdir(root, { recursive: true, mode: 0o700 });
     await run('git', ['init', '--bare', root]);
   }
-  const git = (root, args, env = {}) => run('git', ['--git-dir', root, '-c', 'core.hooksPath=/dev/null', ...args], { env: {...process.env, GIT_TERMINAL_PROMPT:'0', ...env} });
+  const git = (root, args, env = {}) => run('git', ['--git-dir', root, '-c', 'core.hooksPath=/dev/null', ...args], { env: {GIT_TERMINAL_PROMPT:'0', ...env} });
   async function read(root, url) {
     remote(url); await prepare(root);
     const refs = await git(root, ['ls-remote', '--heads', url, PRODUCT_BRANCH]);

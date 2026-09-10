@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ArcOrbit · 关键交互状态</title><link rel="stylesheet" href="styles.css"></head>
+<body><main class="state-index">
+<div class="eyebrow">CONCEPT REVIEW · 非生产规格</div><h1>Product 与 Product Lifecycle，共同围绕一个产品。</h1>
+<p>这份状态对照呈现概念稿的关键页面与恢复路径。<a href="index.html">打开可点击原型 →</a></p>
+<details open><summary>01 · 产品总览与 Idea 视图</summary><div class="state-content">
+<p><strong>触发条件：</strong>进入应用，或从一个产品返回列表。</p>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="page-heading"><div><h2>把产品向前推进。</h2><p>产品 / 全部 · 推进中 · Idea · 需要我；本机草稿标注“仅此设备”</p></div><a class="button primary" href="index.html#products">添加 Idea</a></div><div class="static-split"><section><span class="badge">开发中</span><h3>轻记账</h3><p>当前目标：把 Demo 推进到真实可用</p><p>下一步：确认数据持久化的范围</p></section><section><span class="badge">Idea</span><h3>周末去哪</h3><p>当前起点：一句想法，没有文件夹</p><p>继续完善产品内容</p></section></div></div></div>
+<p><strong>组件清单：</strong>产品列表、搜索、阶段筛选、人工责任摘要、添加按钮。</p><p><strong>交互行为：</strong>Product 新增目录与详情；原有 Idea、Work、Automation、Release、Operations、Feedback 导航全部保留。</p>
+</div></details>
+<details><summary>02 · 独立添加页：文件夹与空白入口</summary><div class="state-content">
+<p><strong>触发条件：</strong>点击“添加 Idea”。</p>
+<div class="wireframe-canvas"><div class="device-frame desktop"><h2>添加 Idea</h2><div class="static-split"><section><h3>已有的，先放进来。</h3><div class="source-options"><div class="source-button"><strong>从文件夹开始</strong><small>代码、Demo、原型或设计材料</small></div><div class="source-button"><strong>创建空白 Idea</strong><small>不需要文件夹</small></div></div></section><section><h3>一起推进</h3><p>给我一个文件夹，或说说你想做什么。</p><div class="work-card">消息列表与输入框沿用 Chat 的交互形态。</div><p>空白起点可以直接保存，不以 Agent 成功作为前置。</p></section></div></div></div>
+<p><strong>组件清单：</strong>独立路由、来源按钮、文件夹选择器、消息列表、Composer、保存并返回。</p><p><strong>交互行为：</strong>选择文件夹后自动处理；空白创建等待描述或直接保存；用户不需要选择内部 Agent 工作目录。</p>
+</div></details>
+<details><summary>03 · Agent 整理与人的直接修改</summary><div class="state-content">
+<p><strong>触发条件：</strong>用户添加文件夹，或在对话中描述产品。</p>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="static-split"><section><h3>产品内容</h3><label class="field"><span class="field-label">名称 · 你已修改</span><input value="口袋记账" readonly></label><label class="field"><span class="field-label">产品说明</span><textarea readonly>帮助家庭记录日常支出。</textarea></label><div class="material-row">pocket-ledger / 原始 Demo 材料</div></section><section><h3>一起推进</h3><div class="chat-message tool"><details><summary>已查看材料与代码结构</summary><p>演示文件清单与分析依据</p></details></div><div class="chat-message assistant"><div class="chat-message-meta">ArcOrbit</div><p>已整理产品内容，并保留你修改的名称。</p></div><div class="chat-message system"><p>界面操作：名称 → 口袋记账</p></div><div class="chat-message user"><p>仓库沿用，放到拾光工作室。</p></div></section></div></div></div>
+<p><strong>组件清单：</strong>可编辑内容、材料列表、字段修改标记、工具折叠、停止按钮、自然语言输入。</p><p><strong>交互行为：</strong>界面编辑与消息共同更新草稿；延迟结果不覆盖人的编辑；工具活动显示在右侧，左侧呈现事实。</p>
+</div></details>
+<details><summary>04 · 配置与明确确认</summary><div class="state-content">
+<p><strong>触发条件：</strong>用户要求接入，必要信息已补齐。</p>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="static-split"><section><h3>项目接入</h3><dl class="key-values"><dt>项目归属</dt><dd>拾光工作室</dd><dt>仓库方式</dt><dd>沿用现有仓库</dd><dt>本地目录</dt><dd>复制到 ~/Projects/pocket-ledger</dd><dt>项目成员</dt><dd>创建者为负责人；其他成员邀请加入</dd></dl><p>ArcOrbit 组织和 GitHub 主体分开配置。</p></section><section><div class="decision-card"><span class="badge strong">需要你确认</span><h3>按这份方案接入项目</h3><p>读取左侧当前值，展示远程项目、仓库、本地目录与成员影响。</p><div class="actions"><span class="button primary">确认并接入</span><span class="button">继续修改</span></div></div></section></div></div></div>
+<p><strong>组件清单：</strong>归属选择器、仓库与目录控件、方案卡片、确认与修改按钮。</p><p><strong>交互行为：</strong>修改后更新同一方案；确认后按实际工具结果推进；执行中锁定相关配置；先保存 Idea 不创建远端资源。</p>
+</div></details>
+<details><summary>05 · 执行、局部失败与中断恢复</summary><div class="state-content">
+<p><strong>触发条件：</strong>接入操作开始，目录连接失败，或用户停止/刷新。</p>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="static-split"><section><h3>真实操作结果</h3><ul class="result-list"><li>✓ 远程项目已创建 · PROJECT-DEMO-110</li><li>✓ 仓库关系已保存</li><li>○ 本地目录连接失败 · 目标不可写</li></ul><label class="field"><span class="field-label">修正目录</span><input value="~/Projects/pocket-ledger" readonly></label></section><section><h3>一起推进</h3><p>项目已创建，本地连接尚未完成。重试只处理连接。</p><div class="actions"><span class="button primary">重试本地连接</span><span class="button">稍后连接</span></div><div class="inline-note">停止与刷新保留已完成结果。返回后可继续原事项，不重复创建。</div></section></div></div></div>
+<p><strong>组件清单：</strong>逐项结果、局部失败卡片、目录编辑、重试、稍后连接、停止与继续。</p><p><strong>交互行为：</strong>以结果记录为准，不把 Agent 的成功声明当作业务事实；页面切换保留执行，刷新后显式继续。</p>
+</div></details>
+<details><summary>06 · Product 详情：理念、迭代与核心资产</summary><div class="state-content">
+<p><strong>触发条件：</strong>从 Product 总览选择一个产品，或 Idea 接入完成后进入产品。</p>
+<div class="wireframe-canvas"><div class="device-frame desktop"><h2>轻记账 · Product</h2><p>总览　理念　版本迭代　核心资产　产品关系</p><div class="static-split"><section><h3>产品理念</h3><p>让每个人都能理解并掌控自己的日常开支。</p><div class="work-card"><h3>当前迭代 · 0.2 真实可用</h3><p>迭代计划保存在仓库文档；按待办标签关联工作与进度。</p></div></section><section><h3>核心资产与阶段摘要</h3><p>产品定义、交互设计、重要决策。</p><p>Work → 具体工作与验收<br>Automation → 执行与介入<br>Release → 发布准备</p></section></div></div></div>
+<p><strong>组件清单：</strong>资产页签、可编辑理念、迭代目标、版本记录、阶段摘要、按需协作。</p><p><strong>交互行为：</strong>Product 管理长期上下文；点击阶段入口带当前产品跳转，不在详情里复制精简版阶段能力。</p>
+</div></details>
+<details><summary>07 · 带产品上下文进入原有 Lifecycle 页面</summary><div class="state-content">
+<p><strong>触发条件：</strong>从产品详情或迭代页点击进入 Work 等原页面。</p>
+<div class="wireframe-canvas"><div class="device-frame desktop"><h2>Work · 原有独立页面</h2><div class="context-ribbon"><span>产品范围：轻记账 / 可切换全部产品</span><span>返回产品主页 ↗</span></div><div class="static-split"><section><h3>现有任务列表</h3><p>保留原有筛选、层级、任务管理。</p></section><section><h3>现有任务详情</h3><p>状态、协作、验收继续在 Work 完成。</p><p>执行详情进入 Automation。</p></section></div></div></div>
+<p><strong>组件清单：</strong>原有完整导航、产品范围选择器、来源上下文、返回入口、页面承接区。</p><p><strong>交互行为：</strong>在专业页面切换单个/全部产品；返回当前产品时恢复最后的资产页签。具体动作结果回流 Product 摘要。原型承接区不是生产页面的替代稿。</p>
+</div></details>
+<details><summary>08 · 产品资产编辑与协作</summary><div class="state-content">
+<p><strong>触发条件：</strong>进入理念或版本迭代页，直接修改或打开产品协作。</p>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="static-split"><section><h3>版本迭代</h3><p>名称：0.3 · 家庭共同记账</p><p>目标：让家庭成员共同记录与查看开支。</p><p>相关工作 ↗　执行进展 ↗　发布准备 ↗</p></section><section><h3>产品方向与迭代</h3><p>界面操作：迭代目标已更新。</p><p>当前资产与对话共享产品上下文。</p><p>具体执行继续交给原有工作空间。</p></section></div></div></div>
+<p><strong>组件清单：</strong>资产编辑器、设定迭代对话框、历史记录、协作面板。</p><p><strong>交互行为：</strong>编辑先保存本机草稿，查看差异并提交成功后更新仓库资料。资产协作、添加协作、正式待办分别保留会话；不把整个产品塞入单一执行 thread。</p>
+</div></details>
+<details><summary>09 · Today：来源责任与反馈新消息</summary><div class="state-content"><p><strong>触发条件：</strong>进入 Today。</p><div class="wireframe-canvas"><div class="device-frame"><div class="static-split"><section><h3>需要我处理</h3><p>Work #507：反馈图片查看结果等待验收。</p></section><section><h3>反馈新消息</h3><p>反馈 #92：用户补充了一条消息。</p></section></div></div></div><p><strong>组件清单：</strong>责任列表、消息列表、产品筛选、本机续接与来源跳转。</p><p><strong>交互行为：</strong>Work 验收成功后责任消失；反馈消息仍保留。已读成功只清除未读，不代表问题已解决。</p></div></details>
+<details><summary>10 · 产品资料：本机草稿与提交差异</summary><div class="state-content"><p><strong>触发条件：</strong>直接编辑理念或采用 Agent 草稿。</p><div class="wireframe-canvas"><div class="device-frame"><div class="static-split"><section><h3>本机草稿 · 待提交</h3><p>理念修改保存在此设备，协作消息可追溯。</p></section><section><h3>查看并提交</h3><p>对照仓库原内容与本次内容；确认提交后读回结果。</p></section></div></div></div><p><strong>组件清单：</strong>资料状态条、表单、差异对话框、确认提交按钮。</p><p><strong>交互行为：</strong>共享资料仍以仓库版本为准。提交成功才显示已同步；项目接入不自动推送资料。</p></div></details>
+<details><summary>11 · 迭代：没有关联工作的状态</summary><div class="state-content"><p><strong>触发条件：</strong>新建迭代并进入本迭代 Work。</p><div class="wireframe-canvas"><div class="device-frame"><div class="static-split"><section><h3>本迭代尚未关联待办</h3><p>名称和目标可修改；新迭代使用独立标签。</p></section><section><h3>查看项目全部待办</h3><p>在 Work 明确为已有工作添加迭代标签。</p></section></div></div></div><p><strong>组件清单：</strong>迭代目标、标签、空状态、项目全量入口、关联确认。</p><p><strong>交互行为：</strong>不能把项目全部待办算作迭代进度。关联成功后返回 Product 更新标签筛选结果。</p></div></details>
+<details><summary>12 · 来源不可用与仓库冲突恢复</summary><div class="state-content"><p><strong>触发条件：</strong>模拟服务不可用、资料分支不可写或仓库新版本。</p><div class="wireframe-canvas"><div class="device-frame"><div class="static-split"><section><h3>状态待刷新</h3><p>保留来源最近记录和本机草稿；依赖来源的提交暂停。</p></section><section><h3>核对仓库变化</h3><p>比较远端理念与本机草稿，选择采用内容后再确认提交。</p></section></div></div></div><p><strong>组件清单：</strong>来源提示、重试、草稿状态、差异选择与提交结果。</p><p><strong>交互行为：</strong>未同步不代表空列表；不能把失败提交当作已共享。分支写入受阻保留草稿，按仓库 PR 规则处理。</p></div></details>
+</main></body></html>

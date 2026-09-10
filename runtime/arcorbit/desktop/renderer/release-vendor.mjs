@@ -1,0 +1,18 @@
+import workerSource from './vendor/worker-source.mjs';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { SerializeAddon } from '@xterm/addon-serialize';
+import '@xterm/xterm/css/xterm.css';
+import * as monaco from 'monaco-editor/editor/editor.api.js';
+import 'monaco-editor/languages/definitions/javascript/register.js';
+import 'monaco-editor/languages/definitions/typescript/register.js';
+import 'monaco-editor/languages/definitions/css/register.js';
+import 'monaco-editor/languages/definitions/html/register.js';
+import 'monaco-editor/languages/definitions/markdown/register.js';
+import 'monaco-editor/languages/definitions/python/register.js';
+import 'monaco-editor/languages/definitions/go/register.js';
+let workerUrl;
+globalThis.MonacoEnvironment={getWorker(){workerUrl ||= URL.createObjectURL(new Blob([workerSource],{type:'text/javascript'}));return new Worker(workerUrl);}};
+export { Terminal, FitAddon, SearchAddon, WebLinksAddon, SerializeAddon, monaco };

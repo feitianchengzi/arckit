@@ -951,7 +951,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /api\.automationSnapshot/);
   assert.match(source, /invalidateTaskAttachmentCaches\(state, \{ clearPending: identityChanged \}\)/);
   assert.match(source, /taskAttachmentIdentityKey\(\{ platform: state\.platform, authentication: state\.authentication \}\)/);
-  assert.match(source, /state\.authentication = normalizeAuthentication\(result\.authentication\);\s+productSurface\.reset\(\);\s+invalidatePlatformTaskSelectionContext\(\);\s+state\.settings = normalizeSettings\(await api\.getSettings\(\)\);[\s\S]+state\.platform = emptyPlatformSnapshot\(\);[\s\S]+invalidateTaskAttachmentCaches\(state, \{ clearPending: true \}\)/);
+  assert.match(source, /state\.authentication = normalizeAuthentication\(result\.authentication\);\s+productSurface\.reset\(\);\s+releaseSurface\.reset\(\);\s+invalidatePlatformTaskSelectionContext\(\);\s+state\.settings = normalizeSettings\(await api\.getSettings\(\)\);[\s\S]+state\.platform = emptyPlatformSnapshot\(\);[\s\S]+invalidateTaskAttachmentCaches\(state, \{ clearPending: true \}\)/);
   assert.match(source, /captureTaskAttachmentRequest\(state\)[\s\S]+task\.attachments\.list[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
   assert.match(source, /captureTaskAttachmentRequest\(state, \{ identityOnly: true \}\)[\s\S]+pickWorkTaskAttachment[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
   assert.match(source, /api\.setAutomationEnabled/);
@@ -1018,8 +1018,8 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   assert.match(html, /PERSONAL · CODEX CHAT/);
   assert.match(html, /Chat 不创建待办、Idea、Case 或 Automation Run/);
   assert.match(html, /data-page-view="idea-add"/);
-  assert.match(html, /PRODUCT LIFECYCLE · RELEASE/);
-  assert.match(html, /Release 是“发布”的统一英文入口/);
+  assert.match(source, /createReleaseSurface/);
+  assert.match(html, /id="releaseView"[^>]+data-page-view="release"/);
   assert.match(html, /PRODUCT LIFECYCLE · OPERATIONS/);
   assert.match(html, /Operations 是“运营”的统一英文入口/);
   assert.match(html, /ORGANIZATION · DOMAIN PROFILE MANAGEMENT/);
@@ -1047,7 +1047,6 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   assert.doesNotMatch(html, /data-page-view="state"|data-page-view="skills"/);
   assert.doesNotMatch(html, /using-arckit|arckit-development-ledger|Trusted entrypoints/);
   assert.match(html, /id="ideaBlank"/);
-  assert.match(html, /PLAN VIEW · 不授权发版/);
   assert.match(html, /PLAN VIEW · 不调用外部平台/);
   assert.doesNotMatch(html, /data-plan-action|id="createIdeaButton"|id="publishReleaseButton"/);
   assert.match(source, /\["organization", "engineering"\]\.includes\(state\.page\)/);
@@ -1890,7 +1889,7 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /Git 收尾/);
   assert.match(source, /mergeAutomationTranscript/);
   assert.equal((source.match(/createConversationSurface\(\{/g) || []).length, 2);
-  assert.equal((source.match(/performAction: runAction/g) || []).length, 4);
+  assert.equal((source.match(/performAction: runAction/g) || []).length, 5);
   assert.match(source, /chatConversationSurface\.render/);
   assert.match(source, /workbenchConversationSurface\.render/);
   assert.match(conversationSurface, /renderConversationSurfaceMessage/);

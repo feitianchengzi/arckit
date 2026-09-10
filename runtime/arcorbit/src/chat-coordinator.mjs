@@ -1,5 +1,5 @@
 import { normalizeCodexSettings } from "./codex-model-settings.mjs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
 import { createCodexAppServerAdapter } from "../adapters/codex-app-server-adapter.mjs";
@@ -243,6 +243,13 @@ export function createChatCoordinator({
       const env = prependPath(buildRuntimeEnv({ ...process.env }, settings), executable.pathEntries);
       const codexSettings = normalizeCodexSettings(settings.codex);
       const context = await getTurnContext({ project, sessionId, text });
+      if (context.options?.commandEnvironment) {
+        const signature=createHash('sha256').update(JSON.stringify([executable.command,Object.entries(context.options.commandEnvironment).sort(([a],[b])=>a.localeCompare(b))])).digest('hex');
+        if(owner.commandEnvironmentSignature && owner.commandEnvironmentSignature!==signature){
+          await owner.adapter.close();owner.adapter=createAdapter();
+        }
+        owner.commandEnvironmentSignature=signature;
+      }
       const options = {
         ...context.options,
         model: codexSettings.model,
@@ -252,7 +259,7 @@ export function createChatCoordinator({
         threadId: located.session.thread_id || "",
         approvalPolicy: "on-request",
         codexBin: executable.command,
-        env,
+        env: context.options?.commandEnvironment || env,
         approvalProvider: (request) => requestApproval(sessionId, request),
         onThreadBound: (binding) => bindThread(sessionId, binding)
       };
@@ -726,7 +733,7 @@ function approvalSummary(request) {
 }
 
 function toolSummary(item, previousContent = "") {
-  if (item.type === "dynamicToolCall") return `${item.tool || "产品工具"}\n输入：${JSON.stringify(item.arguments || {})}\n结果：${JSON.stringify(item.contentItems || item.result || [])}`.slice(0, 30000);
+  if (item.type === "dynamicToolCall") return `${item.tool || "产品工具"}\n输入：${JSON.stringify(item.arguments || {})}\n结果：${JSON.stringify(Array.isArray(item.contentItems)?item.contentItems.map(c=>c.type==='inputImage'?{type:'inputImage',description:'已提供材料图片'}:c):(item.result || []))}`.slice(0, 30000);
   if (item.type === "commandExecution") return String(item.command || item.cmd || "运行命令").slice(0, 400);
   if (item.type === "fileChange") return fileChangeSummary(item) || previousContent || "更新项目文件";
   if (item.type === "webSearch") return String(item.query || "搜索资料").slice(0, 400);

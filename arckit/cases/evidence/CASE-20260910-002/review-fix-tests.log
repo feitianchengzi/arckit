@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: temporary blank Idea persists locally; formal completion requires a GitHub repository and directory
+ok 1 - temporary blank Idea persists locally; formal completion requires a GitHub repository and directory
+  ---
+  duration_ms: 20.267959
+  type: 'test'
+  ...
+# Subtest: formal Idea moves to arckit/product and survives loss of the temporary store, recovered only from selected bound directories
+ok 2 - formal Idea moves to arckit/product and survives loss of the temporary store, recovered only from selected bound directories
+  ---
+  duration_ms: 226.695143
+  type: 'test'
+  ...
+# Subtest: manual edit invalidates Agent proposal and approval; malformed records and escaping material paths do not write
+ok 3 - manual edit invalidates Agent proposal and approval; malformed records and escaping material paths do not write
+  ---
+  duration_ms: 12.136276
+  type: 'test'
+  ...
+# Subtest: lost create response remains uncertain across restart and is never blindly replayed
+ok 4 - lost create response remains uncertain across restart and is never blindly replayed
+  ---
+  duration_ms: 65.399473
+  type: 'test'
+  ...
+# Subtest: protocol preserves corrupt and foreign files, rejects stale revisions and symlink parents
+ok 5 - protocol preserves corrupt and foreign files, rejects stale revisions and symlink parents
+  ---
+  duration_ms: 8.177773
+  type: 'test'
+  ...
+# Subtest: two independent Git caches share exact records and reject concurrent publication without touching developer index or files
+ok 6 - two independent Git caches share exact records and reject concurrent publication without touching developer index or files
+  ---
+  duration_ms: 1949.790187
+  type: 'test'
+  ...
+# Subtest: scene Chat persists thread in private cwd, includes exact user request and uses real product proposal tool
+ok 7 - scene Chat persists thread in private cwd, includes exact user request and uses real product proposal tool
+  ---
+  duration_ms: 39.662675
+  type: 'test'
+  ...
+# Subtest: blank Idea can create a private GitHub repository and user-selected checkout with authenticated bounded commands
+ok 8 - blank Idea can create a private GitHub repository and user-selected checkout with authenticated bounded commands
+  ---
+  duration_ms: 192.342352
+  type: 'test'
+  ...
+# Subtest: Product-only assets persist to bound directory and shared Idea adoption restores canonical id from Git
+ok 9 - Product-only assets persist to bound directory and shared Idea adoption restores canonical id from Git
+  ---
+  duration_ms: 16.007747
+  type: 'test'
+  ...
+# Subtest: successful intake receipt only replays identical parameters and changed plans require explicit reconciliation
+ok 10 - successful intake receipt only replays identical parameters and changed plans require explicit reconciliation
+  ---
+  duration_ms: 331.140248
+  type: 'test'
+  ...
+# Subtest: unfinished Idea cannot sync or write project assets; publication requires the current formal directory record
+ok 11 - unfinished Idea cannot sync or write project assets; publication requires the current formal directory record
+  ---
+  duration_ms: 191.70597
+  type: 'test'
+  ...
+# Subtest: Agent receives accessible candidates, bounded GitHub discovery and native image content without secrets
+ok 12 - Agent receives accessible candidates, bounded GitHub discovery and native image content without secrets
+  ---
+  duration_ms: 12.775788
+  type: 'test'
+  ...
+# Subtest: partial proposals can be edited atomically, while later material and plan edits invalidate old suggestions and confirmations
+ok 13 - partial proposals can be edited atomically, while later material and plan edits invalidate old suggestions and confirmations
+  ---
+  duration_ms: 9.617075
+  type: 'test'
+  ...
+# Subtest: prepare starts once for a material selection, survives reopening, and refreshes the same scene after explicit retry
+ok 14 - prepare starts once for a material selection, survives reopening, and refreshes the same scene after explicit retry
+  ---
+  duration_ms: 37.434117
+  type: 'test'
+  ...
+# Subtest: Idea leaves exploration to its existing Agent, shares CLI environment, and refreshes failed tool evidence without losing the thread
+ok 15 - Idea leaves exploration to its existing Agent, shares CLI environment, and refreshes failed tool evidence without losing the thread
+  ---
+  duration_ms: 62.42466
+  type: 'test'
+  ...
+# Subtest: unresolved production Codex executable does not block independent environment checks or confirmed manual intake
+ok 16 - unresolved production Codex executable does not block independent environment checks or confirmed manual intake
+  ---
+  duration_ms: 357.236834
+  type: 'test'
+  ...
+# Subtest: product Git sharing keeps the shared CLI and proxy context instead of overriding it with the parent environment
+ok 17 - product Git sharing keeps the shared CLI and proxy context instead of overriding it with the parent environment
+  ---
+  duration_ms: 229.060253
+  type: 'test'
+  ...
+# Subtest: selected checkout receives demo materials, preserves originals, omits secrets and exposes the exact UI semantics
+ok 18 - selected checkout receives demo materials, preserves originals, omits secrets and exposes the exact UI semantics
+  ---
+  duration_ms: 351.263027
+  type: 'test'
+  ...
+# Subtest: workspace grants, nested paths, private app directories, wrong origins and file conflicts fail before remote creation
+ok 19 - workspace grants, nested paths, private app directories, wrong origins and file conflicts fail before remote creation
+  ---
+  duration_ms: 344.730527
+  type: 'test'
+  ...
+# Subtest: cloning an existing remote and copying materials is retryable after binding failure without duplicate remote creation
+ok 20 - cloning an existing remote and copying materials is retryable after binding failure without duplicate remote creation
+  ---
+  duration_ms: 509.481589
+  type: 'test'
+  ...
+# Subtest: legacy managed drafts revoke approval and remain incomplete until a user location is selected
+ok 21 - legacy managed drafts revoke approval and remain incomplete until a user location is selected
+  ---
+  duration_ms: 6.150528
+  type: 'test'
+  ...
+# Subtest: unknown Git errors remain diagnostics and never trigger init or remote creation
+ok 22 - unknown Git errors remain diagnostics and never trigger init or remote creation
+  ---
+  duration_ms: 9.020943
+  type: 'test'
+  ...
+# Subtest: formal directory containment distinguishes siblings, ancestors, descendants and drives on Windows and POSIX
+ok 23 - formal directory containment distinguishes siblings, ancestors, descendants and drives on Windows and POSIX
+  ---
+  duration_ms: 0.308437
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5220.392135

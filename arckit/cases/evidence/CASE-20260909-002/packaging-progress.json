@@ -1,0 +1,25 @@
+{
+  "status": "partial",
+  "lazygit_install": "lazygit-install.json",
+  "native_rebuild": "electron-builder node-pty rebuild completed for Electron 31.7.7 x64",
+  "bundle": "/private/tmp/arcorbit-release-package/mac/arcorbit.app",
+  "bundled_lazygit": true,
+  "main_renderer_smoke": {
+    "status": "passed",
+    "preload_api": true,
+    "setup_surface": true,
+    "stylesheet_count": 4
+  },
+  "packaged_release_checks_passed": [
+    "overview",
+    "task output",
+    "Monaco diff",
+    "Git stage and commit",
+    "Monaco atomic save"
+  ],
+  "packaged_release_failure": "Chat startup test exposed input enabled before scene initialization",
+  "source_fix": "Initial composer disabled until chat coordinator is ready; project switch renders disabled state immediately",
+  "source_fix_verification": "release-electron.json: 9 checks passed, no renderer errors",
+  "repackage_after_fix": "request rejected by user",
+  "remaining": "Rebuild changed source and complete packaged Release flow including PTY and bundled Lazygit; do not treat the previous app bundle as final verified output"
+}

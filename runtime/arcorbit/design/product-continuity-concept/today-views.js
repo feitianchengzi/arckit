@@ -1,0 +1,16 @@
+/* Today derives attention from source objects; it owns no independent completion state. */
+(() => {
+  const esc=Conversation.escape;
+  function render(h){
+    const all=Concept.state.products.filter(p=>p.added), scope=Concept.state.ui.todayScope||'all';
+    const visible=p=>scope==='all'||p.id===scope;
+    all.forEach(Support.defaults);
+    const responsibilities=Support.responsibilities().filter(x=>visible(x.p));
+    const messages=all.filter(p=>visible(p)&&p.feedback?.unread);
+    const drafts=all.filter(p=>visible(p)&&(!p.remoteId||p.docs.status!=='shared'||p.work==='running'));
+    const count=Support.sources().work?responsibilities.length:'待刷新';
+    const picker=`<label class="scope-picker"><span>产品范围</span><select id="today-scope"><option value="all">全部产品</option>${all.map(p=>`<option value="${p.id}" ${scope===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>`;
+    return h.topbar('<strong>Today</strong><span class="muted">/</span><span>我的产品工作</span>',picker)+`<div class="page-scroll">${ProductViews.sourceNotice()}<div class="page-heading"><div><div class="eyebrow">TODAY</div><h1>继续推进，需要你的这一步。</h1><p>处理待办，回应消息，继续此设备上的工作。</p></div>${h.button('add','＋ 添加 Idea')}</div><div class="today-grid"><div><section class="section"><div class="section-head"><h2>需要我处理</h2><span class="badge">${count}</span></div><p class="muted">按当前用户的责任收录，处理结果回到原事项。</p>${responsibilities.length?responsibilities.map(x=>`<div class="responsibility"><div><span class="badge">${x.source}${x.stale?' · 最近记录':''}</span><h3>${esc(x.title)}</h3><p>${esc(x.p.name)} · ${esc(x.detail)}</p></div><a class="button ${x.stale?'':'primary'}" href="${x.href}">${x.stale?'查看记录':'去处理'}</a></div>`).join(''):`<div class="empty"><h3>${Support.sources().work?'当前没有待处理责任':'责任状态待刷新'}</h3><p>${Support.sources().work?'可以继续产品计划，或从一个新 Idea 开始。':'恢复来源后再确认；最近记录暂时保留。'}</p></div>`}</section><section class="section"><div class="section-head"><h2>反馈新消息</h2><span class="badge">${Support.sources().feedback?messages.length:'待刷新'}</span></div><p class="muted">消息已读后从这里移除，反馈处理进展继续保留。</p>${messages.length?messages.map(p=>`<div class="responsibility"><div><span class="badge">反馈 #${esc(p.feedback.id)}</span><h3>${esc(p.feedback.title)}</h3><p>${esc(p.name)} · ${esc(p.feedback.message)}</p></div><a class="button" href="#feedback/${p.id}">查看并回复</a></div>`).join(''):`<div class="inline-note section">${Support.sources().feedback?'当前没有未读消息。':'未读状态待刷新；恢复来源后再确认。'}</div>`}</section></div><aside class="today-side"><section class="section"><div class="section-head"><h3>在此设备继续</h3><span class="badge">仅本机</span></div>${drafts.length?drafts.map(p=>`<a class="local-resume" href="#product/${p.id}"><strong>${esc(p.name)}</strong><small>${!p.remoteId?'Idea 草稿 · 未接入项目':p.work==='running'?'本机正在执行':'产品资料有未提交修改'}</small><span>继续 →</span></a>`).join(''):'<p class="muted">没有未提交资料。</p>'}</section><section class="section"><h3>本机项目连接</h3>${all.filter(visible).map(p=>`<div class="summary-row"><div><strong>${esc(p.name)}</strong><small>${p.bound?'已连接工作目录':'尚未连接工作目录'}</small></div><a class="text-link" href="#product/${p.id}">查看</a></div>`).join('')}<p class="field-note section">目录连接与执行状态属于当前设备。</p></section><section class="section"><a class="button" href="#products">查看所有产品 ↗</a></section></aside></div></div>`;
+  }
+  window.TodayViews={render};
+})();

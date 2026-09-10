@@ -21,6 +21,9 @@
     "test:workshop-api": "cd services/workshop-api && go test ./...",
     "check": "npm run build && npm test"
   },
+  "overrides": {
+    "@electron/rebuild": "3.7.2"
+  },
   "engines": {
     "node": ">=18"
   }

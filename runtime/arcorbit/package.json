@@ -25,19 +25,34 @@
     "package:mac:arm64": "electron-builder --config dist-package/electron-builder.generated.json --mac --arm64 --publish=never",
     "package:mac:x64": "electron-builder --config dist-package/electron-builder.generated.json --mac --x64 --publish=never",
     "package:win:x64": "electron-builder --config dist-package/electron-builder.generated.json --win --x64 --publish=never",
-    "package:linux:x64": "electron-builder --config dist-package/electron-builder.generated.json --linux --x64 --publish=never"
+    "package:linux:x64": "electron-builder --config dist-package/electron-builder.generated.json --linux --x64 --publish=never",
+    "build:release-ui": "node scripts/build-release-ui.mjs",
+    "predesktop": "npm run build:release-ui",
+    "prepare:lazygit": "node scripts/prepare-lazygit.mjs",
+    "test:release": "node --test test/release-workspace.test.mjs test/release-process.test.mjs",
+    "test:release:electron": "npm run build:release-ui && node --test test/release-electron.test.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
     "@electron/fuses": "^1.8.0",
+    "@electron/rebuild": "3.7.2",
     "electron": "^31.7.7",
     "electron-builder": "25.1.8",
+    "esbuild": "^0.28.2",
     "linkedom": "^0.18.13"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-search": "^0.16.0",
+    "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
     "ali-oss": "^6.23.0",
+    "monaco-editor": "^0.56.0",
+    "node-pty": "^1.1.0",
+    "simple-git": "^3.36.0",
     "ws": "^8.18.3"
   }
 }

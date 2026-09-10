@@ -1,0 +1,808 @@
+TAP version 13
+# Subtest: Chat file changes preserve bounded real targets through streaming, persistence and restart
+ok 1 - Chat file changes preserve bounded real targets through streaming, persistence and restart
+  ---
+  duration_ms: 113.038241
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator creates isolated persistent Chat sessions and resumes their thread
+ok 2 - ChatCoordinator creates isolated persistent Chat sessions and resumes their thread
+  ---
+  duration_ms: 49.848603
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator keeps high-frequency deltas in memory and emits a bounded stream projection
+ok 3 - ChatCoordinator keeps high-frequency deltas in memory and emits a bounded stream projection
+  ---
+  duration_ms: 41.12291
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator replays an unbound first-send request without creating another session or turn
+ok 4 - ChatCoordinator replays an unbound first-send request without creating another session or turn
+  ---
+  duration_ms: 23.173773
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator persists an explicit selection across restart without mutating session state
+ok 5 - ChatCoordinator persists an explicit selection across restart without mutating session state
+  ---
+  duration_ms: 16.415662
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator restores an explicit new-chat draft across restart when sessions already exist
+ok 6 - ChatCoordinator restores an explicit new-chat draft across restart when sessions already exist
+  ---
+  duration_ms: 16.499971
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator holds app-server approval until a typed decision and fails closed on rejection
+ok 7 - ChatCoordinator holds app-server approval until a typed decision and fails closed on rejection
+  ---
+  duration_ms: 33.067256
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator reconciles an orphaned active turn as interrupted without exposing its thread
+ok 8 - ChatCoordinator reconciles an orphaned active turn as interrupted without exposing its thread
+  ---
+  duration_ms: 14.793984
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator records Setup Readiness failure and never starts Codex
+ok 9 - ChatCoordinator records Setup Readiness failure and never starts Codex
+  ---
+  duration_ms: 19.406297
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator preserves a terminal error when turn completion follows it
+ok 10 - ChatCoordinator preserves a terminal error when turn completion follows it
+  ---
+  duration_ms: 24.180797
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator completes a turn that recovers from a retryable app-server error
+ok 11 - ChatCoordinator completes a turn that recovers from a retryable app-server error
+  ---
+  duration_ms: 21.716211
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator retries a failed startup with the persisted request and thread without duplicating the user message
+ok 12 - ChatCoordinator retries a failed startup with the persisted request and thread without duplicating the user message
+  ---
+  duration_ms: 34.838037
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator interrupts an active turn before atomically deleting only that session
+ok 13 - ChatCoordinator interrupts an active turn before atomically deleting only that session
+  ---
+  duration_ms: 30.050123
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator times out an unanswered approval as a visible fail-closed decision
+ok 14 - ChatCoordinator times out an unanswered approval as a visible fail-closed decision
+  ---
+  duration_ms: 30.876899
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator can stop during startup without launching a cancelled Codex turn
+ok 15 - ChatCoordinator can stop during startup without launching a cancelled Codex turn
+  ---
+  duration_ms: 15.178779
+  type: 'test'
+  ...
+# Subtest: scene environment changes restart the process but preserve the conversation and persisted thread
+ok 16 - scene environment changes restart the process but preserve the conversation and persisted thread
+  ---
+  duration_ms: 37.893998
+  type: 'test'
+  ...
+# Subtest: one app-server client starts one persistent thread and reuses it for every turn
+ok 17 - one app-server client starts one persistent thread and reuses it for every turn
+  ---
+  duration_ms: 8.035461
+  type: 'test'
+  ...
+# Subtest: a new adapter resumes the persisted thread instead of starting a replacement
+ok 18 - a new adapter resumes the persisted thread instead of starting a replacement
+  ---
+  duration_ms: 1.200005
+  type: 'test'
+  ...
+# Subtest: matching Agent turns reuse their stable lane
+ok 19 - matching Agent turns reuse their stable lane
+  ---
+  duration_ms: 2.684054
+  type: 'test'
+  ...
+# Subtest: context compaction runs on the same loaded thread
+ok 20 - context compaction runs on the same loaded thread
+  ---
+  duration_ms: 1.338952
+  type: 'test'
+  ...
+# Subtest: equivalent active commands are single-flight and become a soft event
+ok 21 - equivalent active commands are single-flight and become a soft event
+  ---
+  duration_ms: 2.653932
+  type: 'test'
+  ...
+# Subtest: permission approvals return the granted profile shape required by app-server
+ok 22 - permission approvals return the granted profile shape required by app-server
+  ---
+  duration_ms: 1.237132
+  type: 'test'
+  ...
+# Subtest: a Chat approval provider can fail closed instead of inheriting Runtime auto-accept
+ok 23 - a Chat approval provider can fail closed instead of inheriting Runtime auto-accept
+  ---
+  duration_ms: 1.131506
+  type: 'test'
+  ...
+# Subtest: direct adapter interrupt targets the active Chat turn
+ok 24 - direct adapter interrupt targets the active Chat turn
+  ---
+  duration_ms: 3.248257
+  type: 'test'
+  ...
+# Subtest: terminal app-server errors reject an Agent turn instead of creating a retry handoff
+ok 25 - terminal app-server errors reject an Agent turn instead of creating a retry handoff
+  ---
+  duration_ms: 2.373017
+  type: 'test'
+  ...
+# Subtest: retryable app-server errors retain retry metadata and allow a Chat turn to complete
+ok 26 - retryable app-server errors retain retry metadata and allow a Chat turn to complete
+  ---
+  duration_ms: 1.265484
+  type: 'test'
+  ...
+# Subtest: operator control waits for turn/started after turn/start returns
+ok 27 - operator control waits for turn/started after turn/start returns
+  ---
+  duration_ms: 13.55172
+  type: 'test'
+  ...
+# Subtest: operator control does not wait past a completed turn
+ok 28 - operator control does not wait past a completed turn
+  ---
+  duration_ms: 0.41416
+  type: 'test'
+  ...
+# Subtest: scene dynamic tools use app-server request responses and reject foreign thread calls
+ok 29 - scene dynamic tools use app-server request responses and reject foreign thread calls
+  ---
+  duration_ms: 1.6021
+  type: 'test'
+  ...
+# Subtest: scene image material is returned as native image content rather than JSON text
+ok 30 - scene image material is returned as native image content rather than JSON text
+  ---
+  duration_ms: 1.131989
+  type: 'test'
+  ...
+# Subtest: scene read-only sandbox is applied on every native turn including resumed threads; ordinary conversations retain their default
+ok 31 - scene read-only sandbox is applied on every native turn including resumed threads; ordinary conversations retain their default
+  ---
+  duration_ms: 1.642545
+  type: 'test'
+  ...
+# Subtest: Chat state coordinator captures draft ownership and flushes before selection changes
+ok 32 - Chat state coordinator captures draft ownership and flushes before selection changes
+  ---
+  duration_ms: 5.806886
+  type: 'test'
+  ...
+# Subtest: Chat and Automation common messages use the same Conversation Surface presentation
+ok 33 - Chat and Automation common messages use the same Conversation Surface presentation
+  ---
+  duration_ms: 2.51695
+  type: 'test'
+  ...
+# Subtest: Conversation Surface coalesces live follow into one instant scroll per frame
+ok 34 - Conversation Surface coalesces live follow into one instant scroll per frame
+  ---
+  duration_ms: 2.368827
+  type: 'test'
+  ...
+# Subtest: Conversation Surface cancels a queued auto-follow as soon as the user starts scrolling
+ok 35 - Conversation Surface cancels a queued auto-follow as soon as the user starts scrolling
+  ---
+  duration_ms: 0.613119
+  type: 'test'
+  ...
+# Subtest: Conversation Surface isolates queued follow and detached reading position by context
+ok 36 - Conversation Surface isolates queued follow and detached reading position by context
+  ---
+  duration_ms: 0.693668
+  type: 'test'
+  ...
+# Subtest: Conversation Surface skips DOM and scroll work when a stream projection is unchanged
+ok 37 - Conversation Surface skips DOM and scroll work when a stream projection is unchanged
+  ---
+  duration_ms: 0.645782
+  type: 'test'
+  ...
+# Subtest: Conversation Surface preserves user reading position across repeated renders
+ok 38 - Conversation Surface preserves user reading position across repeated renders
+  ---
+  duration_ms: 0.66898
+  type: 'test'
+  ...
+# Subtest: Conversation Surface reserves smooth scrolling for an explicit latest jump
+ok 39 - Conversation Surface reserves smooth scrolling for an explicit latest jump
+  ---
+  duration_ms: 0.709425
+  type: 'test'
+  ...
+# Subtest: Conversation Surface code copy exposes rejection to the shared action boundary
+ok 40 - Conversation Surface code copy exposes rejection to the shared action boundary
+  ---
+  duration_ms: 1.767689
+  type: 'test'
+  ...
+# Subtest: Chat state coordinator serializes captured draft owners without applying persistence responses
+ok 41 - Chat state coordinator serializes captured draft owners without applying persistence responses
+  ---
+  duration_ms: 22.133891
+  type: 'test'
+  ...
+# Subtest: Chat session selection flushes the old draft before persisting and applying the target
+ok 42 - Chat session selection flushes the old draft before persisting and applying the target
+  ---
+  duration_ms: 0.655331
+  type: 'test'
+  ...
+# Subtest: Chat session selection ignores a stale response that completes after the latest intent
+ok 43 - Chat session selection ignores a stale response that completes after the latest intent
+  ---
+  duration_ms: 1.533657
+  type: 'test'
+  ...
+# Subtest: Chat session response is invalidated by a later new-draft intent
+ok 44 - Chat session response is invalidated by a later new-draft intent
+  ---
+  duration_ms: 1.16592
+  type: 'test'
+  ...
+# Subtest: Chat new-draft response preserves and persists Composer input typed while its request is pending
+ok 45 - Chat new-draft response preserves and persists Composer input typed while its request is pending
+  ---
+  duration_ms: 1.277847
+  type: 'test'
+  ...
+# Subtest: Chat workspace response preserves and persists newer Composer input for the new draft owner
+ok 46 - Chat workspace response preserves and persists newer Composer input for the new draft owner
+  ---
+  duration_ms: 1.485225
+  type: 'test'
+  ...
+# Subtest: Chat owner intents keep first send on the latest visible workspace and reject the older workspace response
+ok 47 - Chat owner intents keep first send on the latest visible workspace and reject the older workspace response
+  ---
+  duration_ms: 1.62268
+  type: 'test'
+  ...
+# Subtest: Chat background refresh cannot roll back a newer draft-workspace transition
+ok 48 - Chat background refresh cannot roll back a newer draft-workspace transition
+  ---
+  duration_ms: 1.460296
+  type: 'test'
+  ...
+# Subtest: Chat first send adopts the new session without losing or misowning an in-flight draft
+ok 49 - Chat first send adopts the new session without losing or misowning an in-flight draft
+  ---
+  duration_ms: 1.326864
+  type: 'test'
+  ...
+# Subtest: Chat send does not clear newer Composer input while the accepted draft is still flushing
+ok 50 - Chat send does not clear newer Composer input while the accepted draft is still flushing
+  ---
+  duration_ms: 1.564224
+  type: 'test'
+  ...
+# Subtest: Chat session mutation response cannot project the old transcript after a later selection
+ok 51 - Chat session mutation response cannot project the old transcript after a later selection
+  ---
+  duration_ms: 0.611638
+  type: 'test'
+  ...
+# Subtest: Chat retry identity is owned by the current failed-session transition
+ok 52 - Chat retry identity is owned by the current failed-session transition
+  ---
+  duration_ms: 0.465348
+  type: 'test'
+  ...
+# Subtest: Chat refresh exposes progress immediately and only the latest refresh may project
+ok 53 - Chat refresh exposes progress immediately and only the latest refresh may project
+  ---
+  duration_ms: 0.532302
+  type: 'test'
+  ...
+# Subtest: Chat stream events patch only the selected session without starting a snapshot refresh
+ok 54 - Chat stream events patch only the selected session without starting a snapshot refresh
+  ---
+  duration_ms: 0.605151
+  type: 'test'
+  ...
+# Subtest: Chat refresh cannot erase a stream patch that arrives while its snapshot is in flight
+ok 55 - Chat refresh cannot erase a stream patch that arrives while its snapshot is in flight
+  ---
+  duration_ms: 0.59645
+  type: 'test'
+  ...
+# Subtest: Chat Renderer separates stream patches from coalesced structural refreshes
+ok 56 - Chat Renderer separates stream patches from coalesced structural refreshes
+  ---
+  duration_ms: 5.331252
+  type: 'test'
+  ...
+# Subtest: Chat navigation renders the cached page before starting its background refresh
+ok 57 - Chat navigation renders the cached page before starting its background refresh
+  ---
+  duration_ms: 2.67198
+  type: 'test'
+  ...
+# Subtest: Chat Renderer delegates all owner, epoch, projection, retry, send and persistence transitions
+ok 58 - Chat Renderer delegates all owner, epoch, projection, retry, send and persistence transitions
+  ---
+  duration_ms: 4.703703
+  type: 'test'
+  ...
+# Subtest: Chat project selector changes only the new draft owner and persisted session ownership stays fixed
+ok 59 - Chat project selector changes only the new draft owner and persisted session ownership stays fixed
+  ---
+  duration_ms: 4.347637
+  type: 'test'
+  ...
+# Subtest: Chat Renderer groups all snapshot sessions by Product Workspace with bounded inline history
+ok 60 - Chat Renderer groups all snapshot sessions by Product Workspace with bounded inline history
+  ---
+  duration_ms: 3.002221
+  type: 'test'
+  ...
+# Subtest: Work navigation renders immediately before starting its dedicated query refresh
+ok 61 - Work navigation renders immediately before starting its dedicated query refresh
+  ---
+  duration_ms: 2.846694
+  type: 'test'
+  ...
+# Subtest: Automation activity invalidation refreshes only the visible Run surface
+ok 62 - Automation activity invalidation refreshes only the visible Run surface
+  ---
+  duration_ms: 2.494123
+  type: 'test'
+  ...
+# Subtest: Work and Feedback assign one control row and all remaining height to their split workbench
+ok 63 - Work and Feedback assign one control row and all remaining height to their split workbench
+  ---
+  duration_ms: 2.076645
+  type: 'test'
+  ...
+# Subtest: desktop primary surface is a simultaneous multi-product platform while preserving Automation
+ok 64 - desktop primary surface is a simultaneous multi-product platform while preserving Automation
+  ---
+  duration_ms: 20.965945
+  type: 'test'
+  ...
+# Subtest: desktop keeps the remaining lifecycle previews inert while Chat is a real isolated Codex surface
+ok 65 - desktop keeps the remaining lifecycle previews inert while Chat is a real isolated Codex surface
+  ---
+  duration_ms: 5.882016
+  type: 'test'
+  ...
+# Subtest: Desktop opens feedback attachments through a bounded main-process HTTPS capability
+ok 66 - Desktop opens feedback attachments through a bounded main-process HTTPS capability
+  ---
+  duration_ms: 1.40707
+  type: 'test'
+  ...
+# Subtest: Desktop keeps developer Feedback V2 conversation behind dedicated typed IPC
+ok 67 - Desktop keeps developer Feedback V2 conversation behind dedicated typed IPC
+  ---
+  duration_ms: 4.326374
+  type: 'test'
+  ...
+# Subtest: Feedback V2 typed IPC preserves status and Renderer executes 401 and 404 recovery
+ok 68 - Feedback V2 typed IPC preserves status and Renderer executes 401 and 404 recovery
+  ---
+  duration_ms: 4.148976
+  type: 'test'
+  ...
+# Subtest: Feedback restore writes the complete V1 mapping and keeps V2 failures non-optimistic
+ok 69 - Feedback restore writes the complete V1 mapping and keeps V2 failures non-optimistic
+  ---
+  duration_ms: 4.12853
+  type: 'test'
+  ...
+# Subtest: Feedback list keeps every feedback on one compact visual row
+ok 70 - Feedback list keeps every feedback on one compact visual row
+  ---
+  duration_ms: 5.083643
+  type: 'test'
+  ...
+# Subtest: Feedback detail scrolls internally and image attachments reuse the managed image viewer
+ok 71 - Feedback detail scrolls internally and image attachments reuse the managed image viewer
+  ---
+  duration_ms: 3.995622
+  type: 'test'
+  ...
+# Subtest: Feedback V2 read state respects notification capability and refreshes visible unread projection
+ok 72 - Feedback V2 read state respects notification capability and refreshes visible unread projection
+  ---
+  duration_ms: 4.421176
+  type: 'test'
+  ...
+# Subtest: Feedback V2 conversation freshness composes automatic and manual reload triggers
+ok 73 - Feedback V2 conversation freshness composes automatic and manual reload triggers
+  ---
+  duration_ms: 4.960744
+  type: 'test'
+  ...
+# Subtest: Feedback V2 conversation loading deduplicates requests, preserves local state, and ignores stale responses
+ok 74 - Feedback V2 conversation loading deduplicates requests, preserves local state, and ignores stale responses
+  ---
+  duration_ms: 5.011819
+  type: 'test'
+  ...
+# Subtest: Feedback V2 conversation load failure keeps cached messages, draft, attachment, and unread state
+ok 75 - Feedback V2 conversation load failure keeps cached messages, draft, attachment, and unread state
+  ---
+  duration_ms: 5.937504
+  type: 'test'
+  ...
+# Subtest: ADVANCE owns one top product-set scope while Work and Automation own their local filters
+ok 76 - ADVANCE owns one top product-set scope while Work and Automation own their local filters
+  ---
+  duration_ms: 8.84559
+  type: 'test'
+  ...
+# Subtest: Work exposes local-projection filters, task hierarchy, complete detail, subtasks and TaskAttachment collaboration
+ok 77 - Work exposes local-projection filters, task hierarchy, complete detail, subtasks and TaskAttachment collaboration
+  ---
+  duration_ms: 16.026751
+  type: 'test'
+  ...
+# Subtest: Today directly renders acceptance issue progress and preserves valid selection after submission
+ok 78 - Today directly renders acceptance issue progress and preserves valid selection after submission
+  ---
+  duration_ms: 3.56042
+  type: 'test'
+  ...
+# Subtest: Work opens allowed Markdown links through a bounded main-process capability
+ok 79 - Work opens allowed Markdown links through a bounded main-process capability
+  ---
+  duration_ms: 1.545364
+  type: 'test'
+  ...
+# Subtest: desktop renders and composes type-preserving TaskAttachment resources through bounded IPC
+ok 80 - desktop renders and composes type-preserving TaskAttachment resources through bounded IPC
+  ---
+  duration_ms: 4.739293
+  type: 'test'
+  ...
+# Subtest: desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views
+ok 81 - desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views
+  ---
+  duration_ms: 13.197793
+  type: 'test'
+  ...
+# Subtest: Desktop gates automation behind bounded Setup Readiness plan and confirmation IPC
+ok 82 - Desktop gates automation behind bounded Setup Readiness plan and confirmation IPC
+  ---
+  duration_ms: 12.685448
+  type: 'test'
+  ...
+# Subtest: Desktop resolves startup and selected-project Setup checks from every trusted local workspace
+ok 83 - Desktop resolves startup and selected-project Setup checks from every trusted local workspace
+  ---
+  duration_ms: 0.575113
+  type: 'test'
+  ...
+# Subtest: Desktop Setup aggregate rejects stale divergent Codex evidence with an actionable error
+ok 84 - Desktop Setup aggregate rejects stale divergent Codex evidence with an actionable error
+  ---
+  duration_ms: 0.269562
+  type: 'test'
+  ...
+# Subtest: Desktop Setup checks fresh associated roots at startup and for a selected project
+ok 85 - Desktop Setup checks fresh associated roots at startup and for a selected project
+  ---
+  duration_ms: 0.545201
+  type: 'test'
+  ...
+# Subtest: Desktop startup Automation gate rejects project skill drift and first-install readiness
+ok 86 - Desktop startup Automation gate rejects project skill drift and first-install readiness
+  ---
+  duration_ms: 0.202368
+  type: 'test'
+  ...
+# Subtest: workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries
+ok 87 - workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries
+  ---
+  duration_ms: 2.100038
+  type: 'test'
+  ...
+# Subtest: transcript hides empty reasoning and recognizes persisted schema JSON without rewriting it
+ok 88 - transcript hides empty reasoning and recognizes persisted schema JSON without rewriting it
+  ---
+  duration_ms: 0.576156
+  type: 'test'
+  ...
+# Subtest: Automation transcript preserves Agent items across intervention, failed recovery Runs and historical review
+ok 89 - Automation transcript preserves Agent items across intervention, failed recovery Runs and historical review
+  ---
+  duration_ms: 14.70022
+  type: 'test'
+  ...
+# Subtest: Round Closeout v2 presents trusted invariant judgments
+ok 90 - Round Closeout v2 presents trusted invariant judgments
+  ---
+  duration_ms: 0.191036
+  type: 'test'
+  ...
+# Subtest: desktop main and preload expose bounded automation IPC without a generic network bridge
+ok 91 - desktop main and preload expose bounded automation IPC without a generic network bridge
+  ---
+  duration_ms: 10.857424
+  type: 'test'
+  ...
+# Subtest: desktop main and preload expose bounded platform composition IPC without credentials or generic requests
+ok 92 - desktop main and preload expose bounded platform composition IPC without credentials or generic requests
+  ---
+  duration_ms: 1.195533
+  type: 'test'
+  ...
+# Subtest: ArcOrbit exposes one authenticated in-product feedback entry without user configuration
+ok 93 - ArcOrbit exposes one authenticated in-product feedback entry without user configuration
+  ---
+  duration_ms: 5.074366
+  type: 'test'
+  ...
+# Subtest: task source settings keep the access token write-only in Renderer
+ok 94 - task source settings keep the access token write-only in Renderer
+  ---
+  duration_ms: 2.825937
+  type: 'test'
+  ...
+# Subtest: desktop account panel supports bounded verification login, expiry, and confirmed logout
+ok 95 - desktop account panel supports bounded verification login, expiry, and confirmed logout
+  ---
+  duration_ms: 4.888611
+  type: 'test'
+  ...
+# Subtest: fuse hook resolves each electron-builder packaged executable without assuming a Windows-only packager field
+ok 96 - fuse hook resolves each electron-builder packaged executable without assuming a Windows-only packager field
+  ---
+  duration_ms: 1.627951
+  type: 'test'
+  ...
+# Subtest: package exposes the ArcOrbit identity and the legacy CLI alias through one entrypoint
+ok 97 - package exposes the ArcOrbit identity and the legacy CLI alias through one entrypoint
+  ---
+  duration_ms: 7.241792
+  type: 'test'
+  ...
+# Subtest: distribution assembly binds provider, skills, trusted capabilities, config, and external artifact attestation
+ok 98 - distribution assembly binds provider, skills, trusted capabilities, config, and external artifact attestation
+  ---
+  duration_ms: 3448.629692
+  type: 'test'
+  ...
+# Subtest: Runtime package workflow is manual-only and consumes immutable release/provider inputs
+ok 99 - Runtime package workflow is manual-only and consumes immutable release/provider inputs
+  ---
+  duration_ms: 2.416263
+  type: 'test'
+  ...
+# Subtest: CLI environment includes common installs; discovery and actual execution share a selected executable without changing the parent PATH
+ok 100 - CLI environment includes common installs; discovery and actual execution share a selected executable without changing the parent PATH
+  ---
+  duration_ms: 453.92267
+  type: 'test'
+  ...
+# Subtest: process failures retain launch code, nonzero exit, timeout and redact environment secrets
+ok 101 - process failures retain launch code, nonzero exit, timeout and redact environment secrets
+  ---
+  duration_ms: 135.87659
+  type: 'test'
+  ...
+# Subtest: Git root, path, origin, account and organizations retain independent facts and failures
+ok 102 - Git root, path, origin, account and organizations retain independent facts and failures
+  ---
+  duration_ms: 11.325675
+  type: 'test'
+  ...
+# Subtest: missing command does not become unauthenticated; malformed API output has its own stage and bounded redacted errors
+ok 103 - missing command does not become unauthenticated; malformed API output has its own stage and bounded redacted errors
+  ---
+  duration_ms: 9.093732
+  type: 'test'
+  ...
+# Subtest: temporary blank Idea persists locally; formal completion requires a GitHub repository and directory
+ok 104 - temporary blank Idea persists locally; formal completion requires a GitHub repository and directory
+  ---
+  duration_ms: 26.943549
+  type: 'test'
+  ...
+# Subtest: formal Idea moves to arckit/product and survives loss of the temporary store, recovered only from selected bound directories
+ok 105 - formal Idea moves to arckit/product and survives loss of the temporary store, recovered only from selected bound directories
+  ---
+  duration_ms: 267.258995
+  type: 'test'
+  ...
+# Subtest: manual edit invalidates Agent proposal and approval; malformed records and escaping material paths do not write
+ok 106 - manual edit invalidates Agent proposal and approval; malformed records and escaping material paths do not write
+  ---
+  duration_ms: 21.068557
+  type: 'test'
+  ...
+# Subtest: lost create response remains uncertain across restart and is never blindly replayed
+ok 107 - lost create response remains uncertain across restart and is never blindly replayed
+  ---
+  duration_ms: 93.871372
+  type: 'test'
+  ...
+# Subtest: protocol preserves corrupt and foreign files, rejects stale revisions and symlink parents
+ok 108 - protocol preserves corrupt and foreign files, rejects stale revisions and symlink parents
+  ---
+  duration_ms: 13.366622
+  type: 'test'
+  ...
+# Subtest: two independent Git caches share exact records and reject concurrent publication without touching developer index or files
+ok 109 - two independent Git caches share exact records and reject concurrent publication without touching developer index or files
+  ---
+  duration_ms: 2375.028162
+  type: 'test'
+  ...
+# Subtest: scene Chat persists thread in private cwd, includes exact user request and uses real product proposal tool
+ok 110 - scene Chat persists thread in private cwd, includes exact user request and uses real product proposal tool
+  ---
+  duration_ms: 52.436686
+  type: 'test'
+  ...
+# Subtest: blank Idea can create a private GitHub repository and user-selected checkout with authenticated bounded commands
+ok 111 - blank Idea can create a private GitHub repository and user-selected checkout with authenticated bounded commands
+  ---
+  duration_ms: 331.320094
+  type: 'test'
+  ...
+# Subtest: Product-only assets persist to bound directory and shared Idea adoption restores canonical id from Git
+ok 112 - Product-only assets persist to bound directory and shared Idea adoption restores canonical id from Git
+  ---
+  duration_ms: 24.985739
+  type: 'test'
+  ...
+# Subtest: successful intake receipt only replays identical parameters and changed plans require explicit reconciliation
+ok 113 - successful intake receipt only replays identical parameters and changed plans require explicit reconciliation
+  ---
+  duration_ms: 430.240255
+  type: 'test'
+  ...
+# Subtest: unfinished Idea cannot sync or write project assets; publication requires the current formal directory record
+ok 114 - unfinished Idea cannot sync or write project assets; publication requires the current formal directory record
+  ---
+  duration_ms: 219.087345
+  type: 'test'
+  ...
+# Subtest: Agent receives accessible candidates, bounded GitHub discovery and native image content without secrets
+ok 115 - Agent receives accessible candidates, bounded GitHub discovery and native image content without secrets
+  ---
+  duration_ms: 17.045251
+  type: 'test'
+  ...
+# Subtest: partial proposals can be edited atomically, while later material and plan edits invalidate old suggestions and confirmations
+ok 116 - partial proposals can be edited atomically, while later material and plan edits invalidate old suggestions and confirmations
+  ---
+  duration_ms: 15.038621
+  type: 'test'
+  ...
+# Subtest: prepare starts once for a material selection, survives reopening, and refreshes the same scene after explicit retry
+ok 117 - prepare starts once for a material selection, survives reopening, and refreshes the same scene after explicit retry
+  ---
+  duration_ms: 34.895822
+  type: 'test'
+  ...
+# Subtest: Idea leaves exploration to its existing Agent, shares CLI environment, and refreshes failed tool evidence without losing the thread
+ok 118 - Idea leaves exploration to its existing Agent, shares CLI environment, and refreshes failed tool evidence without losing the thread
+  ---
+  duration_ms: 50.813114
+  type: 'test'
+  ...
+# Subtest: unresolved production Codex executable does not block independent environment checks or confirmed manual intake
+ok 119 - unresolved production Codex executable does not block independent environment checks or confirmed manual intake
+  ---
+  duration_ms: 384.716334
+  type: 'test'
+  ...
+# Subtest: product Git sharing keeps the shared CLI and proxy context instead of overriding it with the parent environment
+ok 120 - product Git sharing keeps the shared CLI and proxy context instead of overriding it with the parent environment
+  ---
+  duration_ms: 243.941998
+  type: 'test'
+  ...
+# Subtest: selected checkout receives demo materials, preserves originals, omits secrets and exposes the exact UI semantics
+ok 121 - selected checkout receives demo materials, preserves originals, omits secrets and exposes the exact UI semantics
+  ---
+  duration_ms: 420.016822
+  type: 'test'
+  ...
+# Subtest: workspace grants, nested paths, private app directories, wrong origins and file conflicts fail before remote creation
+ok 122 - workspace grants, nested paths, private app directories, wrong origins and file conflicts fail before remote creation
+  ---
+  duration_ms: 570.372456
+  type: 'test'
+  ...
+# Subtest: cloning an existing remote and copying materials is retryable after binding failure without duplicate remote creation
+ok 123 - cloning an existing remote and copying materials is retryable after binding failure without duplicate remote creation
+  ---
+  duration_ms: 461.22439
+  type: 'test'
+  ...
+# Subtest: legacy managed drafts revoke approval and remain incomplete until a user location is selected
+ok 124 - legacy managed drafts revoke approval and remain incomplete until a user location is selected
+  ---
+  duration_ms: 8.201236
+  type: 'test'
+  ...
+# Subtest: unknown Git errors remain diagnostics and never trigger init or remote creation
+ok 125 - unknown Git errors remain diagnostics and never trigger init or remote creation
+  ---
+  duration_ms: 10.042167
+  type: 'test'
+  ...
+# Subtest: folder selection actively reads real materials and Git candidates; edited proposal is confirmed without prompting or manual repository entry
+ok 126 - folder selection actively reads real materials and Git candidates; edited proposal is confirmed without prompting or manual repository entry
+  ---
+  duration_ms: 1102.350327
+  type: 'test'
+  ...
+# Subtest: blank Idea guides a description, keeps incomplete proposals editable and never asks for long product definition
+ok 127 - blank Idea guides a description, keeps incomplete proposals editable and never asks for long product definition
+  ---
+  duration_ms: 499.534161
+  type: 'test'
+  ...
+# Subtest: Agent setup failure preserves local draft, exposes recovery and allows direct intake configuration
+ok 128 - Agent setup failure preserves local draft, exposes recovery and allows direct intake configuration
+  ---
+  duration_ms: 305.536155
+  type: 'test'
+  ...
+# Subtest: late Agent proposal cannot overwrite active human edits; keeping edits and sending a message updates shared facts
+ok 129 - late Agent proposal cannot overwrite active human edits; keeping edits and sending a message updates shared facts
+  ---
+  duration_ms: 764.53829
+  type: 'test'
+  ...
+# Subtest: late preparation from Idea A cannot replace Idea B conversation or later message ownership
+ok 130 - late preparation from Idea A cannot replace Idea B conversation or later message ownership
+  ---
+  duration_ms: 559.856157
+  type: 'test'
+  ...
+# Subtest: late save stays on its original Idea and typing during a save is retained
+ok 131 - late save stays on its original Idea and typing during a save is retained
+  ---
+  duration_ms: 747.802573
+  type: 'test'
+  ...
+# Subtest: a blank Idea exposes actual environment diagnostics before a proposal exists and keeps its editable description
+ok 132 - a blank Idea exposes actual environment diagnostics before a proposal exists and keeps its editable description
+  ---
+  duration_ms: 326.143685
+  type: 'test'
+  ...
+# Subtest: a selected formal directory and human edits reach the same-turn Agent context with labels, effects and actual path
+ok 133 - a selected formal directory and human edits reach the same-turn Agent context with labels, effects and actual path
+  ---
+  duration_ms: 505.613434
+  type: 'test'
+  ...
+1..133
+# tests 133
+# suites 0
+# pass 133
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6464.697015

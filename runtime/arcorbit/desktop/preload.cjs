@@ -54,9 +54,19 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   pickProject: () => ipcRenderer.invoke("arckit:pick-project"),
   listRuns: (filter) => ipcRenderer.invoke("arckit:list-runs", filter),
   listMessages: (projectId, sessionId) => ipcRenderer.invoke("arckit:list-messages", projectId, sessionId),
+  releaseSnapshot: () => ipcRenderer.invoke("arckit:release-snapshot"),
+  releaseDetail: id => ipcRenderer.invoke("arckit:release-detail", id),
+  releaseCommand: (action, input) => ipcRenderer.invoke("arckit:release-command", action, input),
+  releaseChat: input => ipcRenderer.invoke("arckit:release-chat", input),
+  onReleaseEvent: listener => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on("arckit:release-event", handler);
+    return () => ipcRenderer.off("arckit:release-event", handler);
+  },
   productSnapshot: (input) => ipcRenderer.invoke("arckit:product-snapshot", input),
   productDetail: (id) => ipcRenderer.invoke("arckit:product-detail", id),
   productCommand: (action, input) => ipcRenderer.invoke("arckit:product-command", action, input),
+  pickProductWorkspace: (input) => ipcRenderer.invoke("arckit:product-pick-workspace", input),
   pickProductMaterial: (input) => ipcRenderer.invoke("arckit:product-pick-material", input),
   openProductAsset: (input) => ipcRenderer.invoke("arckit:product-open-asset", input),
   productChat: (input) => ipcRenderer.invoke("arckit:product-chat", input),

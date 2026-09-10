@@ -204,6 +204,13 @@ const testChatSnapshot = async (input = {}) => {
   return testChatSnapshotValue(requested);
 };
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  ...(process.env.ARCORBIT_RELEASE_FIXTURE === "1" ? {
+    releaseSnapshot: () => ipcRenderer.invoke("fixture:release-snapshot"),
+    releaseDetail: id => ipcRenderer.invoke("fixture:release-detail", id),
+    releaseCommand: (action,input) => ipcRenderer.invoke("fixture:release-command",action,input),
+    releaseChat: input => ipcRenderer.invoke("fixture:release-chat",input),
+    onReleaseEvent: listener => { const fn=(_e,event)=>listener(event);ipcRenderer.on("fixture:release-event",fn);return ()=>ipcRenderer.off("fixture:release-event",fn); }
+  } : {}),
   ...(process.env.ARCORBIT_PRODUCT_FIXTURE === "1" ? {
     productSnapshot: input => ipcRenderer.invoke("fixture:product-snapshot", input),
     productDetail: id => ipcRenderer.invoke("fixture:product-detail", id),

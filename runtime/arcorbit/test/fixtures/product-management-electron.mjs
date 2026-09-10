@@ -4,6 +4,7 @@ import { dirname,join } from 'node:path';
 import { mkdtemp,mkdir,rm,writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as protocol from '../../../../definition/skills/arckit-product-assets/scripts/product-assets.mjs';
+import { runProductCommand } from '../../src/product-git.mjs';
 import { createProductCoordinator } from '../../src/product-coordinator.mjs';
 const here=dirname(fileURLToPath(import.meta.url));
 const root=await mkdtemp(join(tmpdir(),'arcorbit-product-ui-'));app.setPath('userData',join(root,'electron'));process.env.ARCORBIT_PRODUCT_FIXTURE='1';
@@ -11,9 +12,9 @@ await app.whenReady();const errors=[];let product;
 try {
  const material=join(root,'demo');await mkdir(material);await writeFile(join(material,'README.md'),'Prototype for creative people');
  const platform={projects:[],organizations:[],active_workset:{id:'current',project_ids:[]},errors:[]};
- product=createProductCoordinator({dataDir:join(root,'products'),protocol,skillPath:join(root,'SKILL.md'),getPlatform:async()=>structuredClone(platform),getAccountScope:async()=> 'fixture:user',getSettings:async()=>({}),getCodexExecutable:()=> 'codex',
+ product=createProductCoordinator({runCommand:async(bin,args,options)=>{if(bin==='gh')throw new Error('No test GitHub account');return runProductCommand(bin,args,options);},dataDir:join(root,'products'),protocol,skillPath:join(root,'SKILL.md'),getPlatform:async()=>structuredClone(platform),getAccountScope:async()=> 'fixture:user',getSettings:async()=>({}),getCodexExecutable:()=> 'codex',
  executePlatform:async(_action,input)=>{const r={id:'11',name:input.name,git_url:input.git_url};platform.projects.push(r);return r;},bindWorkspace:async(id,path)=>{platform.projects.find(p=>p.id===id).local_project_path=path;platform.active_workset.project_ids=[id];},
- createAdapter:()=>({async *runTurn({options}){await options.onThreadBound({threadId:'IDEA-THREAD'});yield {type:'codex.turn.started',turn_id:'IDEA-TURN'};const p=await options.dynamicToolProvider({tool:'product_context',arguments:{}});await options.dynamicToolProvider({tool:'product_propose',arguments:{revision:p.record.revision,patch:{vision:'让创意同学把作品变成可持续推进的产品'},reason:'基于你的说明'}});yield {type:'codex.item.completed',params:{item:{type:'agentMessage',id:'reply',text:'建议已经准备好，请在左侧审阅。'}}};yield {type:'codex.turn.completed',turn:{status:'completed'}};},async interrupt(){},close(){}})
+ createAdapter:()=>({async *runTurn({options}){await options.onThreadBound({threadId:'IDEA-THREAD'});yield {type:'codex.turn.started',turn_id:'IDEA-TURN'};const p=await options.dynamicToolProvider({tool:'product_context',arguments:{}});if(p.approved_digest)await options.dynamicToolProvider({tool:'product_execute',arguments:{approved_digest:p.approved_digest}});else await options.dynamicToolProvider({tool:'product_propose',arguments:{revision:p.record.revision,patch:{description:'帮助创意同学正式管理 Demo'},plan:{mode:'create',name:'Demo',organization_id:'',repository:'existing',git_url:'https://github.com/example/demo',directory:'material'},reason:'已准备接入建议'}});yield {type:'codex.item.completed',params:{item:{type:'agentMessage',id:'reply',text:'建议已经准备好，请在左侧审阅。'}}};yield {type:'codex.turn.completed',turn:{status:'completed'}};},async interrupt(){},close(){}})
  });
  ipcMain.handle('fixture:product-snapshot',(_e,input={})=>input.refresh?product.refresh():product.snapshot());
  ipcMain.handle('fixture:product-detail',(_e,id)=>product.detail(id));ipcMain.handle('fixture:product-command',(_e,a,i)=>product.command(a,i));ipcMain.handle('fixture:product-chat',(_e,i)=>product.chatAction(i));ipcMain.handle('fixture:product-pick',(_e,i={})=>i.id?product.chooseMaterial(i.id,material):product.command('create',{material_path:material}));
@@ -29,16 +30,11 @@ try {
   await new Promise(r=>setTimeout(r,200));click('[data-page="idea"]');
   await wait(()=>document.querySelector('#ideaListHost [data-product-action="new"]'),'Idea list');click('#ideaListHost [data-product-action="new"]');
   await wait(()=>!document.querySelector('#ideaStart').classList.contains('hidden'),'start');click('#ideaFolder');
-  await wait(()=>document.querySelector('#ideaEditor [data-field="description"]'),'editor');
-  input('#ideaEditor [data-field="description"]','帮助创意同学正式管理 Demo');click('#ideaEditor [data-product-action="save"]');
-  await wait(()=>document.querySelector('#ideaEditor').textContent.includes('修订 1'),'saved');
-  input('#ideaChatInput','请帮我整理产品理念');click('#ideaChatSend');
-  await wait(()=>document.querySelector('.product-proposal'),'proposal');
-  const before=document.querySelector('#ideaEditor [data-field="vision"]').value;
-  click('#ideaEditor [data-product-action="accept"]');await wait(()=>document.querySelector('#ideaEditor [data-field="vision"]').value.includes('可持续推进'),'accepted');
-  input('#ideaEditor [data-field="plan.git_url"]','https://github.com/example/demo');click('#ideaEditor [data-product-action="plan"]');
-  await wait(()=>!document.querySelector('#ideaEditor [data-product-action="approve"]').disabled,'approved plan ready');
-  window.confirm=()=>true;click('#ideaEditor [data-product-action="approve"]');
+  await wait(()=>document.querySelector('#ideaEditor [data-product-action="review-save"]')&&!document.querySelector('#ideaEditor [data-product-action="review-save"]').disabled,'auto analysis');
+  const before=document.querySelector('#ideaEditor [data-field="description"]').value;
+  input('#ideaEditor [data-field="description"]','帮助创意同学正式管理 Demo');click('#ideaEditor [data-product-action="review-save"]');
+  await wait(()=>document.querySelector('#ideaEditor [data-product-action="approve-agent"]'),'saved');
+  click('#ideaEditor [data-product-action="approve-agent"]');click('#ideaEditor [data-product-action="confirm-agent"]');
   await wait(()=>document.querySelector('#ideaStatus').textContent.includes('已录入'),'formal intake');
   const status=document.querySelector('#ideaStatus').textContent;
   const text=document.querySelector('#ideaTranscript').textContent;

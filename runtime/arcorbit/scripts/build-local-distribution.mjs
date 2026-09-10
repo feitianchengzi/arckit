@@ -225,9 +225,25 @@ async function gitRevision(root) {
   return status ? `${revision}-dirty` : revision;
 }
 
-async function run(executable, args, cwd) {
+export async function runLocalBuildCommand(executable, args, cwd) {
   process.stdout.write(`[local-build] ${cwd}\n[local-build] ${displayCommand(executable, args)}\n`);
-  const { stdout, stderr } = await execFileAsync(executable, args, { cwd, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  await execWithOutput(executable, args, { cwd, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+}
+
+const run = runLocalBuildCommand;
+
+async function execWithOutput(executable, args, options) {
+  try {
+    printCommandOutput(await execFileAsync(executable, args, options));
+  } catch (error) {
+    // execFile attaches captured output to rejected errors. Builder diagnostics
+    // often arrive on stdout, so preserve both streams before propagating failure.
+    printCommandOutput(error);
+    throw error;
+  }
+}
+
+function printCommandOutput({ stdout, stderr }) {
   if (stdout) process.stdout.write(stdout);
   if (stderr) process.stderr.write(stderr);
 }
@@ -238,15 +254,13 @@ async function runPackagedRendererSmoke(plan) {
   const userData = await mkdtemp(path.join(os.tmpdir(), "arcorbit-packaged-renderer-smoke-"));
   try {
     process.stdout.write(`[local-build] packaged Renderer smoke: ${executable}\n`);
-    const { stdout, stderr } = await execFileAsync(executable, ["--renderer-load-smoke"], {
+    await execWithOutput(executable, ["--renderer-load-smoke"], {
       cwd: runtimeRoot,
       encoding: "utf8",
       env: { ...process.env, ARCORBIT_RENDERER_SMOKE_USER_DATA: userData },
       maxBuffer: 1024 * 1024,
       timeout: 20_000
     });
-    if (stdout) process.stdout.write(stdout);
-    if (stderr) process.stderr.write(stderr);
   } finally {
     await rm(userData, { recursive: true, force: true });
   }

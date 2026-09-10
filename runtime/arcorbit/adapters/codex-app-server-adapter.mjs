@@ -237,6 +237,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           model: effectiveOptions.model || null,
           input: [{ type: "text", text: prompt }, ...(effectiveOptions.skillInputs || [])]
         };
+        if (effectiveOptions.sandboxPolicy) turnStartParams.sandboxPolicy = effectiveOptions.sandboxPolicy;
         if (effectiveOptions.reasoningEffort) {
           turnStartParams.effort = effectiveOptions.reasoningEffort;
         }
@@ -415,6 +416,13 @@ async function handleServerRequest({ message, state, queue, options, activeComma
         if (!state || state.completed || params.threadId !== state.threadId || (state.turnId && params.turnId !== state.turnId)) throw new Error("Tool call does not belong to the active scene turn.");
         if (typeof options.dynamicToolProvider !== "function" || !options.dynamicTools?.some(tool => tool.name === params.tool)) throw new Error("This tool is unavailable in this conversation.");
         const result = await options.dynamicToolProvider(params);
+        if (Array.isArray(result?.contentItems)) {
+          if (!result.contentItems.length || result.contentItems.length > 8 || result.contentItems.some(item => !(
+            item.type === "inputText" && typeof item.text === "string" ||
+            item.type === "inputImage" && typeof item.imageUrl === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(item.imageUrl)
+          ))) throw new Error("Invalid tool content.");
+          return { success: true, contentItems: result.contentItems };
+        }
         return { success: true, contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
       } catch (error) {
         return { success: false, contentItems: [{ type: "inputText", text: error.message }] };

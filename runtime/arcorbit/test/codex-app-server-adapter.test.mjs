@@ -424,3 +424,26 @@ test('scene dynamic tools use app-server request responses and reject foreign th
   assert.deepEqual(client.requests.find(r=>r.method==='turn/start').params.input[1],skills[0]);
   assert.equal(calls,1);assert.equal(client.results[0].success,false);assert.deepEqual(client.results[1],{success:true,contentItems:[{type:'inputText',text:'{"revision":3}'}]});
 });
+
+test('scene image material is returned as native image content rather than JSON text',async()=>{
+ class ImageClient extends FakeClient {
+  result;
+  async request(method,params){
+   if(method!=='turn/start')return super.request(method,params);
+   const turn={id:'IMAGE-TURN'};queueMicrotask(async()=>{this.emit('turn/started',{threadId:params.threadId,turn});this.result=await this.requestHandlers[0]({id:'IMAGE-CALL',method:'item/tool/call',params:{threadId:params.threadId,turnId:turn.id,callId:'IMAGE-CALL',tool:'product_materials',arguments:{path:'screen.png'}}});this.emit('turn/completed',{threadId:params.threadId,turn});});return {turn};
+  }
+ }
+ const client=new ImageClient(),adapter=createCodexAppServerAdapter({clientFactory:()=>client});
+ const contentItems=[{type:'inputText',text:'screen.png'},{type:'inputImage',imageUrl:'data:image/png;base64,aGVsbG8='}];
+ await collect(adapter.runTurn({projectRoot:'/idea',prompt:'read image',options:{resultKind:'chat',dynamicTools:[{type:'function',name:'product_materials',description:'Read material',inputSchema:{type:'object'}}],dynamicToolProvider:async()=>({contentItems})}}));adapter.close();assert.deepEqual(client.result,{success:true,contentItems});
+});
+
+test('scene read-only sandbox is applied on every native turn including resumed threads; ordinary conversations retain their default',async()=>{
+ const client=new FakeClient(),adapter=createCodexAppServerAdapter({clientFactory:()=>client});
+ const policy={type:'readOnly',networkAccess:false};
+ await collect(adapter.runTurn({projectRoot:'/workspace/idea',prompt:'Investigate tools',options:{threadId:'EXISTING-IDEA',resultKind:'chat',sandboxPolicy:policy}}));
+ await collect(adapter.runTurn({projectRoot:'/workspace/idea',prompt:'Continue investigation',options:{threadId:'EXISTING-IDEA',resultKind:'chat',sandboxPolicy:policy}}));
+ adapter.close();assert.equal(client.requests.filter(r=>r.method==='thread/start').length,0);
+ assert.ok(client.requests.filter(r=>r.method==='turn/start').every(r=>r.params.threadId==='EXISTING-IDEA'&&r.params.sandboxPolicy.type==='readOnly'&&!r.params.sandboxPolicy.networkAccess));
+ const ordinary=new FakeClient(),other=createCodexAppServerAdapter({clientFactory:()=>ordinary});await collect(other.runTurn({projectRoot:'/workspace/chat',prompt:'Hello',options:{resultKind:'chat'}}));other.close();assert.equal(ordinary.requests.find(r=>r.method==='turn/start').params.sandboxPolicy,undefined);
+});

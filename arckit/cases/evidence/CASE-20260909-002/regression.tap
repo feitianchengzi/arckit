@@ -1,0 +1,3820 @@
+TAP version 13
+# Subtest: automation task preserves only the remote human-authored intent
+ok 1 - automation task preserves only the remote human-authored intent
+  ---
+  duration_ms: 2.804976
+  type: 'test'
+  ...
+# Subtest: Case binding recovery prompts preserve intent and select one explicit protocol path
+ok 2 - Case binding recovery prompts preserve intent and select one explicit protocol path
+  ---
+  duration_ms: 0.700669
+  type: 'test'
+  ...
+# Subtest: queue remains deterministic and excludes ineligible tasks
+ok 3 - queue remains deterministic and excludes ineligible tasks
+  ---
+  duration_ms: 1.736043
+  type: 'test'
+  ...
+# Subtest: Automation projects come from the Catalog even before task readiness exists
+ok 4 - Automation projects come from the Catalog even before task readiness exists
+  ---
+  duration_ms: 26.245557
+  type: 'test'
+  ...
+# Subtest: top-level Automation keeps unbound Workset projects while a single lane stays isolated
+ok 5 - top-level Automation keeps unbound Workset projects while a single lane stays isolated
+  ---
+  duration_ms: 2.956366
+  type: 'test'
+  ...
+# Subtest: automation snapshot reads bounded run summaries and only hydrates the active run
+ok 6 - automation snapshot reads bounded run summaries and only hydrates the active run
+  ---
+  duration_ms: 5.062514
+  type: 'test'
+  ...
+# Subtest: automation control and recovery code uses run-id detail instead of project history hydration
+ok 7 - automation control and recovery code uses run-id detail instead of project history hydration
+  ---
+  duration_ms: 26.625186
+  type: 'test'
+  ...
+# Subtest: acceptance feedback has an independent stable queue and deterministic execution arbitration
+ok 8 - acceptance feedback has an independent stable queue and deterministic execution arbitration
+  ---
+  duration_ms: 0.619936
+  type: 'test'
+  ...
+# Subtest: acceptance feedback persists idempotently, keeps the source todo completed, and starts on the same thread
+ok 9 - acceptance feedback persists idempotently, keeps the source todo completed, and starts on the same thread
+  ---
+  duration_ms: 11.69613
+  type: 'test'
+  ...
+# Subtest: accepted tasks cannot receive new acceptance issues
+ok 10 - accepted tasks cannot receive new acceptance issues
+  ---
+  duration_ms: 2.043295
+  type: 'test'
+  ...
+# Subtest: a completed task cannot be accepted while an acceptance issue remains open
+ok 11 - a completed task cannot be accepted while an acceptance issue remains open
+  ---
+  duration_ms: 1.036669
+  type: 'test'
+  ...
+# Subtest: Automation consumes a Work-confirmed external state change and safely stops the active Runtime
+ok 12 - Automation consumes a Work-confirmed external state change and safely stops the active Runtime
+  ---
+  duration_ms: 5.711953
+  type: 'test'
+  ...
+# Subtest: Automation safely stops the source execution when Work replaces it with a new task identity
+ok 13 - Automation safely stops the source execution when Work replaces it with a new task identity
+  ---
+  duration_ms: 2.773427
+  type: 'test'
+  ...
+# Subtest: a queued acceptance feedback item keeps automation health ready when the todo queue is empty
+ok 14 - a queued acceptance feedback item keeps automation health ready when the todo queue is empty
+  ---
+  duration_ms: 0.792233
+  type: 'test'
+  ...
+# Subtest: acceptance feedback stays in its own queue while another execution owns the lease
+ok 15 - acceptance feedback stays in its own queue while another execution owns the lease
+  ---
+  duration_ms: 3.24051
+  type: 'test'
+  ...
+# Subtest: concurrent conflicting feedback submissions reject the losing payload before writing its message
+ok 16 - concurrent conflicting feedback submissions reject the losing payload before writing its message
+  ---
+  duration_ms: 9.715377
+  type: 'test'
+  ...
+# Subtest: feedback readiness failure preserves an actionable recovery lease
+ok 17 - feedback readiness failure preserves an actionable recovery lease
+  ---
+  duration_ms: 2.677308
+  type: 'test'
+  ...
+# Subtest: closed Case recovery resumes the persisted thread for same-thread closeout
+ok 18 - closed Case recovery resumes the persisted thread for same-thread closeout
+  ---
+  duration_ms: 8.681034
+  type: 'test'
+  ...
+# Subtest: an unbound task never adopts the sole readable closed Case
+ok 19 - an unbound task never adopts the sole readable closed Case
+  ---
+  duration_ms: 2.508221
+  type: 'test'
+  ...
+# Subtest: CLI return does not infer a Case from one concurrent repository addition
+ok 20 - CLI return does not infer a Case from one concurrent repository addition
+  ---
+  duration_ms: 3.774207
+  type: 'test'
+  ...
+# Subtest: only a trusted ledger write can establish a Case binding
+ok 21 - only a trusted ledger write can establish a Case binding
+  ---
+  duration_ms: 0.424413
+  type: 'test'
+  ...
+# Subtest: an earlier accepted receipt keeps Case binding after the latest ledger write fails
+ok 22 - an earlier accepted receipt keeps Case binding after the latest ledger write fails
+  ---
+  duration_ms: 0.303792
+  type: 'test'
+  ...
+# Subtest: accepted receipts for different Cases produce an explicit binding conflict
+ok 23 - accepted receipts for different Cases produce an explicit binding conflict
+  ---
+  duration_ms: 0.471722
+  type: 'test'
+  ...
+# Subtest: canonical completion requires a consistently closed and resolved Case
+ok 24 - canonical completion requires a consistently closed and resolved Case
+  ---
+  duration_ms: 0.182403
+  type: 'test'
+  ...
+# Subtest: closeout result recovery prefers the Runtime envelope and safely falls back to typed Run activity
+ok 25 - closeout result recovery prefers the Runtime envelope and safely falls back to typed Run activity
+  ---
+  duration_ms: 0.414137
+  type: 'test'
+  ...
+# Subtest: closeout result recovery rejects untyped or malformed structured messages
+ok 26 - closeout result recovery rejects untyped or malformed structured messages
+  ---
+  duration_ms: 0.218705
+  type: 'test'
+  ...
+# Subtest: live same-thread closeout recovers a completed result from the typed activity message
+ok 27 - live same-thread closeout recovers a completed result from the typed activity message
+  ---
+  duration_ms: 20.501396
+  type: 'test'
+  ...
+# Subtest: detached same-thread closeout recovers a completed result when result.json is missing
+ok 28 - detached same-thread closeout recovers a completed result when result.json is missing
+  ---
+  duration_ms: 9.827994
+  type: 'test'
+  ...
+# Subtest: conflicting trusted ledger Case identifiers enter recovery
+ok 29 - conflicting trusted ledger Case identifiers enter recovery
+  ---
+  duration_ms: 7.506893
+  type: 'test'
+  ...
+# Subtest: a Case produced by the task run ledger still resumes resolved closeout
+ok 30 - a Case produced by the task run ledger still resumes resolved closeout
+  ---
+  duration_ms: 3.032384
+  type: 'test'
+  ...
+# Subtest: detached startup recovers an earlier accepted Case receipt after a later failed write
+ok 31 - detached startup recovers an earlier accepted Case receipt after a later failed write
+  ---
+  duration_ms: 4.65626
+  type: 'test'
+  ...
+# Subtest: periodic sync preserves a Run human gate even when canonical Case handoff is older
+ok 32 - periodic sync preserves a Run human gate even when canonical Case handoff is older
+  ---
+  duration_ms: 7.375815
+  type: 'test'
+  ...
+# Subtest: realtime project refresh preserves an unconfirmed human gate and does not dispatch
+ok 33 - realtime project refresh preserves an unconfirmed human gate and does not dispatch
+  ---
+  duration_ms: 2.629803
+  type: 'test'
+  ...
+# Subtest: Automation source has no Workshop transport or remote task-read dependency
+ok 34 - Automation source has no Workshop transport or remote task-read dependency
+  ---
+  duration_ms: 22.596149
+  type: 'test'
+  ...
+# Subtest: retry_start clears stale closeout state and starts a normal Runtime
+ok 35 - retry_start clears stale closeout state and starts a normal Runtime
+  ---
+  duration_ms: 2.454548
+  type: 'test'
+  ...
+# Subtest: retry_case_reuse resumes the persisted thread with a targeted Case binding instruction
+ok 36 - retry_case_reuse resumes the persisted thread with a targeted Case binding instruction
+  ---
+  duration_ms: 5.20648
+  type: 'test'
+  ...
+# Subtest: retry_as_new_case resumes the persisted thread with a targeted Case binding instruction
+ok 37 - retry_as_new_case resumes the persisted thread with a targeted Case binding instruction
+  ---
+  duration_ms: 1.647982
+  type: 'test'
+  ...
+# Subtest: recovery feedback continues the same Agent thread and persists the user message
+ok 38 - recovery feedback continues the same Agent thread and persists the user message
+  ---
+  duration_ms: 2.56728
+  type: 'test'
+  ...
+# Subtest: initial Desktop sync resumes one recoverable in-progress task on its persisted thread
+ok 39 - initial Desktop sync resumes one recoverable in-progress task on its persisted thread
+  ---
+  duration_ms: 3.087416
+  type: 'test'
+  ...
+# Subtest: startup recovery keeps its durable marker until the replacement Run is bound
+ok 40 - startup recovery keeps its durable marker until the replacement Run is bound
+  ---
+  duration_ms: 3.872707
+  type: 'test'
+  ...
+# Subtest: initial Desktop sync reconstructs recovery after power loss leaves an orphaned recovery phase
+ok 41 - initial Desktop sync reconstructs recovery after power loss leaves an orphaned recovery phase
+  ---
+  duration_ms: 3.882054
+  type: 'test'
+  ...
+# Subtest: startup recovery never creates a duplicate Run while the persisted Run is still attached
+ok 42 - startup recovery never creates a duplicate Run while the persisted Run is still attached
+  ---
+  duration_ms: 2.140486
+  type: 'test'
+  ...
+# Subtest: startup recovery does not bypass a persisted operator recovery decision
+ok 43 - startup recovery does not bypass a persisted operator recovery decision
+  ---
+  duration_ms: 5.095667
+  type: 'test'
+  ...
+# Subtest: failed reconstructed startup leaves one actionable recovery item
+ok 44 - failed reconstructed startup leaves one actionable recovery item
+  ---
+  duration_ms: 5.01393
+  type: 'test'
+  ...
+# Subtest: initial Desktop sync restores a persisted Agent human handoff instead of retrying it
+ok 45 - initial Desktop sync restores a persisted Agent human handoff instead of retrying it
+  ---
+  duration_ms: 3.198744
+  type: 'test'
+  ...
+# Subtest: periodic sync preserves operator recovery instead of repeatedly restarting it
+ok 46 - periodic sync preserves operator recovery instead of repeatedly restarting it
+  ---
+  duration_ms: 2.33371
+  type: 'test'
+  ...
+# Subtest: detached rejected ledger write surfaces the gate reason instead of a success handoff
+ok 47 - detached rejected ledger write surfaces the gate reason instead of a success handoff
+  ---
+  duration_ms: 15.180022
+  type: 'test'
+  ...
+# Subtest: live rejected ledger write takes precedence over an unaccepted human handoff
+ok 48 - live rejected ledger write takes precedence over an unaccepted human handoff
+  ---
+  duration_ms: 10.578121
+  type: 'test'
+  ...
+# Subtest: live accepted ledger handoff overrides a stale pre-commit Runtime handoff
+ok 49 - live accepted ledger handoff overrides a stale pre-commit Runtime handoff
+  ---
+  duration_ms: 19.230509
+  type: 'test'
+  ...
+# Subtest: live external handoff becomes actionable human intervention and resumes the same thread after confirmation
+ok 50 - live external handoff becomes actionable human intervention and resumes the same thread after confirmation
+  ---
+  duration_ms: 5.400207
+  type: 'test'
+  ...
+# Subtest: startup reconciliation projects detached external wait as human intervention without retrying Runtime
+ok 51 - startup reconciliation projects detached external wait as human intervention without retrying Runtime
+  ---
+  duration_ms: 4.948602
+  type: 'test'
+  ...
+# Subtest: exhausted live Agent repair surfaces the validator reason instead of a generic failed status
+ok 52 - exhausted live Agent repair surfaces the validator reason instead of a generic failed status
+  ---
+  duration_ms: 2.565737
+  type: 'test'
+  ...
+# Subtest: CLI handoff does not interrupt Runtime before the Agent establishes a trusted Case binding
+ok 53 - CLI handoff does not interrupt Runtime before the Agent establishes a trusted Case binding
+  ---
+  duration_ms: 1.165468
+  type: 'test'
+  ...
+# Subtest: CLI handoff interrupts and resumes the same thread after trusted Case binding
+ok 54 - CLI handoff interrupts and resumes the same thread after trusted Case binding
+  ---
+  duration_ms: 2.346136
+  type: 'test'
+  ...
+# Subtest: remote completion refuses an unbound task before contacting the task source
+ok 55 - remote completion refuses an unbound task before contacting the task source
+  ---
+  duration_ms: 1.775358
+  type: 'test'
+  ...
+# Subtest: remote completion refuses a bound but unresolved canonical Case
+ok 56 - remote completion refuses a bound but unresolved canonical Case
+  ---
+  duration_ms: 1.49042
+  type: 'test'
+  ...
+# Subtest: a local pending candidate reaches readiness and submits one state action to Work
+ok 57 - a local pending candidate reaches readiness and submits one state action to Work
+  ---
+  duration_ms: 33.383022
+  type: 'test'
+  ...
+# Subtest: multi-project automation starts distinct workspace lanes concurrently up to the global cap
+ok 58 - multi-project automation starts distinct workspace lanes concurrently up to the global cap
+  ---
+  duration_ms: 13.289492
+  type: 'test'
+  ...
+# Subtest: multi-lane Automation snapshot captures one state view and one shared Run index
+ok 59 - multi-lane Automation snapshot captures one state view and one shared Run index
+  ---
+  duration_ms: 1.73454
+  type: 'test'
+  ...
+# Subtest: remote projects bound to one local workspace remain serial within that workspace lane
+ok 60 - remote projects bound to one local workspace remain serial within that workspace lane
+  ---
+  duration_ms: 3.879556
+  type: 'test'
+  ...
+# Subtest: execution-targeted controls and recovery remain isolated to the selected workspace lane
+ok 61 - execution-targeted controls and recovery remain isolated to the selected workspace lane
+  ---
+  duration_ms: 1.756944
+  type: 'test'
+  ...
+# Subtest: startup recovery resumes every persisted workspace lane without creating cross-lane runs
+ok 62 - startup recovery resumes every persisted workspace lane without creating cross-lane runs
+  ---
+  duration_ms: 7.389683
+  type: 'test'
+  ...
+# Subtest: a persistent claim version conflict becomes one global recovery instead of repeating skills readiness
+ok 63 - a persistent claim version conflict becomes one global recovery instead of repeating skills readiness
+  ---
+  duration_ms: 4.120631
+  type: 'test'
+  ...
+# Subtest: Automation execution overview aggregates complete time and every structured gap across Runs
+ok 64 - Automation execution overview aggregates complete time and every structured gap across Runs
+  ---
+  duration_ms: 3.39526
+  type: 'test'
+  ...
+# Subtest: Automation execution overview marks active time and recovers one legacy latest round
+ok 65 - Automation execution overview marks active time and recovers one legacy latest round
+  ---
+  duration_ms: 0.72188
+  type: 'test'
+  ...
+# Subtest: Runtime policy binds only using-arckit and the trusted ledger
+ok 66 - Runtime policy binds only using-arckit and the trusted ledger
+  ---
+  duration_ms: 225.795935
+  type: 'test'
+  ...
+# Subtest: new Cases receive ten autonomous completion-review cycles
+ok 67 - new Cases receive ten autonomous completion-review cycles
+  ---
+  duration_ms: 2.473137
+  type: 'test'
+  ...
+# Subtest: packaged capabilities prefer ArcOrbit resources and retain the legacy resource fallback
+ok 68 - packaged capabilities prefer ArcOrbit resources and retain the legacy resource fallback
+  ---
+  duration_ms: 12.197732
+  type: 'test'
+  ...
+# Subtest: Windows cross-drive project paths stay outside the packaged capability root
+ok 69 - Windows cross-drive project paths stay outside the packaged capability root
+  ---
+  duration_ms: 1.755043
+  type: 'test'
+  ...
+# Subtest: a project capability cannot override the trusted repository capability
+ok 70 - a project capability cannot override the trusted repository capability
+  ---
+  duration_ms: 16.614637
+  type: 'test'
+  ...
+# Subtest: the ledger accepts only current Case and transition schema versions
+ok 71 - the ledger accepts only current Case and transition schema versions
+  ---
+  duration_ms: 13.347835
+  type: 'test'
+  ...
+# Subtest: a selected persisted gap uses canonical identity while allowing Agent-authored descriptions
+ok 72 - a selected persisted gap uses canonical identity while allowing Agent-authored descriptions
+  ---
+  duration_ms: 2.238705
+  type: 'test'
+  ...
+# Subtest: a selected persisted gap still rejects an identity that is not currently ready
+ok 73 - a selected persisted gap still rejects an identity that is not currently ready
+  ---
+  duration_ms: 3.30582
+  type: 'test'
+  ...
+# Subtest: a transition rejects a stale Case revision
+ok 74 - a transition rejects a stale Case revision
+  ---
+  duration_ms: 1.364484
+  type: 'test'
+  ...
+# Subtest: one dynamic gap may produce facts and the next gap without any document checklist
+ok 75 - one dynamic gap may produce facts and the next gap without any document checklist
+  ---
+  duration_ms: 2.135064
+  type: 'test'
+  ...
+# Subtest: a diagnosis Round exposes a Tech-like judgment Gap without completing that second result
+ok 76 - a diagnosis Round exposes a Tech-like judgment Gap without completing that second result
+  ---
+  duration_ms: 1.664299
+  type: 'test'
+  ...
+# Subtest: trusted invariant assessment rejects missing, duplicate and stale coverage
+ok 77 - trusted invariant assessment rejects missing, duplicate and stale coverage
+  ---
+  duration_ms: 1.733217
+  type: 'test'
+  ...
+# Subtest: persisted v8 assessment corruption fails closed before Completion Review
+ok 78 - persisted v8 assessment corruption fails closed before Completion Review
+  ---
+  duration_ms: 2.227417
+  type: 'test'
+  ...
+# Subtest: later facts can reopen an invariant judgment that an earlier Round upheld
+ok 79 - later facts can reopen an invariant judgment that an earlier Round upheld
+  ---
+  duration_ms: 3.093929
+  type: 'test'
+  ...
+# Subtest: a fresh gap may be selected and completed without being preplanned by the prior transition
+ok 80 - a fresh gap may be selected and completed without being preplanned by the prior transition
+  ---
+  duration_ms: 2.863979
+  type: 'test'
+  ...
+# Subtest: fresh selection rejects existing, non-Agent, reserved, and blocked gaps
+ok 81 - fresh selection rejects existing, non-Agent, reserved, and blocked gaps
+  ---
+  duration_ms: 2.471158
+  type: 'test'
+  ...
+# Subtest: completion review findings become ordinary repair gaps and invalidate the old clean revision
+ok 82 - completion review findings become ordinary repair gaps and invalidate the old clean revision
+  ---
+  duration_ms: 5.301506
+  type: 'test'
+  ...
+# Subtest: a human review-budget decision reopens autonomous review without resetting prior cycles
+ok 83 - a human review-budget decision reopens autonomous review without resetting prior cycles
+  ---
+  duration_ms: 2.939574
+  type: 'test'
+  ...
+# Subtest: review-budget extensions reject malformed or non-human decisions
+ok 84 - review-budget extensions reject malformed or non-human decisions
+  ---
+  duration_ms: 0.971416
+  type: 'test'
+  ...
+# Subtest: human questions pause while external handoffs wait only when no Agent gap is ready
+ok 85 - human questions pause while external handoffs wait only when no Agent gap is ready
+  ---
+  duration_ms: 1.153233
+  type: 'test'
+  ...
+# Subtest: Runtime exposes all active Cases for Agent selection without preselecting a gap type
+ok 86 - Runtime exposes all active Cases for Agent selection without preselecting a gap type
+  ---
+  duration_ms: 1.036984
+  type: 'test'
+  ...
+# Subtest: Runtime leaves Case identity empty so the Agent can create the first Case
+ok 87 - Runtime leaves Case identity empty so the Agent can create the first Case
+  ---
+  duration_ms: 0.226062
+  type: 'test'
+  ...
+# Subtest: Chat constrains long structured content to its viewport and scrolls the code viewer on both axes
+ok 88 - Chat constrains long structured content to its viewport and scrolls the code viewer on both axes # SKIP set ARCORBIT_ELECTRON_CHAT_CONTENT_OVERFLOW_TEST=1 to run the Electron Chat overflow regression
+  ---
+  duration_ms: 1.281171
+  type: 'test'
+  ...
+# Subtest: Chat file changes preserve bounded real targets through streaming, persistence and restart
+ok 89 - Chat file changes preserve bounded real targets through streaming, persistence and restart
+  ---
+  duration_ms: 171.700592
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator creates isolated persistent Chat sessions and resumes their thread
+ok 90 - ChatCoordinator creates isolated persistent Chat sessions and resumes their thread
+  ---
+  duration_ms: 79.730627
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator keeps high-frequency deltas in memory and emits a bounded stream projection
+ok 91 - ChatCoordinator keeps high-frequency deltas in memory and emits a bounded stream projection
+  ---
+  duration_ms: 68.670984
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator replays an unbound first-send request without creating another session or turn
+ok 92 - ChatCoordinator replays an unbound first-send request without creating another session or turn
+  ---
+  duration_ms: 46.525847
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator persists an explicit selection across restart without mutating session state
+ok 93 - ChatCoordinator persists an explicit selection across restart without mutating session state
+  ---
+  duration_ms: 48.434051
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator restores an explicit new-chat draft across restart when sessions already exist
+ok 94 - ChatCoordinator restores an explicit new-chat draft across restart when sessions already exist
+  ---
+  duration_ms: 58.064415
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator holds app-server approval until a typed decision and fails closed on rejection
+ok 95 - ChatCoordinator holds app-server approval until a typed decision and fails closed on rejection
+  ---
+  duration_ms: 59.948849
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator reconciles an orphaned active turn as interrupted without exposing its thread
+ok 96 - ChatCoordinator reconciles an orphaned active turn as interrupted without exposing its thread
+  ---
+  duration_ms: 18.862101
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator records Setup Readiness failure and never starts Codex
+ok 97 - ChatCoordinator records Setup Readiness failure and never starts Codex
+  ---
+  duration_ms: 30.182092
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator preserves a terminal error when turn completion follows it
+ok 98 - ChatCoordinator preserves a terminal error when turn completion follows it
+  ---
+  duration_ms: 36.013057
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator completes a turn that recovers from a retryable app-server error
+ok 99 - ChatCoordinator completes a turn that recovers from a retryable app-server error
+  ---
+  duration_ms: 33.656236
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator retries a failed startup with the persisted request and thread without duplicating the user message
+ok 100 - ChatCoordinator retries a failed startup with the persisted request and thread without duplicating the user message
+  ---
+  duration_ms: 51.049094
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator interrupts an active turn before atomically deleting only that session
+ok 101 - ChatCoordinator interrupts an active turn before atomically deleting only that session
+  ---
+  duration_ms: 53.868831
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator times out an unanswered approval as a visible fail-closed decision
+ok 102 - ChatCoordinator times out an unanswered approval as a visible fail-closed decision
+  ---
+  duration_ms: 45.435887
+  type: 'test'
+  ...
+# Subtest: ChatCoordinator can stop during startup without launching a cancelled Codex turn
+ok 103 - ChatCoordinator can stop during startup without launching a cancelled Codex turn
+  ---
+  duration_ms: 26.074096
+  type: 'test'
+  ...
+# Subtest: Chat groups and sorts sessions without a global project filter
+ok 104 - Chat groups and sorts sessions without a global project filter
+  ---
+  duration_ms: 27.46907
+  type: 'test'
+  ...
+# Subtest: Chat shows ten sessions per project and expands only the requested project history
+ok 105 - Chat shows ten sessions per project and expands only the requested project history
+  ---
+  duration_ms: 1.11742
+  type: 'test'
+  ...
+# Subtest: Chat streaming keeps reading position and session switching responsive under continuous deltas
+ok 106 - Chat streaming keeps reading position and session switching responsive under continuous deltas # SKIP set ARCORBIT_ELECTRON_CHAT_STREAM_PERFORMANCE_TEST=1 to run the Electron Chat stream regression
+  ---
+  duration_ms: 1.373388
+  type: 'test'
+  ...
+# Subtest: one app-server client starts one persistent thread and reuses it for every turn
+ok 107 - one app-server client starts one persistent thread and reuses it for every turn
+  ---
+  duration_ms: 10.459925
+  type: 'test'
+  ...
+# Subtest: a new adapter resumes the persisted thread instead of starting a replacement
+ok 108 - a new adapter resumes the persisted thread instead of starting a replacement
+  ---
+  duration_ms: 1.318601
+  type: 'test'
+  ...
+# Subtest: matching Agent turns reuse their stable lane
+ok 109 - matching Agent turns reuse their stable lane
+  ---
+  duration_ms: 3.319494
+  type: 'test'
+  ...
+# Subtest: context compaction runs on the same loaded thread
+ok 110 - context compaction runs on the same loaded thread
+  ---
+  duration_ms: 1.736792
+  type: 'test'
+  ...
+# Subtest: equivalent active commands are single-flight and become a soft event
+ok 111 - equivalent active commands are single-flight and become a soft event
+  ---
+  duration_ms: 3.070737
+  type: 'test'
+  ...
+# Subtest: permission approvals return the granted profile shape required by app-server
+ok 112 - permission approvals return the granted profile shape required by app-server
+  ---
+  duration_ms: 1.281609
+  type: 'test'
+  ...
+# Subtest: a Chat approval provider can fail closed instead of inheriting Runtime auto-accept
+ok 113 - a Chat approval provider can fail closed instead of inheriting Runtime auto-accept
+  ---
+  duration_ms: 1.073339
+  type: 'test'
+  ...
+# Subtest: direct adapter interrupt targets the active Chat turn
+ok 114 - direct adapter interrupt targets the active Chat turn
+  ---
+  duration_ms: 1.482044
+  type: 'test'
+  ...
+# Subtest: terminal app-server errors reject an Agent turn instead of creating a retry handoff
+ok 115 - terminal app-server errors reject an Agent turn instead of creating a retry handoff
+  ---
+  duration_ms: 4.054992
+  type: 'test'
+  ...
+# Subtest: retryable app-server errors retain retry metadata and allow a Chat turn to complete
+ok 116 - retryable app-server errors retain retry metadata and allow a Chat turn to complete
+  ---
+  duration_ms: 1.566802
+  type: 'test'
+  ...
+# Subtest: operator control waits for turn/started after turn/start returns
+ok 117 - operator control waits for turn/started after turn/start returns
+  ---
+  duration_ms: 13.050866
+  type: 'test'
+  ...
+# Subtest: operator control does not wait past a completed turn
+ok 118 - operator control does not wait past a completed turn
+  ---
+  duration_ms: 0.362655
+  type: 'test'
+  ...
+# Subtest: scene dynamic tools use app-server request responses and reject foreign thread calls
+ok 119 - scene dynamic tools use app-server request responses and reject foreign thread calls
+  ---
+  duration_ms: 1.232295
+  type: 'test'
+  ...
+# Subtest: Codex resolver finds and verifies an NVM installation outside a GUI-like PATH
+ok 120 - Codex resolver finds and verifies an NVM installation outside a GUI-like PATH
+  ---
+  duration_ms: 811.500235
+  type: 'test'
+  ...
+# Subtest: Codex resolver fails closed when a discovered executable cannot run
+ok 121 - Codex resolver fails closed when a discovered executable cannot run
+  ---
+  duration_ms: 1.583679
+  type: 'test'
+  ...
+# Subtest: optional candidate source failures do not suppress an independently runnable Codex
+ok 122 - optional candidate source failures do not suppress an independently runnable Codex
+  ---
+  duration_ms: 1.060044
+  type: 'test'
+  ...
+# Subtest: GUI discovery falls back to the login shell PATH and launches with that PATH
+ok 123 - GUI discovery falls back to the login shell PATH and launches with that PATH
+  ---
+  duration_ms: 1.04663
+  type: 'test'
+  ...
+# Subtest: incomplete candidate discovery is not mislabeled as a missing installation
+ok 124 - incomplete candidate discovery is not mislabeled as a missing installation
+  ---
+  duration_ms: 0.759722
+  type: 'test'
+  ...
+# Subtest: shared Codex resolver exposes only a successfully probed command
+ok 125 - shared Codex resolver exposes only a successfully probed command
+  ---
+  duration_ms: 1.522285
+  type: 'test'
+  ...
+# Subtest: shared resolver reuses a shell-discovered executable before querying the shell again
+ok 126 - shared resolver reuses a shell-discovered executable before querying the shell again
+  ---
+  duration_ms: 1.710778
+  type: 'test'
+  ...
+# Subtest: transient version launch failures receive one bounded retry
+ok 127 - transient version launch failures receive one bounded retry
+  ---
+  duration_ms: 1.340672
+  type: 'test'
+  ...
+# Subtest: resolver stage callbacks begin before the corresponding discovery and version work settles
+ok 128 - resolver stage callbacks begin before the corresponding discovery and version work settles
+  ---
+  duration_ms: 3.099942
+  type: 'test'
+  ...
+# Subtest: Windows npm command shims are version-probed through a structured PowerShell boundary
+ok 129 - Windows npm command shims are version-probed through a structured PowerShell boundary
+  ---
+  duration_ms: 1.162688
+  type: 'test'
+  ...
+# Subtest: Windows resolver discovers the newest verified Codex Desktop runtime without a CLI
+ok 130 - Windows resolver discovers the newest verified Codex Desktop runtime without a CLI
+  ---
+  duration_ms: 3.216883
+  type: 'test'
+  ...
+# Subtest: Codex resolver prefers the ArcOrbit override and accepts the legacy override as fallback
+ok 131 - Codex resolver prefers the ArcOrbit override and accepts the legacy override as fallback
+  ---
+  duration_ms: 0.942597
+  type: 'test'
+  ...
+# Subtest: native Codex executables keep a direct version probe
+ok 132 - native Codex executables keep a direct version probe
+  ---
+  duration_ms: 0.310489
+  type: 'test'
+  ...
+# Subtest: Codex provenance distinguishes standalone, package-manager, configured, and unknown executables
+ok 133 - Codex provenance distinguishes standalone, package-manager, configured, and unknown executables
+  ---
+  duration_ms: 0.577908
+  type: 'test'
+  ...
+# Subtest: Windows candidate order keeps standalone ahead of the Desktop runtime fallback
+ok 134 - Windows candidate order keeps standalone ahead of the Desktop runtime fallback
+  ---
+  duration_ms: 2.046662
+  type: 'test'
+  ...
+# Subtest: explicit standalone preference changes only ArcOrbit resolution order
+ok 135 - explicit standalone preference changes only ArcOrbit resolution order
+  ---
+  duration_ms: 0.695087
+  type: 'test'
+  ...
+# Subtest: shared resolver selects the verified standalone executable after explicit preference
+ok 136 - shared resolver selects the verified standalone executable after explicit preference
+  ---
+  duration_ms: 1.897297
+  type: 'test'
+  ...
+# Subtest: Codex semantic versions normalize release tags and compare prereleases
+ok 137 - Codex semantic versions normalize release tags and compare prereleases
+  ---
+  duration_ms: 4.301838
+  type: 'test'
+  ...
+# Subtest: Codex setup network context normalizes proxy keys without removing NO_PROXY
+ok 138 - Codex setup network context normalizes proxy keys without removing NO_PROXY
+  ---
+  duration_ms: 0.571522
+  type: 'test'
+  ...
+# Subtest: install advisor keeps a healthy owner and otherwise recommends standalone
+ok 139 - install advisor keeps a healthy owner and otherwise recommends standalone
+  ---
+  duration_ms: 1.778902
+  type: 'test'
+  ...
+# Subtest: npm ownership is proven only by exact prefix and package metadata
+ok 140 - npm ownership is proven only by exact prefix and package metadata
+  ---
+  duration_ms: 1.637151
+  type: 'test'
+  ...
+# Subtest: owner-aware update checks cache success and force refresh through exact npm
+ok 141 - owner-aware update checks cache success and force refresh through exact npm
+  ---
+  duration_ms: 2.72962
+  type: 'test'
+  ...
+# Subtest: update check failures remain advisory and owner mutations use fixed argv
+ok 142 - update check failures remain advisory and owner mutations use fixed argv
+  ---
+  duration_ms: 1.144191
+  type: 'test'
+  ...
+# Subtest: model settings default only missing or invalid stored fields and preserve manual values
+ok 143 - model settings default only missing or invalid stored fields and preserve manual values
+  ---
+  duration_ms: 3.679388
+  type: 'test'
+  ...
+# Subtest: catalog reads every page through fixed methods and always closes its isolated client
+ok 144 - catalog reads every page through fixed methods and always closes its isolated client
+  ---
+  duration_ms: 2.702655
+  type: 'test'
+  ...
+# Subtest: catalog initialize fails with no partial list or private error and closes
+ok 145 - catalog initialize fails with no partial list or private error and closes
+  ---
+  duration_ms: 0.800225
+  type: 'test'
+  ...
+# Subtest: catalog second-page fails with no partial list or private error and closes
+ok 146 - catalog second-page fails with no partial list or private error and closes
+  ---
+  duration_ms: 0.517837
+  type: 'test'
+  ...
+# Subtest: catalog cycle fails with no partial list or private error and closes
+ok 147 - catalog cycle fails with no partial list or private error and closes
+  ---
+  duration_ms: 0.636295
+  type: 'test'
+  ...
+# Subtest: catalog malformed fails with no partial list or private error and closes
+ok 148 - catalog malformed fails with no partial list or private error and closes
+  ---
+  duration_ms: 5.472422
+  type: 'test'
+  ...
+# Subtest: catalog timeout fails with no partial list or private error and closes
+ok 149 - catalog timeout fails with no partial list or private error and closes
+  ---
+  duration_ms: 11.360868
+  type: 'test'
+  ...
+# Subtest: catalog spawn fails with no partial list or private error and closes
+ok 150 - catalog spawn fails with no partial list or private error and closes
+  ---
+  duration_ms: 0.264455
+  type: 'test'
+  ...
+# Subtest: form keeps drafts on catalog refresh, updates efforts and saves unknown current values
+ok 151 - form keeps drafts on catalog refresh, updates efforts and saves unknown current values
+  ---
+  duration_ms: 4.582373
+  type: 'test'
+  ...
+# Subtest: form failures preserve input, allow retry, and ignore a response from an earlier opening
+ok 152 - form failures preserve input, allow retry, and ignore a response from an earlier opening
+  ---
+  duration_ms: 1.820533
+  type: 'test'
+  ...
+# Subtest: Codex model output schemas satisfy strict structured-output requirements
+ok 153 - Codex model output schemas satisfy strict structured-output requirements
+  ---
+  duration_ms: 13.944252
+  type: 'test'
+  ...
+# Subtest: every Runtime schema const declares its type
+ok 154 - every Runtime schema const declares its type
+  ---
+  duration_ms: 7.786234
+  type: 'test'
+  ...
+# Subtest: Agent invariant judgment schema prevents Ledger-invalid disposition combinations
+ok 155 - Agent invariant judgment schema prevents Ledger-invalid disposition combinations
+  ---
+  duration_ms: 2.018034
+  type: 'test'
+  ...
+# Subtest: Agent Project-gap change schema binds content to its action
+ok 156 - Agent Project-gap change schema binds content to its action
+  ---
+  duration_ms: 2.246637
+  type: 'test'
+  ...
+# Subtest: Case control schema uses supported mutually exclusive anyOf branches
+ok 157 - Case control schema uses supported mutually exclusive anyOf branches
+  ---
+  duration_ms: 2.035835
+  type: 'test'
+  ...
+# Subtest: Codex output schema preflight reports the failures rejected by app-server
+ok 158 - Codex output schema preflight reports the failures rejected by app-server
+  ---
+  duration_ms: 0.62772
+  type: 'test'
+  ...
+# Subtest: standalone owner receipts persist atomically without auth or proxy data
+ok 159 - standalone owner receipts persist atomically without auth or proxy data
+  ---
+  duration_ms: 19.881972
+  type: 'test'
+  ...
+# Subtest: real settings page offers model-specific suggestions, saves in place and recovers failures
+ok 160 - real settings page offers model-specific suggestions, saves in place and recovers failures # SKIP set ARCORBIT_ELECTRON_LAYOUT_TEST=1 for Electron behavior verification
+  ---
+  duration_ms: 1.752097
+  type: 'test'
+  ...
+# Subtest: Codex Setup IPC rejects foreign senders and stale or replayed confirmations
+ok 161 - Codex Setup IPC rejects foreign senders and stale or replayed confirmations
+  ---
+  duration_ms: 5.215136
+  type: 'test'
+  ...
+# Subtest: Codex Setup IPC binds install confirmation to the selected owner method
+ok 162 - Codex Setup IPC binds install confirmation to the selected owner method
+  ---
+  duration_ms: 1.090848
+  type: 'test'
+  ...
+# Subtest: Codex Setup IPC requires cancel operation identity
+ok 163 - Codex Setup IPC requires cancel operation identity
+  ---
+  duration_ms: 0.744338
+  type: 'test'
+  ...
+# Subtest: Codex Setup IPC binds one-time confirmation to the selected login intent without exposing secrets
+ok 164 - Codex Setup IPC binds one-time confirmation to the selected login intent without exposing secrets
+  ---
+  duration_ms: 1.561299
+  type: 'test'
+  ...
+# Subtest: official installer specs are fixed per supported platform and never use a shell string
+ok 165 - official installer specs are fixed per supported platform and never use a shell string
+  ---
+  duration_ms: 4.314011
+  type: 'test'
+  ...
+# Subtest: controlled process cancellation and timeout settle only after the child closes
+ok 166 - controlled process cancellation and timeout settle only after the child closes
+  ---
+  duration_ms: 1361.801803
+  type: 'test'
+  ...
+# Subtest: secret login specs frame credentials as controllable stdin buffers
+ok 167 - secret login specs frame credentials as controllable stdin buffers
+  ---
+  duration_ms: 1.100888
+  type: 'test'
+  ...
+# Subtest: Windows npm command shims use a fixed PowerShell boundary while secrets remain stdin-only
+ok 168 - Windows npm command shims use a fixed PowerShell boundary while secrets remain stdin-only
+  ---
+  duration_ms: 0.769749
+  type: 'test'
+  ...
+# Subtest: Windows PowerShell 5.1 preserves Codex setup command argument boundaries
+ok 169 - Windows PowerShell 5.1 preserves Codex setup command argument boundaries # SKIP
+  ---
+  duration_ms: 0.343793
+  type: 'test'
+  ...
+# Subtest: controlled process writes framed stdin and clears its buffer before child close
+ok 170 - controlled process writes framed stdin and clears its buffer before child close
+  ---
+  duration_ms: 242.036757
+  type: 'test'
+  ...
+# Subtest: ChatGPT login requires an explicit flow and gates device auth by capability
+ok 171 - ChatGPT login requires an explicit flow and gates device auth by capability
+  ---
+  duration_ms: 3.136452
+  type: 'test'
+  ...
+# Subtest: device auth output parser exposes only an official HTTPS URL and one-time code
+ok 172 - device auth output parser exposes only an official HTTPS URL and one-time code
+  ---
+  duration_ms: 1.50046
+  type: 'test'
+  ...
+# Subtest: manager reports selection-required with no inferred auth method
+ok 173 - manager reports selection-required with no inferred auth method
+  ---
+  duration_ms: 6.883224
+  type: 'test'
+  ...
+# Subtest: preflight consumes the cached ready snapshot without launching fresh probes
+ok 174 - preflight consumes the cached ready snapshot without launching fresh probes
+  ---
+  duration_ms: 2.694152
+  type: 'test'
+  ...
+# Subtest: preflight refreshes a non-ready snapshot after an external Codex upgrade
+ok 175 - preflight refreshes a non-ready snapshot after an external Codex upgrade
+  ---
+  duration_ms: 2.915783
+  type: 'test'
+  ...
+# Subtest: broken executable facts preserve the discovered path and structured failure
+ok 176 - broken executable facts preserve the discovered path and structured failure
+  ---
+  duration_ms: 2.3087
+  type: 'test'
+  ...
+# Subtest: preflight fails closed from the cached snapshot while a setup mutation is active
+ok 177 - preflight fails closed from the cached snapshot while a setup mutation is active
+  ---
+  duration_ms: 7.257945
+  type: 'test'
+  ...
+# Subtest: fresh login-status distinguishes expired authentication and normalizes probe failures
+ok 178 - fresh login-status distinguishes expired authentication and normalizes probe failures
+  ---
+  duration_ms: 3.919849
+  type: 'test'
+  ...
+# Subtest: API key login never projects the secret and becomes ready only after login-status succeeds
+ok 179 - API key login never projects the secret and becomes ready only after login-status succeeds
+  ---
+  duration_ms: 3.069302
+  type: 'test'
+  ...
+# Subtest: successful login process reports login-failed until fresh status proves authentication
+ok 180 - successful login process reports login-failed until fresh status proves authentication
+  ---
+  duration_ms: 3.922229
+  type: 'test'
+  ...
+# Subtest: explicit logout revalidation reports logged-out instead of expired
+ok 181 - explicit logout revalidation reports logged-out instead of expired
+  ---
+  duration_ms: 3.11083
+  type: 'test'
+  ...
+# Subtest: logout succeeds only when fresh status proves the session is logged out
+ok 182 - logout succeeds only when fresh status proves the session is logged out
+  ---
+  duration_ms: 5.463531
+  type: 'test'
+  ...
+# Subtest: device login projects a bounded challenge while the official process is running
+ok 183 - device login projects a bounded challenge while the official process is running
+  ---
+  duration_ms: 3.403492
+  type: 'test'
+  ...
+# Subtest: standalone update is blocked while any Codex owner is active
+ok 184 - standalone update is blocked while any Codex owner is active
+  ---
+  duration_ms: 2.483231
+  type: 'test'
+  ...
+# Subtest: external installations reject direct update with the stable recovery code
+ok 185 - external installations reject direct update with the stable recovery code
+  ---
+  duration_ms: 6.942605
+  type: 'test'
+  ...
+# Subtest: proven npm installations update through their exact owner and refresh versions
+ok 186 - proven npm installations update through their exact owner and refresh versions
+  ---
+  duration_ms: 4.119414
+  type: 'test'
+  ...
+# Subtest: standalone update succeeds only when fresh discovery remains proven standalone
+ok 187 - standalone update succeeds only when fresh discovery remains proven standalone
+  ---
+  duration_ms: 7.071747
+  type: 'test'
+  ...
+# Subtest: install is blocked while any Codex owner is active
+ok 188 - install is blocked while any Codex owner is active
+  ---
+  duration_ms: 2.012659
+  type: 'test'
+  ...
+# Subtest: active owner recovery projection contains only bounded non-sensitive owner refs
+ok 189 - active owner recovery projection contains only bounded non-sensitive owner refs
+  ---
+  duration_ms: 2.090728
+  type: 'test'
+  ...
+# Subtest: install uses the allowlisted platform URL then revalidates without restart
+ok 190 - install uses the allowlisted platform URL then revalidates without restart
+  ---
+  duration_ms: 4.681051
+  type: 'test'
+  ...
+# Subtest: successful installer reports install-failed until fresh discovery proves Codex is available
+ok 191 - successful installer reports install-failed until fresh discovery proves Codex is available
+  ---
+  duration_ms: 2.441135
+  type: 'test'
+  ...
+# Subtest: successful mutations clear cancellation identity before fresh inspection
+ok 192 - successful mutations clear cancellation identity before fresh inspection
+  ---
+  duration_ms: 3.960543
+  type: 'test'
+  ...
+# Subtest: standalone migration succeeds only when fresh discovery selects proven standalone
+ok 193 - standalone migration succeeds only when fresh discovery selects proven standalone
+  ---
+  duration_ms: 5.525969
+  type: 'test'
+  ...
+# Subtest: failed installer and cancelled login stay recoverable without projecting process details
+ok 194 - failed installer and cancelled login stay recoverable without projecting process details
+  ---
+  duration_ms: 4.485698
+  type: 'test'
+  ...
+# Subtest: failed installer mutations refresh executable state while preserving failure classification
+ok 195 - failed installer mutations refresh executable state while preserving failure classification
+  ---
+  duration_ms: 7.466687
+  type: 'test'
+  ...
+# Subtest: cancelled installer refreshes executable state before returning the cancellation
+ok 196 - cancelled installer refreshes executable state before returning the cancellation
+  ---
+  duration_ms: 2.327333
+  type: 'test'
+  ...
+# Subtest: serialized mutations revalidate their preconditions after earlier queued work
+ok 197 - serialized mutations revalidate their preconditions after earlier queued work
+  ---
+  duration_ms: 17.087157
+  type: 'test'
+  ...
+# Subtest: failed and timed-out login processes always recheck status before reporting login-failed
+ok 198 - failed and timed-out login processes always recheck status before reporting login-failed
+  ---
+  duration_ms: 3.886696
+  type: 'test'
+  ...
+# Subtest: installer download is temporary, owner-only, and removed after execution
+ok 199 - installer download is temporary, owner-only, and removed after execution
+  ---
+  duration_ms: 54.47817
+  type: 'test'
+  ...
+# Subtest: installer download maps DNS failures without exposing raw diagnostics
+ok 200 - installer download maps DNS failures without exposing raw diagnostics
+  ---
+  duration_ms: 4.258125
+  type: 'test'
+  ...
+# Subtest: installer download rejects declared and streamed responses above the fixed size bound
+ok 201 - installer download rejects declared and streamed responses above the fixed size bound
+  ---
+  duration_ms: 6.897532
+  type: 'test'
+  ...
+# Subtest: active owner projection covers concurrent Automation and Chat owners
+ok 202 - active owner projection covers concurrent Automation and Chat owners
+  ---
+  duration_ms: 0.481856
+  type: 'test'
+  ...
+# Subtest: default execution accepts candidate and current-turn fresh gaps from one coherent using-arckit Agent
+ok 203 - default execution accepts candidate and current-turn fresh gaps from one coherent using-arckit Agent
+  ---
+  duration_ms: 295.665778
+  type: 'test'
+  ...
+# Subtest: main window denies child windows and navigation outside its renderer entry
+ok 204 - main window denies child windows and navigation outside its renderer entry
+  ---
+  duration_ms: 2.309656
+  type: 'test'
+  ...
+# Subtest: Chat state coordinator captures draft ownership and flushes before selection changes
+ok 205 - Chat state coordinator captures draft ownership and flushes before selection changes
+  ---
+  duration_ms: 6.450881
+  type: 'test'
+  ...
+# Subtest: Chat and Automation common messages use the same Conversation Surface presentation
+ok 206 - Chat and Automation common messages use the same Conversation Surface presentation
+  ---
+  duration_ms: 3.369223
+  type: 'test'
+  ...
+# Subtest: Conversation Surface coalesces live follow into one instant scroll per frame
+ok 207 - Conversation Surface coalesces live follow into one instant scroll per frame
+  ---
+  duration_ms: 3.141914
+  type: 'test'
+  ...
+# Subtest: Conversation Surface cancels a queued auto-follow as soon as the user starts scrolling
+ok 208 - Conversation Surface cancels a queued auto-follow as soon as the user starts scrolling
+  ---
+  duration_ms: 0.773713
+  type: 'test'
+  ...
+# Subtest: Conversation Surface isolates queued follow and detached reading position by context
+ok 209 - Conversation Surface isolates queued follow and detached reading position by context
+  ---
+  duration_ms: 1.149343
+  type: 'test'
+  ...
+# Subtest: Conversation Surface skips DOM and scroll work when a stream projection is unchanged
+ok 210 - Conversation Surface skips DOM and scroll work when a stream projection is unchanged
+  ---
+  duration_ms: 0.912384
+  type: 'test'
+  ...
+# Subtest: Conversation Surface preserves user reading position across repeated renders
+ok 211 - Conversation Surface preserves user reading position across repeated renders
+  ---
+  duration_ms: 0.738001
+  type: 'test'
+  ...
+# Subtest: Conversation Surface reserves smooth scrolling for an explicit latest jump
+ok 212 - Conversation Surface reserves smooth scrolling for an explicit latest jump
+  ---
+  duration_ms: 0.631143
+  type: 'test'
+  ...
+# Subtest: Conversation Surface code copy exposes rejection to the shared action boundary
+ok 213 - Conversation Surface code copy exposes rejection to the shared action boundary
+  ---
+  duration_ms: 2.030451
+  type: 'test'
+  ...
+# Subtest: Chat state coordinator serializes captured draft owners without applying persistence responses
+ok 214 - Chat state coordinator serializes captured draft owners without applying persistence responses
+  ---
+  duration_ms: 25.332788
+  type: 'test'
+  ...
+# Subtest: Chat session selection flushes the old draft before persisting and applying the target
+ok 215 - Chat session selection flushes the old draft before persisting and applying the target
+  ---
+  duration_ms: 0.921122
+  type: 'test'
+  ...
+# Subtest: Chat session selection ignores a stale response that completes after the latest intent
+ok 216 - Chat session selection ignores a stale response that completes after the latest intent
+  ---
+  duration_ms: 2.162123
+  type: 'test'
+  ...
+# Subtest: Chat session response is invalidated by a later new-draft intent
+ok 217 - Chat session response is invalidated by a later new-draft intent
+  ---
+  duration_ms: 1.613606
+  type: 'test'
+  ...
+# Subtest: Chat new-draft response preserves and persists Composer input typed while its request is pending
+ok 218 - Chat new-draft response preserves and persists Composer input typed while its request is pending
+  ---
+  duration_ms: 1.344661
+  type: 'test'
+  ...
+# Subtest: Chat workspace response preserves and persists newer Composer input for the new draft owner
+ok 219 - Chat workspace response preserves and persists newer Composer input for the new draft owner
+  ---
+  duration_ms: 2.582837
+  type: 'test'
+  ...
+# Subtest: Chat owner intents keep first send on the latest visible workspace and reject the older workspace response
+ok 220 - Chat owner intents keep first send on the latest visible workspace and reject the older workspace response
+  ---
+  duration_ms: 1.973565
+  type: 'test'
+  ...
+# Subtest: Chat background refresh cannot roll back a newer draft-workspace transition
+ok 221 - Chat background refresh cannot roll back a newer draft-workspace transition
+  ---
+  duration_ms: 1.834705
+  type: 'test'
+  ...
+# Subtest: Chat first send adopts the new session without losing or misowning an in-flight draft
+ok 222 - Chat first send adopts the new session without losing or misowning an in-flight draft
+  ---
+  duration_ms: 3.563582
+  type: 'test'
+  ...
+# Subtest: Chat send does not clear newer Composer input while the accepted draft is still flushing
+ok 223 - Chat send does not clear newer Composer input while the accepted draft is still flushing
+  ---
+  duration_ms: 3.064785
+  type: 'test'
+  ...
+# Subtest: Chat session mutation response cannot project the old transcript after a later selection
+ok 224 - Chat session mutation response cannot project the old transcript after a later selection
+  ---
+  duration_ms: 0.676946
+  type: 'test'
+  ...
+# Subtest: Chat retry identity is owned by the current failed-session transition
+ok 225 - Chat retry identity is owned by the current failed-session transition
+  ---
+  duration_ms: 0.415768
+  type: 'test'
+  ...
+# Subtest: Chat refresh exposes progress immediately and only the latest refresh may project
+ok 226 - Chat refresh exposes progress immediately and only the latest refresh may project
+  ---
+  duration_ms: 0.416938
+  type: 'test'
+  ...
+# Subtest: Chat stream events patch only the selected session without starting a snapshot refresh
+ok 227 - Chat stream events patch only the selected session without starting a snapshot refresh
+  ---
+  duration_ms: 0.570225
+  type: 'test'
+  ...
+# Subtest: Chat refresh cannot erase a stream patch that arrives while its snapshot is in flight
+ok 228 - Chat refresh cannot erase a stream patch that arrives while its snapshot is in flight
+  ---
+  duration_ms: 0.488426
+  type: 'test'
+  ...
+# Subtest: Chat Renderer separates stream patches from coalesced structural refreshes
+ok 229 - Chat Renderer separates stream patches from coalesced structural refreshes
+  ---
+  duration_ms: 8.805128
+  type: 'test'
+  ...
+# Subtest: Chat navigation renders the cached page before starting its background refresh
+ok 230 - Chat navigation renders the cached page before starting its background refresh
+  ---
+  duration_ms: 3.711137
+  type: 'test'
+  ...
+# Subtest: Chat Renderer delegates all owner, epoch, projection, retry, send and persistence transitions
+ok 231 - Chat Renderer delegates all owner, epoch, projection, retry, send and persistence transitions
+  ---
+  duration_ms: 9.283574
+  type: 'test'
+  ...
+# Subtest: Chat project selector changes only the new draft owner and persisted session ownership stays fixed
+ok 232 - Chat project selector changes only the new draft owner and persisted session ownership stays fixed
+  ---
+  duration_ms: 6.697167
+  type: 'test'
+  ...
+# Subtest: Chat Renderer groups all snapshot sessions by Product Workspace with bounded inline history
+ok 233 - Chat Renderer groups all snapshot sessions by Product Workspace with bounded inline history
+  ---
+  duration_ms: 4.520543
+  type: 'test'
+  ...
+# Subtest: Work navigation renders immediately before starting its dedicated query refresh
+ok 234 - Work navigation renders immediately before starting its dedicated query refresh
+  ---
+  duration_ms: 6.438631
+  type: 'test'
+  ...
+# Subtest: Automation activity invalidation refreshes only the visible Run surface
+ok 235 - Automation activity invalidation refreshes only the visible Run surface
+  ---
+  duration_ms: 4.107974
+  type: 'test'
+  ...
+# Subtest: Work and Feedback assign one control row and all remaining height to their split workbench
+ok 236 - Work and Feedback assign one control row and all remaining height to their split workbench
+  ---
+  duration_ms: 3.658771
+  type: 'test'
+  ...
+# Subtest: desktop primary surface is a simultaneous multi-product platform while preserving Automation
+ok 237 - desktop primary surface is a simultaneous multi-product platform while preserving Automation
+  ---
+  duration_ms: 44.521388
+  type: 'test'
+  ...
+# Subtest: desktop keeps the remaining lifecycle previews inert while Chat is a real isolated Codex surface
+ok 238 - desktop keeps the remaining lifecycle previews inert while Chat is a real isolated Codex surface
+  ---
+  duration_ms: 7.008298
+  type: 'test'
+  ...
+# Subtest: Desktop opens feedback attachments through a bounded main-process HTTPS capability
+ok 239 - Desktop opens feedback attachments through a bounded main-process HTTPS capability
+  ---
+  duration_ms: 2.378633
+  type: 'test'
+  ...
+# Subtest: Desktop keeps developer Feedback V2 conversation behind dedicated typed IPC
+ok 240 - Desktop keeps developer Feedback V2 conversation behind dedicated typed IPC
+  ---
+  duration_ms: 5.29008
+  type: 'test'
+  ...
+# Subtest: Feedback V2 typed IPC preserves status and Renderer executes 401 and 404 recovery
+ok 241 - Feedback V2 typed IPC preserves status and Renderer executes 401 and 404 recovery
+  ---
+  duration_ms: 5.986633
+  type: 'test'
+  ...
+# Subtest: Feedback restore writes the complete V1 mapping and keeps V2 failures non-optimistic
+ok 242 - Feedback restore writes the complete V1 mapping and keeps V2 failures non-optimistic
+  ---
+  duration_ms: 5.855393
+  type: 'test'
+  ...
+# Subtest: Feedback list keeps every feedback on one compact visual row
+ok 243 - Feedback list keeps every feedback on one compact visual row
+  ---
+  duration_ms: 11.131527
+  type: 'test'
+  ...
+# Subtest: Feedback detail scrolls internally and image attachments reuse the managed image viewer
+ok 244 - Feedback detail scrolls internally and image attachments reuse the managed image viewer
+  ---
+  duration_ms: 4.881243
+  type: 'test'
+  ...
+# Subtest: Feedback V2 read state respects notification capability and refreshes visible unread projection
+ok 245 - Feedback V2 read state respects notification capability and refreshes visible unread projection
+  ---
+  duration_ms: 6.84422
+  type: 'test'
+  ...
+# Subtest: Feedback V2 conversation freshness composes automatic and manual reload triggers
+ok 246 - Feedback V2 conversation freshness composes automatic and manual reload triggers
+  ---
+  duration_ms: 14.145489
+  type: 'test'
+  ...
+# Subtest: Feedback V2 conversation loading deduplicates requests, preserves local state, and ignores stale responses
+ok 247 - Feedback V2 conversation loading deduplicates requests, preserves local state, and ignores stale responses
+  ---
+  duration_ms: 12.745957
+  type: 'test'
+  ...
+# Subtest: Feedback V2 conversation load failure keeps cached messages, draft, attachment, and unread state
+ok 248 - Feedback V2 conversation load failure keeps cached messages, draft, attachment, and unread state
+  ---
+  duration_ms: 10.616759
+  type: 'test'
+  ...
+# Subtest: ADVANCE owns one top product-set scope while Work and Automation own their local filters
+ok 249 - ADVANCE owns one top product-set scope while Work and Automation own their local filters
+  ---
+  duration_ms: 15.058557
+  type: 'test'
+  ...
+# Subtest: Work exposes local-projection filters, task hierarchy, complete detail, subtasks and TaskAttachment collaboration
+ok 250 - Work exposes local-projection filters, task hierarchy, complete detail, subtasks and TaskAttachment collaboration
+  ---
+  duration_ms: 27.337212
+  type: 'test'
+  ...
+# Subtest: Today directly renders acceptance issue progress and preserves valid selection after submission
+ok 251 - Today directly renders acceptance issue progress and preserves valid selection after submission
+  ---
+  duration_ms: 5.366998
+  type: 'test'
+  ...
+# Subtest: Work opens allowed Markdown links through a bounded main-process capability
+ok 252 - Work opens allowed Markdown links through a bounded main-process capability
+  ---
+  duration_ms: 4.616534
+  type: 'test'
+  ...
+# Subtest: desktop renders and composes type-preserving TaskAttachment resources through bounded IPC
+ok 253 - desktop renders and composes type-preserving TaskAttachment resources through bounded IPC
+  ---
+  duration_ms: 8.332382
+  type: 'test'
+  ...
+# Subtest: desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views
+ok 254 - desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views
+  ---
+  duration_ms: 19.357813
+  type: 'test'
+  ...
+# Subtest: Desktop gates automation behind bounded Setup Readiness plan and confirmation IPC
+ok 255 - Desktop gates automation behind bounded Setup Readiness plan and confirmation IPC
+  ---
+  duration_ms: 47.047863
+  type: 'test'
+  ...
+# Subtest: Desktop resolves startup and selected-project Setup checks from every trusted local workspace
+ok 256 - Desktop resolves startup and selected-project Setup checks from every trusted local workspace
+  ---
+  duration_ms: 3.498465
+  type: 'test'
+  ...
+# Subtest: Desktop Setup aggregate rejects stale divergent Codex evidence with an actionable error
+ok 257 - Desktop Setup aggregate rejects stale divergent Codex evidence with an actionable error
+  ---
+  duration_ms: 1.681507
+  type: 'test'
+  ...
+# Subtest: Desktop Setup checks fresh associated roots at startup and for a selected project
+ok 258 - Desktop Setup checks fresh associated roots at startup and for a selected project
+  ---
+  duration_ms: 0.944631
+  type: 'test'
+  ...
+# Subtest: Desktop startup Automation gate rejects project skill drift and first-install readiness
+ok 259 - Desktop startup Automation gate rejects project skill drift and first-install readiness
+  ---
+  duration_ms: 2.319301
+  type: 'test'
+  ...
+# Subtest: workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries
+ok 260 - workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries
+  ---
+  duration_ms: 3.159861
+  type: 'test'
+  ...
+# Subtest: transcript hides empty reasoning and recognizes persisted schema JSON without rewriting it
+ok 261 - transcript hides empty reasoning and recognizes persisted schema JSON without rewriting it
+  ---
+  duration_ms: 1.171885
+  type: 'test'
+  ...
+# Subtest: Automation transcript preserves Agent items across intervention, failed recovery Runs and historical review
+ok 262 - Automation transcript preserves Agent items across intervention, failed recovery Runs and historical review
+  ---
+  duration_ms: 36.233558
+  type: 'test'
+  ...
+# Subtest: Round Closeout v2 presents trusted invariant judgments
+ok 263 - Round Closeout v2 presents trusted invariant judgments
+  ---
+  duration_ms: 0.31063
+  type: 'test'
+  ...
+# Subtest: desktop main and preload expose bounded automation IPC without a generic network bridge
+ok 264 - desktop main and preload expose bounded automation IPC without a generic network bridge
+  ---
+  duration_ms: 19.565746
+  type: 'test'
+  ...
+# Subtest: desktop main and preload expose bounded platform composition IPC without credentials or generic requests
+ok 265 - desktop main and preload expose bounded platform composition IPC without credentials or generic requests
+  ---
+  duration_ms: 1.919633
+  type: 'test'
+  ...
+# Subtest: ArcOrbit exposes one authenticated in-product feedback entry without user configuration
+ok 266 - ArcOrbit exposes one authenticated in-product feedback entry without user configuration
+  ---
+  duration_ms: 10.28473
+  type: 'test'
+  ...
+# Subtest: task source settings keep the access token write-only in Renderer
+ok 267 - task source settings keep the access token write-only in Renderer
+  ---
+  duration_ms: 3.511232
+  type: 'test'
+  ...
+# Subtest: desktop account panel supports bounded verification login, expiry, and confirmed logout
+ok 268 - desktop account panel supports bounded verification login, expiry, and confirmed logout
+  ---
+  duration_ms: 6.779923
+  type: 'test'
+  ...
+# Subtest: Desktop ledger commands reference the userData run without copying it into the project
+ok 269 - Desktop ledger commands reference the userData run without copying it into the project
+  ---
+  duration_ms: 2.807516
+  type: 'test'
+  ...
+# Subtest: Desktop does not project a blocked no-progress Runtime result as completed
+ok 270 - Desktop does not project a blocked no-progress Runtime result as completed
+  ---
+  duration_ms: 0.498552
+  type: 'test'
+  ...
+# Subtest: run summary projection keeps control metrics without transcript or activity payloads
+ok 271 - run summary projection keeps control metrics without transcript or activity payloads
+  ---
+  duration_ms: 0.560882
+  type: 'test'
+  ...
+# Subtest: legacy run summary warmup reads bounded activity only and persists the summary index
+ok 272 - legacy run summary warmup reads bounded activity only and persists the summary index
+  ---
+  duration_ms: 48.955776
+  type: 'test'
+  ...
+# Subtest: readiness preflight validates repository capabilities without inspecting Codex-installed skills
+ok 273 - readiness preflight validates repository capabilities without inspecting Codex-installed skills
+  ---
+  duration_ms: 240.276363
+  type: 'test'
+  ...
+# Subtest: desktop run manager reads canonical active and closed Case records for reconciliation
+ok 274 - desktop run manager reads canonical active and closed Case records for reconciliation
+  ---
+  duration_ms: 30.25756
+  type: 'test'
+  ...
+# Subtest: a restarted run loads the persisted task thread binding before spawning Runtime
+ok 275 - a restarted run loads the persisted task thread binding before spawning Runtime
+  ---
+  duration_ms: 39.744949
+  type: 'test'
+  ...
+# Subtest: desktop run manager forwards the resolved Codex command and execution PATH
+ok 276 - desktop run manager forwards the resolved Codex command and execution PATH
+  ---
+  duration_ms: 46.49134
+  type: 'test'
+  ...
+# Subtest: model catalog uses trusted executable and saved proxy without accepting Renderer execution parameters
+ok 277 - model catalog uses trusted executable and saved proxy without accepting Renderer execution parameters
+  ---
+  duration_ms: 13.428075
+  type: 'test'
+  ...
+# Subtest: desktop run manager delegates packaged execution to the utility-process host
+ok 278 - desktop run manager delegates packaged execution to the utility-process host
+  ---
+  duration_ms: 29.544727
+  type: 'test'
+  ...
+# Subtest: desktop run manager refuses to remove a project with an active state-driven run
+ok 279 - desktop run manager refuses to remove a project with an active state-driven run
+  ---
+  duration_ms: 40.461136
+  type: 'test'
+  ...
+# Subtest: desktop run manager atomically deduplicates acceptance feedback messages
+ok 280 - desktop run manager atomically deduplicates acceptance feedback messages
+  ---
+  duration_ms: 24.564478
+  type: 'test'
+  ...
+# Subtest: desktop run manager persists semantic messages without duplicating high-frequency deltas
+ok 281 - desktop run manager persists semantic messages without duplicating high-frequency deltas
+  ---
+  duration_ms: 292.89288
+  type: 'test'
+  ...
+# Subtest: desktop run manager restores distinct Automation Agent items after restart
+ok 282 - desktop run manager restores distinct Automation Agent items after restart
+  ---
+  duration_ms: 285.502314
+  type: 'test'
+  ...
+# Subtest: platform desktop renders the confirmed multi-product shell geometry
+ok 283 - platform desktop renders the confirmed multi-product shell geometry # SKIP set ARCORBIT_ELECTRON_LAYOUT_TEST=1 to run the real-render Electron regression
+  ---
+  duration_ms: 1.339125
+  type: 'test'
+  ...
+# Subtest: Intervention Workbench confines heading and transcript to the middle column at the responsive boundary
+ok 284 - Intervention Workbench confines heading and transcript to the middle column at the responsive boundary # SKIP set ARCORBIT_ELECTRON_LAYOUT_TEST=1 to run the real-render Electron regression
+  ---
+  duration_ms: 0.216842
+  type: 'test'
+  ...
+# Subtest: desktop store serializes concurrent reads and updates
+ok 285 - desktop store serializes concurrent reads and updates
+  ---
+  duration_ms: 165.174516
+  type: 'test'
+  ...
+# Subtest: desktop state kernel reads durable state once and publishes monotonic state views
+ok 286 - desktop state kernel reads durable state once and publishes monotonic state views
+  ---
+  duration_ms: 27.984866
+  type: 'test'
+  ...
+# Subtest: desktop store migrates messages and Task Projection behind an atomic partition manifest
+ok 287 - desktop store migrates messages and Task Projection behind an atomic partition manifest
+  ---
+  duration_ms: 23.253804
+  type: 'test'
+  ...
+# Subtest: partition migration leaves the legacy control snapshot intact when manifest commit fails
+ok 288 - partition migration leaves the legacy control snapshot intact when manifest commit fails
+  ---
+  duration_ms: 22.26944
+  type: 'test'
+  ...
+# Subtest: deleteProjectSession removes only the selected chat and its messages
+ok 289 - deleteProjectSession removes only the selected chat and its messages
+  ---
+  duration_ms: 1.158022
+  type: 'test'
+  ...
+# Subtest: desktop store upgrades automation state and keeps task source tokens out of public settings
+ok 290 - desktop store upgrades automation state and keeps task source tokens out of public settings
+  ---
+  duration_ms: 1.356402
+  type: 'test'
+  ...
+# Subtest: desktop store bounds historical task labels without changing task content
+ok 291 - desktop store bounds historical task labels without changing task content
+  ---
+  duration_ms: 4.11976
+  type: 'test'
+  ...
+# Subtest: desktop store migrates legacy external wait into actionable human intervention
+ok 292 - desktop store migrates legacy external wait into actionable human intervention
+  ---
+  duration_ms: 0.596152
+  type: 'test'
+  ...
+# Subtest: desktop store preserves realtime diagnostics and ignores idle subscriptions in aggregate health
+ok 293 - desktop store preserves realtime diagnostics and ignores idle subscriptions in aggregate health
+  ---
+  duration_ms: 0.90274
+  type: 'test'
+  ...
+# Subtest: desktop store preserves bounded task replacement recovery state across restart normalization
+ok 294 - desktop store preserves bounded task replacement recovery state across restart normalization
+  ---
+  duration_ms: 1.083128
+  type: 'test'
+  ...
+# Subtest: desktop store migrates v9 bindings into a local workset without changing automation participation
+ok 295 - desktop store migrates v9 bindings into a local workset without changing automation participation
+  ---
+  duration_ms: 2.598114
+  type: 'test'
+  ...
+# Subtest: desktop store v16 preserves user control facts and invalidates only derived task readiness
+ok 296 - desktop store v16 preserves user control facts and invalidates only derived task readiness
+  ---
+  duration_ms: 0.795469
+  type: 'test'
+  ...
+# Subtest: desktop store migrates a missing Chat selection without replacing an explicit new-chat selection
+ok 297 - desktop store migrates a missing Chat selection without replacing an explicit new-chat selection
+  ---
+  duration_ms: 0.484978
+  type: 'test'
+  ...
+# Subtest: desktop store migrates v14 Work Inspector width into a normalized global UI preference
+ok 298 - desktop store migrates v14 Work Inspector width into a normalized global UI preference
+  ---
+  duration_ms: 0.450518
+  type: 'test'
+  ...
+# Subtest: desktop store persists an independent Today project scope and migrates legacy users from the active Workset
+ok 299 - desktop store persists an independent Today project scope and migrates legacy users from the active Workset
+  ---
+  duration_ms: 0.528055
+  type: 'test'
+  ...
+# Subtest: desktop store restores the global Work Inspector width after reopening
+ok 300 - desktop store restores the global Work Inspector width after reopening
+  ---
+  duration_ms: 40.604779
+  type: 'test'
+  ...
+# Subtest: desktop store preserves acceptance feedback and requeues an orphaned running item
+ok 301 - desktop store preserves acceptance feedback and requeues an orphaned running item
+  ---
+  duration_ms: 0.581846
+  type: 'test'
+  ...
+# Subtest: desktop store retains every historical reference needed by acceptance review
+ok 302 - desktop store retains every historical reference needed by acceptance review
+  ---
+  duration_ms: 38.598053
+  type: 'test'
+  ...
+# Subtest: ArcOrbit uses only its canonical post-rename Electron userData identity
+ok 303 - ArcOrbit uses only its canonical post-rename Electron userData identity
+  ---
+  duration_ms: 2.665257
+  type: 'test'
+  ...
+# Subtest: a persisted schema-bound Agent result recovers a human handoff from a truncated Runtime tail
+ok 304 - a persisted schema-bound Agent result recovers a human handoff from a truncated Runtime tail
+  ---
+  duration_ms: 2.062241
+  type: 'test'
+  ...
+# Subtest: a complete Runtime handoff remains authoritative over a persisted Agent fallback
+ok 305 - a complete Runtime handoff remains authoritative over a persisted Agent fallback
+  ---
+  duration_ms: 0.343169
+  type: 'test'
+  ...
+# Subtest: an accepted ledger handoff overrides pre-commit Runtime and Agent handoffs
+ok 306 - an accepted ledger handoff overrides pre-commit Runtime and Agent handoffs
+  ---
+  duration_ms: 0.375987
+  type: 'test'
+  ...
+# Subtest: an unaccepted ledger handoff cannot override the Runtime handoff
+ok 307 - an unaccepted ledger handoff cannot override the Runtime handoff
+  ---
+  duration_ms: 0.284488
+  type: 'test'
+  ...
+# Subtest: Electron fixtures disable the Chromium sandbox only on Linux CI
+ok 308 - Electron fixtures disable the Chromium sandbox only on Linux CI
+  ---
+  duration_ms: 2.615663
+  type: 'test'
+  ...
+# Subtest: feedback attachment URLs accept only absolute credential-free HTTPS targets
+ok 309 - feedback attachment URLs accept only absolute credential-free HTTPS targets
+  ---
+  duration_ms: 2.988486
+  type: 'test'
+  ...
+# Subtest: Feedback V2 attachment upload accepts only bounded HTTPS POST policies
+ok 310 - Feedback V2 attachment upload accepts only bounded HTTPS POST policies
+  ---
+  duration_ms: 61.339472
+  type: 'test'
+  ...
+# Subtest: Feedback V2 attachment signing fails closed before exposing incomplete credentials
+ok 311 - Feedback V2 attachment signing fails closed before exposing incomplete credentials
+  ---
+  duration_ms: 0.496901
+  type: 'test'
+  ...
+# Subtest: Feedback V2 message images default-load, recover locally, and reuse the managed viewer
+ok 312 - Feedback V2 message images default-load, recover locally, and reuse the managed viewer # SKIP set ARCORBIT_ELECTRON_FEEDBACK_V2_TEST=1 to run the interactive Electron regression
+  ---
+  duration_ms: 1.320716
+  type: 'test'
+  ...
+# Subtest: Codex CLI handoff prompt continues the stable Case without repeating the todo
+ok 313 - Codex CLI handoff prompt continues the stable Case without repeating the todo
+  ---
+  duration_ms: 2.123788
+  type: 'test'
+  ...
+# Subtest: Codex CLI handoff prompt refuses an unbound task
+ok 314 - Codex CLI handoff prompt refuses an unbound task
+  ---
+  duration_ms: 1.197176
+  type: 'test'
+  ...
+# Subtest: Codex CLI handoff uses the bounded single-line task label
+ok 315 - Codex CLI handoff uses the bounded single-line task label
+  ---
+  duration_ms: 1.049294
+  type: 'test'
+  ...
+# Subtest: macOS launch spec opens interactive codex in Terminal without codex exec
+ok 316 - macOS launch spec opens interactive codex in Terminal without codex exec
+  ---
+  duration_ms: 0.833136
+  type: 'test'
+  ...
+# Subtest: Windows launch spec passes the resolved Codex executable to Start-Process
+ok 317 - Windows launch spec passes the resolved Codex executable to Start-Process
+  ---
+  duration_ms: 0.355819
+  type: 'test'
+  ...
+# Subtest: interactive launcher confirms the macOS terminal request and detaches it
+ok 318 - interactive launcher confirms the macOS terminal request and detaches it
+  ---
+  duration_ms: 1.253015
+  type: 'test'
+  ...
+# Subtest: interactive launcher reports a rejected macOS terminal request
+ok 319 - interactive launcher reports a rejected macOS terminal request
+  ---
+  duration_ms: 0.740465
+  type: 'test'
+  ...
+# Subtest: non-Windows JSON-RPC commands keep direct argument boundaries
+ok 320 - non-Windows JSON-RPC commands keep direct argument boundaries
+  ---
+  duration_ms: 3.577213
+  type: 'test'
+  ...
+# Subtest: Windows PATH and PATHEXT resolve an executable before a command shim
+ok 321 - Windows PATH and PATHEXT resolve an executable before a command shim
+  ---
+  duration_ms: 1.20894
+  type: 'test'
+  ...
+# Subtest: Windows npm command shims use a static PowerShell command and structured environment arguments
+ok 322 - Windows npm command shims use a static PowerShell command and structured environment arguments
+  ---
+  duration_ms: 0.841164
+  type: 'test'
+  ...
+# Subtest: Windows PowerShell 5.1 preserves npm app-server argument boundaries
+ok 323 - Windows PowerShell 5.1 preserves npm app-server argument boundaries # SKIP
+  ---
+  duration_ms: 0.195114
+  type: 'test'
+  ...
+# Subtest: the default Windows codex command resolves an npm shim through PATH
+ok 324 - the default Windows codex command resolves an npm shim through PATH
+  ---
+  duration_ms: 0.549258
+  type: 'test'
+  ...
+# Subtest: Windows explicit executables launch directly even when their path contains spaces
+ok 325 - Windows explicit executables launch directly even when their path contains spaces
+  ---
+  duration_ms: 0.45966
+  type: 'test'
+  ...
+# Subtest: JSON-RPC startup errors include the requested command, platform, mode, and cwd
+ok 326 - JSON-RPC startup errors include the requested command, platform, mode, and cwd
+  ---
+  duration_ms: 1.834025
+  type: 'test'
+  ...
+# Subtest: Keyed Detail Surface skips an unchanged projection without replacing the active context DOM
+ok 327 - Keyed Detail Surface skips an unchanged projection without replacing the active context DOM
+  ---
+  duration_ms: 3.156415
+  type: 'test'
+  ...
+# Subtest: Keyed Detail Surface restores a focused control value before its selection when the same context changes
+ok 328 - Keyed Detail Surface restores a focused control value before its selection when the same context changes
+  ---
+  duration_ms: 0.811253
+  type: 'test'
+  ...
+# Subtest: Keyed Detail Surface starts a different context at the top without transferring focus
+ok 329 - Keyed Detail Surface starts a different context at the top without transferring focus
+  ---
+  duration_ms: 0.591145
+  type: 'test'
+  ...
+# Subtest: blocked Runtime gate returns a classified claim rejection
+ok 330 - blocked Runtime gate returns a classified claim rejection
+  ---
+  duration_ms: 6.227151
+  type: 'test'
+  ...
+# Subtest: lifecycle summary uses parent-child exclusive time to distinguish orchestration from task work
+ok 331 - lifecycle summary uses parent-child exclusive time to distinguish orchestration from task work
+  ---
+  duration_ms: 6.650483
+  type: 'test'
+  ...
+# Subtest: lifecycle trace store persists raw JSONL and a resumable summary
+ok 332 - lifecycle trace store persists raw JSONL and a resumable summary
+  ---
+  duration_ms: 23.793021
+  type: 'test'
+  ...
+# Subtest: local Runtime build selects only supported host-native package targets
+ok 333 - local Runtime build selects only supported host-native package targets
+  ---
+  duration_ms: 3.766236
+  type: 'test'
+  ...
+# Subtest: local build resolves the unpacked application used by the post-package Renderer smoke
+ok 334 - local build resolves the unpacked application used by the post-package Renderer smoke
+  ---
+  duration_ms: 0.748826
+  type: 'test'
+  ...
+# Subtest: local build plan marks provider and Runtime metadata as local and unsigned
+ok 335 - local build plan marks provider and Runtime metadata as local and unsigned
+  ---
+  duration_ms: 2.041354
+  type: 'test'
+  ...
+# Subtest: local build arguments fail closed on ambiguous inputs
+ok 336 - local build arguments fail closed on ambiguous inputs
+  ---
+  duration_ms: 0.756043
+  type: 'test'
+  ...
+# Subtest: local tar invocation keeps a Windows drive-letter archive out of tar arguments
+ok 337 - local tar invocation keeps a Windows drive-letter archive out of tar arguments
+  ---
+  duration_ms: 2.755734
+  type: 'test'
+  ...
+# Subtest: local tar execution extracts in the staged archive directory without a destination operand
+ok 338 - local tar execution extracts in the staged archive directory without a destination operand
+  ---
+  duration_ms: 0.55789
+  type: 'test'
+  ...
+# Subtest: a locally created pending-review task exposes controlled Work actions without manual sync
+ok 339 - a locally created pending-review task exposes controlled Work actions without manual sync # SKIP set ARCORBIT_ELECTRON_LOCAL_TASK_ACTIONS_TEST=1 to run the Electron regression
+  ---
+  duration_ms: 1.312796
+  type: 'test'
+  ...
+# Subtest: platform-native ArcOrbit chrome performs real Electron window actions
+ok 340 - platform-native ArcOrbit chrome performs real Electron window actions # SKIP set ARCORBIT_ELECTRON_WINDOW_CONTROLS_TEST=1 to run the real Electron window regression
+  ---
+  duration_ms: 1.418408
+  type: 'test'
+  ...
+# Subtest: window chrome uses native macOS traffic lights and frameless controls elsewhere
+ok 341 - window chrome uses native macOS traffic lights and frameless controls elsewhere
+  ---
+  duration_ms: 2.773965
+  type: 'test'
+  ...
+# Subtest: main window actions minimize, toggle maximize and close only the supplied window
+ok 342 - main window actions minimize, toggle maximize and close only the supplied window
+  ---
+  duration_ms: 1.463481
+  type: 'test'
+  ...
+# Subtest: main window state observation covers native maximize, minimize and fullscreen transitions
+ok 343 - main window state observation covers native maximize, minimize and fullscreen transitions
+  ---
+  duration_ms: 0.571675
+  type: 'test'
+  ...
+# Subtest: renderer titlebar controls call the bounded API and reflect maximize state
+ok 344 - renderer titlebar controls call the bounded API and reflect maximize state
+  ---
+  duration_ms: 12.475068
+  type: 'test'
+  ...
+# Subtest: renderer leaves macOS window actions to native traffic lights
+ok 345 - renderer leaves macOS window actions to native traffic lights
+  ---
+  duration_ms: 1.18061
+  type: 'test'
+  ...
+# Subtest: production window chrome branches by platform and exposes no generic Electron bridge
+ok 346 - production window chrome branches by platform and exposes no generic Electron bridge
+  ---
+  duration_ms: 11.50332
+  type: 'test'
+  ...
+# Subtest: production todo surfaces resolve executor names without exposing ids
+ok 347 - production todo surfaces resolve executor names without exposing ids # SKIP set ARCORBIT_ELECTRON_TODO_EXECUTOR_NAME_TEST=1 to run the focused Electron regression
+  ---
+  duration_ms: 3.238391
+  type: 'test'
+  ...
+# Subtest: production Organization Center keeps governance independent and invitations project-bound
+ok 348 - production Organization Center keeps governance independent and invitations project-bound # SKIP set ARCORBIT_ELECTRON_ORGANIZATION_TEST=1 to run the interactive Electron regression
+  ---
+  duration_ms: 0.373604
+  type: 'test'
+  ...
+# Subtest: fuse hook resolves each electron-builder packaged executable without assuming a Windows-only packager field
+ok 349 - fuse hook resolves each electron-builder packaged executable without assuming a Windows-only packager field
+  ---
+  duration_ms: 1.957594
+  type: 'test'
+  ...
+# Subtest: package exposes the ArcOrbit identity and the legacy CLI alias through one entrypoint
+ok 350 - package exposes the ArcOrbit identity and the legacy CLI alias through one entrypoint
+  ---
+  duration_ms: 10.834612
+  type: 'test'
+  ...
+# Subtest: distribution assembly binds provider, skills, trusted capabilities, config, and external artifact attestation
+ok 351 - distribution assembly binds provider, skills, trusted capabilities, config, and external artifact attestation
+  ---
+  duration_ms: 4767.411267
+  type: 'test'
+  ...
+# Subtest: Runtime package workflow is manual-only and consumes immutable release/provider inputs
+ok 352 - Runtime package workflow is manual-only and consumes immutable release/provider inputs
+  ---
+  duration_ms: 2.859278
+  type: 'test'
+  ...
+# Subtest: different active Cases advance concurrently without changing Project selection state
+ok 353 - different active Cases advance concurrently without changing Project selection state
+  ---
+  duration_ms: 1017.278611
+  type: 'test'
+  ...
+# Subtest: parallel resolved closeouts keep one Case active and return a recoverable stale rejection
+ok 354 - parallel resolved closeouts keep one Case active and return a recoverable stale rejection
+  ---
+  duration_ms: 1371.618116
+  type: 'test'
+  ...
+# Subtest: platform coordinator composes a simultaneous multi-product snapshot without changing automation participation
+ok 355 - platform coordinator composes a simultaneous multi-product snapshot without changing automation participation
+  ---
+  duration_ms: 25.73582
+  type: 'test'
+  ...
+# Subtest: platform coordinator preserves partial product results and exposes section errors
+ok 356 - platform coordinator preserves partial product results and exposes section errors
+  ---
+  duration_ms: 4.598276
+  type: 'test'
+  ...
+# Subtest: platform coordinator projects task-tree lineage and matched counts without flattening away hierarchy metadata
+ok 357 - platform coordinator projects task-tree lineage and matched counts without flattening away hierarchy metadata
+  ---
+  duration_ms: 4.407215
+  type: 'test'
+  ...
+# Subtest: dedicated Work query excludes unrelated snapshots and returns a bounded task window
+ok 358 - dedicated Work query excludes unrelated snapshots and returns a bounded task window
+  ---
+  duration_ms: 48.364733
+  type: 'test'
+  ...
+# Subtest: dedicated Work query derives all status counts from one local projection and the same non-state filters
+ok 359 - dedicated Work query derives all status counts from one local projection and the same non-state filters
+  ---
+  duration_ms: 2.040027
+  type: 'test'
+  ...
+# Subtest: dedicated Work query retains ancestor lineage around a matched window
+ok 360 - dedicated Work query retains ancestor lineage around a matched window
+  ---
+  duration_ms: 1.420294
+  type: 'test'
+  ...
+# Subtest: platform coordinator binds TaskAttachment upload and access to a visible task and persisted record
+ok 361 - platform coordinator binds TaskAttachment upload and access to a visible task and persisted record
+  ---
+  duration_ms: 2.628734
+  type: 'test'
+  ...
+# Subtest: organization governance uses role-based project visibility without inheriting Workset scope
+ok 362 - organization governance uses role-based project visibility without inheriting Workset scope
+  ---
+  duration_ms: 2.663456
+  type: 'test'
+  ...
+# Subtest: platform coordinator exposes bounded management actions and omits unsafe direct project-member add
+ok 363 - platform coordinator exposes bounded management actions and omits unsafe direct project-member add
+  ---
+  duration_ms: 4.637815
+  type: 'test'
+  ...
+# Subtest: platform coordinator restricts task project replacement to the active Workset and typed recovery actions
+ok 364 - platform coordinator restricts task project replacement to the active Workset and typed recovery actions
+  ---
+  duration_ms: 2.317653
+  type: 'test'
+  ...
+# Subtest: successful task creation is not reported as failed when the immediate Automation refresh degrades
+ok 365 - successful task creation is not reported as failed when the immediate Automation refresh degrades
+  ---
+  duration_ms: 0.633378
+  type: 'test'
+  ...
+# Subtest: feedback association recovery reuses the created task and never creates another task
+ok 366 - feedback association recovery reuses the created task and never creates another task
+  ---
+  duration_ms: 2.871736
+  type: 'test'
+  ...
+# Subtest: platform coordinator exposes project-gated Feedback V2 facts and dedicated actions
+ok 367 - platform coordinator exposes project-gated Feedback V2 facts and dedicated actions
+  ---
+  duration_ms: 3.743107
+  type: 'test'
+  ...
+# Subtest: Feedback V2 action failures degrade only that feature and preserve loaded facts
+ok 368 - Feedback V2 action failures degrade only that feature and preserve loaded facts
+  ---
+  duration_ms: 2.219755
+  type: 'test'
+  ...
+# Subtest: release assets combine target checksums into one deterministic manifest
+ok 369 - release assets combine target checksums into one deterministic manifest
+  ---
+  duration_ms: 53.85003
+  type: 'test'
+  ...
+# Subtest: release assets reject duplicate basenames before mutating downloaded artifacts
+ok 370 - release assets reject duplicate basenames before mutating downloaded artifacts
+  ---
+  duration_ms: 14.490981
+  type: 'test'
+  ...
+# Subtest: release assets verify each target checksum before aggregation
+ok 371 - release assets verify each target checksum before aggregation
+  ---
+  duration_ms: 12.15725
+  type: 'test'
+  ...
+# Subtest: product feedback reports operator-injected configuration
+ok 372 - product feedback reports operator-injected configuration
+  ---
+  duration_ms: 2.708154
+  type: 'test'
+  ...
+# Subtest: product feedback opens the operator-configured apiKey SDK contract for the current Workshop user
+ok 373 - product feedback opens the operator-configured apiKey SDK contract for the current Workshop user
+  ---
+  duration_ms: 0.992149
+  type: 'test'
+  ...
+# Subtest: product feedback opens for a real Nebula user response whose stable id is carried by the access token
+ok 374 - product feedback opens for a real Nebula user response whose stable id is carried by the access token
+  ---
+  duration_ms: 39.180146
+  type: 'test'
+  ...
+# Subtest: product feedback only gates on Workshop login and stable identity
+ok 375 - product feedback only gates on Workshop login and stable identity
+  ---
+  duration_ms: 0.718466
+  type: 'test'
+  ...
+# Subtest: feedback modes are bounded
+ok 376 - feedback modes are bounded
+  ---
+  duration_ms: 1.079707
+  type: 'test'
+  ...
+# Subtest: product feedback fails closed when operator configuration is absent
+ok 377 - product feedback fails closed when operator configuration is absent
+  ---
+  duration_ms: 0.540373
+  type: 'test'
+  ...
+# Subtest: product feedback exposes bounded unread state and prepares without opening
+ok 378 - product feedback exposes bounded unread state and prepares without opening
+  ---
+  duration_ms: 0.666365
+  type: 'test'
+  ...
+# Subtest: product feedback remote surface only accepts the fixed HTTPS SDK origin
+ok 379 - product feedback remote surface only accepts the fixed HTTPS SDK origin
+  ---
+  duration_ms: 2.108348
+  type: 'test'
+  ...
+# Subtest: feedback IPC and remote WebContents stay bounded
+ok 380 - feedback IPC and remote WebContents stay bounded
+  ---
+  duration_ms: 13.026919
+  type: 'test'
+  ...
+# Subtest: one healthy feedback surface preserves routed drafts and only reloads for retry or identity change
+ok 381 - one healthy feedback surface preserves routed drafts and only reloads for retry or identity change
+  ---
+  duration_ms: 10.957194
+  type: 'test'
+  ...
+# Subtest: temporary blank Idea persists locally; formal completion requires a GitHub repository and directory
+ok 382 - temporary blank Idea persists locally; formal completion requires a GitHub repository and directory
+  ---
+  duration_ms: 43.162072
+  type: 'test'
+  ...
+# Subtest: formal Idea moves to arckit/product and survives loss of the temporary store, recovered only from selected bound directories
+ok 383 - formal Idea moves to arckit/product and survives loss of the temporary store, recovered only from selected bound directories
+  ---
+  duration_ms: 308.643734
+  type: 'test'
+  ...
+# Subtest: manual edit invalidates Agent proposal and approval; malformed records and escaping material paths do not write
+ok 384 - manual edit invalidates Agent proposal and approval; malformed records and escaping material paths do not write
+  ---
+  duration_ms: 25.788614
+  type: 'test'
+  ...
+# Subtest: lost create response remains uncertain across restart and is never blindly replayed
+ok 385 - lost create response remains uncertain across restart and is never blindly replayed
+  ---
+  duration_ms: 25.255752
+  type: 'test'
+  ...
+# Subtest: protocol preserves corrupt and foreign files, rejects stale revisions and symlink parents
+ok 386 - protocol preserves corrupt and foreign files, rejects stale revisions and symlink parents
+  ---
+  duration_ms: 24.378814
+  type: 'test'
+  ...
+# Subtest: two independent Git caches share exact records and reject concurrent publication without touching developer index or files
+ok 387 - two independent Git caches share exact records and reject concurrent publication without touching developer index or files
+  ---
+  duration_ms: 3663.255742
+  type: 'test'
+  ...
+# Subtest: scene Chat persists thread in private cwd, includes exact user request and uses real product proposal tool
+ok 388 - scene Chat persists thread in private cwd, includes exact user request and uses real product proposal tool
+  ---
+  duration_ms: 45.446173
+  type: 'test'
+  ...
+# Subtest: blank Idea can create a private GitHub repository and managed checkout with authenticated bounded commands
+ok 389 - blank Idea can create a private GitHub repository and managed checkout with authenticated bounded commands
+  ---
+  duration_ms: 237.769523
+  type: 'test'
+  ...
+# Subtest: Product-only assets persist to bound directory and shared Idea adoption restores canonical id from Git
+ok 390 - Product-only assets persist to bound directory and shared Idea adoption restores canonical id from Git
+  ---
+  duration_ms: 22.197802
+  type: 'test'
+  ...
+# Subtest: successful intake receipt only replays identical parameters and changed plans require explicit reconciliation
+ok 391 - successful intake receipt only replays identical parameters and changed plans require explicit reconciliation
+  ---
+  duration_ms: 183.942593
+  type: 'test'
+  ...
+# Subtest: unfinished Idea cannot sync or write project assets; publication requires the current formal directory record
+ok 392 - unfinished Idea cannot sync or write project assets; publication requires the current formal directory record
+  ---
+  duration_ms: 182.712706
+  type: 'test'
+  ...
+# Subtest: real Product/Idea DOM and coordinator support folder intake, editing, Agent proposal, formal persistence and Today continuation
+ok 393 - real Product/Idea DOM and coordinator support folder intake, editing, Agent proposal, formal persistence and Today continuation
+  ---
+  duration_ms: 858.808093
+  type: 'test'
+  ...
+# Subtest: Project ledger commit lock serializes separate processes
+ok 394 - Project ledger commit lock serializes separate processes
+  ---
+  duration_ms: 171.068006
+  type: 'test'
+  ...
+# Subtest: Project v5 owns the complete explicit software-definition checklist and independent invariants
+ok 395 - Project v5 owns the complete explicit software-definition checklist and independent invariants
+  ---
+  duration_ms: 6.307388
+  type: 'test'
+  ...
+# Subtest: core invariants use fresh facts, distinct semantic domains, and non-substitutable evidence responsibilities
+ok 396 - core invariants use fresh facts, distinct semantic domains, and non-substitutable evidence responsibilities
+  ---
+  duration_ms: 0.775584
+  type: 'test'
+  ...
+# Subtest: the protocol checklist cannot be removed or semantically rewritten by a project
+ok 397 - the protocol checklist cannot be removed or semantically rewritten by a project
+  ---
+  duration_ms: 0.945575
+  type: 'test'
+  ...
+# Subtest: projects personalize software decisions without inventing concrete software invariants
+ok 398 - projects personalize software decisions without inventing concrete software invariants
+  ---
+  duration_ms: 1.978762
+  type: 'test'
+  ...
+# Subtest: settled, deferred and stale decisions enforce their distinct evidence obligations
+ok 399 - settled, deferred and stale decisions enforce their distinct evidence obligations
+  ---
+  duration_ms: 1.009471
+  type: 'test'
+  ...
+# Subtest: a real Project gap may affect multiple decisions and invariants without becoming a workflow
+ok 400 - a real Project gap may affect multiple decisions and invariants without becoming a workflow
+  ---
+  duration_ms: 0.835608
+  type: 'test'
+  ...
+# Subtest: Project evidence remains durable and target refs are explicit
+ok 401 - Project evidence remains durable and target refs are explicit
+  ---
+  duration_ms: 0.949098
+  type: 'test'
+  ...
+# Subtest: Iteration v3 targets software decisions, invariants and Project gaps
+ok 402 - Iteration v3 targets software decisions, invariants and Project gaps
+  ---
+  duration_ms: 16.929308
+  type: 'test'
+  ...
+# Subtest: Runtime exposes an incompatible canonical state as a protocol recovery round
+ok 403 - Runtime exposes an incompatible canonical state as a protocol recovery round
+  ---
+  duration_ms: 276.575651
+  type: 'test'
+  ...
+# Subtest: trusted reconciliation upgrades Project and active Case records and returns to compatible state
+ok 404 - trusted reconciliation upgrades Project and active Case records and returns to compatible state
+  ---
+  duration_ms: 450.406165
+  type: 'test'
+  ...
+# Subtest: current schema content drift triggers repair without being mislabeled as a version upgrade
+ok 405 - current schema content drift triggers repair without being mislabeled as a version upgrade
+  ---
+  duration_ms: 119.56201
+  type: 'test'
+  ...
+# Subtest: compatibility probe rejects corrupted persisted v8 invariant assessment
+ok 406 - compatibility probe rejects corrupted persisted v8 invariant assessment
+  ---
+  duration_ms: 371.321799
+  type: 'test'
+  ...
+# Subtest: direct Codex can recover canonical core-invariant drift before any Case exists
+ok 407 - direct Codex can recover canonical core-invariant drift before any Case exists
+  ---
+  duration_ms: 130.449155
+  type: 'test'
+  ...
+# Subtest: trusted reconciliation rejects a stale compatibility snapshot
+ok 408 - trusted reconciliation rejects a stale compatibility snapshot
+  ---
+  duration_ms: 16.995729
+  type: 'test'
+  ...
+# Subtest: failed projection regeneration rolls back all reconciled canonical writes
+ok 409 - failed projection regeneration rolls back all reconciled canonical writes
+  ---
+  duration_ms: 18.693597
+  type: 'test'
+  ...
+# Subtest: Recovery Center preserves the active Composer across automation snapshot refreshes
+ok 410 - Recovery Center preserves the active Composer across automation snapshot refreshes # SKIP set ARCORBIT_ELECTRON_RECOVERY_TEST=1 to run the real-render Recovery Center regression
+  ---
+  duration_ms: 1.597528
+  type: 'test'
+  ...
+# Subtest: Release operates real Git, PTY, tasks, source editor and shared scene Chat
+ok 411 - Release operates real Git, PTY, tasks, source editor and shared scene Chat # SKIP set ARCORBIT_RELEASE_ELECTRON_TEST=1 for real Electron verification
+  ---
+  duration_ms: 1.727133
+  type: 'test'
+  ...
+# Subtest: real tasks survive view detachment, keep ownership, stop and persist across restart
+ok 412 - real tasks survive view detachment, keep ownership, stop and persist across restart
+  ---
+  duration_ms: 4398.714601
+  type: 'test'
+  ...
+# Subtest: restart marks unclosed records interrupted and never attaches an old PID
+ok 413 - restart marks unclosed records interrupted and never attaches an old PID
+  ---
+  duration_ms: 957.706972
+  type: 'test'
+  ...
+# Subtest: rebound project can stop old work but cannot send stdin or reuse an editor baseline
+ok 414 - rebound project can stop old work but cannot send stdin or reuse an editor baseline
+  ---
+  duration_ms: 1118.394377
+  type: 'test'
+  ...
+# Subtest: Runtime release validator accepts existing governed tags and enforces release baselines
+ok 415 - Runtime release validator accepts existing governed tags and enforces release baselines
+  ---
+  duration_ms: 2317.467894
+  type: 'test'
+  ...
+# Subtest: file writes preserve concurrent edits and reject symlink escape
+ok 416 - file writes preserve concurrent edits and reject symlink escape
+  ---
+  duration_ms: 552.789743
+  type: 'test'
+  ...
+# Subtest: partial staging changes only selected patch and commits actual index
+ok 417 - partial staging changes only selected patch and commits actual index
+  ---
+  duration_ms: 4641.258274
+  type: 'test'
+  ...
+# Subtest: destructive confirmation binds args and source revision
+ok 418 - destructive confirmation binds args and source revision
+  ---
+  duration_ms: 3049.338912
+  type: 'test'
+  ...
+# Subtest: merge conflict remains visible and abort restores original branch
+ok 419 - merge conflict remains visible and abort restores original branch
+  ---
+  duration_ms: 3215.035531
+  type: 'test'
+  ...
+# Subtest: monorepo directories resolve to one repository identity and stale revisions fail
+ok 420 - monorepo directories resolve to one repository identity and stale revisions fail
+  ---
+  duration_ms: 1531.685713
+  type: 'test'
+  ...
+# Subtest: Git diff never follows a repository symlink into external file
+ok 421 - Git diff never follows a repository symlink into external file
+  ---
+  duration_ms: 413.669764
+  type: 'test'
+  ...
+# Subtest: Release binds Agent tools and executions to original workspace and rejects rebind
+ok 422 - Release binds Agent tools and executions to original workspace and rejects rebind
+  ---
+  duration_ms: 2115.463315
+  type: 'test'
+  ...
+# Subtest: Work task references preserve project and task identity
+ok 423 - Work task references preserve project and task identity
+  ---
+  duration_ms: 2.857755
+  type: 'test'
+  ...
+# Subtest: Work task references resolve only visible tasks in the active workset
+ok 424 - Work task references resolve only visible tasks in the active workset
+  ---
+  duration_ms: 1.329394
+  type: 'test'
+  ...
+# Subtest: restricted Work markdown renders useful structure without executable HTML
+ok 425 - restricted Work markdown renders useful structure without executable HTML
+  ---
+  duration_ms: 5.056707
+  type: 'test'
+  ...
+# Subtest: restricted Work markdown makes unsafe links inert
+ok 426 - restricted Work markdown makes unsafe links inert
+  ---
+  duration_ms: 0.67796
+  type: 'test'
+  ...
+# Subtest: run activity patch carries only changed fields and message upserts
+ok 427 - run activity patch carries only changed fields and message upserts
+  ---
+  duration_ms: 3.372106
+  type: 'test'
+  ...
+# Subtest: activity owner rejects stale run ownership
+ok 428 - activity owner rejects stale run ownership
+  ---
+  duration_ms: 0.54443
+  type: 'test'
+  ...
+# Subtest: one hundred activity invalidations remain strictly single-flight
+ok 429 - one hundred activity invalidations remain strictly single-flight
+  ---
+  duration_ms: 18.550269
+  type: 'test'
+  ...
+# Subtest: trusted Case creation materializes semantic handles into canonical identities and references
+ok 430 - trusted Case creation materializes semantic handles into canonical identities and references
+  ---
+  duration_ms: 75.267553
+  type: 'test'
+  ...
+# Subtest: empty canonical-shaped Case creation claim is rejected for same-thread Agent repair before write
+ok 431 - empty canonical-shaped Case creation claim is rejected for same-thread Agent repair before write
+  ---
+  duration_ms: 8.773052
+  type: 'test'
+  ...
+# Subtest: duplicate handles and unknown initial references fail closed without canonical mutation
+ok 432 - duplicate handles and unknown initial references fail closed without canonical mutation
+  ---
+  duration_ms: 16.275791
+  type: 'test'
+  ...
+# Subtest: trusted closed Case reuse is exact, idempotent, and does not mutate canonical files
+ok 433 - trusted closed Case reuse is exact, idempotent, and does not mutate canonical files
+  ---
+  duration_ms: 28.624446
+  type: 'test'
+  ...
+# Subtest: closed Case reuse rejects stale identity evidence and non-resolved records
+ok 434 - closed Case reuse rejects stale identity evidence and non-resolved records
+  ---
+  duration_ms: 29.796681
+  type: 'test'
+  ...
+# Subtest: closed Case reuse rejects missing or ambiguous canonical identity
+ok 435 - closed Case reuse rejects missing or ambiguous canonical identity
+  ---
+  duration_ms: 20.747668
+  type: 'test'
+  ...
+# Subtest: closed Case reuse handoff requires typed coverage evidence
+ok 436 - closed Case reuse handoff requires typed coverage evidence
+  ---
+  duration_ms: 0.508558
+  type: 'test'
+  ...
+# Subtest: Runtime projects closed Case reuse as a terminal writeback-gated result
+ok 437 - Runtime projects closed Case reuse as a terminal writeback-gated result
+  ---
+  duration_ms: 9.414377
+  type: 'test'
+  ...
+# Subtest: Electron utility host launches the Runtime module and sends typed controls
+ok 438 - Electron utility host launches the Runtime module and sends typed controls
+  ---
+  duration_ms: 4.681654
+  type: 'test'
+  ...
+# Subtest: Runtime and trusted ledger production paths do not bootstrap Electron as Node
+ok 439 - Runtime and trusted ledger production paths do not bootstrap Electron as Node
+  ---
+  duration_ms: 17.434679
+  type: 'test'
+  ...
+# Subtest: Runtime entrypoint closes output pipes before its required utility-process exit
+ok 440 - Runtime entrypoint closes output pipes before its required utility-process exit
+  ---
+  duration_ms: 1.942184
+  type: 'test'
+  ...
+# Subtest: Runtime run references are opaque and contain no local filesystem path
+ok 441 - Runtime run references are opaque and contain no local filesystem path
+  ---
+  duration_ms: 1.822043
+  type: 'test'
+  ...
+# Subtest: Runtime run references reject project and absolute filesystem paths
+ok 442 - Runtime run references reject project and absolute filesystem paths
+  ---
+  duration_ms: 0.855266
+  type: 'test'
+  ...
+# Subtest: Semantic Case Command materializes identities, revisions and reverse relations without reading prose
+ok 443 - Semantic Case Command materializes identities, revisions and reverse relations without reading prose
+  ---
+  duration_ms: 670.894089
+  type: 'test'
+  ...
+# Subtest: Semantic Case Command reports claim and freshness rejections without mixing repair responsibility
+ok 444 - Semantic Case Command reports claim and freshness rejections without mixing repair responsibility
+  ---
+  duration_ms: 695.62054
+  type: 'test'
+  ...
+# Subtest: Semantic validation rejects malformed containers without escaping as an internal exception
+ok 445 - Semantic validation rejects malformed containers without escaping as an internal exception
+  ---
+  duration_ms: 0.91828
+  type: 'test'
+  ...
+# Subtest: Semantic preflight rejects contract contradictions before canonical apply
+ok 446 - Semantic preflight rejects contract contradictions before canonical apply
+  ---
+  duration_ms: 479.742558
+  type: 'test'
+  ...
+# Subtest: Ledger rejection taxonomy assigns repair only to claim_invalid
+ok 447 - Ledger rejection taxonomy assigns repair only to claim_invalid
+  ---
+  duration_ms: 0.43528
+  type: 'test'
+  ...
+# Subtest: Semantic Completion Review uses the Agent-facing review contract
+ok 448 - Semantic Completion Review uses the Agent-facing review contract
+  ---
+  duration_ms: 446.018633
+  type: 'test'
+  ...
+# Subtest: Semantic Completion Review rejects responsibility, outcome and identity contradictions
+ok 449 - Semantic Completion Review rejects responsibility, outcome and identity contradictions
+  ---
+  duration_ms: 427.710919
+  type: 'test'
+  ...
+# Subtest: Semantic materialization allocates a new finding identity across Completion Review cycles
+ok 450 - Semantic materialization allocates a new finding identity across Completion Review cycles
+  ---
+  duration_ms: 320.738444
+  type: 'test'
+  ...
+# Subtest: Setup Readiness keeps full details optional, invalidates stale confirmation, and safely handles managed cleanup
+ok 451 - Setup Readiness keeps full details optional, invalidates stale confirmation, and safely handles managed cleanup # SKIP set ARCORBIT_ELECTRON_SETUP_TEST=1 to run the real-render Setup regression
+  ---
+  duration_ms: 1.35622
+  type: 'test'
+  ...
+# Subtest: post-operation readiness reuses the Codex manager probe instead of running a second executable probe
+ok 452 - post-operation readiness reuses the Codex manager probe instead of running a second executable probe
+  ---
+  duration_ms: 142.85971
+  type: 'test'
+  ...
+# Subtest: ordinary readiness establishes the Codex evidence reused by cached preflight
+ok 453 - ordinary readiness establishes the Codex evidence reused by cached preflight
+  ---
+  duration_ms: 71.971195
+  type: 'test'
+  ...
+# Subtest: ordinary readiness cannot deadlock with Codex post-operation Skill readiness
+ok 454 - ordinary readiness cannot deadlock with Codex post-operation Skill readiness
+  ---
+  duration_ms: 81.88558
+  type: 'test'
+  ...
+# Subtest: Setup Readiness installs governed skills, preserves unrelated skills, detects drift, and rolls back an upgrade source
+ok 455 - Setup Readiness installs governed skills, preserves unrelated skills, detects drift, and rolls back an upgrade source
+  ---
+  duration_ms: 1078.376234
+  type: 'test'
+  ...
+# Subtest: Setup Readiness uses only the new ArcOrbit consumer and recovers when it has no relationship
+ok 456 - Setup Readiness uses only the new ArcOrbit consumer and recovers when it has no relationship
+  ---
+  duration_ms: 234.412037
+  type: 'test'
+  ...
+# Subtest: Setup Readiness blocks tampered resources and preserves a safe plan when Codex is unavailable
+ok 457 - Setup Readiness blocks tampered resources and preserves a safe plan when Codex is unavailable
+  ---
+  duration_ms: 63.367631
+  type: 'test'
+  ...
+# Subtest: Setup Readiness blocks a provider plan that omits a manifest-declared shared asset
+ok 458 - Setup Readiness blocks a provider plan that omits a manifest-declared shared asset
+  ---
+  duration_ms: 94.130054
+  type: 'test'
+  ...
+# Subtest: Setup Readiness classifies the reported missing catalog targets and managed loader update as an actionable source upgrade
+ok 459 - Setup Readiness classifies the reported missing catalog targets and managed loader update as an actionable source upgrade
+  ---
+  duration_ms: 257.436559
+  type: 'test'
+  ...
+# Subtest: Setup Readiness backs up changed managed content before presenting the fresh upgrade plan
+ok 460 - Setup Readiness backs up changed managed content before presenting the fresh upgrade plan
+  ---
+  duration_ms: 251.518746
+  type: 'test'
+  ...
+# Subtest: Setup Readiness preserves five blocking catalog diagnostics before drift and forwards only selected overwrite targets
+ok 461 - Setup Readiness preserves five blocking catalog diagnostics before drift and forwards only selected overwrite targets
+  ---
+  duration_ms: 58.969038
+  type: 'test'
+  ...
+# Subtest: new bug Case starts from facts and one diagnosis gap without facet ceremony
+ok 462 - new bug Case starts from facts and one diagnosis gap without facet ceremony
+  ---
+  duration_ms: 8.389646
+  type: 'test'
+  ...
+# Subtest: closing the last gap for a threatened invariant requires the impact to be reconciled
+ok 463 - closing the last gap for a threatened invariant requires the impact to be reconciled
+  ---
+  duration_ms: 6.490516
+  type: 'test'
+  ...
+# Subtest: completion review stays implementation-focused and resolves the current revision
+ok 464 - completion review stays implementation-focused and resolves the current revision
+  ---
+  duration_ms: 4.065861
+  type: 'test'
+  ...
+# Subtest: Runtime digest exposes the explicit software checklist, invariants and Case facts
+ok 465 - Runtime digest exposes the explicit software checklist, invariants and Case facts
+  ---
+  duration_ms: 3.281384
+  type: 'test'
+  ...
+# Subtest: Case control binds numeric Project revision and requires semantic initial gaps
+ok 466 - Case control binds numeric Project revision and requires semantic initial gaps
+  ---
+  duration_ms: 2.016456
+  type: 'test'
+  ...
+# Subtest: Case transition cannot rewrite a protocol-defined core software invariant
+ok 467 - Case transition cannot rewrite a protocol-defined core software invariant
+  ---
+  duration_ms: 1.205698
+  type: 'test'
+  ...
+# Subtest: Case transition only synchronizes an exact protocol-defined core invariant
+ok 468 - Case transition only synchronizes an exact protocol-defined core invariant
+  ---
+  duration_ms: 1.61157
+  type: 'test'
+  ...
+# Subtest: an accepted Gap transition updates its Project decision immediately before Case review
+ok 469 - an accepted Gap transition updates its Project decision immediately before Case review
+  ---
+  duration_ms: 75.943224
+  type: 'test'
+  ...
+# Subtest: state-driven session fresh-reads after writeback and stays in one adapter process
+ok 470 - state-driven session fresh-reads after writeback and stays in one adapter process
+  ---
+  duration_ms: 9.12506
+  type: 'test'
+  ...
+# Subtest: state-driven session writes a completed transition before external wait
+ok 471 - state-driven session writes a completed transition before external wait
+  ---
+  duration_ms: 0.887877
+  type: 'test'
+  ...
+# Subtest: state-driven session writes a completed transition before human intervention
+ok 472 - state-driven session writes a completed transition before human intervention
+  ---
+  duration_ms: 1.66687
+  type: 'test'
+  ...
+# Subtest: state-driven continuation pauses only for an explicit human handoff
+ok 473 - state-driven continuation pauses only for an explicit human handoff
+  ---
+  duration_ms: 0.288466
+  type: 'test'
+  ...
+# Subtest: terminal Agent result without an authoritative Case binding stops before closeout
+ok 474 - terminal Agent result without an authoritative Case binding stops before closeout
+  ---
+  duration_ms: 0.722166
+  type: 'test'
+  ...
+# Subtest: trusted closed Case reuse receipt establishes binding and permits closeout
+ok 475 - trusted closed Case reuse receipt establishes binding and permits closeout
+  ---
+  duration_ms: 0.816226
+  type: 'test'
+  ...
+# Subtest: recoverable ledger rejection enters an independent Agent repair budget
+ok 476 - recoverable ledger rejection enters an independent Agent repair budget
+  ---
+  duration_ms: 0.438709
+  type: 'test'
+  ...
+# Subtest: Agent repair instruction carries exact issues and forbids repeated implementation
+ok 477 - Agent repair instruction carries exact issues and forbids repeated implementation
+  ---
+  duration_ms: 0.573202
+  type: 'test'
+  ...
+# Subtest: invalid Runtime result is returned to the same Agent and succeeds after a fresh read
+ok 478 - invalid Runtime result is returned to the same Agent and succeeds after a fresh read
+  ---
+  duration_ms: 2.482069
+  type: 'test'
+  ...
+# Subtest: Ledger rejection reason drives a targeted same-thread repair turn
+ok 479 - Ledger rejection reason drives a targeted same-thread repair turn
+  ---
+  duration_ms: 2.117357
+  type: 'test'
+  ...
+# Subtest: writeback-required terminal result cannot complete without an accepted ledger write
+ok 480 - writeback-required terminal result cannot complete without an accepted ledger write
+  ---
+  duration_ms: 0.37875
+  type: 'test'
+  ...
+# Subtest: rejected terminal ledger write reaches Agent repair limit without Git closeout
+ok 481 - rejected terminal ledger write reaches Agent repair limit without Git closeout
+  ---
+  duration_ms: 1.019142
+  type: 'test'
+  ...
+# Subtest: snapshot stale fresh-reads and replans without consuming Agent repair budget
+ok 482 - snapshot stale fresh-reads and replans without consuming Agent repair budget
+  ---
+  duration_ms: 1.239407
+  type: 'test'
+  ...
+# Subtest: infrastructure rejection enters Runtime recovery without Agent repair
+ok 483 - infrastructure rejection enters Runtime recovery without Agent repair
+  ---
+  duration_ms: 0.247198
+  type: 'test'
+  ...
+# Subtest: invalid semantic Case creation enters same-thread Agent repair instead of Runtime recovery
+ok 484 - invalid semantic Case creation enters same-thread Agent repair instead of Runtime recovery
+  ---
+  duration_ms: 0.294007
+  type: 'test'
+  ...
+# Subtest: repeated stale snapshots remain bounded by the no-progress guard
+ok 485 - repeated stale snapshots remain bounded by the no-progress guard
+  ---
+  duration_ms: 0.23815
+  type: 'test'
+  ...
+# Subtest: fresh replan instruction preserves rejected output without presenting a claim repair
+ok 486 - fresh replan instruction preserves rejected output without presenting a claim repair
+  ---
+  duration_ms: 0.249107
+  type: 'test'
+  ...
+# Subtest: non-recoverable ledger rejection remains fail-closed
+ok 487 - non-recoverable ledger rejection remains fail-closed
+  ---
+  duration_ms: 0.206956
+  type: 'test'
+  ...
+# Subtest: Runtime progress guards can tighten the configured no-progress limit
+ok 488 - Runtime progress guards can tighten the configured no-progress limit
+  ---
+  duration_ms: 0.177119
+  type: 'test'
+  ...
+# Subtest: Agent repair limit is independent and allows an explicit zero budget
+ok 489 - Agent repair limit is independent and allows an explicit zero budget
+  ---
+  duration_ms: 0.149194
+  type: 'test'
+  ...
+# Subtest: state-driven results persist semantic events without raw Agent deltas
+ok 490 - state-driven results persist semantic events without raw Agent deltas
+  ---
+  duration_ms: 1.016373
+  type: 'test'
+  ...
+# Subtest: State Kernel isolates 50 MB history and passes the three-lane 30-minute equivalent stream budget
+ok 491 - State Kernel isolates 50 MB history and passes the three-lane 30-minute equivalent stream budget # SKIP set ARCORBIT_STATE_KERNEL_PERFORMANCE_TEST=1 to run the State Kernel architecture benchmark
+  ---
+  duration_ms: 1.375412
+  type: 'test'
+  ...
+# Subtest: task display title folds Unicode whitespace and preserves the 63/64/65 grapheme boundary
+ok 492 - task display title folds Unicode whitespace and preserves the 63/64/65 grapheme boundary
+  ---
+  duration_ms: 3.738033
+  type: 'test'
+  ...
+# Subtest: task display title never splits combining characters, surrogate pairs, or ZWJ emoji
+ok 493 - task display title never splits combining characters, surrogate pairs, or ZWJ emoji
+  ---
+  duration_ms: 5.352331
+  type: 'test'
+  ...
+# Subtest: task display title uses a normalized fallback only when the source is empty
+ok 494 - task display title uses a normalized fallback only when the source is empty
+  ---
+  duration_ms: 1.995804
+  type: 'test'
+  ...
+# Subtest: Workshop task normalization preserves complete detail metadata
+ok 495 - Workshop task normalization preserves complete detail metadata
+  ---
+  duration_ms: 11.943426
+  type: 'test'
+  ...
+# Subtest: Workshop task normalization keeps content lossless and derives one bounded display title
+ok 496 - Workshop task normalization keeps content lossless and derives one bounded display title
+  ---
+  duration_ms: 1.247683
+  type: 'test'
+  ...
+# Subtest: Workshop task source reads the current user, project-owned tasks, and all seven states
+ok 497 - Workshop task source reads the current user, project-owned tasks, and all seven states
+  ---
+  duration_ms: 68.285664
+  type: 'test'
+  ...
+# Subtest: Workshop task source fails closed when the current project executor cannot be identified
+ok 498 - Workshop task source fails closed when the current project executor cannot be identified
+  ---
+  duration_ms: 5.11279
+  type: 'test'
+  ...
+# Subtest: Workshop task source recovers the stable current-user id from the accepted Nebula access token
+ok 499 - Workshop task source recovers the stable current-user id from the accepted Nebula access token
+  ---
+  duration_ms: 1.765657
+  type: 'test'
+  ...
+# Subtest: Workshop task source rejects conflicting or malformed Nebula identity claims
+ok 500 - Workshop task source rejects conflicting or malformed Nebula identity claims
+  ---
+  duration_ms: 7.300991
+  type: 'test'
+  ...
+# Subtest: Workshop task source rejects a current-user response completed after logout
+ok 501 - Workshop task source rejects a current-user response completed after logout
+  ---
+  duration_ms: 2.808821
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter reads organizations, members, full project tasks, and V1 feedback without widening automation tasks
+ok 502 - Workshop platform adapter reads organizations, members, full project tasks, and V1 feedback without widening automation tasks
+  ---
+  duration_ms: 25.470394
+  type: 'test'
+  ...
+# Subtest: Workshop task source routes Feedback V2 through the authenticated fixed user namespace
+ok 503 - Workshop task source routes Feedback V2 through the authenticated fixed user namespace
+  ---
+  duration_ms: 4.517198
+  type: 'test'
+  ...
+# Subtest: Workshop task source probes Feedback V2 for every project by default and permits explicit narrowing
+ok 504 - Workshop task source probes Feedback V2 for every project by default and permits explicit narrowing
+  ---
+  duration_ms: 4.005487
+  type: 'test'
+  ...
+# Subtest: Workshop task source sends conditional state updates and reports version conflicts
+ok 505 - Workshop task source sends conditional state updates and reports version conflicts
+  ---
+  duration_ms: 1.402603
+  type: 'test'
+  ...
+# Subtest: Workshop realtime connection and replay stay behind the authenticated task-source boundary
+ok 506 - Workshop realtime connection and replay stay behind the authenticated task-source boundary
+  ---
+  duration_ms: 1.590084
+  type: 'test'
+  ...
+# Subtest: Workshop replay exposes an expired cursor as a stable adapter error
+ok 507 - Workshop replay exposes an expired cursor as a stable adapter error
+  ---
+  duration_ms: 1.085698
+  type: 'test'
+  ...
+# Subtest: Workshop task source rejects a state update response reassigned to another executor
+ok 508 - Workshop task source rejects a state update response reassigned to another executor
+  ---
+  duration_ms: 0.996274
+  type: 'test'
+  ...
+# Subtest: Workshop business synchronization remains closed while the task source is disabled
+ok 509 - Workshop business synchronization remains closed while the task source is disabled
+  ---
+  duration_ms: 0.544448
+  type: 'test'
+  ...
+# Subtest: Workshop authentication uses the built-in server even when business synchronization is disabled
+ok 510 - Workshop authentication uses the built-in server even when business synchronization is disabled
+  ---
+  duration_ms: 2.229642
+  type: 'test'
+  ...
+# Subtest: Workshop task source refreshes an expiring session once across concurrent requests
+ok 511 - Workshop task source refreshes an expiring session once across concurrent requests
+  ---
+  duration_ms: 22.279672
+  type: 'test'
+  ...
+# Subtest: Workshop startup recovery rotates a session within the seven-day activity window
+ok 512 - Workshop startup recovery rotates a session within the seven-day activity window
+  ---
+  duration_ms: 5.063888
+  type: 'test'
+  ...
+# Subtest: Workshop startup recovery migrates a legacy session without a local activity timestamp
+ok 513 - Workshop startup recovery migrates a legacy session without a local activity timestamp
+  ---
+  duration_ms: 1.417093
+  type: 'test'
+  ...
+# Subtest: Workshop startup recovery expires a partial session missing its refresh credential
+ok 514 - Workshop startup recovery expires a partial session missing its refresh credential
+  ---
+  duration_ms: 1.668256
+  type: 'test'
+  ...
+# Subtest: Workshop expires a session only after more than seven days without valid login activity
+ok 515 - Workshop expires a session only after more than seven days without valid login activity
+  ---
+  duration_ms: 0.551465
+  type: 'test'
+  ...
+# Subtest: Workshop preserves a recoverable startup session after a transient refresh failure
+ok 516 - Workshop preserves a recoverable startup session after a transient refresh failure
+  ---
+  duration_ms: 0.768139
+  type: 'test'
+  ...
+# Subtest: Workshop preserves a recoverable startup session after an authentication service failure
+ok 517 - Workshop preserves a recoverable startup session after an authentication service failure
+  ---
+  duration_ms: 1.019043
+  type: 'test'
+  ...
+# Subtest: Workshop clears a startup session explicitly rejected by the authentication server
+ok 518 - Workshop clears a startup session explicitly rejected by the authentication server
+  ---
+  duration_ms: 1.008376
+  type: 'test'
+  ...
+# Subtest: Workshop task source refreshes and retries the first 401 exactly once
+ok 519 - Workshop task source refreshes and retries the first 401 exactly once
+  ---
+  duration_ms: 1.330525
+  type: 'test'
+  ...
+# Subtest: Workshop logout clears both tokens and projects a logged-out state
+ok 520 - Workshop logout clears both tokens and projects a logged-out state
+  ---
+  duration_ms: 0.432033
+  type: 'test'
+  ...
+# Subtest: logout cannot be overwritten by an in-flight token refresh
+ok 521 - logout cannot be overwritten by an in-flight token refresh
+  ---
+  duration_ms: 1.267125
+  type: 'test'
+  ...
+# Subtest: Today creates the first task with the selected project member id instead of the Nebula UUID
+ok 522 - Today creates the first task with the selected project member id instead of the Nebula UUID # SKIP set ARCORBIT_ELECTRON_TODAY_CREATE_IDENTITY_TEST=1 to run the focused Electron regression
+  ---
+  duration_ms: 11.064248
+  type: 'test'
+  ...
+# Subtest: Today fails closed before opening the task sheet when the project member id is unresolved
+ok 523 - Today fails closed before opening the task sheet when the project member id is unresolved # SKIP set ARCORBIT_ELECTRON_TODAY_CREATE_IDENTITY_TEST=1 to run the focused Electron regression
+  ---
+  duration_ms: 0.257352
+  type: 'test'
+  ...
+# Subtest: Today derives the formal first-run progression without persisted onboarding state
+ok 524 - Today derives the formal first-run progression without persisted onboarding state
+  ---
+  duration_ms: 5.862823
+  type: 'test'
+  ...
+# Subtest: Today prioritizes human and completion responsibilities before preparation
+ok 525 - Today prioritizes human and completion responsibilities before preparation
+  ---
+  duration_ms: 0.616434
+  type: 'test'
+  ...
+# Subtest: Today resolves current task ownership per Product Workspace instead of the global login identity
+ok 526 - Today resolves current task ownership per Product Workspace instead of the global login identity
+  ---
+  duration_ms: 4.432202
+  type: 'test'
+  ...
+# Subtest: Today and Automation preserve unknown data instead of projecting empty work
+ok 527 - Today and Automation preserve unknown data instead of projecting empty work
+  ---
+  duration_ms: 0.632709
+  type: 'test'
+  ...
+# Subtest: Work never describes pending review or another assignee as automatically executable
+ok 528 - Work never describes pending review or another assignee as automatically executable
+  ---
+  duration_ms: 0.794844
+  type: 'test'
+  ...
+# Subtest: new task executor guidance distinguishes all Automation qualification combinations
+ok 529 - new task executor guidance distinguishes all Automation qualification combinations
+  ---
+  duration_ms: 0.41044
+  type: 'test'
+  ...
+# Subtest: project ownership checks fail closed when either identity is missing
+ok 530 - project ownership checks fail closed when either identity is missing
+  ---
+  duration_ms: 0.340179
+  type: 'test'
+  ...
+# Subtest: local binding stays member-local while project participation keeps its admin boundary
+ok 531 - local binding stays member-local while project participation keeps its admin boundary
+  ---
+  duration_ms: 0.709545
+  type: 'test'
+  ...
+# Subtest: Automation distinguishes blocked candidates, review-only work and a truly empty queue
+ok 532 - Automation distinguishes blocked candidates, review-only work and a truly empty queue
+  ---
+  duration_ms: 0.93136
+  type: 'test'
+  ...
+# Subtest: Today and Automation expose queue pause as the next directly recoverable fact
+ok 533 - Today and Automation expose queue pause as the next directly recoverable fact
+  ---
+  duration_ms: 2.038295
+  type: 'test'
+  ...
+# Subtest: readiness steps are derived from current facts and mark only one current step
+ok 534 - readiness steps are derived from current facts and mark only one current step
+  ---
+  duration_ms: 2.021639
+  type: 'test'
+  ...
+# Subtest: Renderer reuses owned mutations, fresh-reads after success, and preserves ordinary Work defaults
+ok 535 - Renderer reuses owned mutations, fresh-reads after success, and preserves ordinary Work defaults
+  ---
+  duration_ms: 59.600577
+  type: 'test'
+  ...
+# Subtest: Today edits Work task content through the confirmed mutation and preserves context on failure
+ok 536 - Today edits Work task content through the confirmed mutation and preserves context on failure # SKIP set ARCORBIT_ELECTRON_TODAY_TASK_EDIT_TEST=1 to run the focused Electron regression
+  ---
+  duration_ms: 2.812546
+  type: 'test'
+  ...
+# Subtest: project configuration contains only the four Automation execution prerequisites
+ok 537 - project configuration contains only the four Automation execution prerequisites
+  ---
+  duration_ms: 5.661209
+  type: 'test'
+  ...
+# Subtest: configuration exposes exactly one current blocker per project
+ok 538 - configuration exposes exactly one current blocker per project
+  ---
+  duration_ms: 0.562911
+  type: 'test'
+  ...
+# Subtest: workspace defaults a newcomer to configuration and keeps parallel project states
+ok 539 - workspace defaults a newcomer to configuration and keeps parallel project states
+  ---
+  duration_ms: 30.80209
+  type: 'test'
+  ...
+# Subtest: Today scope starts empty, adds multiple projects independently, and never hides an unselected human responsibility
+ok 540 - Today scope starts empty, adds multiple projects independently, and never hides an unselected human responsibility
+  ---
+  duration_ms: 1.750341
+  type: 'test'
+  ...
+# Subtest: workspace aggregates explicit human responsibilities and excludes routine pending work
+ok 541 - workspace aggregates explicit human responsibilities and excludes routine pending work
+  ---
+  duration_ms: 1.886389
+  type: 'test'
+  ...
+# Subtest: workspace combines Chat, Automation, Work and Feedback actions with typed contracts
+ok 542 - workspace combines Chat, Automation, Work and Feedback actions with typed contracts
+  ---
+  duration_ms: 2.30528
+  type: 'test'
+  ...
+# Subtest: completed Work responsibility preserves acceptance issue text, status, progress, and selection
+ok 543 - completed Work responsibility preserves acceptance issue text, status, progress, and selection
+  ---
+  duration_ms: 0.659856
+  type: 'test'
+  ...
+# Subtest: project scope filters the lists without changing global Today counts
+ok 544 - project scope filters the lists without changing global Today counts
+  ---
+  duration_ms: 0.764882
+  type: 'test'
+  ...
+# Subtest: automatic recovery and running state stay in the minimal non-human summary
+ok 545 - automatic recovery and running state stay in the minimal non-human summary
+  ---
+  duration_ms: 1.042385
+  type: 'test'
+  ...
+# Subtest: selection is preserved while valid and falls to the adjacent first item after source removal
+ok 546 - selection is preserved while valid and falls to the adjacent first item after source removal
+  ---
+  duration_ms: 2.437638
+  type: 'test'
+  ...
+# Subtest: one persistent thread keeps cumulative usage while each turn uses its own delta
+ok 547 - one persistent thread keeps cumulative usage while each turn uses its own delta
+  ---
+  duration_ms: 7.60782
+  type: 'test'
+  ...
+# Subtest: 80 percent context pressure and duplicate commands remain visible non-blocking signals
+ok 548 - 80 percent context pressure and duplicate commands remain visible non-blocking signals
+  ---
+  duration_ms: 0.780228
+  type: 'test'
+  ...
+# Subtest: Agent command timings are projected from Codex item lifecycle events
+ok 549 - Agent command timings are projected from Codex item lifecycle events
+  ---
+  duration_ms: 1.34972
+  type: 'test'
+  ...
+# Subtest: one coherent Agent loop projects bounded Agent and tool messages
+ok 550 - one coherent Agent loop projects bounded Agent and tool messages
+  ---
+  duration_ms: 1.722994
+  type: 'test'
+  ...
+# Subtest: reasoning projection omits empty summaries and completes non-empty Codex text in place
+ok 551 - reasoning projection omits empty summaries and completes non-empty Codex text in place
+  ---
+  duration_ms: 0.912894
+  type: 'test'
+  ...
+# Subtest: Automation preserves each Agent commentary item beside tools and the schema-bound result
+ok 552 - Automation preserves each Agent commentary item beside tools and the schema-bound result
+  ---
+  duration_ms: 2.211529
+  type: 'test'
+  ...
+# Subtest: reasoning token usage alone does not create a displayable reasoning message
+ok 553 - reasoning token usage alone does not create a displayable reasoning message
+  ---
+  duration_ms: 0.582192
+  type: 'test'
+  ...
+# Subtest: bounded tool history never evicts independently persisted Agent items
+ok 554 - bounded tool history never evicts independently persisted Agent items
+  ---
+  duration_ms: 1.944205
+  type: 'test'
+  ...
+# Subtest: schema-bound Agent output is preserved as structured data beside the formal summary
+ok 555 - schema-bound Agent output is preserved as structured data beside the formal summary
+  ---
+  duration_ms: 1.398411
+  type: 'test'
+  ...
+# Subtest: round candidate catalog and Agent comparison trace stay visible without Runtime reprioritizing them
+ok 556 - round candidate catalog and Agent comparison trace stay visible without Runtime reprioritizing them
+  ---
+  duration_ms: 1.632618
+  type: 'test'
+  ...
+# Subtest: Run Activity retains a structured per-gap overview outside the capped transcript
+ok 557 - Run Activity retains a structured per-gap overview outside the capped transcript
+  ---
+  duration_ms: 1.157005
+  type: 'test'
+  ...
+# Subtest: non-command Codex tools update one stable transcript item from started to completed
+ok 558 - non-command Codex tools update one stable transcript item from started to completed
+  ---
+  duration_ms: 0.405786
+  type: 'test'
+  ...
+# Subtest: context compaction is recorded against the source turn on the same thread
+ok 559 - context compaction is recorded against the source turn on the same thread
+  ---
+  duration_ms: 0.450902
+  type: 'test'
+  ...
+# Subtest: Agent repair request stays visible as an in-run recovery instead of a terminal failure
+ok 560 - Agent repair request stays visible as an in-run recovery instead of a terminal failure
+  ---
+  duration_ms: 0.38475
+  type: 'test'
+  ...
+# Subtest: accepted ledger receipts remain append-only when a later write fails
+ok 561 - accepted ledger receipts remain append-only when a later write fails
+  ---
+  duration_ms: 0.708991
+  type: 'test'
+  ...
+# Subtest: Work acceptance restores the adjacent task after an early Work Sync fallback
+ok 562 - Work acceptance restores the adjacent task after an early Work Sync fallback # SKIP set ARCORBIT_ELECTRON_WORK_ACCEPTANCE_SELECTION_TEST=1 to run the Electron acceptance selection regression
+  ---
+  duration_ms: 1.72515
+  type: 'test'
+  ...
+# Subtest: Work acceptance preserves a real row click after an early Work Sync fallback
+ok 563 - Work acceptance preserves a real row click after an early Work Sync fallback # SKIP set ARCORBIT_ELECTRON_WORK_ACCEPTANCE_SELECTION_TEST=1 to run the Electron acceptance selection regression
+  ---
+  duration_ms: 0.217551
+  type: 'test'
+  ...
+# Subtest: Work acceptance preserves a Today product selection made while the action is pending
+ok 564 - Work acceptance preserves a Today product selection made while the action is pending # SKIP set ARCORBIT_ELECTRON_WORK_ACCEPTANCE_SELECTION_TEST=1 to run the Electron acceptance selection regression
+  ---
+  duration_ms: 0.186729
+  type: 'test'
+  ...
+# Subtest: Work acceptance preserves a cross-product replacement target selected while the action is pending
+ok 565 - Work acceptance preserves a cross-product replacement target selected while the action is pending # SKIP set ARCORBIT_ELECTRON_WORK_ACCEPTANCE_SELECTION_TEST=1 to run the Electron acceptance selection regression
+  ---
+  duration_ms: 0.197792
+  type: 'test'
+  ...
+# Subtest: Work acceptance cannot restore a stale selection after Workshop logout
+ok 566 - Work acceptance cannot restore a stale selection after Workshop logout # SKIP set ARCORBIT_ELECTRON_WORK_ACCEPTANCE_SELECTION_TEST=1 to run the Electron acceptance selection regression
+  ---
+  duration_ms: 0.19923
+  type: 'test'
+  ...
+# Subtest: Work background refresh keeps comment and acceptance editor nodes for the selected task
+ok 567 - Work background refresh keeps comment and acceptance editor nodes for the selected task # SKIP set ARCORBIT_ELECTRON_WORK_DETAIL_REFRESH_TEST=1 to run the focused Electron regression
+  ---
+  duration_ms: 1.336294
+  type: 'test'
+  ...
+# Subtest: Work external links accept only explicit browser and mail protocols
+ok 568 - Work external links accept only explicit browser and mail protocols
+  ---
+  duration_ms: 2.277616
+  type: 'test'
+  ...
+# Subtest: Work Inspector preference normalizes default, bounds, integer and invalid values
+ok 569 - Work Inspector preference normalizes default, bounds, integer and invalid values
+  ---
+  duration_ms: 1.771777
+  type: 'test'
+  ...
+# Subtest: Work Inspector window constraints preserve list space without changing the saved preference
+ok 570 - Work Inspector window constraints preserve list space without changing the saved preference
+  ---
+  duration_ms: 0.432498
+  type: 'test'
+  ...
+# Subtest: Work Inspector keyboard adjustment uses 16px and Shift 48px steps
+ok 571 - Work Inspector keyboard adjustment uses 16px and Shift 48px steps
+  ---
+  duration_ms: 0.30896
+  type: 'test'
+  ...
+# Subtest: Work Inspector pointer adjustment grows leftward and persists only a normalized candidate
+ok 572 - Work Inspector pointer adjustment grows leftward and persists only a normalized candidate
+  ---
+  duration_ms: 0.402908
+  type: 'test'
+  ...
+# Subtest: Work Inspector persistence serializes intents without letting an older response replace the latest width
+ok 573 - Work Inspector persistence serializes intents without letting an older response replace the latest width
+  ---
+  duration_ms: 11.85145
+  type: 'test'
+  ...
+# Subtest: Work Inspector persistence keeps the latest optimistic intent when an older request fails
+ok 574 - Work Inspector persistence keeps the latest optimistic intent when an older request fails
+  ---
+  duration_ms: 4.308028
+  type: 'test'
+  ...
+# Subtest: Work and Feedback keep one control rail above independently scrolling remaining-height panes
+ok 575 - Work and Feedback keep one control rail above independently scrolling remaining-height panes # SKIP set ARCORBIT_ELECTRON_WORK_NAVIGATION_TEST=1 to run the Electron Work navigation regression
+  ---
+  duration_ms: 1.346702
+  type: 'test'
+  ...
+# Subtest: Work query keys cover scope, state, search, filters, dates and window with canonical multi-value ordering
+ok 576 - Work query keys cover scope, state, search, filters, dates and window with canonical multi-value ordering
+  ---
+  duration_ms: 3.460985
+  type: 'test'
+  ...
+# Subtest: Work query state keeps a bounded SWR cache and rejects stale or mismatched responses
+ok 577 - Work query state keeps a bounded SWR cache and rejects stale or mismatched responses
+  ---
+  duration_ms: 1.254154
+  type: 'test'
+  ...
+# Subtest: Work query state does not let an older same-key response overwrite a newer cached projection
+ok 578 - Work query state does not let an older same-key response overwrite a newer cached projection
+  ---
+  duration_ms: 1.662852
+  type: 'test'
+  ...
+# Subtest: Work query state does not let a pre-clear response repopulate an invalidated cache
+ok 579 - Work query state does not let a pre-clear response repopulate an invalidated cache
+  ---
+  duration_ms: 0.568584
+  type: 'test'
+  ...
+# Subtest: Work status switching is immediate, generation-safe and windowed for 1000 rows
+ok 580 - Work status switching is immediate, generation-safe and windowed for 1000 rows # SKIP set ARCORBIT_ELECTRON_WORK_STATUS_PERFORMANCE_TEST=1 to run the Electron Work status performance regression
+  ---
+  duration_ms: 1.391654
+  type: 'test'
+  ...
+# Subtest: Work Sync reconciles the Workset, Automation participation, and active-task demand union
+ok 581 - Work Sync reconciles the Workset, Automation participation, and active-task demand union
+  ---
+  duration_ms: 17.21113
+  type: 'test'
+  ...
+# Subtest: Automation keeps a Catalog project visible when its first task sync fails
+ok 582 - Automation keeps a Catalog project visible when its first task sync fails
+  ---
+  duration_ms: 3.345524
+  type: 'test'
+  ...
+# Subtest: a tag failure does not invalidate confirmed project tasks
+ok 583 - a tag failure does not invalidate confirmed project tasks
+  ---
+  duration_ms: 3.464072
+  type: 'test'
+  ...
+# Subtest: the first v16 reconciliation rehydrates a v15 store without changing bindings or participation
+ok 584 - the first v16 reconciliation rehydrates a v15 store without changing bindings or participation
+  ---
+  duration_ms: 4.068993
+  type: 'test'
+  ...
+# Subtest: a reconcile demand added during an in-flight pass is processed by a following generation
+ok 585 - a reconcile demand added during an in-flight pass is processed by a following generation
+  ---
+  duration_ms: 5.346942
+  type: 'test'
+  ...
+# Subtest: Work Sync keeps the local task state unchanged when a mutation fails
+ok 586 - Work Sync keeps the local task state unchanged when a mutation fails
+  ---
+  duration_ms: 2.38554
+  type: 'test'
+  ...
+# Subtest: Work Sync publishes a successful mutation only after the project projection confirms it
+ok 587 - Work Sync publishes a successful mutation only after the project projection confirms it
+  ---
+  duration_ms: 3.374691
+  type: 'test'
+  ...
+# Subtest: Work Sync submits combined field and state edits once and publishes only the confirmed response
+ok 588 - Work Sync submits combined field and state edits once and publishes only the confirmed response
+  ---
+  duration_ms: 4.101736
+  type: 'test'
+  ...
+# Subtest: a successful Work refresh clears the previous project degradation
+ok 589 - a successful Work refresh clears the previous project degradation
+  ---
+  duration_ms: 2.190018
+  type: 'test'
+  ...
+# Subtest: a successful remote create is not reported as failed when Work reconciliation degrades
+ok 590 - a successful remote create is not reported as failed when Work reconciliation degrades
+  ---
+  duration_ms: 2.620949
+  type: 'test'
+  ...
+# Subtest: task product replacement confirms the target before deleting the source and copies only approved fields
+ok 591 - task product replacement confirms the target before deleting the source and copies only approved fields
+  ---
+  duration_ms: 6.061021
+  type: 'test'
+  ...
+# Subtest: task product replacement never deletes the source when target creation fails
+ok 592 - task product replacement never deletes the source when target creation fails
+  ---
+  duration_ms: 1.038326
+  type: 'test'
+  ...
+# Subtest: task product replacement persists a delete failure and retries without creating another target
+ok 593 - task product replacement persists a delete failure and retries without creating another target
+  ---
+  duration_ms: 6.532592
+  type: 'test'
+  ...
+# Subtest: task product replacement can explicitly keep both confirmed tasks
+ok 594 - task product replacement can explicitly keep both confirmed tasks
+  ---
+  duration_ms: 1.259752
+  type: 'test'
+  ...
+# Subtest: a late reconciliation result cannot restore a cleared Work identity
+ok 595 - a late reconciliation result cannot restore a cleared Work identity
+  ---
+  duration_ms: 17.685881
+  type: 'test'
+  ...
+# Subtest: TaskAttachment snapshot invalidation refreshes remote caches without discarding the current comment draft
+ok 596 - TaskAttachment snapshot invalidation refreshes remote caches without discarding the current comment draft
+  ---
+  duration_ms: 2.817151
+  type: 'test'
+  ...
+# Subtest: TaskAttachment identity invalidation clears every remote and pending resource and rejects stale async writes
+ok 597 - TaskAttachment identity invalidation clears every remote and pending resource and rejects stale async writes
+  ---
+  duration_ms: 0.330255
+  type: 'test'
+  ...
+# Subtest: TaskAttachment identity follows the immutable Workshop user before the login fallback
+ok 598 - TaskAttachment identity follows the immutable Workshop user before the login fallback
+  ---
+  duration_ms: 0.42476
+  type: 'test'
+  ...
+# Subtest: TaskAttachment text preserves JSON and tag image/file resources
+ok 599 - TaskAttachment text preserves JSON and tag image/file resources
+  ---
+  duration_ms: 4.144309
+  type: 'test'
+  ...
+# Subtest: TaskAttachment URL and comment serialization are explicit and safe
+ok 600 - TaskAttachment URL and comment serialization are explicit and safe
+  ---
+  duration_ms: 2.292743
+  type: 'test'
+  ...
+# Subtest: Work TaskAttachment resources stay under the authorized comment directory
+ok 601 - Work TaskAttachment resources stay under the authorized comment directory
+  ---
+  duration_ms: 3.345118
+  type: 'test'
+  ...
+# Subtest: Work TaskAttachment upload validates bytes and returns only durable resource metadata
+ok 602 - Work TaskAttachment upload validates bytes and returns only durable resource metadata
+  ---
+  duration_ms: 2.426055
+  type: 'test'
+  ...
+# Subtest: image viewer computes bounded fit scales for normal and rotated images
+ok 603 - image viewer computes bounded fit scales for normal and rotated images
+  ---
+  duration_ms: 2.051552
+  type: 'test'
+  ...
+# Subtest: image viewer transform supports zoom, pan, rotate, actual size, fit, and reset
+ok 604 - image viewer transform supports zoom, pan, rotate, actual size, fit, and reset
+  ---
+  duration_ms: 1.761799
+  type: 'test'
+  ...
+# Subtest: image viewer clamps extreme zoom values
+ok 605 - image viewer clamps extreme zoom values
+  ---
+  duration_ms: 0.294897
+  type: 'test'
+  ...
+# Subtest: managed image viewer isolates navigation, receives validated bytes, and saves only from its own window
+ok 606 - managed image viewer isolates navigation, receives validated bytes, and saves only from its own window
+  ---
+  duration_ms: 8.839024
+  type: 'test'
+  ...
+# Subtest: canceling image Save As is not an error
+ok 607 - canceling image Save As is not an error
+  ---
+  duration_ms: 0.944527
+  type: 'test'
+  ...
+# Subtest: a managed viewer can retry a failed image load without exposing the input to Renderer
+ok 608 - a managed viewer can retry a failed image load without exposing the input to Renderer
+  ---
+  duration_ms: 1.33219
+  type: 'test'
+  ...
+# Subtest: a normal image viewer close remains immediate
+ok 609 - a normal image viewer close remains immediate
+  ---
+  duration_ms: 1.183716
+  type: 'test'
+  ...
+# Subtest: a non-macOS fullscreen image viewer keeps the platform-native close behavior
+ok 610 - a non-macOS fullscreen image viewer keeps the platform-native close behavior
+  ---
+  duration_ms: 0.562581
+  type: 'test'
+  ...
+# Subtest: a macOS native-fullscreen image viewer exits fullscreen before one real close
+ok 611 - a macOS native-fullscreen image viewer exits fullscreen before one real close
+  ---
+  duration_ms: 0.899662
+  type: 'test'
+  ...
+# Subtest: application shutdown force-destroys a viewer waiting to leave native fullscreen
+ok 612 - application shutdown force-destroys a viewer waiting to leave native fullscreen
+  ---
+  duration_ms: 0.746385
+  type: 'test'
+  ...
+# Subtest: completed acceptance moves from the newest task to the next older task
+ok 613 - completed acceptance moves from the newest task to the next older task
+  ---
+  duration_ms: 1.820711
+  type: 'test'
+  ...
+# Subtest: completed acceptance moves from a middle task to its adjacent newer task
+ok 614 - completed acceptance moves from a middle task to its adjacent newer task
+  ---
+  duration_ms: 0.401002
+  type: 'test'
+  ...
+# Subtest: completed acceptance ignores tree lineage rows when choosing the adjacent task
+ok 615 - completed acceptance ignores tree lineage rows when choosing the adjacent task
+  ---
+  duration_ms: 0.277731
+  type: 'test'
+  ...
+# Subtest: completed acceptance has no forced selection when no adjacent completed task exists
+ok 616 - completed acceptance has no forced selection when no adjacent completed task exists
+  ---
+  duration_ms: 2.279056
+  type: 'test'
+  ...
+# Subtest: completed acceptance applies the adjacent target while explicit selection intent is unchanged
+ok 617 - completed acceptance applies the adjacent target while explicit selection intent is unchanged
+  ---
+  duration_ms: 0.49736
+  type: 'test'
+  ...
+# Subtest: completed acceptance survives a Work Sync fallback before the action promise resolves
+ok 618 - completed acceptance survives a Work Sync fallback before the action promise resolves
+  ---
+  duration_ms: 0.35971
+  type: 'test'
+  ...
+# Subtest: completed acceptance preserves a newer user choice after an early Work Sync fallback
+ok 619 - completed acceptance preserves a newer user choice after an early Work Sync fallback
+  ---
+  duration_ms: 0.477957
+  type: 'test'
+  ...
+# Subtest: Workshop member normalization never invents an id-shaped username
+ok 620 - Workshop member normalization never invents an id-shaped username
+  ---
+  duration_ms: 2.156044
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter keeps Feedback V2 in fixed project-scoped routes
+ok 621 - Workshop platform adapter keeps Feedback V2 in fixed project-scoped routes
+  ---
+  duration_ms: 6.877765
+  type: 'test'
+  ...
+# Subtest: Feedback V2 normalization preserves V1 compatibility and explicit statuses
+ok 622 - Feedback V2 normalization preserves V1 compatibility and explicit statuses
+  ---
+  duration_ms: 0.443446
+  type: 'test'
+  ...
+# Subtest: Feedback V2 restore preserves provider failure status without a fallback mutation
+ok 623 - Feedback V2 restore preserves provider failure status without a fallback mutation
+  ---
+  duration_ms: 1.380166
+  type: 'test'
+  ...
+# Subtest: Workshop platform management uses the existing bounded service routes and fields
+ok 624 - Workshop platform management uses the existing bounded service routes and fields
+  ---
+  duration_ms: 2.267599
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter keeps TaskAttachment OSS credentials behind bounded resource methods
+ok 625 - Workshop platform adapter keeps TaskAttachment OSS credentials behind bounded resource methods
+  ---
+  duration_ms: 0.803392
+  type: 'test'
+  ...
+# Subtest: Workshop platform management validates ids and rejects unsupported owner assignment
+ok 626 - Workshop platform management validates ids and rejects unsupported owner assignment
+  ---
+  duration_ms: 2.533417
+  type: 'test'
+  ...
+# Subtest: Workshop task queries serialize multi-value filters and normalize the bounded task tree
+ok 627 - Workshop task queries serialize multi-value filters and normalize the bounded task tree
+  ---
+  duration_ms: 4.250012
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter normalizes historical Feedback V1 processing fields
+ok 628 - Workshop platform adapter normalizes historical Feedback V1 processing fields
+  ---
+  duration_ms: 0.955028
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter follows service pagination and keeps organization governance bounded
+ok 629 - Workshop platform adapter follows service pagination and keeps organization governance bounded
+  ---
+  duration_ms: 2.506046
+  type: 'test'
+  ...
+# Subtest: realtime adapter replays a persisted cursor before accepting buffered live events
+ok 630 - realtime adapter replays a persisted cursor before accepting buffered live events
+  ---
+  duration_ms: 12.883639
+  type: 'test'
+  ...
+# Subtest: realtime adapter converts an expired cursor into a current-state refresh
+ok 631 - realtime adapter converts an expired cursor into a current-state refresh
+  ---
+  duration_ms: 2.665939
+  type: 'test'
+  ...
+# Subtest: realtime adapter resets a persisted cursor ahead of the server baseline
+ok 632 - realtime adapter resets a persisted cursor ahead of the server baseline
+  ---
+  duration_ms: 2.104922
+  type: 'test'
+  ...
+# Subtest: realtime adapter reconnects before the websocket credential expires
+ok 633 - realtime adapter reconnects before the websocket credential expires
+  ---
+  duration_ms: 1.791334
+  type: 'test'
+  ...
+# Subtest: realtime adapter treats an old Workshop handshake as legacy and refreshes id-less events without touching the cursor
+ok 634 - realtime adapter treats an old Workshop handshake as legacy and refreshes id-less events without touching the cursor
+  ---
+  duration_ms: 353.873924
+  type: 'test'
+  ...
+# Subtest: realtime adapter rejects an ambiguous unversioned handshake that advertises a cursor
+ok 635 - realtime adapter rejects an ambiguous unversioned handshake that advertises a cursor
+  ---
+  duration_ms: 2.385335
+  type: 'test'
+  ...
+1..635
+# tests 635
+# suites 0
+# pass 608
+# fail 0
+# cancelled 0
+# skipped 27
+# todo 0
+# duration_ms 18004.537684

@@ -32,9 +32,9 @@
   - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、具体变更文件、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
   - workspace-setup.html 工作区绑定子视图：任意可访问项目成员从 Chat 原位选择目录并检查 Setup Readiness，同时保留草稿。✅ (12行)
   - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、具体文件目标、内容宽度隔离、session 独立滚动、Composer、恢复和 Automation 隔离。✅ (124行)
-- release-workspace/ Release 页面：版本候选、发布门禁、跨平台产物和上线健康监控计划。✅
-  - default.html Release 线框：release train、验证与签名门禁、产物和上线观察。✅ (13行)
-  - interaction.md Release 交互：发版准备、人工授权、线上监控和未接入边界。✅ (33行)
+- release-workspace/ Release：真实终端、Git、源码、任务与 Agent 协作。✅
+  - default.html Release 状态线框：全部项目、执行、Git、冲突与中断恢复。✅ (10行)
+  - interaction.md Release 交互：固定归属、共享对话和真实执行结果。✅ (23行)
 - operations-workspace/ Operations 页面：外部市场动作、渠道内容、负责人、时间窗口和效果信号回流。✅
   - default.html Operations 线框：运营动作、受众与渠道、内容主题和示意效果信号。✅ (14行)
   - interaction.md Operations 交互：待发布/进行中/已复盘状态、回流关系和外部平台边界。✅ (33行)
@@ -68,4 +68,4 @@
   - interaction.md Idea 列表状态与恢复。✅ (23行)
 - idea-add/ 添加 Idea：从空白或材料建立可恢复 Idea，在可编辑资料区与对话区协作完成接入。✅
   - default.html 添加 Idea状态与恢复。✅ (159行)
-  - interaction.md 添加 Idea状态与恢复。✅ (30行)
+  - interaction.md 添加 Idea状态与恢复。✅ (36行)

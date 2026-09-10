@@ -8,7 +8,7 @@
 | `today-workspace/` | 🟡 | 复用真实主导航，以项目栏、需要你处理/项目配置和来源操作台承载多项目执行前置与明确人工责任 | 添加项目、多项目并行配置、目录/Setup/本机 participation、Chat 权限、Automation handoff/Recovery 人机接力、Work 内容纠偏 Sheet 与服务器确认、编辑失败保留草稿/选择/阅读上下文、Work 评审/验收、验收问题原位直显与进展、跨对象部分成功、即时确认后移出、来源未知 |
 | `chat-workspace/` | ✅ | 按 Product Workspace 分组浏览最近与历史会话，并在首条消息前显式确认、切换或原位绑定新会话项目归属 | 项目分组、每组最近 10 条、历史展开/收起、新对话项目切换、流式消息、工具/权限、停止、中断/失败恢复、删除确认、工作区阻塞与绑定 Sheet |
 | `idea-workspace/` | ✅ | 探索和讨论产品创意，比较问题、用户、证据与风险，并在确认后预览正式项目转换 | 探索中、讨论中、已确认、团队观点、开始项目预览 |
-| `release-workspace/` | ✅ | 对齐候选版本、发布门禁、跨平台产物与上线健康，不替代人工发版授权 | 准备中、验证与签名、release-intent、上线观察、回退关注 |
+| `release-workspace/` | ✅ | 已有工作区的终端、Git、源码、任务与共享 Agent | 多项目范围、真实执行、冲突、过期写入、缺少工具、恢复 |
 | `operations-workspace/` | ✅ | 组织对外市场动作、渠道内容和效果信号，并把发现回流到产品生命周期 | 待发布、进行中、已复盘、示意信号、Idea/Work/Feedback 回流 |
 | `engineering-profile/` | ✅ | 选择、编辑、比较和应用由 State Model、Capability Mapping 与 Lifecycle Mapping 组成的 Domain Profile | Profile Library、草稿编辑、跨行业比较、兼容性检查、Apply 确认、稳定 Loop Kernel |
 | `product-feedback-center/` | ✅ | 在 ArcOrbit 内向固定 Project 107 提交反馈、查看当前账户反馈并感知未读变化 | 未读角标、SDK 加载、提交反馈、我的反馈、需要登录、SDK 失败恢复 |
@@ -16,3 +16,5 @@
 | `task-browser/` | ✅ | 在 Work 的单行控制轨中组合本地查询，并用 Work-owned 同步和任务树/可持久调宽 Inspector 完成分区详情、评论附件、产品限定维护、编辑七状态兜底及引导式状态动作；Automation 只消费确认结果 | 本地查询、Work Sync、单行控制轨与窄窗口收敛、多维筛选、任务树、Inspector 440px 默认/拖拽/键盘/跨重启恢复、内容/紧凑属性/协作/验收分区、评论附件、新建/编辑七状态 Picker、新建执行人 Automation 资格提示、Inspector 下一步动作、待评审/执行人/项目连接引导、标签生命周期、运行/验收查看、外部状态恢复、空态与冲突 |
 
 | Product / Idea / Today 续接 | ✅ | 产品目录与详情、空白/材料接入、双区协作、显式状态、Git 共享冲突与来源恢复。 |
+
+Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。

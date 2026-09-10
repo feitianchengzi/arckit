@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +11,7 @@ const lock = JSON.parse(await readFile(path.join(buildRoot, "resources", "provis
 const pkg = JSON.parse(await readFile(path.join(runtimeRoot, "package.json"), "utf8"));
 const outputPath = path.join(buildRoot, "electron-builder.generated.json");
 const resourcesFrom = path.relative(runtimeRoot, path.join(buildRoot, "resources")) || ".";
+await import("./build-release-ui.mjs");
 const config = {
   appId: "com.feitianchengzi.arckit.runtime",
   productName: "ArcOrbit",
@@ -18,6 +19,7 @@ const config = {
   artifactName: `ArcOrbit-${lock.runtime.packageVersion}-${lock.runtime.channel}-${lock.runtime.buildLabel}-${"${os}"}-${"${arch}"}.${"${ext}"}`,
   directories: { output: "release", buildResources: "build" },
   asar: true,
+  asarUnpack: ["node_modules/node-pty/**/*"],
   afterPack: "scripts/flip-electron-fuses.cjs",
   files: ["package.json", "bin/**/*", "adapters/**/*", "config/**/*", "desktop/**/*", "schemas/**/*", "src/**/*", "README.md", "LICENSE", "LICENSE.zh-CN.md", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.zh-CN.md"],
   extraResources: [
@@ -43,6 +45,15 @@ const config = {
   linux: { target: ["AppImage"], category: "Development", maintainer: "Arckit Maintainers <hi@feitianchengzi.com>" },
   publish: null
 };
+// Optional offline Lazygit payload: acquisition is a separate, explicit build
+// step. Never make starting ArcOrbit or generating config download software.
+const target = lock.runtime.target.replace('macos-', 'darwin-').replace('windows-', 'win32-');
+const toolRoot = path.join(runtimeRoot, 'build-tools', target);
+try {
+  await access(path.join(toolRoot, target.startsWith('win32') ? 'lazygit.exe' : 'lazygit'));
+  await access(path.join(toolRoot, 'receipt.json'));
+  config.extraResources.push({ from: toolRoot, to: 'lazygit', filter: ['**/*'] });
+} catch {}
 await mkdir(path.dirname(outputPath), { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(config, null, 2)}\n`);
 console.log(outputPath);

@@ -1,3 +1,4 @@
+import { createReleaseSurface } from "./release-surface.mjs";
 import { createProductSurface } from "./product-surface.mjs";
 import { createConversationComposer } from "./conversation-composer.mjs";
 import { createCodexSettingsForm } from "./codex-settings-form.mjs";
@@ -298,6 +299,10 @@ const productSurface = createProductSurface({
     showPage(page);
     if (["feedback", "organization", "command"].includes(page)) await refreshSnapshot();
   }
+});
+const releaseSurface = createReleaseSurface({
+  api, normalizeChatSnapshot, formatTime, performAction: runAction,
+  navigateSetup: () => showPage("command")
 });
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
@@ -1670,6 +1675,7 @@ function renderWorkSurface() {
 }
 
 function renderPageVisibility() {
+  releaseSurface.show({active:state.page === "release", projectId:state.selectedProjectId, workset:state.platform.active_workset});
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
   const navigationPage = state.page === "product-detail" ? "product" : state.page === "idea-add" ? "idea" : state.page === "tasks" ? "work" : ["workbench", "recovery"].includes(state.page) ? "command" : state.page;
   document.querySelectorAll("[data-page]").forEach((button) => button.classList.toggle("is-active", button.dataset.page === navigationPage));
@@ -4903,6 +4909,7 @@ async function login() {
     }));
     state.settings = normalizeSettings(await api.getSettings());
     productSurface.reset();
+    releaseSurface.reset();
     workQueryState.clear();
     state.workQuery = { key: "", projection: null, loading: false, error: "" };
     els.authCode.value = "";
@@ -4931,6 +4938,7 @@ async function logout() {
     }
     state.authentication = normalizeAuthentication(result.authentication);
     productSurface.reset();
+    releaseSurface.reset();
     invalidatePlatformTaskSelectionContext();
     state.settings = normalizeSettings(await api.getSettings());
     state.snapshot = emptySnapshot();

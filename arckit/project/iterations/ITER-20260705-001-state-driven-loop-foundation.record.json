@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-09-09T08:48:33.157Z",
+  "updated_at": "2026-09-10T10:08:34.528Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -3450,6 +3450,84 @@
         "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_intent_and_scope",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-release-workspace.md",
+        "arckit/tech/arcorbit/release-workspace-solution.md",
+        "arckit/interaction/release-workspace/interaction.md",
+        "arckit/interaction/release-workspace/default.html",
+        "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-release-workspace.md",
+        "arckit/tech/arcorbit/release-workspace-solution.md",
+        "arckit/interaction/release-workspace/interaction.md",
+        "arckit/interaction/release-workspace/default.html",
+        "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-release-workspace.md",
+        "arckit/tech/arcorbit/release-workspace-solution.md",
+        "arckit/interaction/release-workspace/interaction.md",
+        "arckit/interaction/release-workspace/default.html",
+        "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "data_and_state",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-release-workspace.md",
+        "arckit/tech/arcorbit/release-workspace-solution.md",
+        "arckit/interaction/release-workspace/interaction.md",
+        "arckit/interaction/release-workspace/default.html",
+        "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "external_integrations",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-release-workspace.md",
+        "arckit/tech/arcorbit/release-workspace-solution.md",
+        "arckit/interaction/release-workspace/interaction.md",
+        "arckit/interaction/release-workspace/default.html",
+        "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-release-workspace.md",
+        "arckit/tech/arcorbit/release-workspace-solution.md",
+        "arckit/interaction/release-workspace/interaction.md",
+        "arckit/interaction/release-workspace/default.html",
+        "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
     }
   ],
   "acceptance": {
@@ -3467,7 +3545,8 @@
   },
   "blocking_project_gaps": [],
   "active_case_refs": [
-    "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md"
+    "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md",
+    "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
   ],
   "closed_case_refs": [
     "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
@@ -3600,15 +3679,18 @@
     "arckit/cases/closed/CASE-20260904-004-development-case.md",
     "arckit/cases/closed/CASE-20260905-001-arcorbit-codex-model-level.md",
     "arckit/cases/closed/CASE-20260905-002-arcorbit-ai.md",
-    "arckit/cases/closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+    "arckit/cases/closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md",
+    "arckit/cases/closed/CASE-20260909-003-optimize-agent-led-idea-intake-and-editable-guided-collaboration.md",
+    "arckit/cases/closed/CASE-20260910-001-enable-agent-environment-exploration-with-deterministic-applicat.md",
+    "arckit/cases/closed/CASE-20260910-002-align-idea-formal-workspace-intake-and-shared-ui-agent-context.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md",
+    "case_ref": "arckit/cases/closed/CASE-20260910-002-align-idea-formal-workspace-intake-and-shared-ui-agent-context.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md"
+      "arckit/cases/closed/CASE-20260910-002-align-idea-formal-workspace-intake-and-shared-ui-agent-context.md"
     ],
-    "updated_at": "2026-09-09T08:48:33.157Z"
+    "updated_at": "2026-09-10T10:08:34.528Z"
   }
 }

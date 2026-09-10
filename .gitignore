@@ -21,3 +21,6 @@ coverage/
 !**/env.*.example
 !**/env.*.template
 !**/env.template
+
+# Generated Release editor and terminal browser assets
+runtime/arcorbit/desktop/renderer/vendor/

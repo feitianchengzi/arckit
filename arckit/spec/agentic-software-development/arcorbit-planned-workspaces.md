@@ -2,9 +2,9 @@
 
 ## 文档定位
 
-本文定义 ArcOrbit 的真实 Chat，以及用于团队计划对齐的 Idea、Release、Operations 和 Engineering 工作空间，并说明它们与现有 Today、Work、Automation、Feedback 和 Organization 的关系。
+本文定义 ArcOrbit 的真实 Chat，以及用于团队计划对齐的 Idea、Operations 和 Engineering 工作空间，并说明它们与现有 Today、Work、Automation、Feedback 和 Organization 的关系。
 
-Chat 是由 Codex app-server 驱动的本地项目自由对话工作空间。Release、Operations 和 Engineering 是产品方向的可交互展示面；它们使用 ArcOrbit 已有的项目、待办、反馈、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和发布工作流事实组织示意内容，但不因此宣称新的服务端、市场平台、监控平台或 Agent 执行能力已经接入。
+Chat 是由 Codex app-server 驱动的本地项目自由对话工作空间。Operations 和 Engineering 是产品方向的可交互展示面；它们使用 ArcOrbit 已有的项目、待办、反馈、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和发布工作流事实组织示意内容，但不因此宣称新的服务端、市场平台、监控平台或 Agent 执行能力已经接入。
 
 ## 主导航信息架构
 
@@ -30,7 +30,7 @@ Organization 保留组织治理职责。Engineering 位于其下方，是 Domain
 - Chat 会话列表直接按本地 Product Workspace 分组，不要求先选择项目；新对话在首条消息发送前显式显示并允许切换目标工作区。没有可用本地工作区时保留草稿，但不启动对话。
 - Chat 会话、消息、Codex thread 绑定和运行状态由 ArcOrbit 本地持久化，不写入 Workshop、Project State、Case 或 Automation queue。
 - Chat 中的工具和文件操作继续受 Codex sandbox、workspace roots 与 approval policy 约束；Renderer 不获得 Codex 进程、凭据、文件系统或通用 RPC 权限。
-- Release、Operations 和 Engineering 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
+- Operations 和 Engineering 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
 - 计划示例优先来自 ArcOrbit 当前真实对象与约束，不虚构已接入的远端接口、权限或自动化结果。
 - 未建立真实写入合约的计划动作以“计划动作”“示意”或不可用状态表达，不产生远端记录、Runtime Run、Project State transition 或发布授权。
 - Chat 与 Idea、Work 等正式形态之间没有转换、关联或来源写入；自由对话只保留为独立 Chat 会话。
@@ -88,21 +88,7 @@ Idea 的真实产品能力以 [Product 管理与 Idea 接入](arcorbit-product-m
 
 ## Release / 发布
 
-### 目标
-
-Release 展示产品版本推进、发布准备和线上健康监控的整体计划，使团队能够把研发完成状态与交付状态分开讨论。
-
-### 主要内容
-
-- 当前 release train、目标版本、渠道和环境摘要；
-- 来自 Work 与 Automation 的候选变更、验证证据和未闭合风险；
-- ArcOrbit 已有 `tf/*`、`beta/*`、`appstore/*` release-intent tag 与手动 GitHub workflow 约束；
-- 安装包、签名、草稿发布和跨平台产物状态；
-- 发布后的健康、事件和回退关注项示意。
-
-### 边界
-
-Release 页面不授权发版，不替代人工 release intent、签名、渠道审批或真实监控系统。页面中的发布、监控和回退动作仅展示计划职责，除非后续建立相应受信合约。
+Release 的真实终端、Git、源码、任务与 Agent 行为以 [Release 本地交付工作台](arcorbit-release-workspace.md) 为准。复用现有项目绑定，不因页面存在自动授予远端发布能力。
 
 ## Operations / 运营
 

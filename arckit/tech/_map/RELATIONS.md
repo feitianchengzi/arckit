@@ -26,7 +26,7 @@
 
 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md` 对应 `arcorbit/platform-composition-solution.md`，定义多产品平台能力、Workshop 事实边界、团队/待办/反馈行为与受保护核心。
 
-`arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md` 中的真实 Chat 对应 `arcorbit/desktop-execution-solution.md` 与 `arckit/interaction/chat-workspace/`，复用 Codex transport 与中性消息投影，但不复用 state-driven Runtime、Automation lease、Case 或 ledger；同一规格中的 Release、Operations 和 Engineering 保持计划展示。
+`arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md` 中的真实 Chat 对应 `arcorbit/desktop-execution-solution.md` 与 `arckit/interaction/chat-workspace/`，复用 Codex transport 与中性消息投影，但不复用 state-driven Runtime、Automation lease、Case 或 ledger；同一规格中的 Operations 和 Engineering 保持计划展示；Release 的真实本地能力使用独立 Release 规格和方案。
 
 `arckit/spec/agentic-software-development/arcorbit-work-management.md` 对应 `arcorbit/platform-composition-solution.md` 与 `arcorbit/realtime-synchronization-solution.md` 的本地 Work Task 投影、任务树、父子关系、评论附件、受限 mutation 和 Work-owned 同步契约，并由 `arckit/interaction/task-browser/` 投影为同屏日常待办页面。
 
@@ -35,3 +35,5 @@
 `arckit/spec/agentic-software-development/arcorbit-organization-management.md` 对应同一平台组合方案中的组织治理、分页、项目归属、成员关系与邀请加入契约。
 
 Product 管理以 `arckit/spec/agentic-software-development/arcorbit-product-management.md` 为产品源，技术协议在 `arckit/tech/arcorbit/product-management-solution.md`；页面为 `product-list` → `product-detail`、`idea-workspace` → `idea-add`，Today 通过 `today-workspace/product-continuity.html` 续接原对象。原 Lifecycle 页面保持独立。
+
+Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。

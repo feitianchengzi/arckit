@@ -1,0 +1,49 @@
+{
+  "ok": true,
+  "checks": [
+    "existing workset and global observation controls",
+    "all-scope explicit operation target",
+    "per-project terminal and Agent drafts",
+    "parallel builds and delayed Agent replies stay in origin",
+    "cross-workset activity access without membership changes",
+    "failure record → analysis → repair → Git commit → rebuild",
+    "artifact runtime lifecycle",
+    "remote workflow → draft → publication",
+    "failed deployment preserves old version → retry → rollback",
+    "existing workset manager only changes observation membership",
+    "reload marks interrupted local execution",
+    "five viewport sizes"
+  ],
+  "builds": {
+    "aBuild": 1042,
+    "bBuild": 1043
+  },
+  "geometry": [
+    {
+      "width": 1500,
+      "scroll": 1500,
+      "agentOverflow": false
+    },
+    {
+      "width": 1280,
+      "scroll": 1280,
+      "agentOverflow": false
+    },
+    {
+      "width": 1024,
+      "scroll": 1024,
+      "agentOverflow": false
+    },
+    {
+      "width": 760,
+      "scroll": 760,
+      "agentOverflow": false
+    },
+    {
+      "width": 390,
+      "scroll": 390,
+      "agentOverflow": false
+    }
+  ],
+  "errors": []
+}

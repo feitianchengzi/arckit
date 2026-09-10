@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "version": "commit=c07f4d381b90419583b7ce04f87379654d983ebc, build date=2026-09-05T15:07:13Z, build source=binaryRelease, version=0.65.0, os=darwin, arch=amd64, git version=2.50.1 (Apple Git-155)",
+  "path": "/Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/runtime/arcorbit/build-tools/darwin-x64/lazygit",
+  "receipt": {
+    "version": "v0.65.0",
+    "archive_sha256": "3848033450205f975aa6a587e76f01c9796bff3a3cc0e32060ac77b9423264e3",
+    "binary_sha256": "fa57214057876c578af89820fad2e91913ba19d883e651e6e6b500f7cba0989d",
+    "source": "https://github.com/jesseduffield/lazygit/releases/download/v0.65.0/lazygit_0.65.0_darwin_x86_64.tar.gz"
+  },
+  "checks": [
+    "official archive SHA-256 matches pin",
+    "installed executable version",
+    "ArcOrbit discovery finds bundled tool",
+    "real process-host PTY renders Git panels and repository file",
+    "resize and keyboard input",
+    "normal quit exit 0"
+  ],
+  "scope": "Temporary repository/config using production process service; installer bundle remains unverified"
+}

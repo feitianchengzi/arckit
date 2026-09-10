@@ -739,3 +739,14 @@ async function waitForChatTerminal(coordinator, sessionId, timeoutMs = 2_000) {
   }
   throw new Error(`Timed out waiting for ${sessionId} to finish.`);
 }
+
+test('scene environment changes restart the process but preserve the conversation and persisted thread',async()=>{
+ const f=await chatFixture();let created=0,closed=0,environment={PATH:'/first/bin'};const calls=[];
+ const c=createChatCoordinator({...f.options,getTurnContext:async()=>({options:{commandEnvironment:environment}}),createAdapter:()=>{const a=completedAdapter(++created,calls);return {...a,close(){closed++;}};}});
+ try{
+  const first=await c.send({project_id:'PROJECT-1',client_request_id:'ENV-1',text:'Inspect'});const id=first.selected_session_id;await waitForChatTerminal(c,id);
+  await c.send({session_id:id,client_request_id:'ENV-2',text:'Continue'});await waitForChatTerminal(c,id);assert.equal(created,1);
+  environment={PATH:'/second/bin'};await c.send({session_id:id,client_request_id:'ENV-3',text:'Recheck'});const result=await waitForChatTerminal(c,id);
+  assert.equal(created,2);assert.equal(closed,1);assert.equal(calls[2].options.threadId,'THREAD-1');assert.equal(calls[2].options.env.PATH,'/second/bin');assert.equal(result.sessions.length,1);assert.equal(result.messages.filter(m=>m.role==='user').length,3);
+ }finally{await c.close();await f.cleanup();}
+});

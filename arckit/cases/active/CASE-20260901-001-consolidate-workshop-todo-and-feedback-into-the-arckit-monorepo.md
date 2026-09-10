@@ -182,7 +182,7 @@ Merge the Workshop Todo backend, Todo web application, Feedback web applications
       "target": {
         "kind": "software_decision",
         "ref": "technical_foundation",
-        "revision": 48
+        "revision": 49
       },
       "effect": "upheld",
       "reason": "Existing Arckit and ArcOrbit paths remain stable while new product sources receive explicit monorepo ownership.",

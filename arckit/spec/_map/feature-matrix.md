@@ -16,3 +16,5 @@
 | `agentic-software-development/arcorbit-planned-workspaces.md` | 🟡 | ArcOrbit Chat 与计划工作空间，定义按 Product Workspace 分组、每组最近 10 条与历史入口、新会话显式项目归属、共享 Conversation Surface 与 Automation 数据隔离。 |
 | `agentic-software-development/arcorbit-organization-management.md` | 🟢 | ArcOrbit 组织治理，定义独立治理范围、组织角色可见性、成员已有关系、项目上下文邀请、邀请码加入和完整分页。 |
 | `agentic-software-development/loop-engineering-research.md` | ⚪ | Loop Engineering 研究输入，保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。 |
+
+Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。

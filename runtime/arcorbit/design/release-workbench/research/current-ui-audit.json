@@ -1,0 +1,52 @@
+{
+  "releaseAll": {
+    "title": "核心推进",
+    "worksets": [
+      "核心推进 · 2"
+    ],
+    "scope": [
+      {
+        "id": "all",
+        "text": "项目集全部 · 2"
+      },
+      {
+        "id": "11",
+        "text": "ArcOrbit"
+      },
+      {
+        "id": "12",
+        "text": "Workshop Todo"
+      }
+    ],
+    "clusterVisible": true,
+    "release": "PRODUCT LIFECYCLE · RELEASE\n\n发版准备与线上监控\n\n连接候选变更、验证、安装包和上线观察；Release 是“发布”的统一英文入口。\n\nPLAN VIEW · 不授权发版\n候选变更\n12\n来自当前产品 Work\n验证通过\n10\n2 项仍需确认\n发布风险\n2\n签名与 Windows 恢复\n线上健康\n观察\n示例监控数据\n↑\nRelease train · beta/0.9\n\ntf/*、beta/*、appstore/* release-intent\n\nPREPARING\n1\n候选范围\n12 项变更 · Case closeout 已汇总\n完成\n2\n跨平台构建\nmacOS arm64/x64 · Windows/Linux x64\n完成\n3\n签名与草稿发布\n需要人工 workflow 选择\n待确认\n4\n渠道发布\n尚未获得发布授权\n未开始\n◉\n上线观察\n\n示例数据，不连接监控平台\n\nRuntime 启动健康\n98.7%\n最近 24 小时 · 示例\nWindows provider 恢复\n2\n需要关注 · 示例\n发布边界\n\n此页不创建 tag、不触发 GitHub workflow、不签名，也不发布安装包。\n\n查看回退计划 · 示意"
+  },
+  "releaseProject": {
+    "title": "Workshop Todo",
+    "body": "PRODUCT LIFECYCLE · RELEASE\n\n发版准备与线上监控\n\n连接候选变更、验证、安装包和上线观察；Release 是“发布”的统一英文入口。\n\nPLAN VIEW · 不授权发版\n候选变更\n12\n来自当前产品 Work\n验证通过\n10\n2 项仍需确认\n发布风险\n2\n签名与 Windows 恢复\n线上健康\n观察\n示例监控数据\n↑\nRelease train · beta/0.9\n\ntf/*、beta/*、appstore/* release-intent\n\nPREPARING\n1\n候选范围\n12 项变更 · Case closeout 已汇总\n完成\n2\n跨平台构建\nmacOS arm64/x64 · Windows/Linux x64\n完成\n3\n签名与草稿发布\n需要人工 workflow 选择\n待确认\n4\n渠道发布\n尚未获得发布授权\n未开始\n◉\n上线观察\n\n示例数据，不连接监控平台\n\nRuntime 启动健康\n98.7%\n最近 24 小时 · 示例\nWindows provider 恢复\n2\n需要关注 · 示例\n发布边界\n\n此页不创建 tag、不触发 GitHub workflow、不签名，也不发布安装包。\n\n查看回退计划 · 示意"
+  },
+  "worksetDialog": "WORKSHOP MANAGEMENT\n\n管理 核心推进\n\n同时选择要在 Today、Work、Automation 和 Feedback 展示的产品；不会改变组织治理或 Automation participation。\n\n×\n展示产品\nArcOrbit\n飞天橙子\nWorkshop Todo\n飞天橙子\nPersonal Lab\n个人项目\n取消\n保存推进范围",
+  "chatBefore": {
+    "workspace": "LOCAL WORKSPACE · ArcOrbit Local",
+    "picker": "local-11",
+    "fixed": true,
+    "title": "Streaming session",
+    "groups": "ArcOrbit Local\n2 个会话\nStreaming session\nCodex 正在回答 · 08/29 08:01\nSwitch target\n已完成 · 08/28 08:01"
+  },
+  "chatAfter": {
+    "workspace": "LOCAL WORKSPACE · ArcOrbit Local",
+    "picker": "local-11",
+    "fixed": true,
+    "title": "Streaming session"
+  },
+  "automation": {
+    "heading": "ArcOrbit 自动领取态势",
+    "bindings": "ArcOrbit\n未绑定\nArcOrbit Local\n＋ 添加本地项目…\n允许自动领取 · 已具备资格"
+  },
+  "organization": {
+    "globalScopeHidden": true,
+    "scopeList": "个人项目\n个人与外部参与\n1\n飞天橙子\nowner · 全部项目\n2"
+  },
+  "unexpectedMutations": [],
+  "errors": []
+}

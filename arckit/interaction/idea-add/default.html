@@ -14,31 +14,31 @@
 <div class="pane-body">
 <section class="form-section"><p>选择文件夹｜创建空白 Idea</p></section>
 <section class="form-section"><p>已有代码、原型或设计稿均可作为材料</p></section>
-<button class="compact-action">创建固定本机环境</button>
+<button class="compact-action">选择材料并开始整理</button>
 </div>
 </div>
 </div>
 <div class="component-list"><h3>组件清单</h3><p>添加 Idea；内容与来源；操作及状态反馈。</p></div>
-<div class="interactions"><h3>交互行为</h3><p>创建固定本机环境；原材料保持在原路径。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>选择材料并开始整理；原材料保持在原路径。</p></div>
 </div>
 </details>
 <details>
 <summary>协作整理</summary>
 <div class="state-content">
-<p><strong>触发条件：</strong>Idea 已保存</p>
+<p><strong>触发条件：</strong>材料已选定，首次整理请求已发出</p>
 <div class="wireframe-canvas">
 <div class="device-frame desktop">
 <div class="desktop-titlebar"><strong>ArcOrbit · 添加 Idea</strong></div>
 <div class="pane-toolbar"><strong>资料区｜对话区</strong></div>
 <div class="pane-body">
-<section class="form-section"><p>名称、说明、用户、理念、原则、状态</p></section>
+<section class="form-section"><p>正在理解材料 → 已识别内容 → 待补充选择；长期资料折叠</p></section>
 <section class="form-section"><p>共享 Chat 消息列表、工具结果、输入框、停止</p></section>
-<button class="compact-action">直接编辑或发送消息，双方看到同一修订事实。</button>
+<button class="compact-action">Agent 读取材料与环境；可停止或补充说明。</button>
 </div>
 </div>
 </div>
 <div class="component-list"><h3>组件清单</h3><p>资料区｜对话区；内容与来源；操作及状态反馈。</p></div>
-<div class="interactions"><h3>交互行为</h3><p>直接编辑或发送消息，双方看到同一修订事实。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>Agent 读取材料与环境；可停止或补充说明。</p></div>
 </div>
 </details>
 <details>
@@ -50,13 +50,13 @@
 <div class="desktop-titlebar"><strong>ArcOrbit · 添加 Idea</strong></div>
 <div class="pane-toolbar"><strong>建议待采纳</strong></div>
 <div class="pane-body">
-<section class="form-section"><p>现有内容｜建议差异｜采纳｜继续修改</p></section>
-<button class="compact-action">基础修订过期时提示重新生成</button>
+<section class="form-section"><p>可编辑名称与说明｜项目/组织候选｜仓库及目录建议｜依据</p></section>
+<button class="compact-action">修改后一次保存；晚到建议保留为候选</button>
 </div>
 </div>
 </div>
 <div class="component-list"><h3>组件清单</h3><p>建议待采纳；内容与来源；操作及状态反馈。</p></div>
-<div class="interactions"><h3>交互行为</h3><p>基础修订过期时提示重新生成；不覆盖人工输入。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>修改后一次保存；晚到建议保留为候选；不覆盖人工输入。</p></div>
 </div>
 </details>
 <details>
@@ -69,14 +69,14 @@
 <div class="pane-toolbar"><strong>接入方案</strong></div>
 <div class="pane-body">
 <section class="form-section"><p>已有 / 新建项目｜组织｜项目名｜成员入口</p></section>
-<section class="form-section"><p>仓库：无 / 已有 / 新建｜主体｜名称</p></section>
+<section class="form-section"><p>仓库：已有 / 新建｜主体｜名称；缺失信息就地提示</p></section>
 <section class="form-section"><p>材料路径｜开发目录安排</p></section>
-<button class="compact-action">确认精确方案</button>
+<button class="compact-action">审阅业务摘要并确认接入</button>
 </div>
 </div>
 </div>
 <div class="component-list"><h3>组件清单</h3><p>接入方案；内容与来源；操作及状态反馈。</p></div>
-<div class="interactions"><h3>交互行为</h3><p>确认精确方案；组织与仓库权限分别校验。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>审阅业务摘要并确认接入；组织与仓库权限分别校验。</p></div>
 </div>
 </details>
 <details>
@@ -146,14 +146,15 @@
 <div class="pane-toolbar"><strong>继续这个 Idea</strong></div>
 <div class="pane-body">
 <section class="form-section"><p>已保存资料｜原对话｜未完成动作</p></section>
-<section class="form-section"><p>继续对话｜恢复环境｜返回列表</p></section>
-<button class="compact-action">继续原场景线程，未确认操作不自动执行。</button>
+<section class="form-section"><p>继续整理｜直接填写方案｜查看命令诊断并重新检查｜返回列表</p></section>
+<button class="compact-action">继续原场景线程；Agent 可只读探索。环境失败显示时间、程序路径、退出码及脱敏错误，不能据此要求重新登录。未确认操作不自动执行。</button>
 </div>
 </div>
 </div>
 <div class="component-list"><h3>组件清单</h3><p>继续这个 Idea；内容与来源；操作及状态反馈。</p></div>
-<div class="interactions"><h3>交互行为</h3><p>继续原场景线程，未确认操作不自动执行。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>继续原场景线程；Agent 可只读探索。环境失败显示时间、程序路径、退出码及脱敏错误，不能据此要求重新登录。未确认操作不自动执行。</p></div>
 </div>
 </details>
-</div></body>
+</div><details open><summary>正式工作目录与对话协作</summary><div class="state-content"><div class="wireframe-canvas"><div class="device-frame desktop"><div class="pane-body"><section class="form-section"><h2>正式工作目录</h2><label><input type="radio" name="directory" value="material">使用所选材料目录</label><label><input type="radio" name="directory" value="selected" checked>选择其他工作目录</label><p>材料来源：~/Downloads/ScreenRecord</p><p id="formal-path">正式目录：~/Developer/hoewo/ScreenRecord（示例）</p><button class="compact-action" onclick="document.getElementById('formal-path').textContent='正式目录：等待本机文件夹选择器选择；原型不访问文件系统'">选择正式目录</button><p>复制材料、保留来源；不复制 .git、依赖缓存、凭据和符号链接。不覆盖冲突文件，不自动提交或推送。</p></section><section class="form-section"><h2>对话</h2><p>你：正式工作目录现在选择的合适吗？</p><p>Agent：你选的是“选择其他工作目录”，目标是左侧显示的 ~/Developer/hoewo/ScreenRecord。它将作为对应 GitHub 的本地仓库，材料会从 Downloads 复制过来并保留原件。这个位置便于其他开发工具使用；接入不会自动提交或上传源码。</p><p>目录确认前：先选择你希望长期使用的位置，当前还没有正式目标。</p></section></div></div></div></div></details>
+</body>
 </html>

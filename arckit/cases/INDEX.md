@@ -7,6 +7,7 @@
 | ID | Status | Title | Selected Gap | Updated |
 | --- | --- | --- | --- | --- |
 | [CASE-20260901-001](active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md) | handoff | Consolidate Workshop Todo and Feedback into the Arckit monorepo | none | 2026-09-03T05:54:52.452Z |
+| [CASE-20260909-002](active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md) | handoff | Implement the integrated Release terminal Git and Agent workspace | none | 2026-09-09T15:41:27.471Z |
 
 ## Closed Cases
 
@@ -179,3 +180,6 @@
 | [CASE-20260905-001](closed/CASE-20260905-001-arcorbit-codex-model-level.md) | closed | ArcOrbit 设置页支持 Codex Model 与 Level 配置 | 2026-09-05T05:12:39.343Z |
 | [CASE-20260905-002](closed/CASE-20260905-002-arcorbit-ai.md) | closed | ArcOrbit AI 对话直接展示变更文件 | 2026-09-05T06:48:52.616Z |
 | [CASE-20260909-001](closed/CASE-20260909-001-implement-product-centered-arcorbit-management-and-agent-assiste.md) | closed | Implement product-centered ArcOrbit management and Agent-assisted Idea intake | 2026-09-09T08:48:33.157Z |
+| [CASE-20260909-003](closed/CASE-20260909-003-optimize-agent-led-idea-intake-and-editable-guided-collaboration.md) | closed | Optimize Agent-led Idea intake and editable guided collaboration | 2026-09-09T15:58:38.658Z |
+| [CASE-20260910-001](closed/CASE-20260910-001-enable-agent-environment-exploration-with-deterministic-applicat.md) | closed | Enable Agent environment exploration with deterministic application boundaries | 2026-09-10T02:38:31.211Z |
+| [CASE-20260910-002](closed/CASE-20260910-002-align-idea-formal-workspace-intake-and-shared-ui-agent-context.md) | closed | Align Idea formal workspace intake and shared UI Agent context | 2026-09-10T10:08:34.528Z |

@@ -1,0 +1,74 @@
+
+> @arckit/arcorbit@0.1.0 test:release
+> node --test test/release-workspace.test.mjs test/release-process.test.mjs
+
+TAP version 13
+# Subtest: real tasks survive view detachment, keep ownership, stop and persist across restart
+ok 1 - real tasks survive view detachment, keep ownership, stop and persist across restart
+  ---
+  duration_ms: 3460.025718
+  type: 'test'
+  ...
+# Subtest: restart marks unclosed records interrupted and never attaches an old PID
+ok 2 - restart marks unclosed records interrupted and never attaches an old PID
+  ---
+  duration_ms: 956.975696
+  type: 'test'
+  ...
+# Subtest: rebound project can stop old work but cannot send stdin or reuse an editor baseline
+ok 3 - rebound project can stop old work but cannot send stdin or reuse an editor baseline
+  ---
+  duration_ms: 1110.829735
+  type: 'test'
+  ...
+# Subtest: file writes preserve concurrent edits and reject symlink escape
+ok 4 - file writes preserve concurrent edits and reject symlink escape
+  ---
+  duration_ms: 372.940186
+  type: 'test'
+  ...
+# Subtest: partial staging changes only selected patch and commits actual index
+ok 5 - partial staging changes only selected patch and commits actual index
+  ---
+  duration_ms: 3246.492759
+  type: 'test'
+  ...
+# Subtest: destructive confirmation binds args and source revision
+ok 6 - destructive confirmation binds args and source revision
+  ---
+  duration_ms: 3100.258447
+  type: 'test'
+  ...
+# Subtest: merge conflict remains visible and abort restores original branch
+ok 7 - merge conflict remains visible and abort restores original branch
+  ---
+  duration_ms: 3668.706195
+  type: 'test'
+  ...
+# Subtest: monorepo directories resolve to one repository identity and stale revisions fail
+ok 8 - monorepo directories resolve to one repository identity and stale revisions fail
+  ---
+  duration_ms: 1578.651393
+  type: 'test'
+  ...
+# Subtest: Git diff never follows a repository symlink into external file
+ok 9 - Git diff never follows a repository symlink into external file
+  ---
+  duration_ms: 968.904991
+  type: 'test'
+  ...
+# Subtest: Release binds Agent tools and executions to original workspace and rejects rebind
+ok 10 - Release binds Agent tools and executions to original workspace and rejects rebind
+  ---
+  duration_ms: 2080.663893
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15337.06609

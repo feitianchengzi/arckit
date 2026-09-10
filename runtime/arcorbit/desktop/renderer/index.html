@@ -6,6 +6,8 @@
     <title>ArcOrbit</title>
     <link rel="stylesheet" href="./styles.css">
     <link rel="stylesheet" href="./product.css">
+    <link rel="stylesheet" href="./release.css">
+    <link rel="stylesheet" href="./vendor/release-vendor.css">
 </head>
   <body class="auth-pending">
     <svg class="icon-sprite" aria-hidden="true">
@@ -131,7 +133,7 @@
           <button class="nav-item" data-page="idea" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong></button>
           <button class="nav-item" data-page="work" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Work</strong><em id="workNavCount">0</em></button>
           <button class="nav-item" data-page="command" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-automation"></use></svg><strong>Automation</strong><em id="automationNavCount">0</em></button>
-          <button class="nav-item" data-page="release" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong><em>2</em></button>
+          <button class="nav-item" data-page="release" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong></button>
           <button class="nav-item" data-page="operations" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-operations"></use></svg><strong>Operations</strong><em>5</em></button>
           <button class="nav-item" data-page="feedback" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-feedback"></use></svg><strong>Feedback</strong><em id="feedbackQueueNavCount">0</em></button>
 
@@ -207,7 +209,7 @@
           <section id="ideaAddView" class="app-view" data-page-view="idea-add">
             <div class="product-intake-page">
               <header class="product-heading"><div><p class="eyebrow">IDEA</p><h1 id="ideaTitle">添加 Idea</h1><p id="ideaStatus">选择文件夹，或从空白开始。</p></div><button id="ideaBack" class="secondary-button" type="button">返回 Idea</button></header>
-              <div id="ideaStart" class="product-empty"><h2>把想法放进 ArcOrbit</h2><p>已有代码、原型或设计稿均可作为起点。</p><button id="ideaFolder" class="primary-button" type="button">选择文件夹</button><button id="ideaBlank" class="secondary-button" type="button">创建空白 Idea</button></div>
+              <div id="ideaStart" class="product-empty"><h2>把想法放进 ArcOrbit</h2><p>选择材料后，Agent 会开始阅读并准备接入方案；不会自动创建远端资源。</p><button id="ideaFolder" class="primary-button" type="button">选择文件夹</button><button id="ideaBlank" class="secondary-button" type="button">创建空白 Idea</button></div>
               <div id="ideaBody" class="product-intake-body hidden">
                 <section id="ideaEditor" class="product-editor" aria-label="Idea 内容与接入方案"></section>
                 <section class="product-conversation" aria-label="Idea Agent 协作">
@@ -215,7 +217,7 @@
                   <div id="ideaChatError" role="alert"></div>
                   <div id="ideaTranscript" class="conversation-surface chat-transcript" aria-live="polite"></div>
                   <button id="ideaJump" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
-                  <footer class="chat-composer"><textarea id="ideaChatInput" rows="3" placeholder="说明这个 Idea，或让 Agent 先看看材料…"></textarea><div class="chat-composer-foot"><small id="ideaChatHint"></small><button id="ideaChatStop" class="secondary-button hidden" type="button">停止</button><button id="ideaChatSend" class="primary-button" type="button">发送</button></div></footer>
+                  <footer class="chat-composer"><textarea id="ideaChatInput" rows="3" placeholder="补充你的想法、回答问题，或调整左侧方案…"></textarea><div class="chat-composer-foot"><small id="ideaChatHint"></small><button id="ideaChatStop" class="secondary-button hidden" type="button">停止</button><button id="ideaChatSend" class="primary-button" type="button">发送</button></div></footer>
                 </section>
               </div>
             </div>
@@ -275,9 +277,7 @@
             </div>
           </section>
 
-          <section id="releaseView" class="app-view" data-page-view="release">
-            <div class="page planning-page"><div class="page-heading split-heading"><div><p class="eyebrow">PRODUCT LIFECYCLE · RELEASE</p><h1>发版准备与线上监控</h1><p>连接候选变更、验证、安装包和上线观察；Release 是“发布”的统一英文入口。</p></div><span class="plan-status">PLAN VIEW · 不授权发版</span></div><div class="metric-grid planning-metrics"><div class="metric-card"><span>候选变更</span><strong>12</strong><small>来自当前产品 Work</small></div><div class="metric-card healthy"><span>验证通过</span><strong>10</strong><small>2 项仍需确认</small></div><div class="metric-card attention"><span>发布风险</span><strong>2</strong><small>签名与 Windows 恢复</small></div><div class="metric-card running"><span>线上健康</span><strong>观察</strong><small>示例监控数据</small></div></div><div class="planning-two-column"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">↑</span><div><h2>Release train · beta/0.9</h2><p>tf/*、beta/*、appstore/* release-intent</p></div></div><span class="status-pill in_progress">PREPARING</span></div><div class="planning-flow"><div class="planning-flow-step is-done"><i>1</i><div><strong>候选范围</strong><small>12 项变更 · Case closeout 已汇总</small></div><em>完成</em></div><div class="planning-flow-step is-done"><i>2</i><div><strong>跨平台构建</strong><small>macOS arm64/x64 · Windows/Linux x64</small></div><em>完成</em></div><div class="planning-flow-step is-current"><i>3</i><div><strong>签名与草稿发布</strong><small>需要人工 workflow 选择</small></div><em>待确认</em></div><div class="planning-flow-step"><i>4</i><div><strong>渠道发布</strong><small>尚未获得发布授权</small></div><em>未开始</em></div></div></section><aside class="planning-stack"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◉</span><div><h2>上线观察</h2><p>示例数据，不连接监控平台</p></div></div></div><div class="planning-card-body"><div class="planning-signal healthy"><strong>Runtime 启动健康</strong><span>98.7%</span><small>最近 24 小时 · 示例</small></div><div class="planning-signal warning"><strong>Windows provider 恢复</strong><span>2</span><small>需要关注 · 示例</small></div></div></section><section class="planning-boundary"><strong>发布边界</strong><p>此页不创建 tag、不触发 GitHub workflow、不签名，也不发布安装包。</p><button class="secondary-button" type="button" disabled>查看回退计划 · 示意</button></section></aside></div></div>
-          </section>
+          <section id="releaseView" class="app-view" data-page-view="release"></section>
 
           <section id="operationsView" class="app-view" data-page-view="operations">
             <div class="page planning-page"><div class="page-heading split-heading"><div><p class="eyebrow">PRODUCT LIFECYCLE · OPERATIONS</p><h1>对外运营与市场动作</h1><p>组织受众、渠道、内容和效果回流；Operations 是“运营”的统一英文入口。</p></div><span class="plan-status">PLAN VIEW · 不调用外部平台</span></div><div class="metric-grid planning-metrics"><div class="metric-card"><span>待发布</span><strong>3</strong><small>内容与批准待完成</small></div><div class="metric-card running"><span>进行中</span><strong>2</strong><small>当前运营窗口</small></div><div class="metric-card healthy"><span>已复盘</span><strong>4</strong><small>结论可回流产品</small></div><div class="metric-card"><span>用户信号</span><strong>18</strong><small>来自真实 Feedback 投影</small></div></div><div class="planning-three-column operations-plan-layout"><section class="panel-card planning-list-panel"><div class="section-title-row"><div><span class="section-icon">↗</span><div><h2>运营动作</h2><p>示意计划，不自动发布</p></div></div></div><div class="planning-list"><button class="planning-list-item is-active" type="button"><strong>Beta 发布说明</strong><small>待发布 · 社区 / 邮件</small></button><button class="planning-list-item" type="button"><strong>团队协作案例</strong><small>进行中 · 内容专题</small></button><button class="planning-list-item" type="button"><strong>试点团队访谈</strong><small>已复盘 · 用户研究</small></button></div></section><section class="panel-card planning-detail"><div class="section-title-row"><div><span class="section-icon">↗</span><div><h2>Beta 发布说明</h2><p>关联 Release · beta/0.9</p></div></div><span class="status-pill pending">待发布</span></div><div class="planning-card-body"><dl class="planning-facts two-column"><div><dt>目标受众</dt><dd>内部试点团队</dd></div><div><dt>负责人</dt><dd>Glare</dd></div><div><dt>渠道</dt><dd>社区、邮件 · 未接入</dd></div><div><dt>窗口</dt><dd>8 月 25–29 日</dd></div></dl><div class="planning-callout"><strong>内容主题</strong><small>用同一套 Loop 连接 Idea、Work、Automation 与 Feedback。</small></div><button class="primary-button" type="button" disabled>发布内容 · 示意</button></div></section><aside class="inspector-card planning-inspector"><span class="plan-kicker">SIGNALS</span><h2>效果回流</h2><div class="planning-signal"><strong>用户反馈</strong><span>18</span><small>正向 11 · 待跟进 4</small></div><div class="planning-signal"><strong>触达与转化</strong><span>—</span><small>分析平台未接入</small></div><div class="planning-callout"><strong>发现新机会</strong><small>将“团队模板”形成 Idea，保留当前运营来源。</small></div><button class="secondary-button full-width" type="button" disabled>形成 Idea · 示意</button></aside></div></div>

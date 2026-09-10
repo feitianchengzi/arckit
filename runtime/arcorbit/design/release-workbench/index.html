@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArcOrbit · Release 多项目交互原型</title><link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="prototype-bar"><span><i></i> Release 交互原型 <span class="bar-description">· 复用已有项目与工作区，所有执行均为模拟</span></span><div><button data-action="guide">体验指南 ↗</button><button data-action="reset">重置演示</button></div></div>
+  <div class="titlebar"><span><i class="online-dot"></i> 项目已同步</span><strong>ArcOrbit</strong><span>—　□　×</span></div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-icon">A</span> ArcOrbit</div>
+      <div class="workspace-label">PERSONAL</div><div class="nav-static"><span>◷</span> Today</div><div class="nav-static"><span>▤</span> Chat</div>
+      <div class="workspace-label">PRODUCT</div><div class="nav-static"><span>▦</span> Product</div>
+      <div class="workspace-label lifecycle">PRODUCT LIFECYCLE</div>
+      <div class="nav-static"><span>◇</span> Idea</div><div class="nav-static"><span>☷</span> Work</div><div class="nav-static"><span>▷</span> Automation</div>
+      <div class="nav-static nav-active"><span>↥</span> Release <i></i></div><div class="nav-static"><span>◎</span> Operations</div><div class="nav-static"><span>▱</span> Feedback</div>
+      <div class="workspace-label">ORGANIZATION</div><div class="nav-static"><span>♧</span> Organization</div><div class="nav-static"><span>⌘</span> Engineering</div>
+      <div class="sidebar-bottom"><div class="profile"><span>G</span><div><strong>Glare</strong><small>同步正常</small></div></div></div>
+    </aside>
+    <main class="workspace">
+      <header class="topbar"><div class="breadcrumb"><strong id="scopeTitle">核心推进</strong><span>/</span> Release</div><div class="top-actions">
+        <div class="product-set-cluster"><label>产品集 <select id="worksetSelect" aria-label="当前产品集"></select></label><label>查看 <select id="productScopeSelect" aria-label="产品观察范围"></select></label><button data-action="manage-workset">管理</button></div>
+        <span class="shell-control" title="现有自动领取控制，仅作应用壳展示"><i class="switch-off"></i><span>自动领取</span></span><button data-action="shell-info" class="shell-control">▱ <span>产品反馈</span></button>
+      </div></header>
+      <div class="release-rail"><strong>Release</strong><span class="rail-subtitle">构建 · 发布 · 维护</span><div><button data-action="activities" id="activity-toggle">◷ 本机活动</button><button data-action="toggle-terminal" id="terminal-toggle">⌁ 终端</button><button data-action="toggle-agent" id="agent-toggle">✧ Agent</button></div></div>
+      <div id="activity-notice" class="activity-notice" hidden></div>
+      <div class="contextbar" id="contextbar"></div>
+      <div class="workbench" id="workbench"><section class="main-column">
+        <nav class="workspace-tabs" aria-label="Release 工作区" id="workspace-tabs"></nav><div class="page-content" id="page-content"></div>
+        <div class="terminal-resizer" id="terminal-resizer" role="separator" aria-label="调整终端高度" aria-orientation="horizontal" tabindex="0"></div>
+        <section class="terminal" id="terminal" aria-label="内置终端">
+          <div class="terminal-header"><div class="terminal-tabs" id="terminal-tabs"></div><div class="terminal-tools"><button data-action="new-terminal" aria-label="新建终端" title="新建终端">＋</button><button data-action="clear-terminal" aria-label="清屏" title="清屏">⌫</button><button data-action="maximize-terminal" aria-label="放大或还原终端" title="放大 / 还原">↕</button><button data-action="toggle-terminal" aria-label="收起终端">−</button></div></div>
+          <div class="terminal-meta"><span id="terminal-cwd"></span><span id="terminal-owner"></span></div><div class="terminal-output" id="terminal-output" role="log" aria-label="终端输出"></div>
+          <form id="terminal-form"><label for="terminal-input">❯</label><input id="terminal-input" spellcheck="false" autocomplete="off" placeholder="输入 help 查看可体验命令"><span>模拟 Shell</span></form>
+        </section>
+      </section><div class="agent-resizer" id="agent-resizer" role="separator" aria-label="调整 Agent 宽度" aria-orientation="vertical" tabindex="0"></div>
+      <aside class="agent" id="agent" aria-label="Agent 对话"><header class="agent-header"><div><span class="agent-mark">✧</span><strong id="agent-title">Release Agent</strong></div><button data-action="toggle-agent" aria-label="收起 Agent">×</button></header>
+        <div class="agent-session" id="agent-session"></div><div class="agent-messages" id="agent-messages" role="log" aria-label="Agent 消息"></div>
+        <div class="agent-composer"><div class="attachment" id="agent-context"></div><form id="agent-form"><textarea id="agent-input" rows="3" aria-label="发送给 Agent 的消息" placeholder="讨论当前项目的构建或发布…"></textarea><div class="composer-footer"><span>✧ 项目对话 · 模拟</span><button type="submit" class="send-button" aria-label="发送消息">↑</button></div></form><small>Enter 发送 · Shift Enter 换行</small></div>
+      </aside></div>
+      <footer class="statusbar"><span id="git-status"></span><button data-action="activities" id="execution-status"></button><span>Glare 的 Mac · 本机执行</span></footer>
+    </main>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialog-title"></dialog><div id="toast" role="status"></div>
+  <script src="model.js"></script><script src="views.js"></script><script src="app.js"></script>
+</body>
+</html>
