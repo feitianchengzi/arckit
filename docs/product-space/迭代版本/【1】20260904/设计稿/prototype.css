@@ -1,10 +1,17 @@
 /*
  * 产品支持链路设计稿 — 补充布局
  *
- * 视觉 token 与组件类全部来自 ArcOrbit Desktop 真实体系：
+ * 视觉 token 与布局/组件类全部来自 ArcOrbit Desktop 真实体系：
  *   <link rel="stylesheet" href="../../../../../runtime/arcorbit/desktop/renderer/styles.css">
- * 本文件只保留原型特有的页面布局与少量 ArcOrbit 未覆盖的组件，
- * 不重复定义 :root token（颜色/字号/圆角/间距/阴影）。
+ * 本文件只保留原型特有的页面内容与少量 ArcOrbit 未覆盖的组件，
+ * 不重复定义 :root token（颜色/字号/圆角/间距/阴影），也不重复 real styles.css 已有的布局类
+ * （command-grid / workbench-layout / recovery-card / today-* / feedback-workbench-layout / platform-work-layout 等均由 real styles.css 提供）。
+ *
+ * 清理记录（相对上一版）：
+ *   - 删 .automation-bar / .gap-timeline / .gap-*（Work 页不再内嵌态势，态势回归 Command + Workbench）
+ *   - 删 #customerFilter / #projectFilter / .work-primary-workspace 三行 grid（改用真实 workset/productScope）
+ *   - 删 .delivery-track / .delivery-step / .delivery-artifact（产物交付本期搁置）
+ *   - 删 .planning-* / .metric-grid 4 列覆盖（Drafts 独立页移除，草稿并入 Feedback 详情；Organization 复原组织治理）
  */
 
 /* ===== 通用：原型容器（客户端 SDK 用）===== */
@@ -67,7 +74,6 @@ body.sdk-mode #app { width: 100%; max-width: 100%; min-width: 0; }
 .sdk-composer textarea:focus { outline: 2px solid var(--violet-600); border-color: var(--violet-600); }
 
 /* SDK 我的反馈列表 + 详情 */
-/* 列表视图容器：作为 .sdk-shell 第 3 行 1fr 项，内部筛选条固定、列表滚动 */
 .sdk-mine-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .sdk-mine-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--ink-150); flex: 0 0 auto; }
 .sdk-mine-filter { border: 1px solid var(--ink-200); border-radius: 999px; background: var(--paper); color: var(--ink-600); font-size: var(--type-caption); font-weight: 700; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
@@ -116,7 +122,7 @@ body.sdk-mode #app { width: 100%; max-width: 100%; min-width: 0; }
 .task-tag { font-size: var(--type-micro); padding: 1px 6px; border-radius: 999px; background: var(--ink-100); color: var(--ink-600); }
 .task-children { display: block; }
 
-/* ===== 详情字段行（用于 task/draft inspector 内部）===== */
+/* ===== 详情字段行（用于 task/feedback inspector 内部）===== */
 .detail-body { padding: 4px 0; }
 .detail-field-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--ink-50); font-size: var(--type-body); align-items: center; }
 .detail-field-row span:first-child { color: var(--ink-500); font-size: var(--type-caption); }
@@ -136,19 +142,9 @@ body.sdk-mode #app { width: 100%; max-width: 100%; min-width: 0; }
 .modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus { outline: 2px solid var(--violet-600); border-color: var(--violet-600); }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--ink-150); }
 
-/* ===== 指标卡网格（4 列覆盖 ArcOrbit 默认 5 列）===== */
-.metric-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-
-/* ===== 草稿客户预览 ===== */
+/* ===== 草稿客户预览（草稿并入 Feedback 详情后复用）===== */
 .draft-customer-preview { border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: var(--ink-75); padding: 14px; }
 .draft-customer-preview .preview-label { font-size: var(--type-micro); color: var(--ink-500); font-weight: 800; letter-spacing: .05em; margin-bottom: 8px; }
-
-/* ===== 交付轨道步进 ===== */
-.delivery-track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.delivery-step { min-height: 56px; padding: 10px 12px; border: 1px solid var(--ink-150); border-radius: var(--radius-sm); background: var(--paper); font-size: var(--type-caption); color: var(--ink-600); }
-.delivery-step.is-complete { background: var(--green-100); color: var(--green-600); border-color: #c9e7d7; }
-.delivery-step.is-current { background: var(--amber-100); color: var(--amber-700); border-color: var(--amber-600); font-weight: 800; }
-.delivery-step strong { display: block; font-size: var(--type-label); margin-bottom: 2px; }
 
 /* ===== 反馈详情结构化字段网格 ===== */
 .feedback-field-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; margin: 10px 0; }
@@ -157,25 +153,22 @@ body.sdk-mode #app { width: 100%; max-width: 100%; min-width: 0; }
 .feedback-field-grid .field-cell select { min-height: 28px; border: 1px solid var(--ink-200); border-radius: var(--radius-sm); padding: 0 6px; font-size: var(--type-caption); color: var(--ink-800); background: var(--paper); }
 .feedback-content-quote { border-left: 3px solid var(--violet-500); padding: 6px 10px; background: var(--ink-50); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: var(--type-body); color: var(--ink-700); margin: 8px 0; }
 
-/* 待建标注角标 */
+/* 待建/待决策标注角标 */
 .todo-badge { display: inline-flex; align-items: center; gap: 4px; font-size: var(--type-micro); padding: 2px 6px; border-radius: 999px; background: var(--amber-100); color: var(--amber-700); font-weight: 700; border: 1px solid var(--amber-600); }
+.todo-badge.decision { background: var(--violet-50); color: var(--violet-700); border-color: var(--violet-400); }
 
-/* ===== Today 首页（复用 ArcOrbit today-* 真实类，补内部布局）===== */
-.today-mode-tabs.single { grid-template-columns: 1fr; }
-.today-responsibility-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; cursor: pointer; }
-.today-responsibility-row > div { display: grid; gap: 2px; min-width: 0; }
-.today-responsibility-row strong { font-size: var(--type-label); color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.today-responsibility-row small { color: var(--ink-500); font-size: var(--type-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.today-responsibility-row.is-done { opacity: .5; cursor: default; }
-.today-automatic-summary { padding: 12px 17px; border-top: 1px solid var(--ink-150); }
-.today-automatic-summary small { display: block; color: var(--ink-400); font-size: var(--type-caption); margin-top: 2px; }
+/* ===== 多项目统一框架：任务按项目分组 + 知识库 scope 隔离提示 ===== */
+.task-group { margin-bottom: 14px; }
+.task-group-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px 4px; position: sticky; top: 0; background: var(--paper); z-index: 2; }
+.task-group-head strong { font-size: var(--type-caption); color: var(--violet-700); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.task-group-head small { font-size: var(--type-micro); color: var(--ink-400); }
+.task-group-head::before { content: ""; flex: 0 0 3px; height: 14px; border-radius: 2px; background: var(--violet-500); }
+.kb-scope-hint { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; margin-bottom: 18px; border: 1px dashed var(--ink-200); border-radius: var(--radius-md); background: var(--ink-50); }
+.kb-scope-hint strong { font-size: var(--type-label); color: var(--ink-700); }
+.kb-scope-hint p { margin: 0; font-size: var(--type-caption); color: var(--ink-500); }
 
-/* 项目切换器（commandbar）*/
-#projectSwitcher { min-height: 34px; border: 1px solid var(--ink-200); border-radius: 7px; padding: 0 9px; font-size: var(--type-caption); color: var(--ink-800); background: #fff; }
-
-/* 控制轨内 select 统一外观（对齐 .platform-filter：34px 高 / ink-200 边框 / 7px 圆角）*/
+/* 控制轨内 select 统一外观（对齐真实 .control-rail-select 未覆盖的 select）*/
 .primary-control-rail select { height: 34px; min-height: 34px; padding: 0 9px; border: 1px solid var(--ink-200); border-radius: 7px; color: var(--ink-800); background: #fff; font: inherit; font-size: var(--type-caption); font-weight: 750; }
-/* "更多"折叠里的执行人筛选（对齐真实 control-rail-more 弹层）*/
 .work-control-rail .control-rail-more > div { display: grid; gap: 6px; min-width: 168px; padding: 7px; border: 1px solid var(--ink-200); border-radius: 8px; background: #fff; box-shadow: var(--shadow-lg); }
 .work-control-rail .control-rail-more:not([open]) > div { display: none; }
 .work-assignee-pick { display: grid; gap: 3px; }
@@ -222,6 +215,13 @@ body.sdk-mode #app { width: 100%; max-width: 100%; min-width: 0; }
 .ai-triage-reasoning { margin: 0; padding: 8px 11px; font-size: var(--type-micro); color: var(--ink-500); border-top: 1px solid var(--ink-50); line-height: 1.5; }
 .ai-triage-actions { display: flex; gap: 6px; padding: 8px 11px; border-top: 1px solid var(--ink-150); }
 
+/* AI 分诊面板可折叠（details/summary）*/
+details.ai-triage-panel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 8px 11px; background: var(--violet-50); border-bottom: 1px solid var(--violet-100); }
+details.ai-triage-panel > summary::-webkit-details-marker { display: none; }
+details.ai-triage-panel > summary::after { content: "展开 ▾"; font-size: var(--type-micro); color: var(--violet-700); font-weight: 700; }
+details.ai-triage-panel[open] > summary::after { content: "收起 ▴"; }
+details.ai-triage-panel[open] > summary { border-bottom: 1px solid var(--violet-100); }
+
 /* ===== 知识库管理：检索测试区（对齐 F-09）===== */
 .kb-test-box { margin-bottom: 18px; padding: 14px; border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: var(--ink-50); }
 .kb-test-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -235,39 +235,50 @@ body.sdk-mode #app { width: 100%; max-width: 100%; min-width: 0; }
 /* ===== 桥3：SDK 追问注入提示 ===== */
 .sdk-steer-hint { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 8px; border: 1px dashed var(--violet-400); border-radius: var(--radius-sm); background: var(--violet-50); color: var(--ink-600); font-size: var(--type-caption); }
 
-/* ===== 交付产物地址回写（对齐 F-07）===== */
-.delivery-artifact { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--green-100); border-radius: var(--radius-sm); background: var(--green-100); }
-.delivery-artifact code { font-size: var(--type-micro); color: var(--green-600); word-break: break-all; }
+/* SDK 客户侧产物指向卡（对齐 F-07/US-07）*/
+.sdk-artifact-card { margin: 12px 0; padding: 12px 14px; border: 1px solid #c9e7d7; border-radius: var(--radius-md); background: var(--green-100); }
+.sdk-artifact-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.sdk-artifact-head strong { font-size: var(--type-label); color: var(--green-600); }
+.sdk-artifact-card code { display: block; font-size: var(--type-micro); color: var(--ink-700); word-break: break-all; background: var(--paper); padding: 6px 8px; border-radius: var(--radius-sm); }
+.sdk-artifact-card p { margin: 6px 0 0; font-size: var(--type-micro); color: var(--ink-500); }
 
-/* ===== 多客户统一框架：任务按客户分组 + 知识库 scope 隔离提示 ===== */
-.task-group { margin-bottom: 14px; }
-.task-group-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px 4px; position: sticky; top: 0; background: var(--paper); z-index: 2; }
-.task-group-head strong { font-size: var(--type-caption); color: var(--violet-700); font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
-.task-group-head small { font-size: var(--type-micro); color: var(--ink-400); }
-.task-group-head::before { content: ""; flex: 0 0 3px; height: 14px; border-radius: 2px; background: var(--violet-500); }
-.kb-scope-hint { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; margin-bottom: 18px; border: 1px dashed var(--ink-200); border-radius: var(--radius-md); background: var(--ink-50); }
-.kb-scope-hint strong { font-size: var(--type-label); color: var(--ink-700); }
-.kb-scope-hint p { margin: 0; font-size: var(--type-caption); color: var(--ink-500); }
+/* ===== 草稿消息态（并入 Feedback 详情对话面板，桥2 待建）===== */
+.draft-msg { border: 1px dashed var(--violet-400); border-radius: var(--radius-md); background: var(--violet-50); padding: 10px 12px; margin: 8px 0; }
+.draft-msg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.draft-msg-head strong { font-size: var(--type-caption); color: var(--violet-700); }
+.draft-msg-body { font-size: var(--type-body); color: var(--ink-800); white-space: pre-wrap; line-height: 1.5; }
+.draft-msg-actions { display: flex; gap: 8px; margin-top: 10px; }
 
-/* commandbar 两级筛选样式（对齐 .control-rail-select）*/
-#customerFilter, #projectFilter { min-height: 34px; border: 1px solid var(--ink-200); border-radius: 7px; padding: 0 9px; font-size: var(--type-caption); color: var(--ink-800); background: #fff; }
-#customerFilter:focus, #projectFilter:focus { outline: 2px solid var(--violet-600); border-color: var(--violet-600); }
+/* ===== 通信基础设施示意图（03 页专用）===== */
+.flow-canvas { display: grid; gap: 16px; padding: 8px 0; }
+.flow-lane { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: stretch; }
+.flow-lane-label { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 14px 12px; border-radius: var(--radius-md); background: var(--ink-900); color: #fff; }
+.flow-lane-label strong { font-size: var(--type-label); }
+.flow-lane-label small { font-size: var(--type-micro); color: rgba(255,255,255,.5); }
+.flow-lane-body { display: grid; gap: 10px; align-content: start; }
+.flow-node { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 12px 14px; border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: var(--paper); }
+.flow-node.has-channel { border-left: 3px solid var(--green-600); }
+.flow-node.is-missing-bridge1, .flow-node.is-missing-bridge2 { border-left: 3px solid var(--amber-600); }
+.flow-node.is-missing-bridge3 { border-left: 3px solid var(--red-600); }
+.flow-node-copy { display: grid; gap: 4px; min-width: 0; }
+.flow-node-copy strong { font-size: var(--type-label); color: var(--ink-900); }
+.flow-node-copy code { font-size: var(--type-micro); color: var(--ink-500); font-family: "SFMono-Regular", monospace; word-break: break-all; }
+.flow-node-copy p { margin: 0; font-size: var(--type-caption); color: var(--ink-600); line-height: 1.5; }
+.flow-node-status { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.flow-arrow { text-align: center; color: var(--ink-300); font-size: var(--type-caption); padding: 2px 0; }
+.flow-legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--ink-150); border-bottom: 1px solid var(--ink-150); margin: 8px 0; }
+.flow-legend > span { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-caption); color: var(--ink-600); }
+.flow-legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.flow-legend i.green { background: var(--green-600); }
+.flow-legend i.amber { background: var(--amber-600); }
+.flow-legend i.red { background: var(--red-600); }
 
-/* ===== Work 视图 automation 总闸状态条（对齐 ArcOrbit automation-toggle）===== */
-/* work 视图比 feedback 多 automation-bar 一行，需 3 行 grid（automation-bar 自适应 + control-rail 44px + layout 填满），
-   否则 control-rail 落在 1fr 行只占 44px、下方留白，work-layout 被挤到隐式行无法填满 */
-.work-primary-workspace { grid-template-rows: auto 44px minmax(0, 1fr); }
-.automation-bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: var(--paper); }
-.automation-bar .automation-toggle { display: flex; align-items: center; gap: 6px; font-size: var(--type-caption); font-weight: 800; color: var(--ink-700); cursor: pointer; }
-.automation-bar .automation-toggle input { position: absolute; opacity: 0; pointer-events: none; }
-.automation-bar .automation-toggle span { position: relative; width: 30px; height: 16px; border-radius: 9px; background: var(--ink-300); transition: background var(--ease); }
-.automation-bar .automation-toggle span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.18); transition: transform var(--ease); }
-.automation-bar .automation-toggle input:checked + span { background: var(--violet-600); }
-.automation-bar .automation-toggle input:checked + span::after { transform: translateX(14px); }
-.automation-status { margin-left: auto; font-size: var(--type-caption); color: var(--ink-500); }
+/* 当前用户行高亮（members tab 身份切换演示 role 门控）*/
+.data-table tr.is-current-user { background: var(--violet-50); }
+.data-table tr.is-current-user td:first-child { border-left: 3px solid var(--violet-600); }
 
-/* ===== Codex Gap 推进时间线（对齐时序图 §4.3）===== */
-.gap-timeline { display: flex; flex-direction: column; gap: 0; margin-top: 8px; padding-left: 2px; }
+/* ===== Codex Gap 推进时间线（Workbench evidence 区，对齐时序图 §4.3）===== */
+.gap-timeline { display: flex; flex-direction: column; gap: 0; margin-top: 8px; }
 .gap-step { display: grid; grid-template-columns: 14px 1fr; gap: 8px; padding: 5px 0; position: relative; }
 .gap-step:not(:last-child)::before { content: ""; position: absolute; left: 5px; top: 18px; bottom: -3px; width: 2px; background: var(--ink-150); }
 .gap-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 2px; z-index: 1; box-shadow: 0 0 0 3px var(--paper); }
@@ -277,20 +288,57 @@ body.sdk-mode #app { width: 100%; max-width: 100%; min-width: 0; }
 .gap-evidence { font-size: var(--type-micro); color: var(--ink-600); background: var(--ink-50); border-radius: var(--radius-sm); padding: 3px 7px; line-height: 1.5; word-break: break-word; }
 .gap-time { font-size: var(--type-micro); color: var(--ink-400); }
 
-/* ===== SDK 客户侧产物指向卡（对齐 F-07/US-07）===== */
-.sdk-artifact-card { margin: 12px 0; padding: 12px 14px; border: 1px solid #c9e7d7; border-radius: var(--radius-md); background: var(--green-100); }
-.sdk-artifact-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.sdk-artifact-head strong { font-size: var(--type-label); color: var(--green-600); }
-.sdk-artifact-card code { display: block; font-size: var(--type-micro); color: var(--ink-700); word-break: break-all; background: var(--paper); padding: 6px 8px; border-radius: var(--radius-sm); }
-.sdk-artifact-card p { margin: 6px 0 0; font-size: var(--type-micro); color: var(--ink-500); }
+/* SDK 实时推送待建占位条 */
+.sdk-realtime-hint { display: flex; align-items: center; gap: 6px; padding: 6px 16px; border-bottom: 1px solid var(--ink-150); background: var(--ink-50); color: var(--ink-500); font-size: var(--type-micro); }
+.sdk-realtime-hint .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-300); }
 
-/* ===== AI 分诊面板可折叠（details/summary，降低详情区滚动比）===== */
-details.ai-triage-panel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 8px 11px; background: var(--violet-50); border-bottom: 1px solid var(--violet-100); }
-details.ai-triage-panel > summary::-webkit-details-marker { display: none; }
-details.ai-triage-panel > summary::after { content: "展开 ▾"; font-size: var(--type-micro); color: var(--violet-700); font-weight: 700; }
-details.ai-triage-panel[open] > summary::after { content: "收起 ▴"; }
-details.ai-triage-panel[open] > summary { border-bottom: 1px solid var(--violet-100); }
+/* Organization scope 列表 + 项目目录（对齐真实 organization-scope-list / project-directory）*/
+.organization-scope-list { display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 0; overflow-y: auto; }
+.org-scope-row { display: grid; gap: 3px; width: 100%; padding: 9px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; text-align: left; cursor: pointer; }
+.org-scope-row:hover { background: rgba(255,255,255,.06); }
+.org-scope-row.is-active { background: var(--violet-50); box-shadow: inset 3px 0 var(--violet-600); }
+.org-scope-row strong { font-size: var(--type-label); color: var(--ink-900); }
+.org-scope-row.is-active strong { color: var(--violet-700); }
+.org-scope-row small { font-size: var(--type-micro); color: var(--ink-500); }
+.organization-detail-grid { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 16px; align-items: stretch; min-height: 400px; }
+.project-directory { display: flex; flex-direction: column; min-height: 0; }
+.project-directory .workspace-pane-scroll { flex: 1; }
+.project-directory-row { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 9px; align-items: center; width: 100%; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--ink-150); background: transparent; text-align: left; cursor: pointer; }
+.project-directory-row:hover { background: var(--ink-50); }
+.project-directory-row.is-active { background: var(--violet-50); box-shadow: inset 3px 0 var(--violet-600); }
+.project-directory-row > i { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 7px; background: var(--ink-100); color: var(--ink-600); font-style: normal; font-size: 12px; font-weight: 800; }
+.project-directory-row > span { display: grid; gap: 2px; min-width: 0; }
+.project-directory-row strong { font-size: var(--type-label); color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-directory-row.is-active strong { color: var(--violet-700); }
+.project-directory-row small { font-size: var(--type-micro); color: var(--ink-500); }
+.project-inspector { display: flex; flex-direction: column; min-height: 0; margin-bottom: 0; }
+.project-inspector .workspace-pane-scroll { flex: 1; padding: 0 18px 18px; }
+.organization-tabs button.disabled { opacity: .35; cursor: default; }
 
-/* ===== 当前用户行高亮（members tab 身份切换演示 role 门控）===== */
-.data-table tr.is-current-user { background: var(--violet-50); }
-.data-table tr.is-current-user td:first-child { border-left: 3px solid var(--violet-600); }
+/* ===== 连续演示模式（04-链路演示）===== */
+body[data-page="demo"] { background: var(--ink-75); }
+/* 内部外壳压缩高度给底部控制条留位（保持原 2 行 grid：titlebar + 主体） */
+body[data-page="demo"] .desktop-app { width: 100vw; height: calc(100vh - 140px); }
+body[data-page="demo"] .app-stage { min-height: 0; }
+#sdkStage { display: none; height: calc(100vh - 140px); overflow-y: auto; background: var(--ink-75); padding: 0; }
+#sdkStage .sdk-shell { height: 100%; }
+
+/* 演示控制条 */
+#demoBar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 200; display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; height: 140px; padding: 14px 20px 16px; border-top: 1px solid var(--ink-150); background: rgba(18, 23, 34, .97); color: #fff; backdrop-filter: blur(12px); box-shadow: 0 -12px 40px rgba(13, 17, 25, .18); }
+.demo-controls { display: flex; gap: 6px; align-items: center; }
+.demo-controls button { min-height: 36px; min-width: 36px; padding: 0 12px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; color: #fff; background: rgba(255,255,255,.06); font-size: var(--type-label); font-weight: 700; cursor: pointer; transition: background var(--ease); }
+.demo-controls button:hover { background: rgba(255,255,255,.12); }
+.demo-controls button.primary { border-color: var(--violet-500); background: linear-gradient(180deg, #6c65ec, #5851d6); }
+.demo-step-info { display: grid; gap: 4px; min-width: 0; }
+.demo-step-idx { font-size: var(--type-micro); color: rgba(255,255,255,.5); font-weight: 700; letter-spacing: .05em; }
+.demo-step-title { font-size: var(--type-body); font-weight: 800; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.demo-step-desc { font-size: var(--type-caption); color: rgba(255,255,255,.6); line-height: 1.45; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.demo-progress { height: 4px; margin-top: 8px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+.demo-progress-fill { height: 100%; background: linear-gradient(90deg, var(--violet-500), var(--violet-700)); transition: width .4s cubic-bezier(.2,.8,.2,1); }
+.demo-step-chips { display: flex; gap: 3px; flex-wrap: wrap; max-width: 320px; }
+.demo-step-chips button { width: 10px; height: 10px; min-width: 10px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.16); cursor: pointer; }
+.demo-step-chips button.is-done { background: var(--green-600); }
+.demo-step-chips button.is-current { background: var(--violet-500); box-shadow: 0 0 0 3px rgba(112,106,242,.3); }
+.demo-view-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: var(--type-micro); font-weight: 800; }
+.demo-view-badge.internal { color: var(--violet-100); background: rgba(112,106,242,.2); }
+.demo-view-badge.sdk { color: var(--green-100); background: rgba(35,135,91,.2); }
