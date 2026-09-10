@@ -1,3 +1,9 @@
+> ⚠️ **本文档已归档为历史设计参考。**
+> 权威实现版本：[`customer-support-orchestration-plan.md`](./customer-support-orchestration-plan.md)（2026-09-04，2026-09-08 补充校正）。
+> 配套：[`customer-support-sequence-diagrams.md`](../迭代版本/【1】20260904/customer-support-sequence-diagrams.md)（时序图）、[`customer-support-prd.md`](../迭代版本/【1】20260904/customer-support-prd.md)（PRD）。
+> 原设计在已部分建成的系统上重新描述了一套平行设计（卡片系统、四个新 Skill、编排画布、arckit 层自动分配），与真实实现走向冲突；替代方案以代码核实为基线，复用现有 Task 7 态机与 Gap-driven Loop，治理层落在 workshop-api 而非 arckit 协议层。
+> **本文档中仍有效的部分**（反馈四类型 issue/suggestion/question/consultation、响应 SLA、角色定义）已并入 PRD 附录与功能需求；卡片系统、四个新 Skill、编排画布、计费模型、arckit 层自动分配确认作废，不再搬运。后续落地以替代方案 + PRD + 时序图为准。
+
 # 客户-内部双向协作通道设计
 
 ## 一、产品定位

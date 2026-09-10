@@ -73,6 +73,11 @@ async function listByProject(projectId: string | number, options?: FeedbackListO
   return { feedbacks, meta, total: typeof meta.total === 'number' ? meta.total : feedbacks.length }
 }
 
+async function getById(id: number): Promise<Feedback> {
+	const response = await apiClient.get(`${resolveWorkshopV2BaseUrl()}/user/feedbacks/${id}`)
+	return handleResponse<Feedback>(response)
+}
+
 async function create(input: CreateFeedbackInput): Promise<Feedback> {
   const response = await apiClient.post(`${resolveWorkshopV2BaseUrl()}/user/feedbacks`, {
     project_id: input.projectId,
@@ -166,6 +171,15 @@ export interface FeedbackV2Notification {
   type: 'customer_message' | 'developer_message' | 'status_change'
   created_at: string
   read_at?: string
+}
+
+export interface FeedbackSubscription {
+	project_id: number
+	email_enabled: boolean
+	notify_new_feedback: boolean
+	notify_customer_replies: boolean
+	delivery_available: boolean
+	updated_at?: string
 }
 
 interface FeedbackV2NotificationListResponse {
@@ -275,6 +289,28 @@ async function markNotificationsRead(params: { projectId: number; feedbackId?: n
   return { markedCount: typeof result?.marked_count === 'number' ? result.marked_count : 0 }
 }
 
+async function getSubscription(projectId: number): Promise<FeedbackSubscription> {
+	const response = await apiClient.get(`${resolveWorkshopV2BaseUrl()}/user/feedback-subscription`, {
+		params: { project_id: projectId },
+	})
+	return handleResponse<FeedbackSubscription>(response)
+}
+
+async function updateSubscription(input: {
+	projectId: number
+	emailEnabled: boolean
+	notifyNewFeedback: boolean
+	notifyCustomerReplies: boolean
+}): Promise<FeedbackSubscription> {
+	const response = await apiClient.put(`${resolveWorkshopV2BaseUrl()}/user/feedback-subscription`, {
+		project_id: input.projectId,
+		email_enabled: input.emailEnabled,
+		notify_new_feedback: input.notifyNewFeedback,
+		notify_customer_replies: input.notifyCustomerReplies,
+	})
+	return handleResponse<FeedbackSubscription>(response)
+}
+
 async function createDeveloperMessage(params: {
   feedbackId: number
   content?: string
@@ -374,13 +410,16 @@ async function getTaskAttachmentCredentials(taskAttachmentId: number, objectKey:
 
 export const feedbackV2Client = {
   listByProject,
+	getById,
   create,
   update,
   remove,
   createSession,
   getMessages,
-  getNotifications,
-  markNotificationsRead,
+	getNotifications,
+	markNotificationsRead,
+	getSubscription,
+	updateSubscription,
   createDeveloperMessage,
   createDeveloperUploadPolicy,
   uploadWithPolicy,

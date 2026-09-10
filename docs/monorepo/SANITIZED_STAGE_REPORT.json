@@ -1,13 +1,13 @@
 {
   "schema_version": "arckit-monorepo-sanitized-stage/v1",
-  "generated_at": "2026-09-01T06:46:41.726Z",
+  "generated_at": "2026-09-06T12:28:39.109Z",
   "source_heads": {
-    "workshop-api": "633b779ca1d0793a9577e267d3e9b1599248f772",
+    "workshop-api": "4ac58fb6c30696c99d833433f28c04101fd72b4a",
     "todo-web": "ddbb99a7b83dfcefb3316c8fced3a2f8573c3eb0",
-    "workshop-feedbacks": "447e16800edac4108d4dfdfb4e92f41da70e5fa6"
+    "workshop-feedbacks": "3ae724ef763edaa1ad811655968c029854e0803a"
   },
   "staging_location": "temporary-workspace-only",
-  "files": 707,
+  "files": 710,
   "blocked_fingerprints_checked": 16,
   "blocked_fingerprints_found": 0,
   "secret_values_emitted": false,

@@ -20,6 +20,8 @@ directory.
 - `docs/workshop/`: public Todo and Feedback product/design documentation.
 - `runtime/arcorbit/`: ArcOrbit Desktop and Runtime product.
 
+Arckit is the authoritative development home for the Todo and Feedback product surfaces above. The former `workshop-todo-website`, `Workshop-Feedbacks`, and `workshop-todo` repositories are migration references pending retirement; make subsequent product changes in this monorepo first.
+
 JavaScript workspaces use the root `package.json` and `package-lock.json`. Do not
 restore per-workspace lockfiles. Go and Xcode projects keep their native module
 boundaries. Public code must not import or implicitly read sibling `arckit-ops`;

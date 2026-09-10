@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>通信基础设施 — 产品支持链路设计稿</title>
+    <link rel="stylesheet" href="../../../../../runtime/arcorbit/desktop/renderer/styles.css">
+    <link rel="stylesheet" href="./prototype.css">
+    <style>
+      /* 覆盖 ArcOrbit styles.css 的 html,body{min-width:1100px;overflow:hidden} 与 :root 深色背景
+         （03 是独立文档页，非桌面外壳，同 01 页 sdk-mode 处理）*/
+      :root { background: var(--ink-75); }
+      html { min-width: 0; height: auto; overflow-x: hidden; overflow-y: auto; background: var(--ink-75); }
+      body { margin: 0; padding: 0; width: 100%; min-width: 0; min-height: 0; height: auto; overflow-x: hidden; overflow-y: auto; background: var(--ink-75); color: var(--ink-900); }
+      .infra-page { max-width: 1200px; margin: 0 auto; padding: 28px 32px 48px; }
+      .infra-page .page-heading { margin-bottom: 18px; }
+      .infra-page h1 { font-size: var(--type-display); margin: 4px 0 7px; letter-spacing: -.04em; }
+      .infra-page .page-heading p { color: var(--ink-500); font-size: var(--type-body); margin: 0; max-width: 760px; }
+
+      /* 泳道容器（普通盒子，内部 .swim-lane 才是 grid）*/
+      .swim { border: 1px solid var(--ink-150); border-radius: var(--radius-md); overflow: hidden; background: var(--paper); }
+      .swim + .swim { margin-top: 14px; }
+      .swim-lane { display: grid; grid-template-columns: 150px minmax(0, 1fr); }
+      .swim-lane + .swim-lane { border-top: 1px solid var(--ink-150); }
+      .swim-label { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 18px 14px; background: var(--ink-900); color: #fff; }
+      .swim-label strong { font-size: var(--type-label); }
+      .swim-label small { font-size: var(--type-micro); color: rgba(255,255,255,.5); line-height: 1.45; }
+      .swim-body { display: grid; gap: 10px; align-content: center; padding: 14px; }
+
+      .node { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 11px 14px; border: 1px solid var(--ink-150); border-radius: var(--radius-sm); background: var(--paper); border-left-width: 3px; }
+      .node.green { border-left-color: var(--green-600); }
+      .node.amber { border-left-color: var(--amber-600); }
+      .node.red { border-left-color: var(--red-600); }
+      .node-copy { display: grid; gap: 3px; min-width: 0; }
+      .node-copy strong { font-size: var(--type-label); color: var(--ink-900); }
+      .node-copy code { font-size: var(--type-micro); color: var(--ink-500); font-family: "SFMono-Regular", monospace; word-break: break-all; }
+      .node-copy p { margin: 0; font-size: var(--type-caption); color: var(--ink-600); line-height: 1.5; }
+      .node-status { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; white-space: nowrap; }
+
+      .arrow { text-align: center; color: var(--ink-300); font-size: var(--type-caption); padding: 4px 0; }
+      .arrow b { color: var(--ink-600); font-weight: 700; }
+
+      .legend { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; padding: 12px 16px; margin-bottom: 18px; border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: var(--paper); }
+      .legend > span { display: inline-flex; align-items: center; gap: 7px; font-size: var(--type-caption); color: var(--ink-600); }
+      .legend i { width: 16px; height: 4px; border-radius: 2px; display: inline-block; }
+      .legend i.green { background: var(--green-600); }
+      .legend i.amber { background: var(--amber-600); }
+      .legend i.red { background: var(--red-600); }
+
+      .legend strong { color: var(--ink-900); font-size: var(--type-label); }
+
+      .bridge-block { margin-top: 22px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+      .bridge-card { padding: 16px; border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: var(--paper); border-top: 3px solid var(--amber-600); }
+      .bridge-card.bridge3 { border-top-color: var(--red-600); }
+      .bridge-card h3 { margin: 0 0 8px; font-size: var(--type-body); display: flex; align-items: center; gap: 8px; }
+      .bridge-card .bridge-status { font-size: var(--type-micro); padding: 2px 7px; border-radius: 999px; font-weight: 800; }
+      .bridge-card .bridge-status.amber { color: var(--amber-700); background: var(--amber-100); }
+      .bridge-card .bridge-status.red { color: var(--red-600); background: var(--red-100); }
+      .bridge-card p { margin: 0 0 8px; font-size: var(--type-caption); color: var(--ink-600); line-height: 1.5; }
+      .bridge-card ul { margin: 0; padding-left: 18px; font-size: var(--type-micro); color: var(--ink-500); line-height: 1.6; }
+      .bridge-card code { font-size: var(--type-micro); color: var(--violet-700); background: var(--violet-50); padding: 1px 5px; border-radius: 4px; font-family: "SFMono-Regular", monospace; }
+    </style>
+  </head>
+  <body>
+    <div class="infra-page">
+      <header class="page-heading split-heading">
+        <div>
+          <p class="eyebrow">RUNTIME ↔ WORKSHOP-API · COMMUNICATION INFRASTRUCTURE</p>
+          <h1>双向通信基础设施</h1>
+          <p>scenario-gap-analysis 识别的最大隐藏工程量：桥2/桥3 依赖的 runtime↔workshop-api 双向通道。本图按代码核实标注已有通道（绿）与三桥缺失（amber/red），不假装已实现。</p>
+        </div>
+        <span class="todo-badge decision" title="前置决策：通道形态 — 复用 WebSocket cursor vs 另建事件总线">待决策·通道形态</span>
+      </header>
+
+      <div class="legend">
+        <strong>图例</strong>
+        <span><i class="green"></i> 已有通道（代码已实现）</span>
+        <span><i class="amber"></i> 桥1/桥2 缺失（amber）</span>
+        <span><i class="red"></i> 桥3 缺失（red）</span>
+      </div>
+
+      <!-- 泳道 1：客户 SDK -->
+      <div class="swim">
+        <div class="swim-lane">
+          <div class="swim-label"><strong>客户 SDK</strong><small>packages/feedback-sdk-web<br>+ product-feedback 窗口</small></div>
+          <div class="swim-body">
+            <div class="node green">
+              <div class="node-copy"><strong>提交反馈 / 追问</strong><code>POST /api/v1/projects/{pid}/feedbacks</code><p>HTTP REST + iframe postMessage；customer FeedbackMessage 经 workshop-api 落库。</p></div>
+              <div class="node-status"><span class="todo-badge">已有</span></div>
+            </div>
+            <div class="node amber">
+              <div class="node-copy"><strong>SDK 实时推送缺失</strong><code>SDK 无 WebSocket/SSE 订阅</code><p>客户发反馈后需手动刷新；workshop-api 后端已有 per-project cursor，SDK 侧未接。第三批（影响 SLA）。</p></div>
+              <div class="node-status"><span class="todo-badge">待建·SDK 实时</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow">↓ FeedbackMessage 落库 &nbsp;·&nbsp; <b>workshop-api 持久化</b> &nbsp;·&nbsp; ↑（桥2 草稿回写 待建）</div>
+
+      <!-- 泳道 2：workshop-api -->
+      <div class="swim">
+        <div class="swim-lane">
+          <div class="swim-label"><strong>workshop-api</strong><small>services/workshop-api<br>Go/Gin 治理层</small></div>
+          <div class="swim-body">
+            <div class="node green">
+              <div class="node-copy"><strong>分诊 / ConvertFeedbackToTask</strong><code>handler/feedback_workflow.go · feedback-v2-convert IPC</code><p>triage role 门控（待修 bug：requireFeedbackProjectMember 不查 role）；转 Task 创建 FeedbackTaskLink。</p></div>
+              <div class="node-status"><span class="todo-badge">已有·门控待修</span></div>
+            </div>
+            <div class="node green">
+              <div class="node-copy"><strong>per-project WebSocket cursor</strong><code>workshopRealtimeAdapter.realtimeConnection(pid)</code><p>workshop-api 后端已有 per-project cursor 实时能力；events 经 listProjectEvents 回放。</p></div>
+              <div class="node-status"><span class="todo-badge">已有</span></div>
+            </div>
+            <div class="node amber">
+              <div class="node-copy"><strong>FeedbackMessage.state 字段缺失</strong><code>FeedbackMessage 结构体无 state 字段</code><p>无法区分草稿/已发送。桥2 前置：需 Postgres migration 加 state(draft/sent)。</p></div>
+              <div class="node-status"><span class="todo-badge">待建·migration</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow">↓ Task 拉取（单向）&nbsp;·&nbsp; <b>task-source-adapter</b> &nbsp;·&nbsp; ↑（桥1 FeedbackTaskLink 不拉 / 桥2 草稿不回写）</div>
+
+      <!-- 泳道 3：runtime -->
+      <div class="swim">
+        <div class="swim-lane">
+          <div class="swim-label"><strong>runtime(arcorbit)</strong><small>runtime/arcorbit/src<br>automation + work-sync</small></div>
+          <div class="swim-body">
+            <div class="node green">
+              <div class="node-copy"><strong>Task 拉取（单向）</strong><code>task-source-adapter.mjs · listTasks()</code><p>GET /tasks 按 executor_id 拉取；runtime 现状是纯拉取模式。</p></div>
+              <div class="node-status"><span class="todo-badge">已有·单向</span></div>
+            </div>
+            <div class="node amber">
+              <div class="node-copy"><strong>桥1：FeedbackTaskLink 不拉</strong><code>task-source-adapter.listTasks 不含 FeedbackTaskLink</code><p>runtime 不知一个 Task 关联哪条客户反馈；automation 的 feedback_id 绑定只走 acceptance_feedback_items（验收反馈），非客户反馈。</p></div>
+              <div class="node-status"><span class="todo-badge decision">待建·桥1</span></div>
+            </div>
+            <div class="node amber">
+              <div class="node-copy"><strong>桥1：derived_from 追溯缺失</strong><code>Gap.derived_from: string[]（语义=推理依据）</code><p>塞 customer-feedback:&lt;id&gt; 会混淆语义。待决策：前缀泛化（轻）vs 新增 triggered_by 字段（清晰）。</p></div>
+              <div class="node-status"><span class="todo-badge decision">待决策</span></div>
+            </div>
+            <div class="node green">
+              <div class="node-copy"><strong>work-sync WebSocket 监听</strong><code>workshopRealtimeAdapter.updateProjects(pid[])</code><p>runtime <b>已监听</b> workshop-api WebSocket：per-project cursor → onInvalidate → refreshSnapshot（刷新 platform snapshot）。</p></div>
+              <div class="node-status"><span class="todo-badge">已有·仅刷快照</span></div>
+            </div>
+            <div class="node red">
+              <div class="node-copy"><strong>桥3：事件路由缺失</strong><code>onInvalidate → refreshSnapshot（不触发 steer）</code><p>work-sync 只刷新 snapshot，无"客户 FeedbackMessage → 活跃 Case steer"路由。客户追问无法实时注入同一线程。需补 runtime 侧消息事件监听 + 硬关联门控。</p></div>
+              <div class="node-status"><span class="todo-badge">待建·桥3</span></div>
+            </div>
+            <div class="node green">
+              <div class="node-copy"><strong>Task 状态回写（已有）</strong><code>workSync.updateTaskState → PUT /tasks/{id}</code><p>work-sync-coordinator.mjs 经 platformSource.updateTask 回写任务状态。这是现状唯一的 runtime→workshop-api 状态回写。</p></div>
+              <div class="node-status"><span class="todo-badge">已有</span></div>
+            </div>
+            <div class="node green">
+              <div class="node-copy"><strong>developer 消息回写（已有）</strong><code>platform-coordinator → POST /v2/user/feedbacks/{id}/messages</code><p>createFeedbackV2DeveloperMessage 可写 developer 回复消息；但草稿不走此通道。</p></div>
+              <div class="node-status"><span class="todo-badge">已有·非草稿</span></div>
+            </div>
+            <div class="node amber">
+              <div class="node-copy"><strong>桥2：closeout 不回写草稿</strong><code>automation-coordinator.startSameThreadCloseout</code><p>只做 Git 收尾 + completeRemoteTask（PUT task=completed），不回写草稿 FeedbackMessage(state=pending_review)。session message 仅存本地 runManager。</p></div>
+              <div class="node-status"><span class="todo-badge">待建·桥2</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow">↓ Codex thread 调用 &nbsp;·&nbsp; <b>utilityProcess.fork → Codex app-server</b> &nbsp;·&nbsp; ↑ steer（已有底层）</div>
+
+      <!-- 泳道 4：Codex 线程 -->
+      <div class="swim">
+        <div class="swim-lane">
+          <div class="swim-label"><strong>Codex 线程</strong><small>持久 thread<br>$using-arckit gap 推进</small></div>
+          <div class="swim-body">
+            <div class="node green">
+              <div class="node-copy"><strong>Gap-driven Loop（不动）</strong><code>codex-app-server-adapter · runSameThreadCloseout</code><p>同 task 复用同 thread；selectNextRound → 推进 → transition → ledger 原子写回 → Git 收尾。现状最成熟。</p></div>
+              <div class="node-status"><span class="todo-badge">已有·最成熟</span></div>
+            </div>
+            <div class="node green">
+              <div class="node-copy"><strong>steer 注入（底层就绪）</strong><code>codex-app-server-adapter steer(stdin /steer)</code><p>底层 turn/steer 能力已实现；intervention 分支 A（run running → steer 注入当前 turn）就绪。缺的是桥3 事件路由把它接通到客户追问。</p></div>
+              <div class="node-status"><span class="todo-badge">已有·待桥3接通</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 三桥汇总 -->
+      <section class="bridge-block">
+        <div class="bridge-card">
+          <h3>桥1 · Task→Case 追溯 <span class="bridge-status amber">缺失</span></h3>
+          <p>runtime 不知 Task 关联哪条客户反馈，无法把客户追问路由到正确 thread。</p>
+          <ul>
+            <li>task-source-adapter 扩展拉 FeedbackTaskLink</li>
+            <li>Gap.derived_from = <code>customer-feedback:&lt;id&gt;</code></li>
+            <li><b>前置决策</b>：前缀泛化 vs 新增 triggered_by</li>
+          </ul>
+          <p style="margin-top:8px;color:var(--ink-400);">依赖：无。第二批。</p>
+        </div>
+        <div class="bridge-card">
+          <h3>桥2 · 进展草稿回写 <span class="bridge-status amber">缺失</span></h3>
+          <p>closeout 只 Git 收尾，不回写草稿 FeedbackMessage；草稿无 state 字段。</p>
+          <ul>
+            <li>FeedbackMessage 加 state(draft/sent) migration</li>
+            <li>closeout 扩展回写草稿 system 消息</li>
+            <li>草稿并入 Feedback 详情对话面板（已落点）</li>
+          </ul>
+          <p style="margin-top:8px;color:var(--ink-400);">依赖：双向通信 + state 字段。第三批。</p>
+        </div>
+        <div class="bridge-card bridge3">
+          <h3>桥3 · 追问 steer <span class="bridge-status red">核心缺失</span></h3>
+          <p>work-sync onInvalidate 只刷新 snapshot，无"客户消息→活跃 Case steer"路由。</p>
+          <ul>
+            <li>runtime 监听 FeedbackMessage 事件</li>
+            <li>硬关联门控：derived_from 含同 feedback_id 才注入</li>
+            <li>依赖桥1追溯链路打通后才能路由</li>
+          </ul>
+          <p style="margin-top:8px;color:var(--ink-400);">依赖：双向通信 + 桥1。第三批。</p>
+        </div>
+      </section>
+
+      <footer style="margin-top:24px;padding-top:16px;border-top:1px solid var(--ink-150);color:var(--ink-400);font-size:var(--type-caption);line-height:1.6;">
+        <p style="margin:0 0 6px;"><strong style="color:var(--ink-600);">关键发现</strong>：设计稿原把桥2/桥3 描述为"接通即可"，代码核实 runtime 与 workshop-api 之间是单向拉取模式 + 仅刷新 snapshot 的 WebSocket，三个桥依赖的双向通道完全不存在。建议在第一批（triage + capabilities）之后、桥1/2/3 之前，插入双向通信基础设施步骤：runtime→workshop-api 回写能力 + runtime 监听 WS 事件路由 + FeedbackMessage state 字段。</p>
+        <p style="margin:0;">真实组件名标注：workshopRealtimeAdapter / task-source-adapter / automation-coordinator / work-sync-coordinator / platform-coordinator / runManager / codex-app-server-adapter。</p>
+      </footer>
+    </div>
+  </body>
+</html>

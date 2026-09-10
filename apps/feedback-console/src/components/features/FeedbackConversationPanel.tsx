@@ -9,6 +9,7 @@ interface FeedbackConversationPanelProps {
   onChanged?: () => void
   onNotificationsRead?: () => void
   refreshKey?: number
+  standalone?: boolean
 }
 
 function formatMessageTime(value: string) {
@@ -156,7 +157,15 @@ function AttachmentPreviewDialog({
   )
 }
 
-function ConversationAttachment({ feedbackId, attachment }: { feedbackId: number; attachment: FeedbackV2Attachment }) {
+function ConversationAttachment({
+  feedbackId,
+  attachment,
+  spacious = false,
+}: {
+  feedbackId: number
+  attachment: FeedbackV2Attachment
+  spacious?: boolean
+}) {
   const attachmentCacheKey = getAttachmentCacheKey(feedbackId, attachment)
   const [sourceUrl, setSourceUrl] = useState(() => attachment.url || getCachedAttachmentUrl(attachmentCacheKey))
   const [previewUrl, setPreviewUrl] = useState('')
@@ -229,7 +238,12 @@ function ConversationAttachment({ feedbackId, attachment }: { feedbackId: number
   }
 
   return (
-    <div className={clsx('max-w-full', kind === 'image' && 'w-24')}>
+    <div
+      className={clsx(
+        'max-w-full',
+        kind === 'image' && (spacious ? 'w-[calc(50%-0.25rem)] sm:w-44' : 'w-24'),
+      )}
+    >
       {kind === 'image' && sourceUrl && !imageLoadFailed ? (
         <button
           type="button"
@@ -245,7 +259,10 @@ function ConversationAttachment({ feedbackId, attachment }: { feedbackId: number
               setImageLoadFailed(true)
               setError('图片加载失败，可尝试打开原文件')
             }}
-            className="aspect-square w-full rounded-md border border-divider bg-surface object-cover shadow-sm transition-opacity group-hover:opacity-85"
+            className={clsx(
+              'w-full rounded-md border border-divider bg-surface object-cover shadow-sm transition duration-200 group-hover:opacity-85',
+              spacious ? 'aspect-[4/3]' : 'aspect-square',
+            )}
           />
           <span className="mt-1 block truncate text-xs font-medium text-primary">{name}</span>
         </button>
@@ -267,7 +284,14 @@ function ConversationAttachment({ feedbackId, attachment }: { feedbackId: number
   )
 }
 
-export function FeedbackConversationPanel({ feedbackId, projectId, onChanged, onNotificationsRead, refreshKey = 0 }: FeedbackConversationPanelProps) {
+export function FeedbackConversationPanel({
+  feedbackId,
+  projectId,
+  onChanged,
+  onNotificationsRead,
+  refreshKey = 0,
+  standalone = false,
+}: FeedbackConversationPanelProps) {
   const [messages, setMessages] = useState<FeedbackV2Message[]>([])
   const [draft, setDraft] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -354,8 +378,15 @@ export function FeedbackConversationPanel({ feedbackId, projectId, onChanged, on
 
   return (
     <section className="flex h-full min-h-0 flex-col" aria-label="反馈会话">
-      <div className="shrink-0 border-b border-divider bg-surface-elevated px-4 py-3">
-        <div className="rounded-lg border border-divider bg-surface p-2.5 shadow-sm">
+      <div
+        className={clsx(
+          'shrink-0 bg-surface px-4 py-3',
+          standalone
+            ? 'order-2 border-t border-divider pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6'
+            : 'order-2 border-t border-divider pb-[max(0.75rem,env(safe-area-inset-bottom))] md:order-none md:border-b md:border-t-0 md:bg-surface-elevated md:pb-3',
+        )}
+      >
+        <div className={clsx('rounded-lg border border-divider bg-surface p-2.5', !standalone && 'shadow-sm')}>
           <div className="mb-1.5 flex items-center gap-2 text-xs">
             <span className="rounded-md border border-divider bg-surface-elevated px-2 py-1 font-semibold text-foreground-secondary">回复用户</span>
             <span className="text-foreground-tertiary">同步处理进展或补充说明</span>
@@ -392,7 +423,14 @@ export function FeedbackConversationPanel({ feedbackId, projectId, onChanged, on
         </div>
       </div>
 
-      <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      <div
+        className={clsx(
+          'scrollbar-slim min-h-0 flex-1 overflow-y-auto',
+          standalone
+            ? 'order-1 px-4 py-5 sm:px-6 sm:py-6'
+            : 'order-1 px-3 py-3 md:order-none md:px-5 md:py-4',
+        )}
+      >
         {loading ? <p className="py-2 text-xs text-foreground-secondary">正在加载沟通记录...</p> : null}
         {!loading && !messages.length ? <p className="py-2 text-xs text-foreground-secondary">暂未有补充沟通，可以先回复用户。</p> : null}
         <div className="space-y-3">
@@ -440,7 +478,8 @@ export function FeedbackConversationPanel({ feedbackId, projectId, onChanged, on
               <article
                 key={message.id}
                 className={clsx(
-                  'rounded-lg border px-4 py-3.5',
+                  'border px-4 py-3.5',
+                  standalone ? 'rounded-xl sm:px-5 sm:py-4' : 'rounded-lg',
                   messageStyle.article,
                 )}
               >
@@ -460,7 +499,12 @@ export function FeedbackConversationPanel({ feedbackId, projectId, onChanged, on
                     <p className="mb-2 text-[11px] font-semibold text-foreground-tertiary">附件 {message.attachments.length}</p>
                     <div className="flex flex-wrap gap-2">
                       {message.attachments.map((attachment, index) => (
-                        <ConversationAttachment key={`${message.id}-${attachment.object_key || attachment.url || index}`} feedbackId={message.feedback_id} attachment={attachment} />
+                        <ConversationAttachment
+                          key={`${message.id}-${attachment.object_key || attachment.url || index}`}
+                          feedbackId={message.feedback_id}
+                          attachment={attachment}
+                          spacious={standalone}
+                        />
                       ))}
                     </div>
                   </div>

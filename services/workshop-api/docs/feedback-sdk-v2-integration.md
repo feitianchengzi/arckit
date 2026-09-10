@@ -190,7 +190,7 @@ Content-Type: application/json
 
 通知接口是独立于反馈列表和消息接口的新 V2 API。不开启客户端通知开关时，SDK 不会调用它们，因此既有 V2 集成的请求与展示完全不变。
 
-服务端还必须在 `FEEDBACK_V2_NOTIFICATION_PROJECT_IDS` 中显式加入项目 ID；默认空值不写入通知记录，通知接口返回 `404`。先只配置测试项目，再打开客户端开关。
+服务端通过 `FEEDBACK_V2_NOTIFICATION_PROJECT_IDS` 控制通知能力：可填逗号分隔的项目 ID，也可填 `*` 对全部项目开放；默认空值不写入通知记录，通知接口返回 `404`。客户端仍需显式打开通知开关。
 
 用户创建或补充反馈时，项目成员收到 `customer_message`；开发者回复时，用户收到 `developer_message`；待办状态回写、流转或忽略时，用户收到 `status_change`。消息和通知在同一事务中写入，重试不会生成重复通知。
 
@@ -287,7 +287,7 @@ type FeedbackV2Config =
 1. 先在独立测试项目启用，分别验证安全 token 与直连 API Key 模式。
 2. SDK 启用后仅该项目使用 V2 路径；V1 SDK/iOS/控制台默认路径不变。
 3. 验证创建、首条消息、跨用户隔离、附件策略、幂等重试、开发者回复和待办状态回写。
-4. 通知另行开启 `feedbackV2NotificationsEnabled: true`，验证未读、已读和跨用户隔离后再放量；Console 则配置独立的 `VITE_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS` 项目白名单。
+4. 需要通知时另行开启 `feedbackV2NotificationsEnabled: true`，验证未读、已读和跨用户隔离；Console 支持以 `VITE_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS=*` 对全部 V2 项目开放。
 5. 观察错误率与轮询负载后，按项目逐步放量。关闭开关即可停止新增 V2 SDK 请求，不涉及数据库回滚。
 
 ## 部署前置条件

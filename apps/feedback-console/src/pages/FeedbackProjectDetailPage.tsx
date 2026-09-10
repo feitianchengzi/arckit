@@ -44,7 +44,7 @@ export default function FeedbackProjectDetailPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] min-h-0 flex-col gap-3 overflow-hidden lg:h-[calc(100vh-4.5rem)]">
+    <div className="flex h-[calc(100dvh-5rem)] min-h-0 flex-col gap-3 overflow-hidden lg:h-[calc(100vh-4.5rem)]">
       <div className="min-h-0 flex-1">
         <FeedbackManagementDialog
           open={true}

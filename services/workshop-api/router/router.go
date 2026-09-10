@@ -55,7 +55,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(userGroup)
 			registerFeedbackNotificationRoutes(userGroup)
-			userGroup.POST("/feedback-sessions", handler.CreateFeedbackSession)
+			userGroup.POST("/feedback-sessions", handler.CreateUserFeedbackSession)
 			userGroup.POST("/feedbacks/:id/upload-policies", handler.CreateFeedbackDeveloperUploadPolicy)
 		}
 		userGroup.POST("/projects/:id/feedback-access-keys", handler.CreateProjectFeedbackAccessKey)           // 创建项目反馈访问 key（管理员/所有者）

@@ -7,6 +7,7 @@ import { useDeleteFeedback, useFeedbackList, useUpdateFeedback } from '@/hooks/u
 import type { Feedback } from '@/lib/api/endpoints/feedbacks'
 import { OssResourceManager } from '@/lib/oss/OssResourceManager'
 import { FeedbackConversationPanel } from '@/components/features/FeedbackConversationPanel'
+import { FeedbackSubscriptionMenu } from '@/components/features/FeedbackSubscriptionMenu'
 import { feedbackV2Client, isFeedbackV2NotificationsProjectEnabled, isFeedbackV2ProjectEnabled } from '@/lib/api/feedbackV2Client'
 import { useProjectWebSocket, type ProjectSocketEvent } from '@/hooks/useProjectWebSocket'
 import { LinkIcon, RefreshIcon, SearchIcon, TrashIcon, XIcon } from '@/components/ui/icons'
@@ -474,6 +475,7 @@ export function FeedbackManagementDialog({
   const [realtimeRevision, setRealtimeRevision] = useState(0)
 	const [unreadFeedbackIds, setUnreadFeedbackIds] = useState<Set<number>>(new Set())
 	const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
+	const [deepLinkedFeedback, setDeepLinkedFeedback] = useState<Feedback | null>(null)
   const realtimeRefreshTimerRef = useRef<number | null>(null)
 
 	const updateFeedback = useUpdateFeedback(projectId)
@@ -481,6 +483,11 @@ export function FeedbackManagementDialog({
 	const v2Workflow = isFeedbackV2ProjectEnabled(projectId)
 	const v2Notifications = v2Workflow && isFeedbackV2NotificationsProjectEnabled(projectId)
 	const realtimeEnabled = v2Workflow && (embedded || open)
+	const requestedFeedbackId = useMemo(() => {
+		if (typeof window === 'undefined') return 0
+		const value = Number(new URLSearchParams(window.location.search).get('feedback_id'))
+		return Number.isInteger(value) && value > 0 ? value : 0
+	}, [projectId])
   const { data: feedbackData, isLoading, error, refetch } = useFeedbackList(projectId, {
     page,
     pageSize: PAGE_SIZE,
@@ -488,6 +495,23 @@ export function FeedbackManagementDialog({
     refetchInterval: realtimeEnabled ? 30000 : false,
     refetchOnWindowFocus: realtimeEnabled,
   })
+
+	useEffect(() => {
+		setDeepLinkedFeedback(null)
+		if (!v2Workflow || requestedFeedbackId === 0 || !(embedded || open)) return
+		let cancelled = false
+		feedbackV2Client.getById(requestedFeedbackId).then((feedback) => {
+			if (cancelled || feedback.project_id !== Number(projectId)) return
+			setDeepLinkedFeedback(feedback)
+			setSelectedFeedbackId(feedback.id)
+			setMobileView('detail')
+		}).catch(() => {
+			// Keep the workspace usable if the linked feedback was deleted or access changed.
+		})
+		return () => {
+			cancelled = true
+		}
+	}, [embedded, open, projectId, requestedFeedbackId, v2Workflow])
 
   const scheduleRealtimeRefresh = useCallback(() => {
     if (realtimeRefreshTimerRef.current !== null) return
@@ -548,7 +572,10 @@ export function FeedbackManagementDialog({
 		void loadUnreadNotifications()
 	}, [embedded, loadUnreadNotifications, open, realtimeRevision])
 
-  const feedbacks = feedbackData?.feedbacks ?? []
+  const listedFeedbacks = feedbackData?.feedbacks ?? []
+	const feedbacks = deepLinkedFeedback && !listedFeedbacks.some((feedback) => feedback.id === deepLinkedFeedback.id)
+		? [deepLinkedFeedback, ...listedFeedbacks]
+		: listedFeedbacks
   const total = feedbackData?.meta?.total ?? feedbackData?.total ?? feedbacks.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -622,9 +649,13 @@ export function FeedbackManagementDialog({
 
     const exists = filteredEntries.some((entry) => entry.feedback.id === selectedFeedbackId)
     if (!exists) {
-      setSelectedFeedbackId(filteredEntries[0].feedback.id)
+		  const requested = requestedFeedbackId > 0
+			? filteredEntries.find((entry) => entry.feedback.id === requestedFeedbackId)
+			: undefined
+		  setSelectedFeedbackId(requested?.feedback.id ?? filteredEntries[0].feedback.id)
+		  if (requested) setMobileView('detail')
     }
-  }, [filteredEntries, selectedFeedbackId])
+  }, [filteredEntries, requestedFeedbackId, selectedFeedbackId])
 
   useEffect(() => {
     setPage(1)
@@ -724,17 +755,23 @@ export function FeedbackManagementDialog({
         }}
         className={mergeClassName(
           BUTTON_RESET_CLASS,
-          'flex h-11 w-full items-center gap-3 rounded-md border px-3 text-left transition-colors',
+          'flex min-h-[68px] w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors sm:h-11 sm:min-h-0 sm:rounded-md sm:py-0',
           selected
             ? 'border-primary bg-primary-lighter/35'
             : 'border-transparent bg-surface-elevated hover:bg-surface',
         )}
       >
-		<div className="flex min-w-0 flex-1 items-center gap-2">
+		<div className="flex min-w-0 flex-1 flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
+		  <div className="flex w-full min-w-0 items-center gap-2">
 		  {hasUnread ? <span className="h-2 w-2 shrink-0 rounded-full bg-primary" title="有未读用户更新" aria-label="有未读用户更新" /> : null}
-		  <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+		  <p className="min-w-0 flex-1 line-clamp-2 text-sm font-medium leading-5 text-foreground sm:truncate">
 			{feedback.content || feedback.title || '暂无反馈内容'}
 		  </p>
+		  </div>
+		  <div className="flex items-center gap-2 pl-4 text-[11px] text-foreground-tertiary sm:hidden">
+			<span>#{feedback.short_id}</span>
+			<span>{formatDateTime(feedback.created_at)}</span>
+		  </div>
 		</div>
 		<div className="flex shrink-0 items-center gap-1.5">
 		  <span className={mergeClassName('rounded-md px-1.5 py-0.5 text-xs font-bold', PRIORITY_META[insight.priority].badgeClass)}>
@@ -775,8 +812,8 @@ export function FeedbackManagementDialog({
 	const canIgnore = !hasLinkedTask && (v2Workflow ? insight.triageStatus === 'pending' : insight.state !== 'ignored')
 
     return (
-	  <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-divider bg-surface-elevated shadow-sm">
-		<div className="flex h-12 shrink-0 items-center gap-3 border-b border-divider px-4">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-divider bg-surface-elevated shadow-sm">
+		<div className="shrink-0 border-b border-divider px-3 py-2 sm:flex sm:min-h-12 sm:items-center sm:gap-3 sm:px-4 sm:py-0">
 		  <div className="min-w-0 flex-1">
 			<div className="flex min-w-0 items-center gap-2">
 			  <span className="shrink-0 text-xs font-semibold text-primary">#{feedback.short_id}</span>
@@ -785,7 +822,7 @@ export function FeedbackManagementDialog({
 			  <time className="hidden shrink-0 text-xs text-foreground-tertiary 2xl:inline">{formatDateTime(feedback.created_at)}</time>
 			</div>
 		  </div>
-		  <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+		  <div className="scrollbar-hide mt-2 flex items-center gap-2 overflow-x-auto pb-1 whitespace-nowrap sm:mt-0 sm:shrink-0 sm:overflow-visible sm:pb-0">
 			<span className={mergeClassName('rounded-md px-1.5 py-1 text-xs font-semibold', STATE_META[displayState].badgeClass)} title={v2Workflow ? `受理：${getConsoleStateLabel(displayState, true)}` : STATE_META[displayState].label}>
 			  {v2Workflow ? getConsoleStateLabel(displayState, true) : STATE_META[displayState].label}
 			</span>
@@ -799,7 +836,7 @@ export function FeedbackManagementDialog({
 			  disabled={hasLinkedTask || isPrioritizing || isUpdating}
 			  title={hasLinkedTask ? '已流转为待办，请在待办中调整优先级' : '设置反馈优先级'}
 			  className={mergeClassName(
-				'h-7 rounded-md border px-1.5 text-xs font-bold outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:opacity-60',
+				'h-11 min-h-11 shrink-0 rounded-md border px-2 text-xs font-bold outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:opacity-60 sm:h-7 sm:min-h-0',
 				PRIORITY_META[insight.priority].selectClass,
 			  )}
 			>
@@ -819,7 +856,7 @@ export function FeedbackManagementDialog({
 					disabled={isUpdating || isIgnoring}
                   className={mergeClassName(
                     BUTTON_RESET_CLASS,
-					  'h-7 rounded-md bg-primary px-2 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50',
+                      'h-11 min-h-11 shrink-0 rounded-md bg-primary px-3 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 sm:h-7 sm:min-h-0 sm:px-2',
                   )}
                 >
 					流转待办
@@ -833,7 +870,7 @@ export function FeedbackManagementDialog({
 					disabled={isIgnoring || isUpdating}
 					className={mergeClassName(
 						BUTTON_RESET_CLASS,
-					  'h-7 rounded-md border border-divider bg-surface px-2 text-xs font-semibold text-foreground-secondary hover:border-warning hover:text-warning disabled:cursor-not-allowed disabled:opacity-50',
+					  'h-11 min-h-11 shrink-0 rounded-md border border-divider bg-surface px-3 text-xs font-semibold text-foreground-secondary hover:border-warning hover:text-warning disabled:cursor-not-allowed disabled:opacity-50 sm:h-7 sm:min-h-0 sm:px-2',
 					)}
 				>
 					{isIgnoring ? '处理中...' : '忽略'}
@@ -847,7 +884,7 @@ export function FeedbackManagementDialog({
                 title="删除反馈"
 					className={mergeClassName(
 					  BUTTON_RESET_CLASS,
-					  'grid h-7 w-7 place-items-center rounded-md text-foreground-tertiary hover:bg-error-lighter hover:text-error disabled:cursor-not-allowed disabled:opacity-50',
+					  'grid h-11 min-h-11 w-11 min-w-11 shrink-0 place-items-center rounded-md text-foreground-tertiary hover:bg-error-lighter hover:text-error disabled:cursor-not-allowed disabled:opacity-50 sm:h-7 sm:min-h-0 sm:w-7 sm:min-w-0',
 					)}
 				  >
 					{isDeleting ? '...' : <TrashIcon className="h-3.5 w-3.5" />}
@@ -860,7 +897,7 @@ export function FeedbackManagementDialog({
 					  aria-label="刷新反馈与沟通记录"
 					  className={mergeClassName(
 						BUTTON_RESET_CLASS,
-						'grid h-7 w-7 place-items-center rounded-md text-foreground-tertiary hover:bg-surface-hover hover:text-foreground',
+						'grid h-11 min-h-11 w-11 min-w-11 shrink-0 place-items-center rounded-md text-foreground-tertiary hover:bg-surface-hover hover:text-foreground sm:h-7 sm:min-h-0 sm:w-7 sm:min-w-0',
 					  )}
 					>
 					  <RefreshIcon className="h-3.5 w-3.5" />
@@ -895,16 +932,16 @@ export function FeedbackManagementDialog({
   }
 
 	const header = (
-	  <div className="relative rounded-lg border border-divider bg-surface-elevated px-4">
-		<div className="flex h-12 items-center justify-between gap-3">
-			  <h1 className="shrink-0 truncate text-base font-semibold text-foreground">{projectName || '反馈平台'}</h1>
+	  <div className="relative rounded-lg border border-divider bg-surface-elevated px-3 py-2 sm:px-4 sm:py-0">
+		<div className="flex min-h-12 flex-wrap items-center justify-between gap-2 sm:flex-nowrap sm:gap-3">
+			  <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground sm:flex-none">{projectName || '反馈平台'}</h1>
 			  {v2Notifications && unreadNotificationCount > 0 ? (
 				<span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary-lighter px-2 py-1 text-xs font-semibold text-primary" title={`共有 ${unreadNotificationCount} 条未读用户更新`}>
 				  <span className="h-1.5 w-1.5 rounded-full bg-primary" />未读 {unreadNotificationCount}
 				</span>
 			  ) : null}
 		  {searchOpen ? (
-			<div className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-divider bg-surface px-2.5 focus-within:border-divider focus-within:ring-0">
+			<div className="order-last flex w-full min-w-0 items-center gap-2 rounded-md border border-divider bg-surface px-2.5 focus-within:border-divider focus-within:ring-0 sm:order-none sm:w-auto sm:flex-1">
 			  <SearchIcon className="h-4 w-4 shrink-0 text-foreground-tertiary" />
 			  <input
 				autoFocus
@@ -919,7 +956,8 @@ export function FeedbackManagementDialog({
 			  />
 			</div>
 		  ) : null}
-		  <div className="flex shrink-0 items-center gap-1.5">
+		  <div className="scrollbar-hide order-last flex w-full shrink-0 items-center gap-2 overflow-x-auto sm:order-none sm:w-auto sm:gap-1.5 sm:overflow-visible">
+			{v2Workflow ? <FeedbackSubscriptionMenu projectId={Number(projectId)} /> : null}
 			<button
 			  type="button"
 			  onMouseDown={preventButtonFocus}
@@ -934,7 +972,7 @@ export function FeedbackManagementDialog({
 			  aria-label={searchOpen ? '关闭搜索' : '搜索反馈'}
 			  className={mergeClassName(
 				BUTTON_RESET_CLASS,
-				'grid h-8 w-8 place-items-center rounded-md text-foreground-secondary hover:bg-surface-hover hover:text-foreground',
+				'grid h-11 min-h-11 w-11 min-w-11 shrink-0 place-items-center rounded-md text-foreground-secondary hover:bg-surface-hover hover:text-foreground sm:h-8 sm:min-h-0 sm:w-8 sm:min-w-0',
 				searchOpen ? 'bg-primary-lighter text-primary' : '',
 			  )}
 			>
@@ -947,7 +985,7 @@ export function FeedbackManagementDialog({
 				setPage(1)
 			  }}
 			  title="筛选反馈状态"
-			  className="h-8 rounded-md border border-divider bg-surface px-2 text-xs text-foreground outline-none focus:border-primary"
+			  className="h-11 min-h-11 shrink-0 rounded-md border border-divider bg-surface px-2 text-xs text-foreground outline-none focus:border-primary sm:h-8 sm:min-h-0"
 			>
 			  {(v2Workflow ? V2_WORKFLOW_FILTERS : STATE_FILTERS).map((filter) => (
 				<option key={filter.value} value={filter.value}>{filter.label}</option>
@@ -957,7 +995,7 @@ export function FeedbackManagementDialog({
 			  value={sortBy}
 			  onChange={(event) => setSortBy(event.target.value as 'newest' | 'oldest' | 'priority')}
 			  title="排序方式"
-			  className="h-8 rounded-md border border-divider bg-surface px-2 text-xs text-foreground outline-none focus:border-primary"
+			  className="h-11 min-h-11 shrink-0 rounded-md border border-divider bg-surface px-2 text-xs text-foreground outline-none focus:border-primary sm:h-8 sm:min-h-0"
 			>
 			  <option value="newest">最新</option>
 			  <option value="oldest">最早</option>
@@ -970,7 +1008,7 @@ export function FeedbackManagementDialog({
               onClick={onOpenMembers}
               className={mergeClassName(
                 BUTTON_RESET_CLASS,
-				'h-8 rounded-md border border-divider bg-surface px-3 text-xs font-semibold text-foreground-secondary hover:bg-surface-hover',
+				'h-11 min-h-11 shrink-0 rounded-md border border-divider bg-surface px-3 text-xs font-semibold text-foreground-secondary hover:bg-surface-hover sm:h-8 sm:min-h-0',
               )}
             >
               项目成员
@@ -983,7 +1021,7 @@ export function FeedbackManagementDialog({
               onClick={onOpenSettings}
               className={mergeClassName(
                 BUTTON_RESET_CLASS,
-				'h-8 rounded-md border border-divider bg-surface px-3 text-xs font-semibold text-foreground-secondary hover:bg-surface-hover',
+				'h-11 min-h-11 shrink-0 rounded-md border border-divider bg-surface px-3 text-xs font-semibold text-foreground-secondary hover:bg-surface-hover sm:h-8 sm:min-h-0',
               )}
             >
               接入设置
@@ -997,7 +1035,7 @@ export function FeedbackManagementDialog({
 	  const listPanel = (
 	    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-divider bg-surface-elevated">
 	      {totalPages > 1 ? (
-	      <div className="flex h-9 items-center justify-end gap-2 border-b border-divider px-3">
+	      <div className="flex min-h-11 items-center justify-end gap-2 border-b border-divider px-3 sm:h-9 sm:min-h-0">
 	        <div className="flex items-center gap-2 text-xs text-foreground-tertiary">
           <button
             type="button"
@@ -1008,7 +1046,7 @@ export function FeedbackManagementDialog({
             aria-label="上一页"
             className={mergeClassName(
               BUTTON_RESET_CLASS,
-              'grid h-7 w-7 place-items-center rounded-md hover:bg-surface-hover disabled:opacity-40',
+	              'grid h-11 min-h-11 w-11 min-w-11 place-items-center rounded-md hover:bg-surface-hover disabled:opacity-40 sm:h-7 sm:min-h-0 sm:w-7 sm:min-w-0',
             )}
           >
             ‹
@@ -1023,7 +1061,7 @@ export function FeedbackManagementDialog({
             aria-label="下一页"
             className={mergeClassName(
               BUTTON_RESET_CLASS,
-              'grid h-7 w-7 place-items-center rounded-md hover:bg-surface-hover disabled:opacity-40',
+	              'grid h-11 min-h-11 w-11 min-w-11 place-items-center rounded-md hover:bg-surface-hover disabled:opacity-40 sm:h-7 sm:min-h-0 sm:w-7 sm:min-w-0',
             )}
           >
             ›
@@ -1060,10 +1098,10 @@ export function FeedbackManagementDialog({
         <EmptyStateView title="暂无反馈" message="当前项目还没有收到反馈，先通过 SDK 收集一些用户声音。" />
       )}
 
-      {!isLoading && !error && entries.length > 0 && (
-        <>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 xl:hidden">
-            <div className="inline-flex rounded-lg border border-divider bg-surface p-1">
+	      {!isLoading && !error && entries.length > 0 && (
+	        <>
+	          <div className="flex min-h-0 flex-1 flex-col gap-3 xl:hidden">
+	            <div className="hidden rounded-lg border border-divider bg-surface p-1 md:inline-flex">
               <button
                 type="button"
                 className={mergeClassName(
@@ -1088,10 +1126,24 @@ export function FeedbackManagementDialog({
                 disabled={!selectedEntry}
               >
                 详情
-              </button>
-            </div>
+	              </button>
+	            </div>
+	            {mobileView === 'detail' ? (
+	              <button
+	                type="button"
+	                className={mergeClassName(
+	                  BUTTON_RESET_CLASS,
+	                  'flex min-h-11 w-full items-center gap-2 rounded-lg border border-divider bg-surface px-3 text-sm font-semibold text-foreground-secondary md:hidden',
+	                )}
+	                onMouseDown={preventButtonFocus}
+	                onClick={() => setMobileView('list')}
+	              >
+	                <span aria-hidden="true">←</span>
+	                返回反馈列表
+	              </button>
+	            ) : null}
 
-            <div className="min-h-0 flex-1">{mobileView === 'list' ? listPanel : renderDetail(selectedEntry)}</div>
+	            <div className="min-h-0 flex-1">{mobileView === 'list' ? listPanel : renderDetail(selectedEntry)}</div>
           </div>
 
           <div className="hidden min-h-0 flex-1 gap-3 overflow-hidden xl:grid xl:grid-cols-[minmax(340px,0.72fr)_minmax(520px,1.28fr)]">

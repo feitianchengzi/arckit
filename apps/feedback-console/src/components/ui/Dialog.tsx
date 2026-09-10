@@ -57,7 +57,7 @@ export function Dialog({
 
         {/* 对话框容器 */}
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
+          <div className="flex min-h-full items-end justify-center p-2 sm:items-center sm:p-4">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-200"
@@ -68,12 +68,12 @@ export function Dialog({
               leaveTo="opacity-0 scale-95"
             >
               <HeadlessDialog.Panel
-                className={`w-full ${maxWidthClasses[maxWidth]} transform overflow-hidden rounded-xl shadow-xl transition-all ${panelClassName ?? ''}`}
+                className={`max-h-[calc(100dvh-1rem)] w-full ${maxWidthClasses[maxWidth]} transform overflow-y-auto rounded-xl shadow-xl transition-all ${panelClassName ?? ''}`}
                 style={{ backgroundColor: 'var(--color-surface-elevated)', ...panelStyle }}
               >
                 {/* 标题区域 */}
                 {(title || showCloseButton || headerContent) && (
-                  <div className="border-b border-divider px-6 py-4">
+                  <div className="border-b border-divider px-4 py-3 sm:px-6 sm:py-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         {title && (
@@ -117,7 +117,7 @@ export function Dialog({
                 )}
 
                 {/* 内容区域 */}
-                <div className="px-6 py-4">{children}</div>
+                <div className="px-4 py-4 sm:px-6">{children}</div>
               </HeadlessDialog.Panel>
             </Transition.Child>
           </div>
