@@ -737,6 +737,10 @@ function registerIpc() {
     if (!imageViewer.owns(event.sender)) throw new Error("Image save is only available from the managed ArcOrbit image viewer.");
     return imageViewer.save(event.sender);
   });
+  ipcMain.handle("arckit:image-viewer-close", (event) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error("Image close is only available from the viewer main frame.");
+    return imageViewer.requestClose(event.sender);
+  });
   ipcMain.handle("arckit:image-viewer-retry", async (event) => {
     if (!imageViewer.owns(event.sender)) throw new Error("Image retry is only available from the managed ArcOrbit image viewer.");
     return imageViewer.retry(event.sender);

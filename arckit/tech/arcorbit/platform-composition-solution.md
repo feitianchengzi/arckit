@@ -238,6 +238,9 @@ Preload 新增以下产品动作：
 - `previewWorkTaskAttachment(input)` / `openWorkTaskAttachment(input)`：以 task id、attachment id 和 object key 共同定位已持久化资源；前者为评论时间线的自动图片加载返回受限 data URL，后者由 main 进程打开非图片文件的短期下载 URL。
 - `previewImage(input)` / `openImageViewer(input)`：只接受 `work-task`、`feedback-file` 或 `feedback-v2` 来源及其领域身份。main 进程重新验证记录归属、受信 URL、响应类型和大小；前者返回受限 data URL，后者创建或聚焦 Work 与 Feedback 共用的独立图片窗口。Renderer 不能提交 data URL、任意下载 URL 或本地路径作为图片来源。
 - 图片窗口使用独立静态 Renderer 和最小 preload，启用 context isolation、sandbox、禁用 Node integration 与任意导航。缩放、适合窗口、实际大小、旋转、平移和重置只改变窗口内视图状态；另存为通过仅对受管图片窗口开放的 main-process 保存动作写入用户明确选择的位置。
+- 图片 Escape 消费键盘默认行为，通过无参数 `arckit:image-viewer-close` 请求主进程受控关闭，不调用 sandbox 页面的 DOM `window.close()`。IPC 同时校验受管查看器 WebContents 身份和 main frame；响应只确认请求已接收，不表示窗口已销毁。重复按键不提交新请求，失败显示可重试的关闭错误。
+- macOS 图片查看器是独立顶层窗口，不通过 BrowserWindow `parent` 加入主窗口原生子窗口层级；其全屏与关闭不调用主窗口的 show/focus、尺寸、可见性或全屏控制，不重载主页面。窗口关闭后的激活与 Space 切换由系统管理，不承诺两个窗口始终同屏可见。主窗口仍是应用层生命周期所有者：主窗口销毁时关闭对应查看器，查看器销毁时解绑该监听；反向关闭不操纵主窗口。非 macOS 保留原生父子关联。
+- macOS 查看器等待 `leave-full-screen` 时，等待状态优先于即时 `isFullScreen()` 布尔值；重复关闭不能绕过等待，不假设两个窗口全屏状态相同。应用退出或所有者销毁的内部强制销毁取消等待，Renderer 无权请求强制销毁。源码隔离、IPC 和事件序列验证不替代原生画面、输入与布局恢复的验收。
 
 当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、创建、专用忽略、专用恢复和原子转待办。V2 的 `restoreFeedbackV2` 固定调用 `POST /feedbacks/{id}/restore`；main IPC 与 preload 只暴露 project id 与 feedback id，Renderer 不能传入 URL、header、凭据或 triage 字段。Workshop Todo 服务在事务内锁定反馈记录，重新校验其仍为 `ignored` 且不存在主待办关系，再把同一记录的 `triage_status`、状态和兼容 metadata 原子恢复为 `pending`，并返回更新后的 Feedback。Task create 与 update 接受显式七状态；Platform Coordinator 还提供受限的 `replaceTaskProject` 领域动作，由 Work Sync 使用既有 `createTask` 和 `deleteTask` 完成跨产品受控替换。Renderer 只能提交源 Task id、目标产品和目标产品限定字段，不能选择调用顺序或注入服务端拥有字段。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
 
@@ -391,6 +394,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - Task 创建、子任务创建、父任务调整/清空、循环拒绝、级联删除确认和跨产品候选隔离。
 - Task 产品归属替换覆盖目标创建先于源删除、目标字段校验、新 Task 身份、评论附件与 Run/thread 不迁移、创建失败不删除源 Task、删除失败保留双 Task 和恢复记录、两个项目对账及活动 execution 外部变化恢复。
 - TaskAttachment 评论/附件的 JSON/标记双格式解析、URL 类型显式打开、图片默认并发加载、逐图失败重试、独立窗口打开、缩放/适配/实际大小/旋转/平移/重置、另存为取消与失败、文件下载、评论资源上传、object key 归属校验、STS 根目录限制、创建者更新权限、任务创建者或管理角色删除权限和历史纯文本兼容。
+- 图片关闭验证覆盖实际 Renderer/preload/IPC 连接、非法 sender/frame、重复 Escape、退出等待与状态布尔值不同步、父全屏子非全屏、普通关闭和应用退出；非 GUI 替身只证明控制路径，不能替代实际应用中主窗口画面、输入及全屏状态连续性的验收。
 - 所有分页列表超过 200 条时继续翻页，且不会重复记录。
 - owner/admin 与 member 的组织项目查询路由、可见性和失败关闭。
 - 成员页不存在项目邀请，项目页邀请带明确项目和一次性生命周期提示。

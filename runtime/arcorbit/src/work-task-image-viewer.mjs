@@ -66,10 +66,17 @@ export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile,
     return Boolean(window && !window.isDestroyed() && sender === window.webContents);
   }
 
+  function requestClose(sender) {
+    assertViewerSender(sender);
+    close();
+    return { requested: true };
+  }
+
   function close({ force = false } = {}) {
     generation += 1;
     if (!window || window.isDestroyed()) return;
     if (!force) {
+      if (waitingForFullScreenExit) return;
       window.close();
       return;
     }
@@ -85,8 +92,11 @@ export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile,
     allowClose = false;
     waitingForFullScreenExit = false;
     finishFullScreenClose = null;
+    const parentWindow = getParentWindow?.() || null;
     window = new BrowserWindow({
-      parent: getParentWindow?.() || undefined,
+      // macOS native child windows participate in their owner's ordering/lifecycle.
+      // Keep the independently fullscreenable viewer out of that native hierarchy.
+      ...(platform !== "darwin" && parentWindow ? { parent: parentWindow } : {}),
       width: 980,
       height: 760,
       minWidth: 560,
@@ -103,27 +113,28 @@ export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile,
       sendState();
     });
     window.on("close", (event) => {
-      if (allowClose || platform !== "darwin" || !window?.isFullScreen?.()) return;
+      if (allowClose || platform !== "darwin") return;
+      // The native fullscreen flag can change before the completion event.
+      if (waitingForFullScreenExit) {
+        event.preventDefault();
+        return;
+      }
+      if (!window?.isFullScreen?.()) return;
       event.preventDefault();
-      if (waitingForFullScreenExit) return;
       waitingForFullScreenExit = true;
       const closingWindow = window;
       finishFullScreenClose = () => {
         if (window !== closingWindow || closingWindow.isDestroyed()) return;
-        const parentWindow = getParentWindow?.();
         finishFullScreenClose = null;
         waitingForFullScreenExit = false;
         allowClose = true;
         closingWindow.close();
-        if (parentWindow && !parentWindow.isDestroyed()) {
-          parentWindow.show();
-          parentWindow.focus();
-        }
       };
       closingWindow.once("leave-full-screen", finishFullScreenClose);
       closingWindow.setFullScreen(false);
     });
     window.on("closed", () => {
+      parentWindow?.removeListener?.("closed", closeWithOwner);
       generation += 1;
       clearPendingFullScreenClose();
       allowClose = false;
@@ -132,7 +143,16 @@ export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile,
       currentInput = null;
       state = { status: "idle" };
       window = null;
+      // AppKit owns activation after close. Never show/focus/resize the owner:
+      // it may still be fullscreen, minimized, hidden, or in a different Space.
     });
+    const ownedWindow = window;
+    const closeWithOwner = () => {
+      if (window === ownedWindow) close({ force: true });
+    };
+    // Retain one-way application ownership without a native parent relationship.
+    // The owner disappearing closes its viewer; closing the viewer never changes it.
+    if (platform === "darwin") parentWindow?.once?.("closed", closeWithOwner);
     void window.loadFile(shellFile);
   }
 
@@ -152,7 +172,7 @@ export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile,
     if (!owns(sender)) throw new Error("Image actions are only available from the managed ArcOrbit image viewer.");
   }
 
-  return { open, retry, save, owns, close };
+  return { open, retry, save, owns, close, requestClose };
 }
 
 function safeFileName(value) {

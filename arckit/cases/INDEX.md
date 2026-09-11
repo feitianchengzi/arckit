@@ -183,3 +183,4 @@
 | [CASE-20260909-003](closed/CASE-20260909-003-optimize-agent-led-idea-intake-and-editable-guided-collaboration.md) | closed | Optimize Agent-led Idea intake and editable guided collaboration | 2026-09-09T15:58:38.658Z |
 | [CASE-20260910-001](closed/CASE-20260910-001-enable-agent-environment-exploration-with-deterministic-applicat.md) | closed | Enable Agent environment exploration with deterministic application boundaries | 2026-09-10T02:38:31.211Z |
 | [CASE-20260910-002](closed/CASE-20260910-002-align-idea-formal-workspace-intake-and-shared-ui-agent-context.md) | closed | Align Idea formal workspace intake and shared UI Agent context | 2026-09-10T10:08:34.528Z |
+| [CASE-20260910-003](closed/CASE-20260910-003-escape.md) | closed | 追查图片查看器 Escape 关闭后持续出现的全屏主窗口黑屏 | 2026-09-11T07:32:33.315Z |

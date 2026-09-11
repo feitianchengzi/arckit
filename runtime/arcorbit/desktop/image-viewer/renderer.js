@@ -127,12 +127,25 @@ function showStatus(message, error = false, hideAfter = 0, retry = false) {
   if (hideAfter) window.setTimeout(() => { els.status.hidden = true; }, hideAfter);
 }
 
+async function closeViewer() {
+  try {
+    await api.close();
+  } catch {
+    showStatus("关闭图片失败，请重试。", true);
+  }
+}
+
 function handleKeydown(event) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
     return saveImage();
   }
-  if (event.key === "Escape") return window.close();
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat) return closeViewer();
+    return;
+  }
   if (["+", "="].includes(event.key)) return runAction("zoom-in");
   if (event.key === "-") return runAction("zoom-out");
   if (event.key === "0") return runAction("fit");

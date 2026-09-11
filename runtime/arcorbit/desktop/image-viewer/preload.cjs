@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("arcOrbitImageViewer", {
     ipcRenderer.on("arckit:image-viewer-state", handler);
     return () => ipcRenderer.off("arckit:image-viewer-state", handler);
   },
+  close: () => ipcRenderer.invoke("arckit:image-viewer-close"),
   save: () => ipcRenderer.invoke("arckit:image-viewer-save"),
   retry: () => ipcRenderer.invoke("arckit:image-viewer-retry")
 });
