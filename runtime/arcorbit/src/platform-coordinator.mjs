@@ -197,6 +197,26 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       };
     });
 
+    // Today spans the accessible Catalog, independently of Automation's task/view filters.
+    // Join only presentation fields from the independent issue owner; never persist them in Work.
+    const todayIssues = new Map();
+    if (sections.has("today")) {
+      for (const issue of store.automation?.acceptance_feedback_items || []) {
+        if (!issue.source_project_id || !issue.source_task_id) continue;
+        const key = JSON.stringify([String(issue.source_project_id), String(issue.source_task_id)]);
+        const items = todayIssues.get(key) || [];
+        items.push({
+          feedback_id: issue.feedback_id, original_feedback: issue.original_feedback,
+          status: issue.status, progress: issue.progress,
+          created_at: issue.created_at, updated_at: issue.updated_at
+        });
+        todayIssues.set(key, items);
+      }
+      for (const items of todayIssues.values()) {
+        items.sort((left, right) => String(right.created_at || "").localeCompare(String(left.created_at || "")));
+      }
+    }
+
     return {
       generated_at: now(),
       source_status: deriveSourceStatus(automation.source_status, errors),
@@ -216,7 +236,8 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       tasks: productWorkspaces.flatMap((workspace) => workspace.tasks),
       today_tasks: sections.has("today")
         ? projectCatalog.flatMap((project) => (localTaskResult(workProjection, String(project.id), {}, { tree: false }).value || [])
-          .map((task) => ({ ...task, project_id: String(project.id), project_name: String(project.name || "") })))
+          .map((task) => ({ ...task, project_id: String(project.id), project_name: String(project.name || ""),
+            acceptance_feedback_items: todayIssues.get(JSON.stringify([String(project.id), String(task.id)])) || [] })))
         : [],
       task_trees: productWorkspaces.map((workspace) => workspace.task_tree).filter(Boolean),
       feedback_v1: productWorkspaces.flatMap((workspace) => workspace.feedback_v1),

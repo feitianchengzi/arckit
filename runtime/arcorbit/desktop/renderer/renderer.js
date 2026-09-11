@@ -1166,8 +1166,15 @@ function upgradeDispositionLabel(value) {
 function setupCheckLabel(id) { return ({resources:"受信安装资源",provider:"ArcForge provider",skills:"Arckit skills",codex:"Codex discoverability"})[id] || id; }
 function shortDigest(value) { return value ? `${value.slice(0, 10)}…${value.slice(-8)}` : "--"; }
 
-async function refreshSnapshot({ quiet = false, surface = "all" } = {}) {
-  if (state.refreshing) return;
+async function refreshSnapshot({ quiet = false, surface = "all", afterMutation = false } = {}) {
+  if (state.refreshing) {
+    if (!afterMutation) return;
+    // A snapshot already in flight may predate the confirmed mutation.
+    await state.snapshotRefreshPromise;
+    return refreshSnapshot({ quiet, surface, afterMutation });
+  }
+  let finishRefresh;
+  state.snapshotRefreshPromise = new Promise((resolve) => { finishRefresh = resolve; });
   const workSurface = surface === "work";
   state.refreshing = true;
   if (!quiet) renderSyncing(true);
@@ -1222,6 +1229,7 @@ async function refreshSnapshot({ quiet = false, surface = "all" } = {}) {
     routeAuthentication();
   } finally {
     state.refreshing = false;
+    finishRefresh();
     renderSyncing(false);
   }
 }
@@ -2031,7 +2039,7 @@ async function performTodayAction(item, action) {
       if (!draft) throw new Error("请先描述验收问题。");
       const idempotencyKey = globalThis.crypto?.randomUUID?.() || `${item.source_object_id}-${Date.now()}`;
       await api.submitAcceptanceFeedback({ taskId: item.source_object_id, message: draft, idempotencyKey });
-      await refreshSnapshot({ quiet: true });
+      await refreshSnapshot({ quiet: true, afterMutation: true });
     } else if (action === "return_work" || action === "cancel_work") {
       const nextState = action === "return_work" ? "pending" : "cancelled";
       await executeManagedAction("task.update", { task_id: item.source_object_id, state: nextState, expected_state: "blocked" }, action === "return_work" ? "待办已返回待处理" : "待办已取消");

@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 362
-Updated: 2026-09-10T10:08:34.528Z
+Revision: 367
+Updated: 2026-09-11T08:25:32.839Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-优化用户自选正式目录、材料复制与 UI Agent 共同语义。
+解决用户在 Today 第三栏详情提出验收问题后，仍看不到问题列表和对应处理状态的问题，跟进已关闭的 CASE-20260904-001 所未覆盖的实际使用路径。
 
 ## Active Work
 

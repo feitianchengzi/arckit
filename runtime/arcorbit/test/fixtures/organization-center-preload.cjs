@@ -251,7 +251,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   deleteChat: noOp, renameChat: noOp,
   interruptChat: noOp, decideChatApproval: noOp, sendChatMessage: noOp,
-  automationSnapshot: async () => automation,
+  automationSnapshot: async (input) => process.env.ARCORBIT_TODAY_ACCEPTANCE_FIXTURE === "1"
+    ? ipcRenderer.invoke("test:today-acceptance:automation", input) : automation,
   selectAutomationExecution: async (executionId) => {
     calls.push(["selectAutomationExecution", executionId]);
     const execution = automation.active_executions.find((item) => item.execution_id === executionId);
@@ -270,6 +271,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     return automation;
   },
   platformSnapshot: async (input) => {
+    if (process.env.ARCORBIT_TODAY_ACCEPTANCE_FIXTURE === "1") return ipcRenderer.invoke("test:today-acceptance:platform", input);
     calls.push(["platformSnapshot", input]);
     const barrier = platformSnapshotBarrier;
     if (barrier) {
@@ -510,7 +512,10 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   listRuns: async () => [], listMessages: async () => [],
   checkSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} }),
   applySetupPlan: noOp, recoverSetupUpgrade: noOp, planSetupRemoval: noOp, removeManagedSetupPaths: noOp,
-  submitAcceptanceFeedback: noOp, submitIntervention: noOp,
+  setTodayPreference: async (input) => process.env.ARCORBIT_TODAY_ACCEPTANCE_FIXTURE === "1"
+    ? ipcRenderer.invoke("test:today-acceptance:preference", input) : noOp(),
+  submitAcceptanceFeedback: async (input) => process.env.ARCORBIT_TODAY_ACCEPTANCE_FIXTURE === "1"
+    ? ipcRenderer.invoke("test:today-acceptance:submit", input) : noOp(), submitIntervention: noOp,
   resolveAutomationRecovery: async (input) => { calls.push(["resolveAutomationRecovery", input]); return {}; },
   updateAutomationTaskState: async (input) => { calls.push(["updateAutomationTaskState", input]); return {}; },
   handoffAutomationToCli: noOp, reopenAutomationCli: noOp, resumeAutomationRuntime: noOp, stopAutomationRun: noOp,

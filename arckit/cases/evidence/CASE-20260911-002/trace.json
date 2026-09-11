@@ -1,0 +1,87 @@
+{
+  "scope": "isolated synthetic external boundaries; production submit, refresh, coordinators, Today projection and HTML renderer; not Electron DOM or user live session",
+  "fingerprints": {
+    "runtime/arcorbit/src/automation-coordinator.mjs": "3c69970e431035a5945fcf9baf01460332e138bbc9f99305ebf6861c3c81fba5",
+    "runtime/arcorbit/src/platform-coordinator.mjs": "642074914e129cd64045ff2cfa42bebcf1a4f9800ce6cbead1a7199c4a8a95b7",
+    "runtime/arcorbit/src/desktop/today-workspace.mjs": "0cb21282f6e0dcd44677d647666904f25eca3384d9673b516df10a2c0c0c301a",
+    "runtime/arcorbit/desktop/renderer/renderer.js": "51d0dfa8d7eda2e07ae66bf396c34ff20ee78138c55069bb7f68e7e468d88d0e"
+  },
+  "trace": [
+    {
+      "at": "2026-09-11T08:00:36.649Z",
+      "marker": "ARC_DEBUG:today-third-column-missing-issues",
+      "event": "before-submit",
+      "task_id": "t",
+      "project_id": "p",
+      "selected_id": "work:t:completed",
+      "source_state": "completed",
+      "persisted": [],
+      "automation_count": 0,
+      "platform_today_has_issues": false,
+      "platform_work_has_issues": false,
+      "today_count": 0,
+      "rendered_empty": true,
+      "rendered_issue": false,
+      "platform_errors": [],
+      "action_error": ""
+    },
+    {
+      "at": "2026-09-11T08:00:36.659Z",
+      "marker": "ARC_DEBUG:today-third-column-missing-issues",
+      "event": "after-production-submit-and-refresh",
+      "task_id": "t",
+      "project_id": "p",
+      "selected_id": "work:t:completed",
+      "source_state": "completed",
+      "persisted": [
+        {
+          "feedback_id": "AF-7827a951-7f8e-4855-88b8-8b1054d81d5e",
+          "source_task_id": "t",
+          "source_project_id": "p",
+          "status": "queued"
+        }
+      ],
+      "automation_count": 1,
+      "platform_today_has_issues": false,
+      "platform_work_has_issues": false,
+      "today_count": 0,
+      "rendered_empty": true,
+      "rendered_issue": false,
+      "platform_errors": [],
+      "action_error": ""
+    },
+    {
+      "at": "2026-09-11T08:00:36.661Z",
+      "marker": "ARC_DEBUG:today-third-column-missing-issues",
+      "event": "second-full-refresh",
+      "task_id": "t",
+      "project_id": "p",
+      "selected_id": "work:t:completed",
+      "source_state": "completed",
+      "persisted": [
+        {
+          "feedback_id": "AF-7827a951-7f8e-4855-88b8-8b1054d81d5e",
+          "source_task_id": "t",
+          "source_project_id": "p",
+          "status": "queued"
+        }
+      ],
+      "automation_count": 1,
+      "platform_today_has_issues": false,
+      "platform_work_has_issues": false,
+      "today_count": 0,
+      "rendered_empty": true,
+      "rendered_issue": false,
+      "platform_errors": [],
+      "action_error": ""
+    },
+    {
+      "at": "2026-09-11T08:00:36.662Z",
+      "marker": "ARC_DEBUG:today-third-column-missing-issues",
+      "event": "controlled-input-experiment",
+      "only_changed_input": "platform.today_tasks[t].acceptance_feedback_items",
+      "rendered_issue": true,
+      "status": "queued"
+    }
+  ]
+}

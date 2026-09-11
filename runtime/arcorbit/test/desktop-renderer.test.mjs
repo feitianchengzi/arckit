@@ -1777,7 +1777,7 @@ test("Today directly renders acceptance issue progress and preserves valid selec
   assert.match(sourceContext, /issue\.status/);
   assert.match(sourceContext, /issue\.progress/);
   assert.doesNotMatch(sourceContext, /<details|today-context-disclosure/);
-  assert.match(actionFlow, /await api\.submitAcceptanceFeedback\([\s\S]+await refreshSnapshot\(\{ quiet: true \}\)/);
+  assert.match(actionFlow, /await api\.submitAcceptanceFeedback\([^\n]+\n\s+await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\)/);
   assert.match(actionFlow, /if \(action !== "raise_acceptance_issue"\) state\.todaySelectedItemId = ""/);
   assert.match(todayOperator, /item\.source === "work" && canManagePlatformTask\(item\)/);
   assert.match(todayOperator, /data-today-edit-task/);
