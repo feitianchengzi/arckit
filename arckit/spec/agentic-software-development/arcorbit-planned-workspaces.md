@@ -3,9 +3,9 @@
 
 ## 文档定位
 
-本文定义 ArcOrbit 的真实 Chat，以及用于团队计划对齐的 Idea、Operations 和 Engineering 工作空间，并说明它们与现有 Today、Work、Automation、Feedback 和 Organization 的关系。
+本文定义 ArcOrbit 的真实 Chat、Operations 计划工作空间和 Engineering 内置 Skills 管理页面，并说明它们与现有 Today、Work、Automation、Feedback 和 Organization 的关系。
 
-Chat 是由 Codex app-server 驱动的本地项目自由对话工作空间。Operations 和 Engineering 是产品方向的可交互展示面；它们使用 ArcOrbit 已有的项目、待办、反馈、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和发布工作流事实组织示意内容，但不因此宣称新的服务端、市场平台、监控平台或 Agent 执行能力已经接入。
+Chat 是由 Codex app-server 驱动的本地项目自由对话工作空间。Operations 是产品方向的可交互展示面，不因此宣称新的市场或监控平台已经接入。Engineering 真实管理 ArcOrbit 随包安装 Skills 的 Chat / Automation 使用方式，不管理用户自行安装的其他 Skills。
 
 ## 主导航信息架构
 
@@ -22,7 +22,7 @@ Today 仍是跨产品的今日推进摘要。Chat 位于 Today 下方，提供�
 
 Idea 位于 Work 上方，作为产品全生命周期的起点。Work、Automation 和 Feedback 保留既有真实能力；Release 和 Operations 位于 Automation 与 Feedback 之间，表达研发完成后的发布与外部运营阶段。
 
-Organization 保留组织治理职责。Engineering 位于其下方，是 Domain Profile 的管理入口。当前 Software Engineering Profile 把软件工程 State 定义、领域 Skills 与生命周期解释组合为一份可编辑配置；团队通过建立、复制、替换和应用 Profile，让同一套 Loop Kernel 与产品生命周期适配不同团队、行业或领域。
+Organization 保留组织治理职责。Engineering 位于其下方，是本机 ArcOrbit 内置 Skills 的安装后管理入口；组织级 Domain Profile 不属于当前能力。
 
 ## 统一工作空间边界
 
@@ -111,9 +111,9 @@ Operations 页面不宣称已经接入广告、社交媒体、邮件、分析或
 
 ## Engineering
 
-Engineering 是本机全局的 Chat / Automation 场景技能配置中心。用户可以查看实际来源、启用和关闭普通技能、用熟悉的技能替换内置能力、添加本地技能目录、恢复场景默认。具体集合、生效时机、核心保护与迁移契约见 [场景技能规格](arcorbit-scene-skills.md)。
+Engineering 是本机全局的 ArcOrbit 内置 Skills 安装后管理页面。用户可以查看内置安装状态、按名称或当前使用方式筛选、调整 Chat / Automation 的直接发现、按需使用或停用状态，并恢复场景默认。具体集合、生效时机与核心保护见 [场景技能规格](arcorbit-scene-skills.md)。
 
-Automation 固定使用官方 arckit-state-driven-loop 自包含核心包；Chat 默认不启用内置技能，允许显式开启官方 Loop 配套。Engineering 不编辑 Project/Case 模型，也不为 Gap 选择技能。组织级 Domain Profile 管理不属于本期已实现能力。
+Automation 固定使用官方 arckit-state-driven-loop 自包含核心包；Chat 可独立配置官方 Loop 配套。用户级、项目级、其他 catalog 和本地目录 Skills 不显示且不受 Engineering 操作。Engineering 不编辑 Project/Case 模型，也不为 Gap 选择技能。
 
 ## 生命周期关系
 
@@ -125,7 +125,7 @@ Automation 固定使用官方 arckit-state-driven-loop 自包含核心包；Chat
 4. Release 汇总候选变更、验证、发布准备与上线观察。
 5. Operations 组织对外动作，并把新信号回流到 Feedback、Idea 或 Work。
 6. Feedback 保持用户反馈处理工作台职责，为产品生命周期提供外部输入。
-7. Organization 描述谁在协作；Engineering 管理本机各消费者对技能的可见集合。
+7. Organization 描述谁在协作；Engineering 只管理 ArcOrbit 内置 Skills 在本机 Chat / Automation 的使用方式。
 
 Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户看见来源、目标形态和确认动作。Chat 当前不参与这些转换关系。
 
@@ -133,7 +133,7 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 
 - 左侧导航完整显示四个职责组和十一项入口，顺序与本文一致。
 - `Release` 与 `Operations` 在英文界面使用英文，在中文说明中分别对应“发布”和“运营”。
-- 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，Idea 遵守 Product 管理规格，Engineering 提供真实技能配置；Operations 展示计划内容。
+- 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，Idea 遵守 Product 管理规格，Engineering 提供真实内置 Skills 安装后管理；Operations 展示计划内容。
 - 页面明确区分真实 Chat 状态、真实项目事实、计划示例和未接入动作。
 - Chat 会话列表不依赖预先选择项目，直接按 Product Workspace 分组；每组默认最多显示最近 10 个会话，超出时可从组底部查看并收起完整历史。
 - Chat 新对话在首条消息发送前显式显示目标 Product Workspace，允许保留草稿快速切换；发送后项目归属固定，不能迁移既有 thread。
@@ -145,4 +145,4 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 - Release 同时覆盖发版准备与线上监控；Operations 覆盖对外市场化动作。
 - 现有 Today、Work、Automation、Feedback、Organization 和账号入口保持可用。
 
-- Engineering 的真实保存、核心保护、Chat 入口与迁移验收遵守场景技能规格。
+- Engineering 的可信内置集合、紧凑管理、真实保存、核心保护与 Chat 入口遵守场景技能规格；安装和旧副本迁移仍由 Setup Readiness 负责。

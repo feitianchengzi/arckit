@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-09-12T04:21:28.956Z
+Updated: 2026-09-12T05:01:26.443Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,8 +17,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md)
-- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md)
 - software_decision.external_integrations: settled (arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md)
 - software_decision.identity_and_access: settled (arckit/cases/active/CASE-20260911-003-arcorbit.md)
@@ -27,6 +25,8 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md)
 - software_decision.data_and_state: settled (arckit/cases/active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md)
 - software_decision.external_integrations: settled (arckit/cases/active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md)
 
 ## Remaining Project Gaps
 

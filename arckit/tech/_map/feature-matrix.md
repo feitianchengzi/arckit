@@ -15,4 +15,4 @@
 
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
 
-Engineering / Chat skills：✅ 已实现；技术源为 `arcorbit/scene-skills-solution.md`，包含消费者集合、受保护核心、私有 catalog、旧项目清理。
+Engineering / Chat skills：✅ 已实现；技术源为 `arcorbit/scene-skills-solution.md`，包含可信内置 inventory、受限 mutation、受保护核心、场景绑定和 Codex 原生用户 Skills 隔离；安装与旧项目清理由 Setup Readiness 承担。

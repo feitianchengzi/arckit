@@ -39,9 +39,9 @@
 - operations-workspace/ Operations 页面：外部市场动作、渠道内容、负责人、时间窗口和效果信号回流。✅
   - default.html Operations 线框：运营动作、受众与渠道、内容主题和示意效果信号。✅ (14行)
   - interaction.md Operations 交互：待发布/进行中/已复盘状态、回流关系和外部平台边界。✅ (33行)
-- engineering-profile/ Engineering 页面：按 Chat / Automation 管理可见技能、核心保护、替换和本地导入。✅
-  - default.html Engineering 线框：场景选择、导入替换、保存与恢复。✅ (1行)
-  - interaction.md Engineering 交互：场景开关、核心保护、真实持久化与 Chat 返回。✅
+- engineering-profile/ Engineering 页面：高密度管理 ArcOrbit 内置 Skills 的安装状态、场景使用方式和失败恢复。✅
+  - default.html Engineering 线框：紧凑摘要、搜索/状态筛选、行内管理、空态与保存恢复。✅ (112行)
+  - interaction.md Engineering 交互：内置集合边界、信息层级、场景保存、非内置隔离与键盘/窄窗行为。✅ (70行)
 - product-feedback-center/ ArcOrbit 产品反馈中心：在受限 SDK 窗口内提交产品反馈、查看我的反馈并从未配置或加载失败中恢复。✅
   - default.html 产品反馈中心线框：SDK 加载、可用内容、账户/配置恢复和 SDK 失败恢复。✅ (54行)
   - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (88行)

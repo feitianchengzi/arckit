@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 379
-Updated: 2026-09-12T04:21:28.956Z
+Revision: 382
+Updated: 2026-09-12T05:01:26.443Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-将 Codex Model 与 Level 配置按 Chat 和 Automation 场景拆分，并在 Chat 输入框附近提供可直接调整当前对话后续消息所用 Model 与 Level 的快捷入口。
+优化 ArcOrbit Engineering 页面的信息密度与易用性，使其专注于 ArcOrbit 内置 Skills 的安装后管理，并禁止展示或操作用户自行安装的其他 Skills。
 
 ## Active Work
 
@@ -29,9 +29,9 @@ Arckit is a state-driven software-development protocol and optional supervised R
 | Decision Area | Status | Revision | Current Decision | Project Gaps |
 | --- | --- | ---: | --- | --- |
 | product_intent_and_scope | settled | 5 | Arckit is the repository-owned development protocol and skill system; ArcOrbit is its supervised Desktop/Runtime product and is expanding into a local-project-anchored, multi-product software-development platform for people who coordinate organization, product, member, todo, AI execution, and feedback work without relying on the Todo or Feedback web clients for daily operation. Product 是用户持续推进的中心；Product/Idea 能力保持既有边界。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。 | - |
-| product_capabilities | settled | 46 | ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback、Work、Setup、Today、Product/Idea 与 Release 能力及既有边界。ArcOrbit 账号与 Runtime 设置分别维护当前设备 Chat 与 Automation 的 Codex Model/Level 默认值：动态候选来自当前 Codex，四个字段始终可人工输入；查询失败或未知当前值不阻止保存。两组缺省均为 gpt-6-astra / high，旧单组有效值迁移为两组初始值，随后独立保存。新 Chat 会话继承 Chat 默认值并可在 Composer 快速调整当前会话后续消息；Automation Run 只读取 Automation 默认值。已接受 Chat turn 与已启动 Run 固定配置，Chat 保持原 thread，任一场景调整不污染另一场景。其他既有 Work、Setup Readiness、Feedback、Project Catalog、本地工作区绑定、Automation participation、Codex Setup、Today、Product/Idea 与 Release 契约保持不变。 | GAP-agent-scenario-evaluation |
+| product_capabilities | settled | 47 | ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback、Work、Setup、Today、Product/Idea 与 Release 能力及既有边界。ArcOrbit 账号与 Runtime 设置分别维护当前设备 Chat 与 Automation 的 Codex Model/Level 默认值：动态候选来自当前 Codex，四个字段始终可人工输入；查询失败或未知当前值不阻止保存。两组缺省均为 gpt-6-astra / high，旧单组有效值迁移为两组初始值，随后独立保存。新 Chat 会话继承 Chat 默认值并可在 Composer 快速调整当前会话后续消息；Automation Run 只读取 Automation 默认值。已接受 Chat turn 与已启动 Run 固定配置，Chat 保持原 thread，任一场景调整不污染另一场景。Engineering 是高密度 ArcOrbit 内置 Skills 安装后管理页面，只管理可信随包 Skills 在 Chat 与 Automation 的使用方式；用户级、项目级、其他 catalog 和本地目录 Skills 不显示且不能通过 Engineering 操作。Setup Readiness 继续独占内置 Skills 的安装、更新、漂移恢复和清理。其他既有 Work、Feedback、Project Catalog、本地工作区绑定、Automation participation、Codex Setup、Today、Product/Idea 与 Release 契约保持不变。 | GAP-agent-scenario-evaluation |
 | runtime_surfaces | settled | 5 | The repository-owned software surfaces are Arckit skills and ledger CLIs, ArcOrbit Electron Desktop/Runtime, the Workshop Todo browser application, the Workshop Feedback developer console, the shared Workshop Todo/Feedback Go service, the embeddable Feedback Web SDK, and the iOS integration example. These sources live in one public Arckit monorepo while preserving existing Arckit and ArcOrbit paths; Workshop web clients remain optional administration and source surfaces rather than requirements for ArcOrbit daily work. | - |
-| experience_and_interaction | settled | 69 | ArcOrbit 保持既有 Personal、Product Lifecycle、Organization、Today、Work、Automation、Feedback、Chat、Product/Idea 与 Release 导航、交互及恢复语义。账号设置覆盖层为 Chat 与 Automation 分别提供可编辑 Model 和 Level 候选输入，Level 候选随各自模型更新但不自动覆盖值。打开时查询，失败可重试，异步刷新保留两组草稿；保存 Codex 配置持久保存四个场景字段并原位反馈。保存失败保留输入，关闭重开恢复已保存值。Chat Composer 在输入框附近显示当前会话 Model/Level，新会话继承 Chat 默认值，既有会话恢复自身选择；调整只作用于当前会话的后续消息，发送接受时固定当前 turn，保持同一 thread 且不改变 Automation 默认值。新增控件支持候选选择和人工输入，并沿用现有响应式布局、键盘操作和可见焦点。其他既有 Work Inspector、验收、Setup、Feedback、Today、项目绑定、Product/Idea 与 Release 交互契约保持不变。 | - |
+| experience_and_interaction | settled | 70 | ArcOrbit 保持既有 Personal、Product Lifecycle、Organization、Today、Work、Automation、Feedback、Chat、Product/Idea 与 Release 导航、交互及恢复语义。账号设置覆盖层为 Chat 与 Automation 分别提供可编辑 Model 和 Level 候选输入，Chat Composer 在输入框附近显示并调整当前会话后续消息所用 Model/Level，保存、失败恢复、thread 连续与场景隔离保持既有契约。Engineering 以“内置 Skills”明确范围，在首屏紧凑呈现场景、生效时机、内置总数、直接发现、按需使用、已停用、搜索、状态筛选和三列列表；用户在行内调整内置 Skill 使用方式并接收原位反馈。Automation 核心可见且锁定；搜索与状态可组合并一键清除；刷新或保存失败保留最近可信列表、场景和筛选；窄窗口按两列及单列降级且保持键盘焦点。用户自行安装的 Skills 不进入页面列表、计数、错误或操作，Chat 返回保留原会话与草稿。其他既有 Work Inspector、验收、Setup、Feedback、Today、项目绑定、Product/Idea 与 Release 交互契约保持不变。 | - |
 | visual_language | settled | 5 | Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口保持既有单一应用标题栏和平台原生窗口控件差异。Work Inspector 使用既有中性表面、8px 间距节奏、标题层级和可见焦点表达身份动作、内容、紧凑属性、协作和验收分区；分区不只依赖单条顶边，属性在可用宽度下优先两列并在窄宽度降为单列。 | - |
 | identity_and_access | settled | 6 | 认证仍限定于配置的执行与任务来源，授权受用户批准、工作区、沙箱和可信入口约束。Runtime 会话保持服务端支持的七天不活动窗口，成功登录、启动恢复或 token 刷新通过轮换凭据续期；超期、凭据缺失或失效、退出和服务端拒绝要求重新登录。产品反馈使用有效 Workshop 登录及 current-user 不可变业务 ID，账户变化关闭旧上下文。Codex 认证独立，以 codex login status 退出码确认；认证方式和 ChatGPT 浏览器或 device-auth 路径均由用户显式选择，无默认值。组织项目直接添加由 ArcOrbit 主进程限制为项目 owner/admin，组织角色不替代项目角色；目标同组织，新增角色固定 member。Workshop 服务保持原样：现有接口要求已认证并校验目标同组织，但不校验 caller 项目角色。客户端限制不能替代或被描述为服务端保护，本功能不要求服务端修改或发布。 | - |
 | data_and_state | settled | 25 | Canonical development state、Workshop 远端真相、ArcOrbit Task Projection、Automation execution、Chat session/thread、Case 绑定收据及其他既有 Desktop 控制事实继续保持原所有权边界。Desktop Store 独占当前设备 `settings.codex.chat.{model,reasoning_effort}` 与 `settings.codex.automation.{model,reasoning_effort}`；旧平铺 `settings.codex.model/reasoning_effort` 的有效值迁移为两组初始值。缺失或非法字段分别归一化为 gpt-6-astra / high，保存 patch 去除首尾空白、拒绝空值、控制字符及超过 200 字符的值，并允许未知模型和级别。Chat session 与未发送草稿持有自身 model/reasoning_effort，新会话从 Chat 默认值继承；更新一个场景、无关设置及重启保留其他有效用户值，不改写用户全局 Codex 配置。Automation Run 保存启动时的 Automation model/effort；已接受 Chat turn 使用发送边界捕获的会话配置。模型清单不是持久事实源，Renderer 只投影和提交这些 Desktop 控制事实。其他既有 Inspector 偏好、Setup recovery、Project Catalog、Workspace Control、Task Readiness、Idea 与 Release 数据边界保持不变。 | GAP-cross-record-audit |

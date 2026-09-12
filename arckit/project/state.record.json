@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-09-12T04:21:28.956Z",
-    "revision": 379
+    "updated_at": "2026-09-12T05:01:26.443Z",
+    "revision": 382
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -113,7 +113,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "将 Codex Model 与 Level 配置按 Chat 和 Automation 场景拆分，并在 Chat 输入框附近提供可直接调整当前对话后续消息所用 Model 与 Level 的快捷入口。",
+      "current_focus": "优化 ArcOrbit Engineering 页面的信息密度与易用性，使其专注于 ArcOrbit 内置 Skills 的安装后管理，并禁止展示或操作用户自行安装的其他 Skills。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -158,19 +158,19 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback、Work、Setup、Today、Product/Idea 与 Release 能力及既有边界。ArcOrbit 账号与 Runtime 设置分别维护当前设备 Chat 与 Automation 的 Codex Model/Level 默认值：动态候选来自当前 Codex，四个字段始终可人工输入；查询失败或未知当前值不阻止保存。两组缺省均为 gpt-6-astra / high，旧单组有效值迁移为两组初始值，随后独立保存。新 Chat 会话继承 Chat 默认值并可在 Composer 快速调整当前会话后续消息；Automation Run 只读取 Automation 默认值。已接受 Chat turn 与已启动 Run 固定配置，Chat 保持原 thread，任一场景调整不污染另一场景。其他既有 Work、Setup Readiness、Feedback、Project Catalog、本地工作区绑定、Automation participation、Codex Setup、Today、Product/Idea 与 Release 契约保持不变。",
-          "reason": "用户要求区分 Chat 与 Automation 的 Model/Level，并提供 Chat Composer 快捷调整；当前实现与验证已兑现该边界。",
+          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback、Work、Setup、Today、Product/Idea 与 Release 能力及既有边界。ArcOrbit 账号与 Runtime 设置分别维护当前设备 Chat 与 Automation 的 Codex Model/Level 默认值：动态候选来自当前 Codex，四个字段始终可人工输入；查询失败或未知当前值不阻止保存。两组缺省均为 gpt-6-astra / high，旧单组有效值迁移为两组初始值，随后独立保存。新 Chat 会话继承 Chat 默认值并可在 Composer 快速调整当前会话后续消息；Automation Run 只读取 Automation 默认值。已接受 Chat turn 与已启动 Run 固定配置，Chat 保持原 thread，任一场景调整不污染另一场景。Engineering 是高密度 ArcOrbit 内置 Skills 安装后管理页面，只管理可信随包 Skills 在 Chat 与 Automation 的使用方式；用户级、项目级、其他 catalog 和本地目录 Skills 不显示且不能通过 Engineering 操作。Setup Readiness 继续独占内置 Skills 的安装、更新、漂移恢复和清理。其他既有 Work、Feedback、Project Catalog、本地工作区绑定、Automation participation、Codex Setup、Today、Product/Idea 与 Release 契约保持不变。",
+          "reason": "用户明确要求 Engineering 提升信息密度并专注于 ArcOrbit 内置 Skills；稳定规格、生产实现和验证已兑现该边界。",
           "evidence": [
+            "arckit/spec/agentic-software-development/arcorbit-scene-skills.md",
+            "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
             "arckit/spec/arcorbit-distribution.md",
-            "arckit/interaction/chat-workspace/interaction.md",
-            "runtime/arcorbit/desktop/renderer/index.html",
-            "runtime/arcorbit/src/chat-coordinator.mjs",
-            "runtime/arcorbit/src/desktop-run-manager.mjs",
-            "arckit/cases/evidence/CASE-20260912-001/verification.md"
+            "runtime/arcorbit/src/scene-skill-manager.mjs",
+            "arckit/cases/evidence/CASE-20260912-002/verification.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 Codex 配置来源、场景所有权、Composer 调整范围或保存与执行生效边界改变时重审。",
-          "revision": 46
+          "resume_condition": "当 Engineering 的管理对象、内置身份来源、Setup 所有权或 Chat/Automation 场景模式改变时重审。",
+          "revision": 47
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -202,19 +202,19 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization、Today、Work、Automation、Feedback、Chat、Product/Idea 与 Release 导航、交互及恢复语义。账号设置覆盖层为 Chat 与 Automation 分别提供可编辑 Model 和 Level 候选输入，Level 候选随各自模型更新但不自动覆盖值。打开时查询，失败可重试，异步刷新保留两组草稿；保存 Codex 配置持久保存四个场景字段并原位反馈。保存失败保留输入，关闭重开恢复已保存值。Chat Composer 在输入框附近显示当前会话 Model/Level，新会话继承 Chat 默认值，既有会话恢复自身选择；调整只作用于当前会话的后续消息，发送接受时固定当前 turn，保持同一 thread 且不改变 Automation 默认值。新增控件支持候选选择和人工输入，并沿用现有响应式布局、键盘操作和可见焦点。其他既有 Work Inspector、验收、Setup、Feedback、Today、项目绑定、Product/Idea 与 Release 交互契约保持不变。",
-          "reason": "用户要求从 Chat 输入框快速调整当前会话 Model/Level；真实 Renderer、线框和交互状态已实现并验证。",
+          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization、Today、Work、Automation、Feedback、Chat、Product/Idea 与 Release 导航、交互及恢复语义。账号设置覆盖层为 Chat 与 Automation 分别提供可编辑 Model 和 Level 候选输入，Chat Composer 在输入框附近显示并调整当前会话后续消息所用 Model/Level，保存、失败恢复、thread 连续与场景隔离保持既有契约。Engineering 以“内置 Skills”明确范围，在首屏紧凑呈现场景、生效时机、内置总数、直接发现、按需使用、已停用、搜索、状态筛选和三列列表；用户在行内调整内置 Skill 使用方式并接收原位反馈。Automation 核心可见且锁定；搜索与状态可组合并一键清除；刷新或保存失败保留最近可信列表、场景和筛选；窄窗口按两列及单列降级且保持键盘焦点。用户自行安装的 Skills 不进入页面列表、计数、错误或操作，Chat 返回保留原会话与草稿。其他既有 Work Inspector、验收、Setup、Feedback、Today、项目绑定、Product/Idea 与 Release 交互契约保持不变。",
+          "reason": "用户要求提升 Engineering 易用性并排除非内置 Skills；交互文档、线框、真实 Renderer 与行为验证共同确立新交互。",
           "evidence": [
-            "arckit/interaction/chat-workspace/interaction.md",
-            "arckit/interaction/chat-workspace/default.html",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/authentication.html",
-            "runtime/arcorbit/desktop/renderer/index.html",
-            "runtime/arcorbit/test/codex-settings-electron.test.mjs"
+            "arckit/interaction/engineering-profile/interaction.md",
+            "arckit/interaction/engineering-profile/default.html",
+            "runtime/arcorbit/desktop/renderer/engineering-surface.mjs",
+            "runtime/arcorbit/desktop/renderer/engineering.css",
+            "runtime/arcorbit/test/engineering-surface.test.mjs",
+            "runtime/arcorbit/test/fixtures/engineering-electron.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当 Codex 设置入口、Chat Composer 生效语义、候选加载、失败恢复或会话恢复行为改变时重审。",
-          "revision": 69
+          "resume_condition": "当 Engineering 信息层级、筛选、场景生效时机、失败恢复、键盘/窄窗行为或非内置隔离边界改变时重审。",
+          "revision": 70
         },
         "gap_refs": []
       },

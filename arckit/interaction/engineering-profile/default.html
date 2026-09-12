@@ -1,1 +1,112 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Engineering 场景技能</title><link rel="stylesheet" href="../wireframe-style.css"><body><h1>Engineering 场景技能</h1><details open><summary>选择场景</summary><p>触发条件：从导航或 Chat 技能入口进入</p><div class="wireframe-canvas"><div class="device-frame"><h2>Chat　|　Automation</h2><p>技能卡片、来源、直接发现 / 按需使用 / 禁用、锁定核心</p></div></div><h3>组件清单</h3><p>技能卡片、来源、直接发现 / 按需使用 / 禁用、锁定核心</p><h3>交互行为</h3><p>切换场景，查看直接发现与按需集合</p></details><details ><summary>导入与替换</summary><p>触发条件：选择本地目录或点击替换</p><div class="wireframe-canvas"><div class="device-frame"><h2>选择已有技能 / 本地 skill 文件夹</h2><p>目录选择器、候选列表、错误提示</p></div></div><h3>组件清单</h3><p>目录选择器、候选列表、错误提示</p><h3>交互行为</h3><p>校验身份后保存，不覆盖来源</p></details><details ><summary>保存与恢复</summary><p>触发条件：使用方式或替换提交</p><div class="wireframe-canvas"><div class="device-frame"><h2>已保存 · 下一条消息 / 下一次运行生效</h2><p>revision 状态、失败原因、刷新按钮</p></div></div><h3>组件清单</h3><p>revision 状态、失败原因、刷新按钮</p><h3>交互行为</h3><p>冲突刷新，错误重试；返回 Chat 保留草稿</p></details></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engineering 内置 Skills</title>
+  <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body>
+  <main class="wireframe-container">
+    <header>
+      <h1>Engineering 内置 Skills</h1>
+      <div class="meta-info"><span>macOS Desktop</span><span>安装后管理</span><span>用户 Skills 不显示</span></div>
+    </header>
+
+    <details open>
+      <summary>已加载 · 紧凑管理</summary>
+      <div class="state-content">
+        <p class="state-description">触发条件：用户从 Organization 导航进入 Engineering，或从 Chat 的内置 Skills 入口进入。</p>
+        <div class="wireframe-canvas">
+          <div class="device-frame desktop">
+            <div class="nav-bar"><span class="nav-title">Engineering / 内置 Skills</span><span class="nav-button">返回 Chat</span></div>
+            <div class="content-area">
+              <div class="inline-banner">仅管理 ArcOrbit 随包安装的 Skills；用户自行安装的 Skills 由 Codex 管理。</div>
+              <div class="segmented-control"><span class="segmented-item">Chat</span><span class="segmented-item selected">Automation</span></div>
+              <p class="status-line">下一次 Automation 运行生效；当前运行保持启动时配置。</p>
+              <div class="metric-grid">
+                <div class="metric-card"><strong>13</strong><span>内置总数</span></div>
+                <div class="metric-card"><strong>7</strong><span>直接发现</span></div>
+                <div class="metric-card"><strong>5</strong><span>按需使用</span></div>
+                <div class="metric-card"><strong>1</strong><span>已停用</span></div>
+              </div>
+              <div class="filter-strip"><span class="input-field">搜索内置 Skill…</span><span class="picker">全部状态⌄</span><span class="button small">刷新</span><span class="button small">恢复默认</span></div>
+              <div class="compact-table">
+                <div class="table-head"><span>Skill</span><span>安装状态</span><span>使用方式</span></div>
+                <div class="table-row"><span><strong>arckit-state-driven-loop</strong><small>Project / Case / Loop 可信推进</small></span><span class="badge">已安装</span><span class="picker">直接发现⌄</span></div>
+                <div class="table-row"><span><strong>arckit-spec</strong><small>维护稳定产品规格</small></span><span class="badge">已安装</span><span class="picker">按需使用⌄</span></div>
+                <div class="table-row"><span><strong>arckit-debug-diagnosis</strong><small>诊断 bug 与回归</small></span><span class="badge">已安装</span><span class="picker">直接发现⌄</span></div>
+                <div class="table-row"><span><strong>安装路径</strong><small>默认折叠，展开后显示可信 catalog 路径</small></span><span>配置版本 8</span><span>显示 13 / 13</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="component-list"><strong>组件清单</strong><span>范围说明、场景分段控件、四项摘要、搜索、状态筛选、紧凑表格、安装状态、行内使用方式、折叠路径、刷新和恢复默认。</span></div>
+        <div class="interactions"><strong>交互行为</strong><span>切换场景同步更新摘要和列表；改变使用方式立即保存；Automation 核心控件锁定；用户 Skills 不进入任何列表或计数。</span></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>搜索与状态筛选</summary>
+      <div class="state-content">
+        <p class="state-description">触发条件：用户输入名称或说明，或选择直接发现、按需使用、已停用状态。</p>
+        <div class="wireframe-canvas">
+          <div class="device-frame desktop">
+            <div class="nav-bar"><span class="nav-title">内置 Skills / Chat</span><span>配置版本 8</span></div>
+            <div class="content-area">
+              <div class="filter-strip"><span class="input-field">spec</span><span class="picker">按需使用⌄</span><span class="button small">清除筛选</span></div>
+              <p class="status-line">显示 2 / 13</p>
+              <div class="compact-table">
+                <div class="table-head"><span>Skill</span><span>安装状态</span><span>使用方式</span></div>
+                <div class="table-row"><span><strong>arckit-spec</strong><small>维护稳定产品规格</small></span><span class="badge">已安装</span><span class="picker">按需使用⌄</span></div>
+                <div class="table-row"><span><strong>arckit-tech</strong><small>维护稳定技术方案</small></span><span class="badge">已安装</span><span class="picker">按需使用⌄</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="component-list"><strong>组件清单</strong><span>搜索输入、状态选择器、清除动作、命中数量和过滤后的紧凑表格。</span></div>
+        <div class="interactions"><strong>交互行为</strong><span>搜索与状态筛选叠加并即时更新；搜索不匹配安装路径；场景切换保留当前检索条件。</span></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>筛选无匹配</summary>
+      <div class="state-content">
+        <p class="state-description">触发条件：当前搜索和状态筛选未命中任何内置 Skill。</p>
+        <div class="wireframe-canvas">
+          <div class="device-frame desktop">
+            <div class="nav-bar"><span class="nav-title">内置 Skills</span><span>Chat</span></div>
+            <div class="content-area">
+              <div class="filter-strip"><span class="input-field">unknown</span><span class="picker">已停用⌄</span></div>
+              <div class="empty-state"><strong>没有匹配的内置 Skill</strong><p>清除搜索或状态筛选后查看全部 ArcOrbit 内置 Skills。</p><span class="button small">清除筛选</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="component-list"><strong>组件清单</strong><span>保留的筛选控件、明确空状态、清除筛选动作。</span></div>
+        <div class="interactions"><strong>交互行为</strong><span>空状态不提供本地导入、第三方替换或添加用户 Skill 的入口。</span></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>保存失败与刷新恢复</summary>
+      <div class="state-content">
+        <p class="state-description">触发条件：单项使用方式保存失败、revision 冲突，或可信内置 catalog 读取失败。</p>
+        <div class="wireframe-canvas">
+          <div class="device-frame desktop">
+            <div class="nav-bar"><span class="nav-title">内置 Skills</span><span>Automation</span></div>
+            <div class="content-area">
+              <div class="inline-banner"><strong>配置已在其他窗口更新</strong><span>保留当前列表和筛选；刷新后重新选择使用方式。</span><span class="button small">刷新</span></div>
+              <div class="compact-table">
+                <div class="table-row"><span><strong>arckit-spec</strong><small>最后一次成功读取的内容</small></span><span class="badge">已安装</span><span class="picker">按需使用⌄</span></div>
+              </div>
+              <p class="status-line">用户级、项目级和本地 Skills 的路径与错误不会显示。</p>
+            </div>
+          </div>
+        </div>
+        <div class="component-list"><strong>组件清单</strong><span>原位错误、最后成功列表、刷新动作、保留的搜索和状态筛选。</span></div>
+        <div class="interactions"><strong>交互行为</strong><span>失败不清空列表；刷新成功后更新 revision；安装未 ready 时引导环境检查，不绕过安装门禁。</span></div>
+      </div>
+    </details>
+  </main>
+</body>
+</html>

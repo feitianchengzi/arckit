@@ -190,3 +190,4 @@
 | [CASE-20260911-004](closed/CASE-20260911-004-separate-arcorbit-execution-lifecycle-from-case-completion.md) | closed | Separate ArcOrbit execution lifecycle from Case completion | 2026-09-11T10:39:49.658Z |
 | [CASE-20260911-005](closed/CASE-20260911-005-unify-arckit-state-driven-loop-capability-and-invocation-surface.md) | closed | Unify arckit-state-driven-loop capability and invocation surfaces | 2026-09-11T13:32:03.858Z |
 | [CASE-20260912-001](closed/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md) | closed | Separate Chat and Automation Codex model and level configuration | 2026-09-12T04:21:28.956Z |
+| [CASE-20260912-002](closed/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md) | closed | Optimize ArcOrbit Engineering for built-in Skills management | 2026-09-12T05:01:26.443Z |

@@ -31,7 +31,6 @@ const invokeFeedbackV2 = (channel, input) => ipcRenderer.invoke(channel, input).
 contextBridge.exposeInMainWorld("arckitDesktop", {
   engineeringSnapshot: () => ipcRenderer.invoke('arckit:engineering-snapshot'),
   engineeringUpdate: input => ipcRenderer.invoke('arckit:engineering-update', input),
-  engineeringImport: () => ipcRenderer.invoke('arckit:engineering-import'),
   onEngineeringEvent: listener => { const handler = (_event, value) => listener(value); ipcRenderer.on('arckit:engineering-event', handler); return () => ipcRenderer.removeListener('arckit:engineering-event', handler); },
   windowControlMode: process.platform === "darwin" ? "native-macos" : "custom",
   getWindowState: () => ipcRenderer.invoke("arckit:window-state"),

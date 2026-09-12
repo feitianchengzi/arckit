@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-09-12T04:21:28.956Z",
+  "updated_at": "2026-09-12T05:01:26.443Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -3597,6 +3597,30 @@
         "arckit/cases/active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "case:fact:FACT-20260912-002-001",
+        "local:fact:engineering-built-in-management-realized",
+        "arckit/spec/agentic-software-development/arcorbit-scene-skills.md",
+        "arckit/cases/active/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "case:fact:FACT-20260912-002-001",
+        "local:fact:engineering-built-in-management-realized",
+        "arckit/interaction/engineering-profile/interaction.md",
+        "arckit/cases/active/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md"
     }
   ],
   "acceptance": {
@@ -3758,18 +3782,16 @@
     "arckit/cases/closed/CASE-20260911-004-separate-arcorbit-execution-lifecycle-from-case-completion.md",
     "arckit/cases/closed/CASE-20260911-005-unify-arckit-state-driven-loop-capability-and-invocation-surface.md",
     "arckit/cases/closed/CASE-20260911-003-arcorbit.md",
-    "arckit/cases/closed/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md"
+    "arckit/cases/closed/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md",
+    "arckit/cases/closed/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md",
+    "case_ref": "arckit/cases/closed/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md",
-      "case:fact:FACT-20260912-001-003",
-      "arckit/cases/evidence/CASE-20260912-001/verification.md",
-      "review rerun: 43 passed, 1 skipped, 0 failed"
+      "arckit/cases/closed/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md"
     ],
-    "updated_at": "2026-09-12T04:21:28.956Z"
+    "updated_at": "2026-09-12T05:01:26.443Z"
   }
 }

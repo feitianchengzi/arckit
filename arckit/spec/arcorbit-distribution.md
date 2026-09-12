@@ -174,11 +174,11 @@ ChatGPT 登录完全交给 `codex login` 或 `codex login --device-auth` 的官�
 
 ## 首次安装、场景能力与升级
 
-所有内置 skill 连同脚本、references、共享资源安装到应用数据目录的版本化 on-demand catalog。用户 ArcForge catalog 保持独立，应用不覆盖其中同名版本。Engineering 保存每个场景的选择；Chat 默认关闭内置技能，Automation 保留官方核心，普通技能可开关或替换。
+所有内置 skill 连同脚本、references、共享资源安装到应用数据目录的统一 catalog。用户 ArcForge catalog 的其他来源保持独立，应用不覆盖或纳入 Engineering 管理。Engineering 只保存 ArcOrbit 内置 Skills 的场景选择；Chat 按内置默认值工作，Automation 保留官方核心，普通内置 Skill 可配置为直接发现、按需使用或停用。
 
 升级准备并校验新版本后使用稳定身份恢复用户显式选择，旧 catalog 版本保留供已有运行引用。明确确认清单后才清理关联项目中来源可证明的 Arckit 副本；修改过或缺少可验证基线的受管理 Arckit 保留并报告；符合条件的清理不创建备份。第三方、归属不明和目录链接保留并报告。来源损坏或权限失败时阻止启动并显示具体恢复条件。
 
-Runtime trusted ledger 仍从应用可信能力资源调用；Agent 从场景 binding 的绝对路径原生发现技能。Desktop adapter 配置 Codex 的进程 roots 和线程技能开关，不修改用户/项目 Codex 配置。原生用户技能按既有可用性继承，可在 ArcOrbit 显式开关。
+Runtime trusted ledger 仍从应用可信能力资源调用；Agent 从场景 binding 的绝对路径原生发现内置技能。Desktop adapter 配置内置 Skill 的进程 roots 和同名核心保护，不修改用户/项目 Codex 配置。原生用户和项目 Skills 按 Codex 既有可用性工作，不在 Engineering 显示或开关。
 
 ## 签名与发布授权
 
@@ -190,7 +190,7 @@ Runtime trusted ledger 仍从应用可信能力资源调用；Agent 从场景 bi
 
 ## 失败与恢复
 
-资源校验失败不安装 catalog、不清理项目；迁移失败记录具体路径，可幂等重试。配置 revision 冲突拒绝覆盖，已启用来源消失或核心不可信时拒绝启动，用户可在 Engineering 关闭失效项或重新选择。关闭技能不删除 thread 历史，需要清空历史影响时新建 Chat。
+资源校验失败不安装 catalog、不清理项目；迁移失败记录具体路径，可幂等重试。配置 revision 冲突拒绝覆盖，内置来源消失或核心不可信时拒绝启动并要求返回 Setup Readiness 恢复。关闭内置 Skill 不删除 thread 历史，需要清空历史影响时新建 Chat。
 
 平台构建失败保留日志和 artifacts，不产生该目标的可发布状态；签名、GitHub 权限和发布授权保持显式人工责任。
 
@@ -199,7 +199,7 @@ Runtime trusted ledger 仍从应用可信能力资源调用；Agent 从场景 bi
 - workflow 只能由人工 dispatch 激活，并在构建前验证 tag、版本、渠道和基线。
 - 操作者可以独立选择平台，也可以一次选择全部受支持平台。
 - 安装包在无 ArcForge 或 Arckit checkout 的用户环境中包含完整 provisioning 输入。
-- 内置 skill 通过 ArcForge 确认安装到消费方 catalog，Chat 默认不暴露，Automation 核心受保护，用户技能可按场景替换。
+- 内置 skill 通过 ArcForge 确认安装到消费方 catalog，Automation 核心受保护，普通内置 Skill 可按场景配置；用户和项目 Skills 不进入 Engineering 的展示或操作。
 - 首次启动和新增项目只生成清理清单：用户明确确认后，有可靠证据且未修改的 Arckit 才删除、无备份，修改/第三方/未知保留；重复检查幂等。
 - 来源、选择、持久化、运行边界与实际 Codex 配置满足场景技能规格；项目目录无新增 skill 副本。
 - macOS、Linux 和 Windows 缺少 Codex 时都能从 Setup Readiness 确认运行官方 standalone installer，安装后无需重启即可发现并验证 executable。

@@ -30,22 +30,21 @@ const codexSetupIpcPath = new URL("../src/desktop/codex-setup-ipc.mjs", import.m
 const imageViewerRendererPath = new URL("../desktop/image-viewer/renderer.js", import.meta.url);
 const conversationSurfacePath = new URL("../desktop/renderer/conversation-surface.mjs", import.meta.url);
 
-test('Engineering IPC rejects foreign renderer callers before accessing settings or dialogs', async () => {
+test('Engineering IPC exposes only built-in snapshot and update to the main renderer', async () => {
   const source=await readFile(desktopMainPath,'utf8'),handlers=new Map(),calls=[];
   const mainWindow={webContents:{}};
   const start=source.indexOf('function registerIpc() {'),end=source.indexOf('  ipcMain.handle("arckit:release-snapshot"',start);
   const guardStart=source.indexOf('function assertMainRenderer(event)'),guardEnd=source.indexOf('\nasync function ',guardStart);
   vm.runInNewContext(source.slice(start,end)+'}\n'+source.slice(guardStart,guardEnd)+'\nregisterIpc();',{
     mainWindow,ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
-    sceneSkillManager:{snapshot:()=>calls.push('snapshot'),update:()=>calls.push('update'),importLocal:()=>calls.push('import')},
-    dialog:{showOpenDialog:async()=>{calls.push('dialog');return {canceled:true};}}
+    sceneSkillManager:{snapshot:()=>calls.push('snapshot'),update:()=>calls.push('update')}
   });
-  for(const name of ['snapshot','update','import']) await assert.rejects(async()=>handlers.get(`arckit:engineering-${name}`)({sender:{}},{}),/main ArcOrbit window/);
+  for(const name of ['snapshot','update']) await assert.rejects(async()=>handlers.get(`arckit:engineering-${name}`)({sender:{}},{}),/main ArcOrbit window/);
   assert.deepEqual(calls,[]);
   await handlers.get('arckit:engineering-snapshot')({sender:mainWindow.webContents});
   await handlers.get('arckit:engineering-update')({sender:mainWindow.webContents},{});
-  await handlers.get('arckit:engineering-import')({sender:mainWindow.webContents});
-  assert.deepEqual(calls,['snapshot','update','dialog']);
+  assert.equal(handlers.has('arckit:engineering-import'),false);
+  assert.deepEqual(calls,['snapshot','update']);
 });
 
 function chatSnapshot({ selected = "", project = "PROJECT-A", sessions = [], messages = [], draft = "" } = {}) {

@@ -34,7 +34,7 @@ Workshop 服务继续保存团队共享的组织、项目、成员、待办和�
 4. 用户反馈流转为待办，完成态待办可以产生验收问题。
 5. 执行证据和状态写回同一产品上下文。
 
-真实 Codex Chat 与 Idea、Release、Operations、Engineering 计划工作空间的边界由 `arcorbit-planned-workspaces.md` 定义。Chat 以一个已绑定本地目录的 Product Workspace 建立独立自由对话，不进入 Automation 或产品对象转换；Engineering 以可管理 Domain Profile 组合 State Model、预期/现状/诊断能力映射与生命周期解释，不展示 entry skills。Engineering 的编辑、比较和 Apply 控件不伪装为已接入的真实保存、安装或应用能力。
+真实 Codex Chat 与 Idea、Release、Operations、Engineering 工作空间的边界由 `arcorbit-planned-workspaces.md` 定义。Chat 以一个已绑定本地目录的 Product Workspace 建立独立自由对话，不进入 Automation 或产品对象转换；Engineering 是真实的 ArcOrbit 内置 Skills 安装后管理页面，只调整内置 Skills 在 Chat / Automation 的使用方式，不展示或操作用户自行安装的 Skills，也不替代 Setup Readiness 执行安装、更新或清理。
 
 ### Product Workspace
 

@@ -465,11 +465,6 @@ function combinedSetupReadiness(
 function registerIpc() {
   ipcMain.handle('arckit:engineering-snapshot', event => { assertMainRenderer(event); return sceneSkillManager.snapshot(); });
   ipcMain.handle('arckit:engineering-update', (event, input) => { assertMainRenderer(event); return sceneSkillManager.update(input); });
-  ipcMain.handle('arckit:engineering-import', async event => {
-    assertMainRenderer(event);
-    const result = await dialog.showOpenDialog(mainWindow, { title: '选择包含 SKILL.md 的技能文件夹', properties: ['openDirectory'] });
-    return result.canceled ? null : sceneSkillManager.importLocal(result.filePaths[0]);
-  });
   ipcMain.handle("arckit:release-snapshot", async event => { assertMainRenderer(event); return releaseCoordinator.snapshot(); });
   ipcMain.handle("arckit:release-detail", async (event, id) => { assertMainRenderer(event); return releaseCoordinator.detail(String(id)); });
   ipcMain.handle("arckit:release-command", async (event, action, input = {}) => { assertMainRenderer(event); return releaseCoordinator.command(action, input); });
