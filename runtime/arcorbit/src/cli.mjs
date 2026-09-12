@@ -10,6 +10,7 @@ import { evaluateRuntimeGates } from "./gate-engine.mjs";
 import { writeLedger } from "./ledger-writer.mjs";
 import { ensureArckitProject } from "./project-initializer.mjs";
 import { detectConversationLocale } from "./conversation-locale.mjs";
+import { runAutomationSession } from './automation/session.mjs';
 import { runStateDrivenSession } from "./state-driven-runner.mjs";
 import { analyzeLifecycleTrace } from "./observability/lifecycle-trace.mjs";
 
@@ -133,7 +134,8 @@ export async function run(options) {
   }
   options.conversationLocale = options.conversationLocale
     || detectConversationLocale(options.task || "");
-  return runStateDrivenSession({
+  const runSession = options.runtimeContext?.execution_product === "automation" ? runAutomationSession : runStateDrivenSession;
+  return runSession({
     projectRoot,
     stateStore,
     options

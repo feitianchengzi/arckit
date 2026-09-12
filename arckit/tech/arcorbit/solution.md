@@ -166,7 +166,7 @@ Loop Controller 不从 Project State 读取轮次 continuation。Project `case_c
 
 ### Capability Registry
 
-Capability Registry 读取 repository 和目标项目中的 `arckit.capability.json` manifest，并应用 `runtime/arcorbit/config/capability-policy.json`。默认 policy 将 `using-arckit` 绑定到 Agent invocation，将 `arckit-development-ledger` 绑定到 trusted Runtime entrypoints。 Registry 对每种接口独立解析：Agent 使用 invocation 的 phase/trigger，Ledger 使用 repository-trusted runtime_entrypoints。普通 Loop 和 task_closeout 均解析 manifest；prompt 只携带当前事实、授权、phase 与 output contract，工作方法由 skill 按需披露。其他 definition、diagnosis、code 和 quality skills 由当前 Codex Agent 通过原生 skill discovery 在同一 turn 中选择，不进入 Runtime 预测式 route。
+Capability Registry 读取 repository 和目标项目中的 `arckit.capability.json` manifest，并应用 `runtime/arcorbit/config/capability-policy.json`。默认 policy 将 `using-arckit` 绑定到 Agent invocation，将 `arckit-development-ledger` 绑定到 trusted Runtime entrypoints。 Registry 对每种接口独立解析：Agent 使用 invocation 的 phase/trigger，Ledger 使用 repository-trusted runtime_entrypoints。普通 Loop 解析入口 manifest，工作方法由 skill 按需披露。Automation 在同一 Agent 会话直接提出 Git 交付请求，携带目标、当前事实、授权范围、phase 与 output contract；它不新增 skill binding，也不复制 Loop 方法。通用入口不声明 task_closeout。其他 definition、diagnosis、code 和 quality skills 由当前 Codex Agent 通过原生 skill discovery 在同一 turn 中选择，不进入 Runtime 预测式 route。
 
 Manifest 只提供 runtime 可读的能力元数据：
 

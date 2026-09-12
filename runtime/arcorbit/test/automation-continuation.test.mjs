@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { rm } from 'node:fs/promises';
-import { runStateDrivenSession } from '../src/state-driven-runner.mjs';
+import { runAutomationSession } from '../src/automation/session.mjs';
+import { automationDeliveryPolicy } from '../src/automation/delivery-policy.mjs';
+const runStateDrivenSession = input => runAutomationSession({ ...input, options: { ...input.options, runtimeContext: { delivery_policy: automationDeliveryPolicy(), ...input.options?.runtimeContext } } });
 import { createStateStore } from '../src/state-store.mjs';
 import { createAutomationCoordinator, extractAuthoritativeCaseBindingFromRun, mergeCaseBindings } from '../src/automation-coordinator.mjs';
 import { applyRunEvent } from '../src/projection/run-event-projector.mjs';
-import { createExecutionCheckpoint, acceptLedgerCheckpoint, acceptCloseoutCheckpoint } from '../src/kernel/execution-checkpoint.mjs';
-import { executionOutcome } from '../src/kernel/execution-outcome.mjs';
+import { createExecutionCheckpoint, acceptLedgerCheckpoint, acceptCloseoutCheckpoint } from '../src/automation/execution-checkpoint.mjs';
+import { executionOutcome } from '../src/automation/execution-outcome.mjs';
 import { runtimeFailureForCompletedProcess } from '../src/desktop-run-manager.mjs';
 import { applyRuntimeLedgerWriteback } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-writeback.mjs';
 import { projectWithCases, progressTransition, cleanReviewTransition } from './helpers/ledger-cases.mjs';
@@ -64,8 +66,20 @@ test('real Ledger gaps, reviews, closeout continuation and Automation consume on
   });
   assert.equal(result.stop_reason, 'completed');
   assert.equal(result.round_count, 4);
+  assert.deepEqual(result.session_rounds.map(round => round.round_index), [1, 2, 3, 4]);
+  for (const prompt of prompts) {
+    assert.ok(prompt.startsWith('Complete the explicitly authorized local Git delivery'));
+    const request = JSON.parse(prompt.slice(prompt.indexOf('{')));
+    assert.equal(request.schema_version, 'arcorbit-git-delivery-request/v1');
+    assert.equal(request.execution_authorization.git_commit_allowed, true);
+    assert.equal(request.case_completion, 'trusted_ledger_accepted');
+    assert.equal(request.workflow_authority, undefined);
+    assert.equal(request.original_user_input, 'Finish the authorized fixture obligations.');
+    assert.match(request.delivery_contract.scope, /Preserve unrelated staged and unstaged changes/);
+    assert.match(request.delivery_contract.continuation, /resume_loop/);
+  }
   assert.equal(contexts[1].case_binding.case_id, ids[0]);
-  assert.equal(contexts[2].execution_checkpoint.pending_continuation.source_case_id, ids[0]);
+  assert.equal(contexts[2].case_checkpoint.pending_continuation.source_case_id, ids[0]);
   assert.equal(contexts[3].case_binding.case_id, ids[1]);
   assert.deepEqual(result.execution_checkpoint.case_chain.map((link) => link.case_id), ids);
   assert.equal((await stateStore.readSnapshot()).activeCases.length, 0);
@@ -111,8 +125,8 @@ test('restart between closeout discovery and the next Gap restores Loop context 
   } }, options: { task: 'Original intent', threadId: 'THREAD-1', runtimeContext: { closeout_only: true, execution_checkpoint: checkpoint },
     agentAdapter: adapter([], prompts) }, dependencies: { async runRound({ options }) {
       roundCalls++;
-      assert.equal(options.runtimeContext.closeout_only, false);
-      assert.deepEqual(JSON.parse(options.task).closeout_discovery.evidence, checkpoint.pending_continuation.evidence);
+      assert.equal(options.runtimeContext.closeout_only, undefined);
+      assert.deepEqual(JSON.parse(options.task).continuation_discovery.evidence, checkpoint.pending_continuation.evidence);
       return { loopFrame: {}, events: [], validation: { valid: true }, runtimeResult: {
         round_result: 'blocked', ledger_stage: { writeback_required: false }, loop_handoff: { next_responsibility: 'none' } } };
     } } });
@@ -224,4 +238,27 @@ test('contradictory closeout completion is invalid while historical wait envelop
   assert.equal(executionOutcome({ result: legacy, status: 'failed' }).state, 'needs_human');
   legacy.validation.issues.push({ path: 'schema_version', message: 'Bad format.' });
   assert.equal(executionOutcome({ result: legacy }).state, 'failed');
+});
+
+for (const delivery_policy of [undefined, { schema_version: 'arcorbit-automation-delivery/v1', kind: 'git_commit', commit_authorized: false }]) {
+  test(`Automation refuses implicit or denied Git authorization: ${JSON.stringify(delivery_policy)}`, async () => {
+    let adapterCreated = false;
+    await assert.rejects(runAutomationSession({ projectRoot: '/workspace/project', stateStore: {},
+      options: { runtimeContext: { delivery_policy } }, dependencies: { createAdapter() { adapterCreated = true; } }
+    }), /explicit authorized delivery policy/);
+    assert.equal(adapterCreated, false);
+  });
+}
+
+test('restart after accepted Git delivery does not repeat the commit turn', async () => {
+  const checkpoint = acceptCloseoutCheckpoint(acceptLedgerCheckpoint(createExecutionCheckpoint(), accepted(caseA, true)), closeout());
+  let closed = 0;
+  const result = await runStateDrivenSession({ projectRoot: '/workspace/project', stateStore: {
+    readSnapshot() { throw new Error('Completed delivery must not restart Loop work.'); }
+  }, options: { threadId: 'THREAD-1', runtimeContext: { execution_checkpoint: checkpoint }, agentAdapter: {
+    close() { closed++; }, async *runTurn() { throw new Error('Completed delivery must not run Git again.'); }
+  } } });
+  assert.equal(result.stop_reason, 'completed');
+  assert.equal(result.round_count, 0);
+  assert.equal(closed, 1);
 });

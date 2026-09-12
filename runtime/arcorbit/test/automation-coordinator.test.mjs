@@ -1,3 +1,4 @@
+import { automationDeliveryPolicy } from '../src/automation/delivery-policy.mjs';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -544,7 +545,12 @@ test("closed Case recovery resumes the persisted thread for same-thread closeout
   await coordinator.sync({ dispatch: false });
   assert.equal(starts.length, 1);
   assert.equal(starts[0].threadId, "THREAD-PERSISTED");
-  assert.deepEqual(starts[0].runtimeContext, { closeout_only: true, case_id: "CASE-20260809-001" });
+  assert.equal(starts[0].runtimeContext.closeout_only, true);
+  assert.equal(starts[0].runtimeContext.case_id, "CASE-20260809-001");
+  assert.equal(starts[0].runtimeContext.case_binding.source, 'runtime_ledger');
+  assert.equal(starts[0].runtimeContext.original_task, 'finish');
+  assert.equal(starts[0].runtimeContext.execution_product, 'automation');
+  assert.deepEqual(starts[0].runtimeContext.delivery_policy, automationDeliveryPolicy());
   coordinator.dispose();
 });
 
@@ -843,7 +849,12 @@ test("a Case produced by the task run ledger still resumes resolved closeout", a
   assert.equal(store.automation.active_task.case_binding_source, "runtime_ledger");
   assert.equal(store.automation.active_task.case_binding_run_id, "RUN-OLD");
   assert.equal(starts.length, 1);
-  assert.deepEqual(starts[0].runtimeContext, { closeout_only: true, case_id: "CASE-20260810-005" });
+  assert.equal(starts[0].runtimeContext.closeout_only, true);
+  assert.equal(starts[0].runtimeContext.case_id, "CASE-20260810-005");
+  assert.equal(starts[0].runtimeContext.case_binding.source, 'runtime_ledger');
+  assert.equal(starts[0].runtimeContext.original_task, 'finish');
+  assert.equal(starts[0].runtimeContext.execution_product, 'automation');
+  assert.deepEqual(starts[0].runtimeContext.delivery_policy, automationDeliveryPolicy());
   coordinator.dispose();
 });
 
@@ -879,7 +890,12 @@ test("detached startup recovers an earlier accepted Case receipt after a later f
   assert.equal(store.automation.active_task.case_id, "CASE-20260810-005");
   assert.equal(store.automation.active_task.case_binding_source, "runtime_ledger");
   assert.equal(starts.length, 1);
-  assert.deepEqual(starts[0].runtimeContext, { closeout_only: true, case_id: "CASE-20260810-005" });
+  assert.equal(starts[0].runtimeContext.closeout_only, true);
+  assert.equal(starts[0].runtimeContext.case_id, "CASE-20260810-005");
+  assert.equal(starts[0].runtimeContext.case_binding.source, 'runtime_ledger');
+  assert.equal(starts[0].runtimeContext.original_task, 'finish');
+  assert.equal(starts[0].runtimeContext.execution_product, 'automation');
+  assert.deepEqual(starts[0].runtimeContext.delivery_policy, automationDeliveryPolicy());
   coordinator.dispose();
 });
 
@@ -1093,6 +1109,7 @@ test("recovery feedback continues the same Agent thread and persists the user me
   assert.equal(starts[0].sessionId, "SESSION-T");
   assert.equal(starts[0].task, "说明文字可以改写，请从 fresh state 继续。");
   assert.deepEqual(starts[0].runtimeContext, {
+    execution_product: 'automation', delivery_policy: automationDeliveryPolicy(),
     task_id: "t", original_task: "finish", case_id: "",
     case_binding: { status: "unbound", case_ids: [], observations: [] },
     execution_id: starts[0].runtimeContext.execution_id,

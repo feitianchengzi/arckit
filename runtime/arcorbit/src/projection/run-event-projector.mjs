@@ -1,4 +1,4 @@
-import { isExecutionCheckpoint, acceptLedgerCheckpoint, acceptCloseoutCheckpoint } from '../kernel/execution-checkpoint.mjs';
+import { isExecutionCheckpoint, acceptLedgerCheckpoint, acceptCloseoutCheckpoint } from '../automation/execution-checkpoint.mjs';
 import { taskCloseoutMessageStatus } from '../task-closeout-contract.mjs';
 const VISIBLE_TOOL_ITEM_TYPES = new Set(["commandExecution", "toolCall", "webSearch", "fileChange"]);
 const MAX_NON_AGENT_RUN_MESSAGES = 200;

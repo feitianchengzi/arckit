@@ -27,7 +27,7 @@ description: "在 Arckit 项目中持续推进真实软件开发事项。依据 
 
 本入口维护状态驱动方法；`arckit-development-ledger` 维护状态模型、提交接口与可信脚本。Runtime 通过各自 manifest 分别调用，不在 prompt 或代码中重写本方法，也不从文件路径推断事实相关性。原有候选比较、因果边界和不变量判断全部适用。
 
-Host 提供自动续轮、拒绝恢复或 Git 收尾时，读取 [references/runtime-host-boundary.md](references/runtime-host-boundary.md)。该 reference 只解释执行上下文与方法的衔接，不替代正常 Loop。
+Host 提供自动续轮、拒绝恢复或完成后的新发现时，读取 [references/runtime-host-boundary.md](references/runtime-host-boundary.md)。该 reference 只解释执行上下文与方法的衔接，不替代正常 Loop。
 
 ## 状态驱动 Loop
 

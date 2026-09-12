@@ -1,10 +1,8 @@
-import { isTaskCloseoutResult } from '../task-closeout-contract.mjs';
-
-const VERSION = 'arcorbit-execution-checkpoint/v1';
+const VERSION = 'arckit-case-execution/v1';
 
 // Host recovery state, never an Agent claim or a replacement for canonical Case state.
-export function isExecutionCheckpoint(value) {
-  if (value?.schema_version !== VERSION || !['loop', 'closeout'].includes(value.phase)
+export function isCaseCheckpoint(value) {
+  if (value?.schema_version !== VERSION || !['loop', 'completed'].includes(value.phase)
     || !Array.isArray(value.case_chain) || !Array.isArray(value.trusted_ledger_changed_files)) return false;
   const ids = new Set();
   for (const [index, link] of value.case_chain.entries()) {
@@ -17,20 +15,19 @@ export function isExecutionCheckpoint(value) {
   if (value.case_id !== (value.case_chain.at(-1)?.case_id || '')) return false;
   if (value.pending_continuation && (!value.case_id || value.phase !== 'loop'
     || value.pending_continuation.source_case_id !== value.case_id || !isDiscovery(value.pending_continuation))) return false;
-  return (!value.closeout_result || (value.phase === 'closeout' && isTaskCloseoutResult(value.closeout_result)))
-    && value.trusted_ledger_changed_files.every((item) => typeof item === 'string');
+  return value.trusted_ledger_changed_files.every((item) => typeof item === 'string');
 }
 
-export function createExecutionCheckpoint(context = {}) {
-  if (context.execution_checkpoint) {
-    if (!isExecutionCheckpoint(context.execution_checkpoint)) throw new Error('Invalid Runtime execution checkpoint.');
-    return structuredClone(context.execution_checkpoint);
+export function createCaseCheckpoint(context = {}) {
+  if (context.case_checkpoint) {
+    if (!isCaseCheckpoint(context.case_checkpoint)) throw new Error('Invalid Runtime execution checkpoint.');
+    return structuredClone(context.case_checkpoint);
   }
   const caseId = String(context.case_id || '');
   return {
-    schema_version: VERSION, phase: context.closeout_only ? 'closeout' : 'loop', case_id: caseId,
+    schema_version: VERSION, phase: 'loop', case_id: caseId,
     case_chain: caseId ? [{ case_id: caseId, predecessor_case_id: '', discovery: null }] : [],
-    pending_continuation: null, closeout_result: null,
+    pending_continuation: null,
     trusted_ledger_changed_files: [...new Set(context.trusted_ledger_changed_files || [])]
   };
 }
@@ -43,45 +40,35 @@ export function acceptLedgerCheckpoint(previous, ledger) {
   const caseId = ids[0] || next.case_id;
   if (caseId && caseId !== next.case_id) {
     if (next.case_id && (!next.pending_continuation || next.case_chain.some((link) => link.case_id === caseId))) {
-      throw new Error('Case binding changed without an accepted closeout continuation.');
+      throw new Error('Case binding changed without an accepted continuation.');
     }
     next.case_chain.push({ case_id: caseId, predecessor_case_id: next.case_id, discovery: next.pending_continuation });
     next.case_id = caseId;
     next.pending_continuation = null;
   }
   next.trusted_ledger_changed_files = [...new Set([...next.trusted_ledger_changed_files, ...(ledger.changed_files || [])])];
-  next.closeout_result = null;
-  next.phase = acceptedCaseCompletion(ledger) && !next.pending_continuation ? 'closeout' : 'loop';
+  next.phase = acceptedCaseCompletion(ledger) && !next.pending_continuation ? 'completed' : 'loop';
   return next;
 }
 
-export function acceptCloseoutCheckpoint(previous, result) {
-  if (previous.phase !== 'closeout' || !previous.case_id || !isTaskCloseoutResult(result)) {
-    throw new Error('Task closeout requires a bound, accepted Case completion and a valid result.');
+export function resumeCaseCheckpoint(previous, discovery) {
+  if (previous.phase !== 'completed' || !previous.case_id || !isDiscovery(discovery)) {
+    throw new Error('Continuation requires an accepted Case completion and concrete discovery evidence.');
   }
-  const next = structuredClone(previous);
-  if (result.status === 'resume_loop') {
-    next.phase = 'loop';
-    next.pending_continuation = { source_case_id: next.case_id, summary: result.summary, evidence: [...result.evidence] };
-    next.closeout_result = null;
-  } else next.closeout_result = structuredClone(result);
-  return next;
+  return { ...structuredClone(previous), phase: 'loop', pending_continuation: {
+    source_case_id: previous.case_id, summary: discovery.summary, evidence: [...discovery.evidence]
+  } };
 }
 
-export function executionRuntimeContext(context = {}, checkpoint) {
+export function caseRuntimeContext(context = {}, checkpoint) {
   return {
     ...context, case_id: checkpoint.case_id,
     case_binding: checkpoint.case_id ? {
       status: 'bound', case_id: checkpoint.case_id, source: 'runtime_ledger',
       case_ids: checkpoint.case_chain.map((link) => link.case_id)
     } : { status: 'unbound', case_ids: [], observations: [] },
-    closeout_only: checkpoint.phase === 'closeout',
-    execution_checkpoint: structuredClone(checkpoint)
+    case_checkpoint: structuredClone(checkpoint)
   };
-}
-
-export function checkpointFromRun(run) {
-  return [run?.result?.execution_checkpoint, run?.activity?.execution_checkpoint].find(isExecutionCheckpoint) || null;
 }
 
 export function acceptedCaseCompletion(ledger) {

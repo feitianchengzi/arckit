@@ -27,7 +27,7 @@ test("Runtime binds two packages with separate method and trusted ledger ownersh
   const runtime = capabilitiesForBinding(capabilities, policy, "runtime");
   assert.equal(agentSkillInvocationForPhase(agent, "agent_loop").skill_trigger, "$using-arckit");
   assert.equal(runtimeCapabilityForEntrypoint(runtime, "case_transition").id, "arckit-development-ledger");
-  assert.equal(agentSkillInvocationForPhase(agent, "task_closeout").skill_trigger, "$using-arckit");
+  assert.throws(() => agentSkillInvocationForPhase(agent, "task_closeout"), /found 0/);
   assert.notEqual(agent[0].capability_root, runtime[0].capability_root);
 });
 

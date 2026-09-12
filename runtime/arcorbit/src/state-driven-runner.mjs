@@ -1,7 +1,5 @@
-import { TASK_CLOSEOUT_VERSION, taskCloseoutOutputSchema, isTaskCloseoutResult, invalidTaskCloseoutResult, taskCloseoutStopReason } from './task-closeout-contract.mjs';
-import { createExecutionCheckpoint, acceptLedgerCheckpoint, acceptCloseoutCheckpoint, executionRuntimeContext } from './kernel/execution-checkpoint.mjs';
-import { agentSkillInvocationForPhase, capabilitiesForBinding, loadCapabilityPolicy, loadRuntimeCapabilities } from './capability-registry.mjs';
-import { acceptedCaseCompletion } from './kernel/execution-outcome.mjs';
+import { createCaseCheckpoint, acceptLedgerCheckpoint, caseRuntimeContext, acceptedCaseCompletion } from './kernel/case-execution.mjs';
+import { compactSessionThread } from './kernel/session-thread.mjs';
 import { createAgentAdapter } from "./agent-adapter.mjs";
 import { compilePrompt } from "./prompt-compiler.mjs";
 import { selectNextRound } from "./loop-controller.mjs";
@@ -10,12 +8,12 @@ import { writeLedger } from "./ledger-writer.mjs";
 import { runAgenticLoop } from "./agent-orchestrator.mjs";
 import { endLifecycleSpan, startLifecycleSpan } from "./observability/lifecycle-trace.mjs";
 
-export async function runStateDrivenSession({ projectRoot, stateStore, options = {}, dependencies = {} }) {
+export async function runStateDrivenSession({ projectRoot, stateStore, options = {}, dependencies = {}, agentAdapter = null, threadState = {} }) {
   const createAdapter = dependencies.createAdapter || createAgentAdapter;
   const runRound = dependencies.runRound || runAgenticLoop;
   const writeRoundLedger = dependencies.writeRoundLedger || writeLedger;
   const adapterName = options.dryRun ? "dry-run" : options.adapter || "codex-app-server";
-  const adapter = options.agentAdapter || createAdapter(adapterName, options);
+  const adapter = agentAdapter || options.agentAdapter || createAdapter(adapterName, options);
   const rounds = [];
   let nextTask = options.task || "";
   const originalTask = options.runtimeContext?.original_task || options.originalTask || options.task || "";
@@ -26,9 +24,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
   let finalEnvelope = null;
   let stopReason = "";
   let taskThreadId = String(options.threadId || "");
-  let closeoutResult = null;
-  let lastCompactedTurnId = "";
-  let checkpoint = createExecutionCheckpoint(options.runtimeContext || {});
+  let checkpoint = createCaseCheckpoint(options.runtimeContext || {});
   const taskThreadKey = `agent-loop:${String(options.taskId || options.lifecycleRunId || "active-session").trim() || "active-session"}`;
   const sessionSpan = startLifecycleSpan(options, {
     name: "runtime.session",
@@ -46,76 +42,25 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
   let prefetchedSnapshot = null;
   const persistCheckpoint = (next) => {
     checkpoint = next;
-    emitSessionEvent(options, { type: 'runtime.execution_checkpoint', checkpoint: structuredClone(checkpoint) });
+    emitSessionEvent(options, { type: 'runtime.case_checkpoint', checkpoint: structuredClone(checkpoint) });
   };
-  const compactBetweenRounds = async (roundOptions) => {
-    const usage = adapter.latestContextUsage?.(taskThreadKey);
-    if (usage?.context_utilization >= 0.8 && usage.turn_id && usage.turn_id !== lastCompactedTurnId) {
-      emitSessionEvent(options, {
-        type: "runtime.context_compaction.started",
-        thread_id: taskThreadId,
-        turn_id: usage.turn_id,
-        context_utilization: usage.context_utilization
-      });
-      const compacted = await adapter.compactThread({ threadKey: taskThreadKey, threadId: taskThreadId, options: roundOptions });
-      lastCompactedTurnId = usage.turn_id;
-      emitSessionEvent(options, {
-        type: "runtime.context_compaction.completed",
-        thread_id: taskThreadId,
-        source_turn_id: usage.turn_id,
-        compaction_turn_id: compacted.turn_id,
-        context_utilization: usage.context_utilization
-      });
-    }
-  };
-  if (checkpoint.pending_continuation) nextTask = closeoutContinuationInstruction(originalTask, checkpoint.case_id, checkpoint.pending_continuation, options.task);
+  const compactBetweenRounds = (roundOptions) => compactSessionThread({ adapter, threadKey: taskThreadKey,
+    threadId: taskThreadId, options: roundOptions, state: threadState });
+  if (checkpoint.pending_continuation) nextTask = JSON.stringify({
+    original_user_input: originalTask, current_instruction: options.task || '',
+    authoritative_case_id: checkpoint.case_id, continuation_discovery: checkpoint.pending_continuation
+  });
 
   try {
     persistCheckpoint(checkpoint);
-    if (checkpoint.phase === 'closeout') {
-      closeoutResult = await runSameThreadCloseout({
-        adapter,
-        projectRoot,
-        originalTask,
-        threadKey: taskThreadKey,
-        threadId: taskThreadId,
-        authoritativeCaseId: checkpoint.case_id,
-        trustedLedgerChangedFiles: checkpoint.trusted_ledger_changed_files,
-        options: { ...sessionOptions, runtimeContext: executionRuntimeContext(options.runtimeContext || {}, checkpoint) }
-      });
-      persistCheckpoint(acceptCloseoutCheckpoint(checkpoint, closeoutResult));
-      taskThreadId = adapter.threadId?.(taskThreadKey) || taskThreadId;
-      stopReason = taskCloseoutStopReason(closeoutResult);
-      if (closeoutResult.status === "resume_loop") {
-        nextTask = closeoutContinuationInstruction(originalTask, checkpoint.case_id, closeoutResult);
-        stopReason = "";
-        closeoutResult = null;
-        await compactBetweenRounds(sessionOptions);
-      } else finalEnvelope = {
-        runtime_version: "arcorbit/v0.3-state-driven",
-        project_root: projectRoot,
-        mode: adapterName === "dry-run" ? "dry-run" : "execute",
-        adapter: adapterName,
-        runtime_result: null,
-        validation: { valid: true, issues: [] },
-        ledger_write_result: null
-      };
-    }
-    if (finalEnvelope) {
-      return {
-        ...finalEnvelope,
-        session_mode: "state-driven",
-        round_count: 0,
-        session_rounds: [],
-        thread_id: taskThreadId,
-        closeout_result: closeoutResult,
-        execution_checkpoint: checkpoint,
-        stop_reason: stopReason,
-        paused_for_human: stopReason === "human_intervention",
-        next_action: stopReason === "completed" ? "Same-thread task closeout completed." : `Same-thread task closeout stopped: ${stopReason}.`
-      };
-    }
-    for (let roundIndex = 1; ; roundIndex += 1) {
+    if (checkpoint.phase === 'completed') return {
+      runtime_version: 'arcorbit/v0.3-state-driven', project_root: projectRoot,
+      session_mode: 'state-driven', runtime_result: null, validation: { valid: true, issues: [] },
+      ledger_write_result: null, round_count: 0, session_rounds: [], thread_id: taskThreadId,
+      case_checkpoint: checkpoint, stop_reason: 'completed', paused_for_human: false,
+      next_action: 'The accepted Case is complete.'
+    };
+    for (let roundIndex = (options.roundIndexOffset || 0) + 1; ; roundIndex += 1) {
       activeRoundSpan = startLifecycleSpan(sessionOptions, {
         name: "runtime.round",
         category: "runtime",
@@ -156,7 +101,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
 
       const roundOptions = {
         ...sessionOptions,
-        runtimeContext: executionRuntimeContext(options.runtimeContext || {}, checkpoint),
+        runtimeContext: caseRuntimeContext(options.runtimeContext || {}, checkpoint),
         task: nextTask,
         originalTask,
         agentAdapter: adapter,
@@ -259,7 +204,6 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         }
         if (ledgerWriteResult?.written === true) {
           persistCheckpoint(acceptLedgerCheckpoint(checkpoint, ledgerWriteResult));
-          closeoutResult = null;
         }
         if (ledgerWriteResult?.written === true && ledgerWriteResult?.post_commit_snapshot_token) {
           prefetchedSnapshot = await stateStore.readSnapshot({
@@ -347,30 +291,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       });
       if (!decision.continue) {
         stopReason = decision.reason;
-        if (stopReason === "completed") {
-          closeoutResult = await runSameThreadCloseout({
-            adapter,
-            projectRoot,
-            originalTask,
-            threadKey: taskThreadKey,
-            threadId: taskThreadId,
-            authoritativeCaseId: checkpoint.case_id,
-            trustedLedgerChangedFiles: checkpoint.trusted_ledger_changed_files,
-            options: { ...roundOptions, runtimeContext: executionRuntimeContext(options.runtimeContext || {}, checkpoint) }
-          });
-          persistCheckpoint(acceptCloseoutCheckpoint(checkpoint, closeoutResult));
-          if (closeoutResult.status === "resume_loop") {
-            nextTask = closeoutContinuationInstruction(originalTask, checkpoint.case_id, closeoutResult);
-            prefetchedSnapshot = null;
-            noProgressRounds = 0;
-            stopReason = "";
-            emitSessionEvent(options, { type: "runtime.closeout.resume_requested", round_index: roundIndex, result: closeoutResult });
-            closeoutResult = null;
-            await compactBetweenRounds(roundOptions);
-            continue;
-          }
-          stopReason = taskCloseoutStopReason(closeoutResult);
-        }
+
         break;
       }
 
@@ -418,13 +339,13 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
     endLifecycleSpan(sessionOptions, activeRoundSpan, { status: "error", error });
     throw error;
   } finally {
-    const closeSpan = startLifecycleSpan(sessionOptions, {
-      name: "runtime.adapter_close",
-      category: "runtime",
-      cost_center: "orchestration"
-    });
-    await adapter.close?.();
-    endLifecycleSpan(sessionOptions, closeSpan, { status: "ok" });
+    if (!agentAdapter) {
+      const closeSpan = startLifecycleSpan(sessionOptions, {
+        name: 'runtime.adapter_close', category: 'runtime', cost_center: 'orchestration'
+      });
+      await adapter.close?.();
+      endLifecycleSpan(sessionOptions, closeSpan, { status: 'ok' });
+    }
     endLifecycleSpan(options, sessionSpan, {
       status: sessionFailure ? "error" : "ok",
       attributes: { stop_reason: stopReason || "unknown", round_count: rounds.length },
@@ -444,78 +365,11 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
     max_agent_repair_attempts: maxAgentRepairAttempts,
     session_rounds: rounds,
     thread_id: taskThreadId,
-    closeout_result: closeoutResult,
-    execution_checkpoint: checkpoint,
+    case_checkpoint: checkpoint,
     stop_reason: stopReason,
     paused_for_human: stopReason === "human_intervention",
     next_action: nextActionForStopReason(stopReason, finalEnvelope)
   };
-}
-
-async function runSameThreadCloseout({
-  adapter,
-  projectRoot,
-  originalTask,
-  threadKey,
-  threadId,
-  authoritativeCaseId = "",
-  trustedLedgerChangedFiles = [],
-  options
-}) {
-  let result = null;
-  const policy = await loadCapabilityPolicy();
-  const capabilities = await loadRuntimeCapabilities({ projectRoot, capabilityPolicy: policy });
-  const invocation = agentSkillInvocationForPhase(capabilitiesForBinding(capabilities, policy, "controller"), "task_closeout");
-  const prompt = [
-    invocation.skill_trigger,
-    "",
-    JSON.stringify({
-      schema_version: "arckit-task-closeout-invocation/v1",
-      phase: "task_closeout",
-      original_user_input: originalTask,
-      current_instruction: options.task || '',
-      task_context: {
-        ...options.runtimeContext,
-        authoritative_case_id: String(authoritativeCaseId || ""),
-        trusted_ledger_changed_files: normalizeCloseoutFileRefs(trustedLedgerChangedFiles)
-      },
-      workflow_authority: invocation.skill_trigger,
-      case_completion: "trusted_ledger_accepted",
-      execution_authorization: { workspace_root: projectRoot, git_commit_allowed: true },
-      output_contract: TASK_CLOSEOUT_VERSION
-    }, null, 2)
-  ].join("\n");
-  for await (const event of adapter.runTurn({
-    projectRoot,
-    prompt,
-    options: {
-      ...options,
-      threadKey,
-      threadId,
-      resultKind: "task-closeout-result",
-      outputSchema: taskCloseoutOutputSchema(),
-      lifecycleCostCenter: "closeout"
-    }
-  })) {
-    if (options.streamEvents) console.error(JSON.stringify({ event }));
-    if (event.type === "runtime.task_closeout_result") result = event.result;
-  }
-  return isTaskCloseoutResult(result) ? result : invalidTaskCloseoutResult('Missing or invalid structured closeout result.');
-}
-
-function closeoutContinuationInstruction(originalTask, caseId, result, currentInstruction = '') {
-  return JSON.stringify({
-    original_user_input: originalTask,
-    current_instruction: currentInstruction,
-    authoritative_case_id: caseId,
-    closeout_discovery: { summary: result.summary, evidence: result.evidence },
-    request: "Resume the authorized task from a fresh ledger snapshot using the skill's normal Loop entry. The closeout discovery is Agent-provided evidence, not a new Runtime-selected Gap or a completion claim."
-  });
-}
-
-function normalizeCloseoutFileRefs(value) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
 export function decideSessionContinuation({

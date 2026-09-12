@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { executionOutcome } from '../src/kernel/execution-outcome.mjs';
+import { executionOutcome } from '../src/automation/execution-outcome.mjs';
 import { runtimeFailureForCompletedProcess } from '../src/desktop-run-manager.mjs';
 import { continuationContext } from '../src/automation-coordinator.mjs';
 

@@ -331,4 +331,4 @@ State Driven Loop 保持一轮一个 Gap、可信写回、post-commit fresh-read
 
 继续执行携带任务身份、Case 绑定及可信来源、原任务、用户增量和来源 Run 引用。Prompt 提供 Host 上下文与输出契约，单 Gap 工作方法由 using-arckit 提供，不重复维护引用枚举与语义流程。
 
-Git 收尾发现新的实质义务时，可在原授权下恢复同一 thread 的普通 Loop。Host 保留发现和原 Case 关联；Agent fresh-read 后选择或创建后续 Case，Ledger 接受后才更新当前任务绑定。前后 Case 历史保留，没有可信续办关系的多个 Case 仍报绑定冲突。恢复阶段及累计 Ledger 变更路径必须持久保存，不能因退出时缺少最终结果文件而丢失发现、重复收尾或误报人工决定。
+Automation 的任务交付约定要求提交已审查的本任务成果，由产品调度显式传递提交授权；Case 完成本身不包含 Git 策略。同一会话的 Agent 使用原生 Git 能力执行，Automation 请求只约定交付目标、范围、事实、策略授权与结果契约，不新增技能依赖。Git 收尾发现新的实质义务时，可在原授权下恢复同一 thread 的普通 Loop。Host 保留发现和原 Case 关联；Agent fresh-read 后选择或创建后续 Case，Ledger 接受后才更新当前任务绑定。前后 Case 历史保留，没有可信续办关系的多个 Case 仍报绑定冲突。恢复阶段及累计 Ledger 变更路径必须持久保存，不能因退出时缺少最终结果文件而丢失发现、重复收尾或误报人工决定。

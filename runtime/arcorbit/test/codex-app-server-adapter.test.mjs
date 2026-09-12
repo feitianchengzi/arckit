@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCodexAppServerAdapter, waitForActiveTurn } from "../adapters/codex-app-server-adapter.mjs";
-import { digest } from '../src/skill-files.mjs';
+import { digest, readSkill } from '../src/skill-files.mjs';
+import { fileURLToPath } from 'node:url';
 
 test('scene roots are configured once per process and exclusions travel with thread resume', async () => {
  const client=new FakeClient(),request=client.request.bind(client);
@@ -466,4 +467,39 @@ test('scene read-only sandbox is applied on every native turn including resumed 
  adapter.close();assert.equal(client.requests.filter(r=>r.method==='thread/start').length,0);
  assert.ok(client.requests.filter(r=>r.method==='turn/start').every(r=>r.params.threadId==='EXISTING-IDEA'&&r.params.sandboxPolicy.type==='readOnly'&&!r.params.sandboxPolicy.networkAccess));
  const ordinary=new FakeClient(),other=createCodexAppServerAdapter({clientFactory:()=>ordinary});await collect(other.runTurn({projectRoot:'/workspace/chat',prompt:'Hello',options:{resultKind:'chat'}}));other.close();assert.equal(ordinary.requests.find(r=>r.method==='turn/start').params.sandboxPolicy,undefined);
+});
+
+
+test('Automation keeps entry skills discoverable without invoking them during same-thread Git delivery', async () => {
+  const skills = await Promise.all(['using-arckit', 'arckit-development-ledger'].map(async name => ({
+    ...await readSkill(fileURLToPath(new URL(`../../../entry/skills/${name}`, import.meta.url))),
+    id: `builtin:${name}`, source: 'builtin'
+  })));
+  const body = { schema_version: 'arcorbit-scene-skill-binding/v1', scene: 'automation', skills,
+    managedNames: skills.map(skill => skill.name), disabledPaths: [] };
+  const client = new FakeClient(), request = client.request.bind(client);
+  client.request = async (method, params) => {
+    if (method === 'skills/extraRoots/set' || method === 'skills/list') {
+      client.requests.push({ method, params });
+      return method === 'skills/list' ? { data: [{ cwd: '/workspace/project', skills: skills.map(skill => ({
+        name: skill.name, path: skill.skillPath, enabled: true
+      })) }] } : {};
+    }
+    return request(method, params);
+  };
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  const options = { threadKey: 'agent-loop:TASK-1', sceneSkillBinding: { ...body, fingerprint: digest(JSON.stringify(body)) } };
+  try {
+    await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: '$using-arckit\n{}',
+      options: { ...options, resultKind: 'agent-loop-result' } }));
+    await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'Commit the accepted task work.',
+      options: { ...options, resultKind: 'task-closeout-result' } }));
+    const turns = client.requests.filter(item => item.method === 'turn/start');
+    assert.equal(turns.length, 2);
+    assert.equal(turns[0].params.threadId, turns[1].params.threadId);
+    assert.deepEqual(turns[0].params.input, [{ type: 'text', text: '$using-arckit\n{}' }]);
+    assert.deepEqual(turns[1].params.input, [{ type: 'text', text: 'Commit the accepted task work.' }]);
+    assert.deepEqual(client.requests.find(item => item.method === 'skills/extraRoots/set').params.extraRoots, skills.map(skill => skill.path));
+    assert.ok(client.requests.find(item => item.method === 'thread/start').params.config['skills.config'].every(skill => skill.enabled));
+  } finally { adapter.close(); }
 });

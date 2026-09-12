@@ -1,13 +1,12 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "using-arckit",
-  "protocol_revision": "software-definition-agent-loop/v13",
+  "protocol_revision": "software-definition-agent-loop/v14",
   "kind": "project_conversation_controller",
   "runtime_role": [
     "agent_loop",
     "case_selection",
-    "gap_execution",
-    "closeout"
+    "gap_execution"
   ],
   "binding_targets": [
     "controller"
@@ -16,8 +15,7 @@
     "type": "agent_skill",
     "skill_trigger": "$using-arckit",
     "phases": [
-      "agent_loop",
-      "task_closeout"
+      "agent_loop"
     ]
   },
   "summary": "Runs one coherent Agent turn from explicit Project software decisions, invariants and fresh facts through the smallest causally ready Case gap, workspace execution, evidence, Project delta, transition claim, and handoff.",

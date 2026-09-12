@@ -20,11 +20,11 @@ Desktop session 与 Codex thread 是不同层级：session 是面向用户的待
 
 ## Automation 执行恢复与 Case 续办
 
-Runtime 维护 `arcorbit-execution-checkpoint/v1`，与 canonical Project/Case state 分离：`phase` 区分普通 Loop 和 Git 收尾；`case_id` 与 `case_chain` 保存当前可信绑定和有依据的前后 Case 关系；`pending_continuation` 保存收尾发现及来源；`trusted_ledger_changed_files` 保存本次执行累计接受的 Ledger 变更路径。该对象不携带下一 Gap、skill 或工作路径路由。
+Automation 产品层维护 `arcorbit-execution-checkpoint/v1`，与 canonical Project/Case state 分离：`phase` 区分普通 Loop 和 Git 收尾；`case_id` 与 `case_chain` 保存当前可信绑定和有依据的前后 Case 关系；`pending_continuation` 保存收尾发现及来源；`trusted_ledger_changed_files` 保存本次执行累计接受的 Ledger 变更路径。该对象不携带下一 Gap、skill 或工作路径路由。
 
-Ledger 接受 Case 完成后才进入收尾。Agent 返回带证据的 `resume_loop` 时，Host 将发现持久保存，恢复普通 Loop。Agent 在 fresh state 中选择或创建后续 Case；Ledger 接受后，Host 才更新当前 Case，保留前后关联。没有可信续办关系的多个 Case 回执仍视为绑定冲突；不取最后一个 Case 掩盖冲突，也不改写已关闭 Case 的历史验收。
+通用 `runStateDrivenSession` 只运行到可信 Case 完成，使用不含 Git 阶段的 `arckit-case-execution/v1`。Automation 的 `runAutomationSession` 持有整个任务唯一的 adapter/thread，在 Ledger 接受 Case 完成后，按 Coordinator 显式提供的 `delivery_policy` 调用 Git 交付；缺少授权策略不执行交付。`using-arckit` 提供通用 Loop 方法，`arckit-development-ledger` 接受状态变更，Git 交付直接请求同一会话的 Agent 使用原生能力完成；Automation 提供目标、授权范围和结果契约，不增加 Git skill 或能力绑定。场景配置只管理技能可发现性，不在每轮附加入口 skill input；普通 Gap 轮使用自然 `$using-arckit` trigger，Git 轮仅发送交付请求。Agent 返回带证据的 `resume_loop` 时，Host 将发现持久保存，恢复普通 Loop。Agent 在 fresh state 中选择或创建后续 Case；Ledger 接受后，Host 才更新当前 Case，保留前后关联。没有可信续办关系的多个 Case 回执仍视为绑定冲突；不取最后一个 Case 掩盖冲突，也不改写已关闭 Case 的历史验收。
 
-Runner 与事件投影使用相同的确定性 checkpoint reducer。Ledger 回执和收尾结果事件本身就能更新恢复状态，不依赖最终 `result.json` 或后续 checkpoint 事件一定落盘。Coordinator 将恢复状态保存到活动执行，下一 Run 沿同一 thread 继续；每轮 prompt 都从最新 checkpoint 和 fresh canonical snapshot 生成。Host 恢复状态不代替 Case facts，也不扩大用户授权。
+Automation runner 与事件投影使用相同的确定性 checkpoint reducer；该 reducer 复用通用 Case 关联算法并保留旧 v1 持久格式，升级不丢失待续办发现。已完成交付的 checkpoint 直接恢复结果，不重复 Git turn。Ledger 回执和收尾结果事件本身就能更新恢复状态，不依赖最终 `result.json` 或后续 checkpoint 事件一定落盘。Coordinator 将恢复状态保存到活动执行，下一 Run 沿同一 thread 继续；每轮 prompt 都从最新 checkpoint 和 fresh canonical snapshot 生成。Host 恢复状态不代替 Case facts，也不扩大用户授权。
 
 正常结束通知与启动恢复共用一个结果消费入口。结构有效性、业务等待与技术失败分别表达：`needs_human` 保留人的决定，`external_wait` 保留依赖与恢复条件，`resume_loop` 恢复普通执行，`failed` 进入技术恢复。UI 使用同一收尾契约解释消息状态。用户结束执行仍保留未完成义务，不等同于 Case 完成或远端待办完成。
 

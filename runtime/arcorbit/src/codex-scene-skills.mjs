@@ -1,7 +1,6 @@
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {atomicJson, digest} from './skill-files.mjs';
-import { CORE_SKILLS } from './core-skill-identity.mjs';
 import { validateSceneSkillBinding } from './scene-skill-manager.mjs';
 
 export async function configureCodexSceneSkills(client, projectRoot, binding) {
@@ -22,8 +21,8 @@ export async function configureCodexSceneSkills(client, projectRoot, binding) {
     // A folder is accepted by the config parser but does not disable the skill.
     // Overrides belong to thread start/resume. Never write global Codex configuration.
     const demand = await createOnDemandTools(binding);
-    return { ...demand, config: { 'skills.config': overrides }, fingerprint: binding.fingerprint,
-      skillInputs: binding.scene === 'automation' ? binding.skills.filter(x => CORE_SKILLS.includes(x.name)).map(x => ({ type: 'skill', name: x.name, path: x.skillPath })) : [] };
+    // Scene configuration controls discovery. Invocation belongs to the current turn.
+    return { ...demand, config: { 'skills.config': overrides }, fingerprint: binding.fingerprint };
   } catch (error) { throw new Error(`无法应用场景技能配置，请检查 Codex 的 skills/extraRoots/set 支持和技能来源：${error.message}`, { cause: error }); }
 }
 

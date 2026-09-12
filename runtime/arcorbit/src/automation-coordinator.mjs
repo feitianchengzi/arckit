@@ -1,7 +1,8 @@
+import { automationDeliveryPolicy } from './automation/delivery-policy.mjs';
 import { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
 export { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
-import { checkpointFromRun, isExecutionCheckpoint } from './kernel/execution-checkpoint.mjs';
-import { executionOutcome, executionHandoff } from './kernel/execution-outcome.mjs';
+import { checkpointFromRun, isExecutionCheckpoint } from './automation/execution-checkpoint.mjs';
+import { executionOutcome, executionHandoff } from './automation/execution-outcome.mjs';
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -1660,8 +1661,8 @@ function createLaneAutomationCoordinator({
           ...(active.execution_kind === 'acceptance_feedback' ? acceptanceFeedbackRuntimeContext(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id)) : {})
         } : closeoutOnly
           ? active.execution_kind === "acceptance_feedback"
-            ? { closeout_only: true, case_id: caseBinding.case_id, kind: "acceptance_feedback", feedback_id: active.feedback_id }
-            : { closeout_only: true, case_id: caseBinding.case_id }
+            ? { ...continuationContext(active, task), closeout_only: true, case_id: caseBinding.case_id, kind: "acceptance_feedback", feedback_id: active.feedback_id }
+            : { ...continuationContext(active, task), closeout_only: true, case_id: caseBinding.case_id }
           : active.execution_kind === "acceptance_feedback"
             ? { ...continuationContext(active, store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id))), ...acceptanceFeedbackRuntimeContext(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id)) }
             : continuationContext(active, task),
@@ -3190,6 +3191,7 @@ function median(values) {
 export function continuationContext(active, task = null) {
   const binding = persistedCaseBinding(active);
   return {
+    execution_product: "automation", delivery_policy: automationDeliveryPolicy(),
     task_id: String(active?.task_id || ''), original_task: task?.content || task?.title || active?.task_title || '',
     case_id: binding.status === 'bound' ? binding.case_id : '',
     case_binding: binding,

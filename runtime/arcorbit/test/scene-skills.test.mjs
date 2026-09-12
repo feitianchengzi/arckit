@@ -98,7 +98,7 @@ test('Codex roots and local config exclude disabled or shadowing native skills a
  const configured=await configureCodexSceneSkills(client,f.project,binding);
  assert.deepEqual(requests[0],{method:'skills/extraRoots/set',params:{extraRoots:binding.skills.map(x=>x.path)}});
  assert.equal(configured.config['skills.config'].find(x=>x.path==='/native/using-arckit/SKILL.md').enabled,false);
- assert.deepEqual(configured.skillInputs,[]);
+ assert.equal(configured.skillInputs,undefined);
  await assert.rejects(configureCodexSceneSkills({request:async()=>{throw Error('method not found');}},f.project,binding),/extraRoots/);
 });
 test('readiness lists cleanup without deleting until the reviewed plan is explicitly confirmed',async()=>{

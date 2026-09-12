@@ -1,4 +1,4 @@
-import { selectEffectiveLoopHandoff } from './effective-handoff.mjs';
+import { selectEffectiveLoopHandoff } from '../kernel/effective-handoff.mjs';
 import { selectTaskCloseoutResult, taskCloseoutHandoff } from '../task-closeout-contract.mjs';
 import { acceptedCaseCompletion, checkpointFromRun } from './execution-checkpoint.mjs';
 export { acceptedCaseCompletion } from './execution-checkpoint.mjs';

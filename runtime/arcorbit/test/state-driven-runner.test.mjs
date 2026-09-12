@@ -1,3 +1,5 @@
+import { runAutomationSession } from '../src/automation/session.mjs';
+import { automationDeliveryPolicy } from '../src/automation/delivery-policy.mjs';
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -72,14 +74,8 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   assert.equal(result.paused_for_human, false);
   assert.equal(result.thread_id, "THREAD-1");
   assert.equal(adapter.compacted, 1);
-  assert.equal(adapter.prompts.length, 1);
-  assert.match(adapter.prompts[0], /"workflow_authority": "\$using-arckit"/);
-  assert.match(adapter.prompts[0], /"case_completion": "trusted_ledger_accepted"/);
-  assert.match(adapter.prompts[0], /"authoritative_case_id": "CASE-1"/);
-  assert.match(adapter.prompts[0], /"trusted_ledger_changed_files": \[/);
-  assert.match(adapter.prompts[0], /"case\.md"/);
-  assert.match(adapter.prompts[0], /"state\.record\.json"/);
-  assert.doesNotMatch(adapter.prompts[0], /final proportionate checks|repair issues if necessary/);
+  assert.deepEqual(adapter.prompts, []); // Generic Case completion never invokes Git delivery.
+  assert.equal(result.case_checkpoint.phase, 'completed');
   const candidatesIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_candidates");
   const selectionIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_selection");
   const closeoutIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_closeout");
@@ -179,11 +175,11 @@ test("terminal Agent result without an authoritative Case binding stops before c
 
   assert.equal(result.stop_reason, "stopped");
   assert.match(result.next_action, /unresolved Case obligations are preserved/);
-  assert.equal(result.closeout_result, null);
+  assert.equal(result.closeout_result, undefined);
   assert.deepEqual(adapter.prompts, []);
 });
 
-test("trusted closed Case reuse receipt establishes binding and permits closeout", async () => {
+test("trusted closed Case reuse receipt establishes completion without requiring delivery", async () => {
   const adapter = closeoutAdapter();
   const result = await runStateDrivenSession({
     projectRoot: "/workspace/project",
@@ -206,8 +202,8 @@ test("trusted closed Case reuse receipt establishes binding and permits closeout
   });
 
   assert.equal(result.stop_reason, "completed");
-  assert.equal(adapter.prompts.length, 1);
-  assert.match(adapter.prompts[0], /"authoritative_case_id": "CASE-1"/);
+  assert.deepEqual(adapter.prompts, []);
+  assert.equal(result.case_checkpoint.case_id, "CASE-1");
 });
 
 test("recoverable ledger rejection enters an independent Agent repair budget", () => {
@@ -387,7 +383,7 @@ test("rejected terminal ledger write reaches Agent repair limit without Git clos
 
   assert.equal(result.stop_reason, "agent_repair_limit");
   assert.equal(roundCalls, 2);
-  assert.equal(result.closeout_result, null);
+  assert.equal(result.closeout_result, undefined);
   assert.deepEqual(adapter.prompts, []);
 });
 
@@ -712,17 +708,17 @@ test('closeout discoveries resume the same Agent thread through ordinary ledger 
   };
   let roundCalls = 0;
   let reads = 0;
-  const result = await runStateDrivenSession({
+  const result = await runAutomationSession({
     projectRoot: '/workspace/project',
     stateStore: { async readSnapshot() { reads += 1; return snapshot(reads); } },
-    options: { task: 'finish the original case', agentAdapter: adapter, runtimeContext: { case_id: 'CASE-1' } },
+    options: { task: 'finish the original case', agentAdapter: adapter, runtimeContext: { case_id: 'CASE-1', delivery_policy: automationDeliveryPolicy() } },
     dependencies: {
       async runRound({ options }) {
         roundCalls += 1;
         if (roundCalls === 2) {
           const instruction = JSON.parse(options.task);
           assert.equal(instruction.authoritative_case_id, 'CASE-1');
-          assert.deepEqual(instruction.closeout_discovery.evidence, ['fixture:closeout-discovery']);
+          assert.deepEqual(instruction.continuation_discovery.evidence, ['fixture:closeout-discovery']);
           assert.equal(options.agentAdapter, adapter);
         }
         return loopResult(terminalHandoff());

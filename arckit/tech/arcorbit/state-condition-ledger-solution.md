@@ -41,7 +41,7 @@ Canonical 协议只接受：
 
 Review finding 通过显式 `local:review-finding:<handle>` 关联 Ledger 实际派生的修复 Gap，使 threatened/undetermined 判断与 Review 结果在同次可信提交中闭合；未知引用仍拒绝。Runtime 不从 blocked 字面值或路径分类推断该主张能否记账，最终合法性由 Ledger 验收。
 
-本次执行停止与 Case 完成分别投影：`handoff/none` 可以正常结束并保留未完成事项；只有可信完成回执才进入 Git 收尾。Git 收尾发现新的实质义务时，通过 Host 的 `resume_loop` 结果回到同一线程正常 Loop，Agent 决定 active Case 或有证据的后续 Case；不手改已关闭 Case，也不因阶段切换强制转人工。
+本次执行停止与 Case 完成分别投影：`handoff/none` 可以正常结束并保留未完成事项；通用 Loop 在可信完成回执后结束；Automation 另按显式交付策略进入 Git 收尾。Git 收尾发现新的实质义务时，通过 Host 的 `resume_loop` 结果回到同一线程正常 Loop，Agent 决定 active Case 或有证据的后续 Case；不手改已关闭 Case，也不因阶段切换强制转人工。
 
 拒绝恢复透传准确错误、原主张与未变的授权。方法负责判断恢复范围；工具缺陷不会自动扩大为通用能力维护，技术故障也不等同人工业务决策。既有单 Gap 因果反馈、不变量判断、Review 循环、freshness 与原子提交保证继续适用。
 

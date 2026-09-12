@@ -253,7 +253,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
           approvalsReviewer: "user",
           model: effectiveOptions.model || null,
-          input: [{ type: "text", text: prompt }, ...(effectiveOptions.skillInputs || []), ...(sceneSkills?.skillInputs || [])]
+          input: [{ type: "text", text: prompt }, ...(effectiveOptions.skillInputs || [])]
         };
         if (effectiveOptions.sandboxPolicy) turnStartParams.sandboxPolicy = effectiveOptions.sandboxPolicy;
         if (effectiveOptions.reasoningEffort) {

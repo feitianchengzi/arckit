@@ -69,6 +69,6 @@ Project delta 不等待 Case resolved：长期结论在被澄清的当轮就更�
 
 ## Completion Review 与 handoff
 
-普通工作全部闭合后，Review 只检查 implementation correctness、problem resolution、verification credibility、regression risk 和 minimality。Finding 转成普通动态 gap；解决 finding 会提升 content revision，随后重新 Review。它是唯一显式语义自查，也是兜底而非常规事实维护阶段。Case resolved 后的 task closeout 只做 Git 提交判断，不再产生新的语义工作。
+普通工作全部闭合后，Review 只检查 implementation correctness、problem resolution、verification credibility、regression risk 和 minimality。Finding 转成普通动态 gap；解决 finding 会提升 content revision，随后重新 Review。它是唯一显式语义自查，也是兜底而非常规事实维护阶段。Case resolved 后不在该历史验收上追加语义工作；完成后的新发现按正常入口 fresh-read，再选择适合的 active Case 或有依据的后续 Case。
 
 只有 `next_responsibility=human` 暂停并要求用户。`external` 保存恢复条件；`agent` fresh-read 后自动继续；`none` 表示 ledger 已派生 resolved。

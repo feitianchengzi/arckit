@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {applyRunEvent, finalizeRunActivity} from '../src/projection/run-event-projector.mjs';
-import {executionOutcome} from '../src/kernel/execution-outcome.mjs';
+import {executionOutcome} from '../src/automation/execution-outcome.mjs';
 
 test('terminal session error survives exit code and reaches Automation recovery reason',()=>{
  const run={id:'RUN-schema-failed',status:'running'};
