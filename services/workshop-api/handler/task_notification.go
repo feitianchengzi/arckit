@@ -254,11 +254,8 @@ func deliverTaskNotifications(ctx context.Context, db *gorm.DB, mutation taskNot
 
 	changeSummary := describeTaskChanges(mutation)
 	for _, recipient := range recipients {
-		if recipient.UserID == mutation.ActorUserID {
-			continue
-		}
 		eventType := selectTaskNotificationEvent(recipient.TaskNotificationPreference, mutation, recipient.UserID)
-		if eventType == "" || strings.TrimSpace(recipient.UserUUID) == "" {
+		if !shouldDeliverTaskNotification(recipient.UserID, mutation.ActorUserID, eventType) || strings.TrimSpace(recipient.UserUUID) == "" {
 			continue
 		}
 		request := taskNotificationEmailRequest{
@@ -281,6 +278,13 @@ func deliverTaskNotifications(ctx context.Context, db *gorm.DB, mutation taskNot
 		}
 	}
 	return nil
+}
+
+func shouldDeliverTaskNotification(recipientUserID, actorUserID uint, eventType string) bool {
+	if eventType == "" {
+		return false
+	}
+	return recipientUserID != actorUserID || eventType == "assigned_to_me"
 }
 
 func selectTaskNotificationEvent(preference models.TaskNotificationPreference, mutation taskNotificationMutation, recipientUserID uint) string {

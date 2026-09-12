@@ -65,6 +65,25 @@ func TestTaskNotificationChoosesSingleHighestPriorityEvent(t *testing.T) {
 	}
 }
 
+func TestTaskNotificationSendsSelfAssignmentFromOwnAction(t *testing.T) {
+	preference := models.DefaultTaskNotificationPreference(12, 7)
+	mutation := taskNotificationMutation{
+		Created:     true,
+		ActorUserID: 7,
+		Task:        models.Task{ID: 44, ProjectID: 12, ExecutorID: notificationUintPointer(7)},
+	}
+	event := selectTaskNotificationEvent(preference, mutation, 7)
+	if event != "assigned_to_me" {
+		t.Fatalf("expected self-assignment event, got %q", event)
+	}
+	if !shouldDeliverTaskNotification(7, mutation.ActorUserID, event) {
+		t.Fatal("expected assigned_to_me to bypass ordinary own-action suppression")
+	}
+	if shouldDeliverTaskNotification(7, mutation.ActorUserID, "task_created") {
+		t.Fatal("ordinary notifications from the recipient's own action should remain suppressed")
+	}
+}
+
 func TestSendTaskNotificationEmailUsesInternalContract(t *testing.T) {
 	var received taskNotificationEmailRequest
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

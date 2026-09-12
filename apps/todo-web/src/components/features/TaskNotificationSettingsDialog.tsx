@@ -454,7 +454,7 @@ export function TaskNotificationSettingsDialog({
               ))}
             </div>
             <p className="mt-3 text-xs leading-5 text-foreground-tertiary">
-              同一次修改命中多个范围时会合并为一封邮件；你自己的操作不会给自己发信。
+              同一次修改命中多个范围时会合并为一封邮件；即使由你本人操作，“指派给我”也会发送。
             </p>
           </section>
 
