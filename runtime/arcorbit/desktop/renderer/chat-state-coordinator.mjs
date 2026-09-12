@@ -26,6 +26,7 @@ export function createChatStateCoordinator({
     snapshot: normalizeSnapshot({}),
     owner: normalizeOwner(),
     draft: "",
+    configuration: { model: "", reasoning_effort: "" },
     retry_client_request_id: "",
     sending: false,
     refreshing: false,
@@ -54,10 +55,21 @@ export function createChatStateCoordinator({
   }
 
   function draftPayload(text = value.draft) {
-    return {
+    const payload = {
       session_id: value.owner.session_id,
       project_id: currentProjectId(),
       text: String(text || "")
+    };
+    if (value.configuration.model && value.configuration.reasoning_effort) Object.assign(payload, value.configuration);
+    return payload;
+  }
+
+  function configurationFor(snapshot, owner = value.owner) {
+    const session = sessionById(snapshot, owner.session_id);
+    const source = session || snapshot.draft || {};
+    return {
+      model: String(source.model || ""),
+      reasoning_effort: String(source.reasoning_effort || "")
     };
   }
 
@@ -114,6 +126,7 @@ export function createChatStateCoordinator({
       value = {
         ...previous,
         snapshot,
+        configuration: configurationFor(snapshot, previous.owner),
         owner: previousSession
           ? { session_id: previous.owner.session_id, project_id: previousSession.project_id || "" }
           : previous.owner
@@ -126,6 +139,7 @@ export function createChatStateCoordinator({
       value = {
         ...previous,
         snapshot,
+        configuration: configurationFor(snapshot, { session_id: snapshotSelection, project_id: session?.project_id || "" }),
         owner: { session_id: snapshotSelection, project_id: session?.project_id || "" }
       };
       return true;
@@ -138,6 +152,9 @@ export function createChatStateCoordinator({
       owner: selectedSession
         ? { session_id: snapshotSelection, project_id: selectedSession.project_id || "" }
         : { session_id: "", project_id: String(snapshot.draft?.project_id || snapshot.projects?.[0]?.id || "") },
+      configuration: configurationFor(snapshot, selectedSession
+        ? { session_id: snapshotSelection, project_id: selectedSession.project_id || "" }
+        : { session_id: "", project_id: String(snapshot.draft?.project_id || "") }),
       draft: String(snapshot.draft?.text || "")
     };
     draftRevision += 1;
@@ -160,19 +177,23 @@ export function createChatStateCoordinator({
     adoptSnapshot(snapshot, { epoch });
   }
 
-  async function newDraft(projectId = currentProjectId()) {
+  async function newDraft(projectId = currentProjectId(), configuration = value.configuration) {
     const epoch = beginOwnerTransition();
     value = {
       ...value,
       owner: { session_id: "", project_id: String(projectId || "") },
       draft: "",
+      configuration: {
+        model: String(configuration?.model || ""),
+        reasoning_effort: String(configuration?.reasoning_effort || "")
+      },
       retry_client_request_id: "",
       error: ""
     };
     draftRevision += 1;
     const acceptedDraftRevision = draftRevision;
     await flushDraft();
-    const snapshot = await api.createChat({ project_id: value.owner.project_id, text: "" });
+    const snapshot = await api.createChat(draftPayload(""));
     adoptDraftOwnerTransition(snapshot, { epoch, acceptedDraftRevision });
     return snapshot;
   }
@@ -188,7 +209,7 @@ export function createChatStateCoordinator({
     };
     const acceptedDraftRevision = draftRevision;
     await flushDraft();
-    const snapshot = await api.createChat({ project_id: value.owner.project_id, text: draft });
+    const snapshot = await api.createChat(draftPayload(draft));
     adoptDraftOwnerTransition(snapshot, { epoch, acceptedDraftRevision });
     return snapshot;
   }
@@ -270,6 +291,18 @@ export function createChatStateCoordinator({
     scheduleDraft();
   }
 
+  function setConfiguration(configuration = {}) {
+    value = {
+      ...value,
+      configuration: {
+        model: String(configuration.model || ""),
+        reasoning_effort: String(configuration.reasoning_effort || "")
+      }
+    };
+    draftRevision += 1;
+    scheduleDraft();
+  }
+
   function prepareRetry() {
     const lastUser = [...(value.snapshot.messages || [])].reverse().find((message) => message.role === "user" && message.kind === "text");
     value = {
@@ -325,6 +358,7 @@ export function createChatStateCoordinator({
     const sessionId = value.owner.session_id;
     const session = sessionById(value.snapshot, sessionId);
     const retryId = value.retry_client_request_id;
+    const configuration = { ...value.configuration };
     const acceptedDraftRevision = draftRevision;
     const clientRequestId = retryId && retryId === String(session?.retry_client_request_id || "")
       ? retryId
@@ -339,12 +373,14 @@ export function createChatStateCoordinator({
         value = { ...value, draft: "" };
         draftRevision += 1;
       }
-      const snapshot = await api.sendChatMessage({
+      const payload = {
         session_id: sessionId,
         project_id: projectId,
         text,
         client_request_id: clientRequestId
-      });
+      };
+      if (configuration.model && configuration.reasoning_effort) Object.assign(payload, configuration);
+      const snapshot = await api.sendChatMessage(payload);
       value = { ...value, retry_client_request_id: "" };
       const applied = adoptSnapshot(snapshot, {
         epoch,
@@ -392,6 +428,7 @@ export function createChatStateCoordinator({
     decideApproval,
     refresh,
     setDraft,
+    setConfiguration,
     prepareRetry,
     applyStreamEvent,
     send,

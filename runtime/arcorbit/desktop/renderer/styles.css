@@ -690,9 +690,16 @@ body.is-resizing-work-inspector { cursor: col-resize; user-select: none; }
 .chat-composer textarea:focus { outline: 2px solid rgba(42, 106, 222, .16); border-color: var(--blue-600); }
 .chat-composer-foot { margin-top: 8px; justify-content: flex-end; }
 .chat-composer-foot small { margin-right: auto; color: var(--ink-400); font-size: var(--type-micro); }
+.chat-composer-config { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.chat-composer-setting { display: flex; align-items: center; gap: 5px; color: var(--ink-500); font-size: var(--type-micro); font-weight: 700; }
+.chat-composer-setting input { width: 112px; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--ink-200); border-radius: 7px; color: var(--ink-700); background: var(--ink-50); font: inherit; font-weight: 600; }
+.chat-composer-setting input:focus { outline: 2px solid rgba(42, 106, 222, .16); border-color: var(--blue-600); background: var(--paper); }
+.chat-composer-setting input[aria-invalid="true"] { border-color: var(--red-600); }
 
 @media (max-width: 1100px) {
   .chat-workspace { grid-template-columns: 220px minmax(0, 1fr); }
+  .chat-composer-foot { flex-wrap: wrap; }
+  .chat-composer-foot small { order: 3; width: 100%; }
 }
 .planning-message { max-width: 92%; margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--ink-150); border-radius: 9px; background: #fff; }
 .planning-message.user { justify-self: end; max-width: 78%; border-color: #dcd9ff; background: var(--violet-50); }

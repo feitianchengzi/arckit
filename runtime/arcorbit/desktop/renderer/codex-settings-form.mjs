@@ -1,7 +1,8 @@
 import { normalizeCodexSettings, validateCodexSettingsPatch } from "../../src/codex-model-settings.mjs";
 
 export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
-  const { model, effort, modelList, effortList, refreshButton, saveButton, feedback, catalogFeedback, generalSaveButton } = elements;
+  const { contexts, refreshButton, saveButton, feedback, catalogFeedback, generalSaveButton } = elements;
+  const fields = Object.values(contexts);
   let generation = 0;
   let queryRevision = 0;
   let models = [];
@@ -14,15 +15,19 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
       return option;
     }));
   }
-  function updateEfforts() {
-    const selected = models.find((item) => item.model === model.value.trim());
-    setOptions(effortList, (selected?.reasoningEfforts || []).map((value) => ({ value })));
+  function updateEfforts(context) {
+    const selected = models.find((item) => item.model === context.model.value.trim());
+    setOptions(context.effortList, (selected?.reasoningEfforts || []).map((value) => ({ value })));
   }
   function busy(value) {
-    model.disabled = effort.disabled = saveButton.disabled = generalSaveButton.disabled = value;
+    for (const field of fields) field.model.disabled = field.effort.disabled = value;
+    saveButton.disabled = generalSaveButton.disabled = value;
   }
   function read() {
-    const value = { model: model.value, reasoning_effort: effort.value };
+    const value = Object.fromEntries(Object.entries(contexts).map(([key, context]) => [key, {
+      model: context.model.value,
+      reasoning_effort: context.effort.value
+    }]));
     validateCodexSettingsPatch(value);
     return normalizeCodexSettings(value);
   }
@@ -30,11 +35,13 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
     generation += 1;
     queryRevision += 1;
     const value = normalizeCodexSettings(settings.codex);
-    model.value = value.model;
-    effort.value = value.reasoning_effort;
     models = [];
-    setOptions(modelList, []);
-    updateEfforts();
+    for (const [key, context] of Object.entries(contexts)) {
+      context.model.value = value[key].model;
+      context.effort.value = value[key].reasoning_effort;
+      setOptions(context.modelList, []);
+      updateEfforts(context);
+    }
     feedback.textContent = "";
     catalogFeedback.textContent = "可手动输入 Model 和 Level。";
     refreshButton.disabled = false;
@@ -49,16 +56,20 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
       const result = await api.listCodexModels();
       if (current !== generation || request !== queryRevision) return;
       models = result.status === "available" && Array.isArray(result.models) ? result.models : [];
-      setOptions(modelList, models.map((item) => ({ value: item.model, label: item.displayName })));
-      updateEfforts();
+      for (const context of fields) {
+        setOptions(context.modelList, models.map((item) => ({ value: item.model, label: item.displayName })));
+        updateEfforts(context);
+      }
       catalogFeedback.textContent = models.length
         ? "已获取候选；Level 候选随 Model 更新。当前值不在清单时也可保留并保存。"
         : "暂无可用清单，可手动输入 Model 和 Level，或重试。";
     } catch {
       if (current !== generation || request !== queryRevision) return;
       models = [];
-      setOptions(modelList, []);
-      updateEfforts();
+      for (const context of fields) {
+        setOptions(context.modelList, []);
+        updateEfforts(context);
+      }
       catalogFeedback.textContent = "暂时无法获取清单，可手动输入 Model 和 Level，或重试。";
     } finally {
       if (current === generation && request === queryRevision) refreshButton.disabled = false;
@@ -73,18 +84,23 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
       const settings = await api.updateSettings({ codex });
       if (current !== generation) return;
       onSaved(settings);
-      model.value = settings.codex.model;
-      effort.value = settings.codex.reasoning_effort;
-      updateEfforts();
-      feedback.textContent = "已保存。下一条 Chat 消息及下一次 Automation Run 使用新配置。";
+      const saved = normalizeCodexSettings(settings.codex);
+      for (const [key, context] of Object.entries(contexts)) {
+        context.model.value = saved[key].model;
+        context.effort.value = saved[key].reasoning_effort;
+        updateEfforts(context);
+      }
+      feedback.textContent = "已保存。新对话使用 Chat 默认值，下一次 Automation Run 使用 Automation 默认值。";
     } catch {
       if (current === generation) feedback.textContent = "保存失败。Model 和 Level 需为 1–200 个字符的非空文本；请检查后重试，当前输入已保留。";
     } finally {
       if (current === generation) busy(false);
     }
   }
-  model.addEventListener("input", () => { feedback.textContent = ""; updateEfforts(); });
-  effort.addEventListener("input", () => { feedback.textContent = ""; });
+  for (const context of fields) {
+    context.model.addEventListener("input", () => { feedback.textContent = ""; updateEfforts(context); });
+    context.effort.addEventListener("input", () => { feedback.textContent = ""; });
+  }
   refreshButton.addEventListener("click", refresh);
   saveButton.addEventListener("click", save);
   function lockSave() {

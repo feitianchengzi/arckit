@@ -27,7 +27,8 @@ const workAcceptanceLogoutTest = process.env.ARCORBIT_WORK_ACCEPTANCE_LOGOUT_TES
 const todayCreateIdentityMode = String(process.env.ARCORBIT_TODAY_CREATE_IDENTITY_MODE || "");
 const chatStreamPerformanceTest = process.env.ARCORBIT_CHAT_STREAM_PERFORMANCE_FIXTURE === "1";
 const chatContentOverflowTest = process.env.ARCORBIT_CHAT_CONTENT_OVERFLOW_FIXTURE === "1";
-const chatFixtureEnabled = chatStreamPerformanceTest || chatContentOverflowTest;
+const codexSettingsFixture = process.env.ARCORBIT_CODEX_SETTINGS_FIXTURE === "1";
+const chatFixtureEnabled = chatStreamPerformanceTest || chatContentOverflowTest || codexSettingsFixture;
 let chatSnapshotDelayMs = 0;
 let chatStreamEmitted = 0;
 let chatStreamTimer = null;
@@ -243,14 +244,18 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   refreshProductFeedbackUnread: async () => ({ status: "ready", unread_count: 0 }),
   getAuthStatus: async () => ({ status: "authenticated", authenticated: true, identity: "glare@example.test", masked_identity: "g***@example.test" }),
   chatSnapshot: testChatSnapshot,
-  createChat: noOp,
+  createChat: async (input = {}) => {
+    calls.push(["createChat", input]);
+    return codexSettingsFixture ? testChatSnapshotValue("") : {};
+  },
   selectChat: async ({ session_id: sessionId }) => {
     selectedChatSessionId = String(sessionId || "");
     calls.push(["selectChat", { session_id: selectedChatSessionId }]);
     return testChatSnapshotValue(selectedChatSessionId);
   },
   deleteChat: noOp, renameChat: noOp,
-  interruptChat: noOp, decideChatApproval: noOp, sendChatMessage: noOp,
+  interruptChat: noOp, decideChatApproval: noOp,
+  sendChatMessage: async (input = {}) => { calls.push(["sendChatMessage", input]); return {}; },
   automationSnapshot: async (input) => process.env.ARCORBIT_TODAY_ACCEPTANCE_FIXTURE === "1"
     ? ipcRenderer.invoke("test:today-acceptance:automation", input) : automation,
   selectAutomationExecution: async (executionId) => {

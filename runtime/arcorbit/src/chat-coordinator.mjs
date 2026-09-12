@@ -1,4 +1,8 @@
-import { normalizeCodexSettings } from "./codex-model-settings.mjs";
+import {
+  normalizeCodexExecutionSettings,
+  normalizeCodexSettings,
+  validateCodexExecutionSettingsPatch
+} from "./codex-model-settings.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
@@ -62,19 +66,25 @@ export function createChatCoordinator({
     const explicitSelection = Object.prototype.hasOwnProperty.call(input, "session_id");
     const requestedId = String(explicitSelection ? input.session_id || "" : store.chat?.selected_session_id || "");
     const selected = sessions.find((session) => session.id === requestedId) || null;
+    const chatDefaults = normalizeCodexSettings(store.settings?.codex).chat;
+    const selectedConfiguration = normalizeCodexExecutionSettings(
+      selected || store.chat?.draft,
+      chatDefaults
+    );
     const pendingApprovals = sessions.flatMap((session) => projectedSessionMessages(store.messages?.[session.id] || [], liveMessages.get(session.id))
       .filter((message) => message.kind === "approval" && message.status === "pending")
       .map((message) => ({ ...publicMessage(message), session_id: session.id, project_id: session.project_id, session_title: session.title })));
     return {
       generated_at: now(),
       projects: (store.projects || []).map(({ id, name }) => ({ id, name })),
-      sessions: sessions.map(publicSession),
+      sessions: sessions.map((session) => publicSession(session, chatDefaults)),
       selected_session_id: selected?.id || "",
       messages: selected ? projectedSessionMessages(store.messages?.[selected.id] || [], liveMessages.get(selected.id)).map(publicMessage) : [],
       pending_approvals: pendingApprovals,
       draft: {
         project_id: String(selected?.project_id || store.chat?.draft?.project_id || ""),
-        text: String(selected ? selected.draft || "" : store.chat?.draft?.text || "")
+        text: String(selected ? selected.draft || "" : store.chat?.draft?.text || ""),
+        ...selectedConfiguration
       }
     };
   }
@@ -84,20 +94,24 @@ export function createChatCoordinator({
     const sessionId = String(input.session_id || "");
     const projectId = String(input.project_id || "");
     const text = String(input.text || "").slice(0, 100_000);
+    const requestedConfiguration = configurationFromInput(input);
     const store = await readChatStore();
     if (projectId && !store.projects.some((project) => project.id === projectId)) throw new Error("Select an available local Product Workspace.");
     await updateChatStore((draft) => {
       draft.chat ||= {};
+      const chatDefaults = normalizeCodexSettings(draft.settings?.codex).chat;
       if (sessionId) {
         const located = findSessionById(draft, sessionId);
         if (!located || located.session.kind !== "chat") throw new Error("Unknown Chat session.");
         located.session.draft = text;
+        if (requestedConfiguration) Object.assign(located.session, requestedConfiguration);
         located.session.updated_at = now();
         draft.chat.selected_session_id = sessionId;
         return draft;
       }
       draft.chat.selected_session_id = "";
-      draft.chat.draft = { project_id: projectId, text, updated_at: now() };
+      const configuration = requestedConfiguration || normalizeCodexExecutionSettings(draft.chat.draft, chatDefaults);
+      draft.chat.draft = { project_id: projectId, text, ...configuration, updated_at: now() };
       return draft;
     });
     changed("chat.draft.changed");
@@ -141,6 +155,8 @@ export function createChatCoordinator({
     let project;
     let acceptedMessage = false;
     let shouldStart = false;
+    let turnConfiguration;
+    const requestedConfiguration = configurationFromInput(input);
 
     await updateChatStore((store) => {
       let located = sessionId ? findSessionById(store, sessionId) : null;
@@ -159,6 +175,8 @@ export function createChatCoordinator({
       if (creating) {
         sessionId = `CHAT-${idFactory()}`;
         const createdAt = now();
+        const chatDefaults = normalizeCodexSettings(store.settings?.codex).chat;
+        const configuration = requestedConfiguration || normalizeCodexExecutionSettings(store.chat?.draft, chatDefaults);
         const session = {
           id: sessionId,
           project_id: project.id,
@@ -170,6 +188,7 @@ export function createChatCoordinator({
           status: "starting",
           error: "",
           draft: "",
+          ...configuration,
           created_at: createdAt,
           updated_at: createdAt
         };
@@ -187,6 +206,7 @@ export function createChatCoordinator({
       );
       if (existingMessage && !retryingFailedStartup) return store;
       if (!creating && ACTIVE_STATUSES.has(located.session.status)) throw new Error("This conversation already has an active turn.");
+      if (requestedConfiguration) Object.assign(located.session, requestedConfiguration);
       const createdAt = now();
       if (existingMessage) {
         existingMessage.content = text;
@@ -213,6 +233,10 @@ export function createChatCoordinator({
       located.session.draft = "";
       located.session.retry_client_request_id = requestId;
       located.session.updated_at = createdAt;
+      turnConfiguration = normalizeCodexExecutionSettings(
+        located.session,
+        normalizeCodexSettings(store.settings?.codex).chat
+      );
       store.chat.selected_session_id = sessionId;
       store.chat.draft = { project_id: project.id, text: "", updated_at: createdAt };
       shouldStart = true;
@@ -223,7 +247,7 @@ export function createChatCoordinator({
     changed("chat.turn.starting", sessionId);
     try {
       const owner = await ownerFor(sessionId, project);
-      owner.completion = consumeTurn({ owner, sessionId, project, text });
+      owner.completion = consumeTurn({ owner, sessionId, project, text, configuration: turnConfiguration });
     } catch (error) {
       await failSession(sessionId, error);
       throw error;
@@ -231,7 +255,7 @@ export function createChatCoordinator({
     return getSnapshot({ session_id: sessionId });
   }
 
-  async function consumeTurn({ owner, sessionId, project, text }) {
+  async function consumeTurn({ owner, sessionId, project, text, configuration }) {
     try {
       await setupReadinessPreflight(resolve(project.path));
       if (owner.cancelled) return;
@@ -241,7 +265,10 @@ export function createChatCoordinator({
       const executable = normalizeExecutable(getCodexExecutable());
       const settings = await runManager.getSettings();
       const env = prependPath(buildRuntimeEnv({ ...process.env }, settings), executable.pathEntries);
-      const codexSettings = normalizeCodexSettings(settings.codex);
+      const codexSettings = normalizeCodexExecutionSettings(
+        configuration,
+        normalizeCodexSettings(settings.codex).chat
+      );
       const context = await getTurnContext({ project, sessionId, text });
       const skillFingerprint = context.options?.sceneSkillBinding?.fingerprint || '';
       if (owner.skillFingerprint && owner.skillFingerprint !== skillFingerprint) {
@@ -684,7 +711,7 @@ export function createChatCoordinator({
   };
 }
 
-function publicSession(session) {
+function publicSession(session, fallback) {
   return {
     id: session.id,
     project_id: session.project_id,
@@ -692,9 +719,19 @@ function publicSession(session) {
     status: session.status,
     error: session.error || "",
     retry_client_request_id: session.status === "failed" ? String(session.retry_client_request_id || "") : "",
+    ...normalizeCodexExecutionSettings(session, fallback),
     created_at: session.created_at,
     updated_at: session.updated_at
   };
+}
+
+function configurationFromInput(input = {}) {
+  const hasModel = Object.prototype.hasOwnProperty.call(input, "model");
+  const hasEffort = Object.prototype.hasOwnProperty.call(input, "reasoning_effort");
+  if (!hasModel && !hasEffort) return null;
+  const configuration = { model: input.model, reasoning_effort: input.reasoning_effort };
+  validateCodexExecutionSettingsPatch(configuration);
+  return normalizeCodexExecutionSettings(configuration);
 }
 
 function publicMessage(message) {

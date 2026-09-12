@@ -4,7 +4,11 @@ import { createReleaseSurface } from "./release-surface.mjs";
 import { createProductSurface } from "./product-surface.mjs";
 import { createConversationComposer } from "./conversation-composer.mjs";
 import { createCodexSettingsForm } from "./codex-settings-form.mjs";
-import { normalizeCodexSettings } from "../../src/codex-model-settings.mjs";
+import {
+  normalizeCodexExecutionSettings,
+  normalizeCodexSettings,
+  validateCodexExecutionSettingsPatch
+} from "../../src/codex-model-settings.mjs";
 import {
   isConversationSurfaceMessageVisible,
   mergeAutomationTranscript,
@@ -221,8 +225,16 @@ const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map
 const codexSettingsForm = createCodexSettingsForm({
   api,
   elements: {
-    model: els.codexModel, effort: els.codexEffort,
-    modelList: els.codexModelOptions, effortList: els.codexEffortOptions,
+    contexts: {
+      chat: {
+        model: els.codexChatModel, effort: els.codexChatEffort,
+        modelList: els.codexChatModelOptions, effortList: els.codexChatEffortOptions
+      },
+      automation: {
+        model: els.codexAutomationModel, effort: els.codexAutomationEffort,
+        modelList: els.codexAutomationModelOptions, effortList: els.codexAutomationEffortOptions
+      }
+    },
     refreshButton: els.refreshCodexModelsButton, saveButton: els.saveCodexSettingsButton,
     feedback: els.codexSettingsFeedback, catalogFeedback: els.codexCatalogFeedback,
     generalSaveButton: els.saveSettingsButton
@@ -238,6 +250,8 @@ let chatRefreshQuiet = true;
 let chatRefreshResetOwner = false;
 let renderedChatProjectOptions = "";
 let renderedChatSessionList = "";
+let chatCodexModels = [];
+let chatCodexCatalogPromise = null;
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
@@ -571,7 +585,7 @@ function wireEvents() {
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   els.newChatButton.addEventListener("click", () => runAction(async () => {
     const projectId = defaultChatDraftProject()?.id || "";
-    await chatStateCoordinator.newDraft(projectId);
+    await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
     renderChat();
     els.chatInput.focus();
   }));
@@ -601,6 +615,13 @@ function wireEvents() {
     onStop: async () => { if (selectedChatSession()) await chatStateCoordinator.interruptCurrentSession(); renderChat(); },
     performAction: runAction
   });
+  for (const input of [els.chatCodexModel, els.chatCodexEffort]) {
+    input.addEventListener("focus", () => { void loadChatCodexCatalog(); });
+    input.addEventListener("input", () => {
+      updateChatCodexEffortOptions();
+      persistChatComposerConfiguration();
+    });
+  }
   els.syncButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.automationRefreshButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.productFeedbackButton.addEventListener("click", () => runAction(openProductFeedback));
@@ -1660,13 +1681,68 @@ function renderChatComposer() {
   const session = selectedChatSession();
   const project = selectedChatProject();
   const active = isChatActive(session?.status);
+  const configuration = normalizeCodexExecutionSettings(chat.configuration, state.settings.codex.chat);
+  if (document.activeElement !== els.chatCodexModel) els.chatCodexModel.value = configuration.model;
+  if (document.activeElement !== els.chatCodexEffort) els.chatCodexEffort.value = configuration.reasoning_effort;
+  els.chatCodexModel.disabled = els.chatCodexEffort.disabled = !project;
+  updateChatCodexEffortOptions();
   chatComposer?.render({draft:chat.draft,available:Boolean(project),active,sending:chat.sending,
     stopping:session?.status === "interrupting",waiting:session?.status === "waiting_approval",
     placeholder:project ? "向 Codex 提问或说明希望它在当前项目中完成什么…" : "先配置本地 Product Workspace…"});
 }
 
+function setDatalistOptions(list, values) {
+  list.replaceChildren(...values.map(({ value, label = value }) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.label = label;
+    return option;
+  }));
+}
+
+function updateChatCodexEffortOptions() {
+  const selected = chatCodexModels.find((item) => item.model === els.chatCodexModel.value.trim());
+  setDatalistOptions(els.chatCodexEffortOptions, (selected?.reasoningEfforts || []).map((value) => ({ value })));
+}
+
+async function loadChatCodexCatalog() {
+  if (chatCodexCatalogPromise) return chatCodexCatalogPromise;
+  chatCodexCatalogPromise = api.listCodexModels().then((result) => {
+    chatCodexModels = result?.status === "available" && Array.isArray(result.models) ? result.models : [];
+    setDatalistOptions(els.chatCodexModelOptions, chatCodexModels.map((item) => ({ value: item.model, label: item.displayName })));
+    updateChatCodexEffortOptions();
+  }).catch(() => {
+    chatCodexModels = [];
+    setDatalistOptions(els.chatCodexModelOptions, []);
+    updateChatCodexEffortOptions();
+  }).finally(() => { chatCodexCatalogPromise = null; });
+  return chatCodexCatalogPromise;
+}
+
+function readChatComposerConfiguration() {
+  const configuration = {
+    model: els.chatCodexModel.value,
+    reasoning_effort: els.chatCodexEffort.value
+  };
+  validateCodexExecutionSettingsPatch(configuration);
+  return normalizeCodexExecutionSettings(configuration);
+}
+
+function persistChatComposerConfiguration() {
+  try {
+    const configuration = readChatComposerConfiguration();
+    els.chatCodexModel.setAttribute("aria-invalid", "false");
+    els.chatCodexEffort.setAttribute("aria-invalid", "false");
+    chatStateCoordinator.setConfiguration(configuration);
+  } catch {
+    els.chatCodexModel.setAttribute("aria-invalid", String(!els.chatCodexModel.value.trim()));
+    els.chatCodexEffort.setAttribute("aria-invalid", String(!els.chatCodexEffort.value.trim()));
+  }
+}
+
 async function sendChat() {
   try {
+    chatStateCoordinator.setConfiguration(readChatComposerConfiguration());
     renderChatComposer();
     await chatStateCoordinator.send();
   } finally {
@@ -5511,6 +5587,8 @@ function normalizeChatSnapshot(value = {}) {
       status: String(session.status || "completed"),
       error: String(session.error || ""),
       retry_client_request_id: String(session.retry_client_request_id || ""),
+      model: String(session.model || ""),
+      reasoning_effort: String(session.reasoning_effort || ""),
       created_at: String(session.created_at || ""),
       updated_at: String(session.updated_at || session.created_at || "")
     })).filter((session) => session.id) : [],
@@ -5534,12 +5612,19 @@ function normalizeChatSnapshot(value = {}) {
       content: String(approval.content || ""),
       status: String(approval.status || "pending")
     })) : [],
-    draft: { ...defaults.draft, ...(value.draft || {}), project_id: String(value.draft?.project_id || ""), text: String(value.draft?.text || "") }
+    draft: {
+      ...defaults.draft,
+      ...(value.draft || {}),
+      project_id: String(value.draft?.project_id || ""),
+      text: String(value.draft?.text || ""),
+      model: String(value.draft?.model || ""),
+      reasoning_effort: String(value.draft?.reasoning_effort || "")
+    }
   };
 }
 
 function emptyChatSnapshot() {
-  return { generated_at: "", projects: [], sessions: [], selected_session_id: "", messages: [], pending_approvals: [], draft: { project_id: "", text: "" } };
+  return { generated_at: "", projects: [], sessions: [], selected_session_id: "", messages: [], pending_approvals: [], draft: { project_id: "", text: "", model: "", reasoning_effort: "" } };
 }
 
 function emptySnapshot() {

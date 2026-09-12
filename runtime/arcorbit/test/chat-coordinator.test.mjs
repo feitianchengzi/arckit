@@ -125,25 +125,40 @@ test("ChatCoordinator creates isolated persistent Chat sessions and resumes thei
 
     assert.equal(calls[0].options.model, "gpt-6-astra");
     assert.equal(calls[0].options.reasoningEffort, "high");
-    fixture.options.runManager.getSettings = async () => ({ codex: { model: "custom-model", reasoning_effort: "ultra" } });
+    fixture.options.runManager.getSettings = async () => ({ codex: {
+      chat: { model: "new-chat-default", reasoning_effort: "medium" },
+      automation: { model: "automation-only", reasoning_effort: "low" }
+    } });
+    await coordinator.createDraft({
+      session_id: sessionId,
+      text: "",
+      model: "conversation-model",
+      reasoning_effort: "ultra"
+    });
     snapshot = await coordinator.send({
-      session_id: sessionId, client_request_id: "REQUEST-2", text: "Continue"
+      session_id: sessionId, client_request_id: "REQUEST-2", text: "Continue",
+      model: "conversation-model", reasoning_effort: "ultra"
     });
     snapshot = await waitForChatTerminal(coordinator, sessionId);
     assert.equal(calls.length, 2);
     assert.equal(calls[0].options.resultKind, "chat");
     assert.equal(Object.hasOwn(calls[0].options, "outputSchema"), false);
     assert.equal(calls[1].options.threadId, "THREAD-1");
-    assert.equal(calls[1].options.model, "custom-model");
+    assert.equal(calls[1].options.model, "conversation-model");
     assert.equal(calls[1].options.reasoningEffort, "ultra");
     assert.equal(adapterCount, 1);
     assert.equal(snapshot.messages.filter((message) => message.role === "user").length, 2);
 
-    await coordinator.createDraft({ project_id: "PROJECT-1" });
-    let other = await coordinator.send({ project_id: "PROJECT-1", client_request_id: "REQUEST-3", text: "Separate" });
+    await coordinator.createDraft({ project_id: "PROJECT-1", model: "new-chat-default", reasoning_effort: "medium" });
+    let other = await coordinator.send({
+      project_id: "PROJECT-1", client_request_id: "REQUEST-3", text: "Separate",
+      model: "new-chat-default", reasoning_effort: "medium"
+    });
     other = await waitForChatTerminal(coordinator, other.selected_session_id);
     assert.notEqual(other.selected_session_id, sessionId);
     assert.equal(adapterCount, 2);
+    assert.equal(calls[2].options.model, "new-chat-default");
+    assert.equal(calls[2].options.reasoningEffort, "medium");
   } finally {
     await coordinator.close();
     await fixture.cleanup();
@@ -663,6 +678,47 @@ test("ChatCoordinator can stop during startup without launching a cancelled Code
     assert.equal(stopped.sessions.find((session) => session.id === started.selected_session_id).status, "interrupted");
     assert.equal(adapterRuns, 0);
   } finally {
+    await coordinator.close();
+    await fixture.cleanup();
+  }
+});
+
+test("ChatCoordinator pins the accepted turn configuration while later Composer changes apply to the next turn", async () => {
+  const fixture = await chatFixture();
+  const calls = [];
+  let releasePreflight;
+  let markPreflightStarted;
+  const preflightStarted = new Promise((resolve) => { markPreflightStarted = resolve; });
+  const coordinator = createChatCoordinator({
+    ...fixture.options,
+    setupReadinessPreflight: async () => {
+      markPreflightStarted();
+      await new Promise((resolve) => { releasePreflight = resolve; });
+    },
+    createAdapter: () => completedAdapter(1, calls)
+  });
+  try {
+    const started = await coordinator.send({
+      project_id: "PROJECT-1",
+      client_request_id: "REQUEST-PINNED",
+      text: "Use the accepted configuration",
+      model: "accepted-model",
+      reasoning_effort: "high"
+    });
+    await preflightStarted;
+    await coordinator.createDraft({
+      session_id: started.selected_session_id,
+      model: "next-turn-model",
+      reasoning_effort: "low"
+    });
+    releasePreflight();
+    const completed = await waitForChatTerminal(coordinator, started.selected_session_id);
+    assert.equal(calls[0].options.model, "accepted-model");
+    assert.equal(calls[0].options.reasoningEffort, "high");
+    assert.equal(completed.sessions[0].model, "next-turn-model");
+    assert.equal(completed.sessions[0].reasoning_effort, "low");
+  } finally {
+    releasePreflight?.();
     await coordinator.close();
     await fixture.cleanup();
   }

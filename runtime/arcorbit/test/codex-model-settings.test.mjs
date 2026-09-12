@@ -8,9 +8,20 @@ const model = (name = "gpt-6-astra") => ({ model: name, displayName: name, suppo
 const available = { status: "available", models: [{ model: "gpt-6-astra", displayName: "Astra", reasoningEfforts: ["high", "medium"] }] };
 
 test("model settings default only missing or invalid stored fields and preserve manual values", () => {
-  assert.deepEqual(normalizeCodexSettings(), { model: "gpt-6-astra", reasoning_effort: "high" });
-  assert.deepEqual(normalizeCodexSettings({ model: "future/provider", reasoning_effort: " custom " }), { model: "future/provider", reasoning_effort: "custom" });
-  for (const value of [null, [], { model: "" }, { model: "a\nb" }, { reasoning_effort: "x".repeat(201) }, { command: "codex" }]) assert.throws(() => validateCodexSettingsPatch(value));
+  const defaults = { model: "gpt-6-astra", reasoning_effort: "high" };
+  assert.deepEqual(normalizeCodexSettings(), { chat: defaults, automation: defaults });
+  assert.deepEqual(normalizeCodexSettings({ model: "future/provider", reasoning_effort: " custom " }), {
+    chat: { model: "future/provider", reasoning_effort: "custom" },
+    automation: { model: "future/provider", reasoning_effort: "custom" }
+  });
+  assert.deepEqual(normalizeCodexSettings({
+    chat: { model: "chat-model", reasoning_effort: "medium" },
+    automation: { model: "automation-model", reasoning_effort: "ultra" }
+  }), {
+    chat: { model: "chat-model", reasoning_effort: "medium" },
+    automation: { model: "automation-model", reasoning_effort: "ultra" }
+  });
+  for (const value of [null, [], { model: "" }, { chat: { model: "a\nb", reasoning_effort: "high" } }, { automation: { model: "a", reasoning_effort: "x".repeat(201) } }, { command: "codex" }]) assert.throws(() => validateCodexSettingsPatch(value));
   assert.deepEqual(normalizeCodexSettings({ model: {}, reasoning_effort: null }), normalizeCodexSettings());
 });
 
@@ -75,19 +86,24 @@ test("form keeps drafts on catalog refresh, updates efforts and saves unknown cu
   });
   form.reset({});
   const pending = form.refresh();
-  elements.model.value = "future-model";
-  elements.effort.value = "custom";
+  elements.contexts.chat.model.value = "future-model";
+  elements.contexts.chat.effort.value = "custom";
   release(available);
   await pending;
-  assert.equal(elements.model.value, "future-model");
-  assert.equal(elements.effort.value, "custom");
-  assert.equal(elements.effortList.children.length, 0);
-  elements.model.value = "gpt-6-astra";
-  elements.model.fire("input");
-  assert.deepEqual(elements.effortList.children.map((item) => item.value), ["high", "medium"]);
-  assert.equal(elements.effort.value, "custom");
+  assert.equal(elements.contexts.chat.model.value, "future-model");
+  assert.equal(elements.contexts.chat.effort.value, "custom");
+  assert.equal(elements.contexts.chat.effortList.children.length, 0);
+  elements.contexts.chat.model.value = "gpt-6-astra";
+  elements.contexts.chat.model.fire("input");
+  assert.deepEqual(elements.contexts.chat.effortList.children.map((item) => item.value), ["high", "medium"]);
+  assert.equal(elements.contexts.chat.effort.value, "custom");
+  elements.contexts.automation.model.value = "automation-model";
+  elements.contexts.automation.effort.value = "ultra";
   await form.save();
-  assert.deepEqual(saves, [{ codex: { model: "gpt-6-astra", reasoning_effort: "custom" } }]);
+  assert.deepEqual(saves, [{ codex: {
+    chat: { model: "gpt-6-astra", reasoning_effort: "custom" },
+    automation: { model: "automation-model", reasoning_effort: "ultra" }
+  } }]);
   assert.match(elements.feedback.textContent, /已保存/);
 });
 
@@ -96,19 +112,22 @@ test("form failures preserve input, allow retry, and ignore a response from an e
   const { form, elements } = fixture({ listCodexModels: () => new Promise((resolve) => { release = resolve; }), updateSettings: async () => { throw new Error("disk"); } });
   form.reset({});
   const pending = form.refresh();
-  form.reset({ codex: { model: "custom-model", reasoning_effort: "max" } });
+  form.reset({ codex: {
+    chat: { model: "custom-model", reasoning_effort: "max" },
+    automation: { model: "automation-model", reasoning_effort: "high" }
+  } });
   release(available);
   await pending;
-  assert.equal(elements.modelList.children.length, 0);
+  assert.equal(elements.contexts.chat.modelList.children.length, 0);
   await form.save();
-  assert.equal(elements.model.value, "custom-model");
-  assert.equal(elements.effort.value, "max");
+  assert.equal(elements.contexts.chat.model.value, "custom-model");
+  assert.equal(elements.contexts.chat.effort.value, "max");
   assert.equal(elements.saveButton.disabled, false);
   assert.match(elements.feedback.textContent, /保存失败/);
   const failed = form.refresh();
   release({ status: "unavailable", models: [] });
   await failed;
-  assert.equal(elements.model.value, "custom-model");
+  assert.equal(elements.contexts.chat.model.value, "custom-model");
   assert.equal(elements.refreshButton.disabled, false);
   assert.match(elements.catalogFeedback.textContent, /手动输入/);
 });
@@ -121,6 +140,9 @@ function fixture(api) {
     addEventListener(name, handler) { this.handlers[name] = handler; },
     fire(name) { this.handlers[name](); }
   });
-  const elements = Object.fromEntries(["model", "effort", "modelList", "effortList", "refreshButton", "saveButton", "feedback", "catalogFeedback", "generalSaveButton"].map((key) => [key, element()]));
+  const elements = Object.fromEntries(["refreshButton", "saveButton", "feedback", "catalogFeedback", "generalSaveButton"].map((key) => [key, element()]));
+  elements.contexts = Object.fromEntries(["chat", "automation"].map((key) => [key, Object.fromEntries(
+    ["model", "effort", "modelList", "effortList"].map((field) => [field, element()])
+  )]));
   return { elements, form: createCodexSettingsForm({ elements, api }) };
 }

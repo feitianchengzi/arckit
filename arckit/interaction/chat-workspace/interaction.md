@@ -16,7 +16,7 @@ Chat 承接绑定本地 Product Workspace 的自由 Codex 对话。页面直接�
 - 每个项目组默认最多显示按最近活动时间排序的 10 个会话；超过 10 个时，组底部显示该项目专属的“查看历史会话”入口。
 - 右栏顶部显示会话标题和固定工作区，以及重命名、删除入口；临时新对话在同一位置显示可操作的目标工作区选择器。
 - transcript 按时间显示用户消息、Agent 正文、reasoning disclosure、工具活动、权限请求和错误恢复提示；消息与 Markdown 内容沿右栏宽度收缩。
-- Composer 位于右栏底部，包含多行输入、发送或停止主按钮、快捷键说明和当前权限边界摘要。
+- Composer 位于右栏底部，包含多行输入、当前会话的 Model/Level 快捷输入、发送或停止主按钮、快捷键说明和当前权限边界摘要。
 - 页面不显示“转为 Idea”“创建 Work”或“形成后续事项”。
 
 ## 主路径
@@ -25,7 +25,7 @@ Chat 承接绑定本地 Product Workspace 的自由 Codex 对话。页面直接�
 2. 系统把自由会话按 Product Workspace 分组，并在每组先展示最近 10 个会话；用户可直接选择任意项目中的会话，或从对应组底部展开该项目的完整历史。
 3. 用户选择“新建对话”，系统展示临时草稿、建议问题和醒目的目标工作区选择器，不立即创建持久空会话。目标工作区默认取当前会话所属的可用工作区；没有当前会话时取最近成功使用的可用工作区。没有可用工作区时，在 Chat 原位从当前账户全部可访问远端项目中选择目标并完成本地目录绑定，不按 owner、admin 或 member 角色过滤，草稿不丢失。
 4. 用户核对目标工作区；目标不符合预期时，用户在第一条消息发送前切换到另一个可用 Product Workspace。切换保留草稿文本，只改变预期 session owner、工作目录和权限边界。
-5. 用户输入第一条非空消息并发送；系统创建 session，固定工作区，立即显示用户消息，并在首个 turn 前持久化 Codex thread id。
+5. 用户核对或快速调整 Composer 中的 Model/Level，输入第一条非空消息并发送；系统创建 session，固定工作区与会话配置，立即显示用户消息，并在首个 turn 前持久化 Codex thread id。
 6. Agent 正文和工具活动以稳定消息项流式更新。页面在用户处于底部时跟随新内容；用户上滚后保持阅读位置。
 7. 用户继续发送消息时，系统在同一 session 和 thread 启动新 turn。用户可切换其他会话，活动会话继续更新并在列表显示状态。
 8. 用户可停止当前生成；系统发出 interrupt，保留部分回答并标记“已中断”。用户随后发送“继续”或新的要求时启动同一 thread 的新 turn。
@@ -61,6 +61,9 @@ Chat 承接绑定本地 Product Workspace 的自由 Codex 对话。页面直接�
 ## Composer
 
 - Composer 支持多行文本和输入法组合；`Enter` 发送，`Shift+Enter` 换行。输入法正在组合时按 Enter 不提交。
+- 输入框附近始终显示当前会话的 Model 与 Level 文本控件。新对话继承 Chat 默认值；既有会话恢复自身保存值。两项都可直接输入，聚焦时按需获取 Codex 候选，Level 候选随 Model 更新但不自动覆盖当前值；清单失败不阻止人工输入和发送。
+- 调整 Model/Level 原位保存到当前会话或临时新会话草稿，不改写账号设置中的 Chat 默认值，不改变 Automation 默认值，也不创建新 thread。切换会话时每个会话恢复自己的选择。
+- 发送被本地接受时同时固定该 turn 的 Model/Level。活动 turn 期间仍可调整控件，修改只作用于下一次发送；停止、重试和继续都保持同一 session/thread 语义。
 - 空白消息不可发送。发送后保留焦点，并只清除已被接受的文本；IPC 失败时草稿保持原样。
 - turn 活动时主按钮变为“停止”，调用当前 turn 的 interrupt。Composer 仍可编辑草稿，但在当前 turn 进入 completed、interrupted 或 failed 前不启动同一会话的第二个 turn。
 - 当前 turn 完成后，已有草稿保持不变，用户显式发送才进入下一 turn。
@@ -122,7 +125,7 @@ Chat 承接绑定本地 Product Workspace 的自由 Codex 对话。页面直接�
 - Chat 不创建或修改 Workshop Project、Task、Feedback、Idea、Project State、Case 或 acceptance feedback。
 - Product Workspace 决定 `cwd`、workspace root、skill discovery 与 sandbox 边界；Renderer 不获得文件系统、Codex 凭据或通用 RPC 能力。
 - Chat 的停止不释放 Automation human Gate，不改变远端任务状态，也不抢占 Automation task thread lease。
-- Chat 不提供附件、语音、共享链接、跨设备同步、会话分支或模型管理；Composer 专注文本自由对话。
+- Chat 不提供附件、语音、共享链接、跨设备同步、会话分支或模型目录管理；Composer 只提供当前会话 Model/Level 的快速选择，不承担全局默认值管理。
 
 ## 场景技能入口
 

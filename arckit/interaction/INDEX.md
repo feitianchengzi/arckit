@@ -29,10 +29,10 @@
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
   - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (236行)
   - product-continuity.html 产品续接：添加 Idea、独立新消息和本机草稿。✅ (5行)
-- chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，以 session 独立阅读位置进行本地 Codex 对话。✅
-  - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、具体变更文件、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
+- chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，以 session 独立阅读位置和 Model/Level 选择进行本地 Codex 对话。✅
+  - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、Composer Model/Level 快捷输入、生成/停止、具体变更文件、权限、失败恢复和工作区阻塞直达动作。✅ (55行)
   - workspace-setup.html 工作区绑定子视图：任意可访问项目成员从 Chat 原位选择目录并检查 Setup Readiness，同时保留草稿。✅ (12行)
-  - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、具体文件目标、内容宽度隔离、session 独立滚动、Composer、恢复和 Automation 隔离。✅ (124行)
+  - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、逐会话 Model/Level、具体文件目标、内容宽度隔离、session 独立滚动、Composer、恢复和 Automation 隔离。✅ (132行)
 - release-workspace/ Release：真实终端、Git、源码、任务与 Agent 协作。✅
   - default.html Release 状态线框：全部项目、执行、Git、冲突与中断恢复。✅ (10行)
   - interaction.md Release 交互：固定归属、共享对话和真实执行结果。✅ (23行)
@@ -47,7 +47,7 @@
   - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (88行)
 - automation-workspace/ 自动化指挥中心：以统一 Project Catalog 保持跨页面项目可见性并在覆盖安装后自动重建派生状态，同时消费 Work 本地待办状态，以 workspace lane 管理双队列串行、跨项目并行、Case 绑定恢复、统一人工介入与 Runtime/CLI 接力。✅
   - default.html 指挥中心线框：顶部产品范围、覆盖安装自动重建、项目同步降级、Work 同步健康摘要、双队列、活动执行选择、并发容量、人工介入原因、Runtime/CLI 接管与恢复。✅ (347行)
-  - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复、Codex 配置与失败重试。✅ (147行)
+  - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复、Chat/Automation 两组 Codex 默认配置与失败重试。✅ (147行)
   - intervention-workbench.html 介入工作台线框：单行有界待办标题、Chat 共享消息面、固定三栏与 Composer、完整时间及逐 Gap 执行全貌。✅ (99行)
   - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、Case 绑定待确认、用户说明续跑、安全停止、lane 局部外部变化与 Work Sync 异常。✅ (152行)
   - eligibility-guidance.html 资格引导子视图：成员本地目录动作、待评审、全局总闸和项目授权责任的原位解释。✅ (39行)

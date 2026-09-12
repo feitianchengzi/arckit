@@ -520,7 +520,12 @@ export function createDesktopRunManager({
       nextSettings = normalizeSettings({
         ...store.settings,
         ...input,
-        codex: { ...store.settings?.codex, ...input.codex },
+        codex: {
+          ...store.settings?.codex,
+          ...input.codex,
+          chat: { ...store.settings?.codex?.chat, ...input.codex?.chat },
+          automation: { ...store.settings?.codex?.automation, ...input.codex?.automation }
+        },
         codex_proxy: {
           ...store.settings?.codex_proxy,
           ...input.codex_proxy
@@ -687,7 +692,7 @@ export function createDesktopRunManager({
       ? join(dataDir, "thread-bindings", project.id, `${stableTaskKey(input.taskId)}.json`)
       : "";
     const persistedThreadBinding = threadBindingFile ? await readThreadBinding(threadBindingFile) : null;
-    const codexSettings = normalizeCodexSettings(store.settings?.codex);
+    const codexSettings = normalizeCodexSettings(store.settings?.codex).automation;
     const run = {
       id: runId,
       model: input.model || codexSettings.model,

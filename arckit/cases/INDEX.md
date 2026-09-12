@@ -8,7 +8,6 @@
 | --- | --- | --- | --- | --- |
 | [CASE-20260901-001](active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md) | handoff | Consolidate Workshop Todo and Feedback into the Arckit monorepo | none | 2026-09-03T05:54:52.452Z |
 | [CASE-20260909-002](active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md) | handoff | Implement the integrated Release terminal Git and Agent workspace | none | 2026-09-09T15:41:27.471Z |
-| [CASE-20260912-001](active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md) | active | Separate Chat and Automation Codex model and level configuration | none | 2026-09-12T03:33:06.897Z |
 
 ## Closed Cases
 
@@ -190,3 +189,4 @@
 | [CASE-20260911-003](closed/CASE-20260911-003-arcorbit.md) | closed | 支持在 ArcOrbit 组织页面从组织成员直接添加项目成员 | 2026-09-12T03:18:16.506Z |
 | [CASE-20260911-004](closed/CASE-20260911-004-separate-arcorbit-execution-lifecycle-from-case-completion.md) | closed | Separate ArcOrbit execution lifecycle from Case completion | 2026-09-11T10:39:49.658Z |
 | [CASE-20260911-005](closed/CASE-20260911-005-unify-arckit-state-driven-loop-capability-and-invocation-surface.md) | closed | Unify arckit-state-driven-loop capability and invocation surfaces | 2026-09-11T13:32:03.858Z |
+| [CASE-20260912-001](closed/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md) | closed | Separate Chat and Automation Codex model and level configuration | 2026-09-12T04:21:28.956Z |

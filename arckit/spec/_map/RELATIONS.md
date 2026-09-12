@@ -10,7 +10,7 @@
 
 对应技术事实位于 `arckit/tech/arcorbit/installer-supply-chain.md`；Runtime 持续执行语义仍由 `arckit/tech/arcorbit/solution.md` 定义。
 
-`arcorbit-distribution.md` 同时定义 Codex Model/Level 的本地偏好、动态候选、人工兜底及生效时机；账号设置投影位于 `arckit/interaction/automation-workspace/authentication.html`，清单、持久化和参数传递契约位于 `arckit/tech/arcorbit/desktop-execution-solution.md`。
+`arcorbit-distribution.md` 同时定义 Chat/Automation 独立 Codex Model/Level 默认值、旧配置迁移、动态候选、Chat 会话级 Composer 选择、人工兜底及 turn/Run 固定时机；账号设置投影位于 `arckit/interaction/automation-workspace/authentication.html`，Chat 快捷入口位于 `arckit/interaction/chat-workspace/`，清单、持久化和参数传递契约位于 `arckit/tech/arcorbit/desktop-execution-solution.md`。
 
 ## Agent 软件研发操作层
 

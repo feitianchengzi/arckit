@@ -67,17 +67,17 @@ Codex app-server 提供 `model/list`，Level 对应 reasoning effort。请求在
 
 ### Codex 配置与清单执行契约
 
-`src/codex-model-settings.mjs` 统一定义 Desktop 默认 gpt-6-astra / high 与逐字段归一化。Desktop Store 独占 `settings.codex.model`、`settings.codex.reasoning_effort` 控制事实，公开投影只暴露文本偏好；保存 patch 验证文本类型、1–200 字符、无控制字符并 trim，未知模型和级别保留。缺失或非法存储字段按字段使用默认值，更新无关设置不清除有效用户值。不写用户全局 Codex config。
+`src/codex-model-settings.mjs` 统一定义 Desktop 默认 gpt-6-astra / high 与逐字段归一化。Desktop Store 独占 `settings.codex.chat.{model,reasoning_effort}` 和 `settings.codex.automation.{model,reasoning_effort}` 两组控制事实；读取旧版平铺字段时把有效值一次性归一化到两组，已有场景化字段按场景保留。保存 patch 验证文本类型、1–200 字符、无控制字符并 trim，未知模型和级别保留；更新一个场景或无关设置不清除另一场景的有效值。不写用户全局 Codex config。
 
 `desktop-run-manager.listCodexModels` 在主进程解析当前 executable 和 PATH，并读取保存的代理 context。无参数 IPC `arckit:list-codex-models` 只调用该方法；Renderer 不提供 method、argv、cwd、environment 或凭据。`src/codex-model-catalog.mjs` 通过既有 `JsonRpcStdioClient` 创建独立 app-server，只执行 initialize、initialized、model/list，从不创建或恢复 thread。全查询超时 10 秒，每页请求 100 项，最多 50 页和 1000 个模型，检测游标重复及畸形页；只有分页完成才发布清单，任何失败均丢弃部分结果。finally 关闭 client；原始 stderr 不进入 Renderer，只投影固定非敏感恢复说明。
 
-Renderer 的 `codex-settings-form.mjs` 提供可编辑 datalist，按模型更新 Level 候选并保留当前输入。清单与保存有独立反馈，打开周期和查询序号隔离过期响应；清单不成为设置事实源。“保存 Codex 配置”只写两个字段；“保存并同步”包含两字段和既有任务源/代理草稿。查询使用保存值而非代理草稿。
+Renderer 的 `codex-settings-form.mjs` 为 Chat 与 Automation 两组配置提供可编辑 datalist，分别按模型更新 Level 候选并保留当前输入。清单与保存有独立反馈，打开周期和查询序号隔离过期响应；清单不成为设置事实源。“保存 Codex 配置”只写四个场景字段；“保存并同步”包含四字段和既有任务源/代理草稿。查询使用保存值而非代理草稿。
 
-ChatCoordinator 每次 consumeTurn 读取保存的 model / reasoning_effort，作为 `model` / `reasoningEffort` options 提交共享 adapter。DesktopRunManager 在每次 Run 启动读取并固定偏好，将实际选择记录在 Run 的 `model` / `reasoning_effort`，通过 `--model` / `--reasoning-effort` 传至 CLI；显式调用参数仍优先于 Desktop 偏好。state-driven runner 持续复用启动 options，直至该 Run 结束，包括后续轮次和收尾。独立 CLI 不读取 Desktop Store。
+Chat session 与未发送草稿持有自己的 `model` / `reasoning_effort`，新建时继承 `settings.codex.chat`。Composer 通过既有 typed Chat IPC 保存当前选择；发送被接受时 ChatCoordinator 捕获不可变配置快照，并作为 `model` / `reasoningEffort` options 提交共享 adapter，之后对同一 session 的编辑只影响后续 turn。session、thread 和配置是独立字段，改变配置不替换 thread。DesktopRunManager 在每次 Run 启动读取并固定 `settings.codex.automation`，将实际选择记录在 Run 的 `model` / `reasoning_effort`，通过 `--model` / `--reasoning-effort` 传至 CLI；显式调用参数仍优先于 Desktop 偏好。state-driven runner 持续复用启动 options，直至该 Run 结束，包括后续轮次和收尾。独立 CLI 不读取 Desktop Store。
 
-共享 adapter 每次 turn/start 使用 `model` 和 `effort`，不通过替代 thread 实现配置变更。保存对下一条 Chat 消息与下一次 Automation Run 生效；正在执行的任务保持已提交参数。交互式 CLI 接力继续 codex resume 原 thread，不另加 Desktop 配置覆盖。清单成功不是执行授权，模型不支持、账户限制或执行失败仍走既有恢复路径。
+共享 adapter 每次 turn/start 使用 `model` 和 `effort`，不通过替代 thread 实现配置变更。账号设置只改变新 Chat 会话与新 Automation Run 的默认值；Composer 只改变对应 Chat 会话后续发送。正在执行的 turn/Run 保持已提交参数，Chat 与 Automation 之间没有配置回写。交互式 CLI 接力继续 codex resume 原 thread，不另加 Desktop 配置覆盖。清单成功不是执行授权，模型不支持、账户限制或执行失败仍走既有恢复路径。
 
-行为证据由 `test/codex-model-settings.test.mjs`、`test/desktop-run-manager.test.mjs`、`test/chat-coordinator.test.mjs` 和 `test/codex-app-server-adapter.test.mjs` 覆盖默认值、持久化、完整分页及失败、草稿保持、参数贯通和同 thread 连续性。实际本机清单证据限于前述版本与上下文，不外推为其它账户、安装或 WSL transport 已验证。
+行为证据由 `test/codex-model-settings.test.mjs`、`test/desktop-store.test.mjs`、`test/desktop-run-manager.test.mjs`、`test/chat-state-coordinator.test.mjs`、`test/chat-coordinator.test.mjs`、`test/codex-settings-electron.test.mjs` 和 `test/codex-app-server-adapter.test.mjs` 覆盖旧配置迁移、场景隔离、持久化、完整分页及失败、Composer 草稿保持、turn/Run 参数固定、参数贯通和同 thread 连续性。实际本机清单证据限于前述版本与上下文，不外推为其它账户、安装或 WSL transport 已验证。
 
 2026-09-05 验证：完整 ArcOrbit check 在授权执行环境为 585 passed、26 skipped、0 failed；新增真实 Electron 设置页行为测试通过，覆盖候选、草稿、保存恢复与失败重试；补充可信查询上下文测试后的定向套件 24 passed、0 failed。本机新清单实现只读查询返回 7 个模型，Astra 支持 high。沙箱内两个既有 Electron 进程被终止及 Codex 查询不可用分别经授权重跑确认，未作为功能成功证据。
 

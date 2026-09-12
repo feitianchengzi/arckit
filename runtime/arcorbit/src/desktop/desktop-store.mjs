@@ -343,7 +343,7 @@ export function defaultPlatformState() {
 export function defaultChatState() {
   return {
     selected_session_id: "",
-    draft: { project_id: "", text: "", updated_at: "" }
+    draft: { project_id: "", text: "", model: "", reasoning_effort: "", updated_at: "" }
   };
 }
 
@@ -354,6 +354,8 @@ export function normalizeChatState(value = {}) {
     draft: {
       project_id: String(draft.project_id || ""),
       text: String(draft.text || "").slice(0, 100_000),
+      model: String(draft.model || ""),
+      reasoning_effort: String(draft.reasoning_effort || ""),
       updated_at: String(draft.updated_at || "")
     }
   };

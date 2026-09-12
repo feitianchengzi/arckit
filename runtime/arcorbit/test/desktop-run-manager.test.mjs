@@ -240,15 +240,27 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
     assert.equal(JSON.parse(await readFile(firstRun.scene_skill_binding_file,'utf8')).revision,2);
     assert.equal(calls[0].args[calls[0].args.indexOf('--scene-skill-binding-file')+1],firstRun.scene_skill_binding_file);
     skillRevision=3;
-    assert.deepEqual((await manager.getSettings()).codex, { model: "gpt-6-astra", reasoning_effort: "high" });
+    assert.deepEqual((await manager.getSettings()).codex, {
+      chat: { model: "gpt-6-astra", reasoning_effort: "high" },
+      automation: { model: "gpt-6-astra", reasoning_effort: "high" }
+    });
     assert.equal(calls[0].args[calls[0].args.indexOf("--model") + 1], "gpt-6-astra");
     assert.equal(calls[0].args[calls[0].args.indexOf("--reasoning-effort") + 1], "high");
-    await manager.updateSettings({ codex: { model: "custom-model", reasoning_effort: "ultra" } });
+    await manager.updateSettings({ codex: {
+      chat: { model: "chat-model", reasoning_effort: "medium" },
+      automation: { model: "custom-model", reasoning_effort: "ultra" }
+    } });
     await manager.updateSettings({ codex_proxy: { enabled: false } });
-    assert.deepEqual((await manager.getSettings()).codex, { model: "custom-model", reasoning_effort: "ultra" });
-    await assert.rejects(manager.updateSettings({ codex: { model: " " } }));
+    assert.deepEqual((await manager.getSettings()).codex, {
+      chat: { model: "chat-model", reasoning_effort: "medium" },
+      automation: { model: "custom-model", reasoning_effort: "ultra" }
+    });
+    await assert.rejects(manager.updateSettings({ codex: { automation: { model: " ", reasoning_effort: "high" } } }));
     const reloaded = createDesktopRunManager({ runtimeRoot: dataDir, dataDir });
-    assert.deepEqual((await reloaded.getSettings()).codex, { model: "custom-model", reasoning_effort: "ultra" });
+    assert.deepEqual((await reloaded.getSettings()).codex, {
+      chat: { model: "chat-model", reasoning_effort: "medium" },
+      automation: { model: "custom-model", reasoning_effort: "ultra" }
+    });
     await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-2", task: "Next" });
     assert.equal(JSON.parse(await readFile(firstRun.scene_skill_binding_file,'utf8')).revision,2);
     assert.equal(JSON.parse(await readFile(calls[1].args[calls[1].args.indexOf('--scene-skill-binding-file')+1],'utf8')).revision,3);

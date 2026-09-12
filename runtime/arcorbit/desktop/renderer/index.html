@@ -199,7 +199,7 @@
                 <div id="chatErrorHost"></div>
                 <div id="chatTranscript" class="conversation-surface chat-transcript" aria-live="polite" aria-label="Chat 消息"></div>
                 <button id="chatJumpLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
-                <footer class="chat-composer"><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><button id="chatSkillsButton" class="secondary-button" type="button" title="配置 Chat 可用技能">技能</button><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-stop"></use></svg>停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
+                <footer class="chat-composer"><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><button id="chatSkillsButton" class="secondary-button" type="button" title="配置 Chat 可用技能">技能</button><div class="chat-composer-config" aria-label="当前对话 Codex 配置"><label class="chat-composer-setting"><span>Model</span><input id="chatCodexModel" type="text" list="chatCodexModelOptions" maxlength="200" autocomplete="off" title="调整当前对话后续消息使用的 Model"><datalist id="chatCodexModelOptions"></datalist></label><label class="chat-composer-setting"><span>Level</span><input id="chatCodexEffort" type="text" list="chatCodexEffortOptions" maxlength="200" autocomplete="off" title="调整当前对话后续消息使用的推理级别"><datalist id="chatCodexEffortOptions"></datalist></label></div><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-stop"></use></svg>停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
               </main>
             </div>
           </section>
@@ -337,11 +337,15 @@
             </details>
           </section>
           <section class="codex-settings-section"><h3>Codex Runtime</h3>
-            <div class="field-grid">
-              <label class="field"><span>Model</span><input id="codexModel" type="text" list="codexModelOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexModelOptions"></datalist></label>
-              <label class="field"><span>Level（推理级别）</span><input id="codexEffort" type="text" list="codexEffortOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexEffortOptions"></datalist></label>
+            <h4>Chat 默认值</h4><div class="field-grid">
+              <label class="field"><span>Model</span><input id="codexChatModel" type="text" list="codexChatModelOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexChatModelOptions"></datalist></label>
+              <label class="field"><span>Level（推理级别）</span><input id="codexChatEffort" type="text" list="codexChatEffortOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexChatEffortOptions"></datalist></label>
             </div>
-            <p class="settings-lead">默认 gpt-6-astra / high。保存后对下一条 Chat 消息及下一次 Automation Run 生效，正在运行的任务保持启动时配置。</p>
+            <h4>Automation 默认值</h4><div class="field-grid">
+              <label class="field"><span>Model</span><input id="codexAutomationModel" type="text" list="codexAutomationModelOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexAutomationModelOptions"></datalist></label>
+              <label class="field"><span>Level（推理级别）</span><input id="codexAutomationEffort" type="text" list="codexAutomationEffortOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexAutomationEffortOptions"></datalist></label>
+            </div>
+            <p class="settings-lead">两种场景分别默认为 gpt-6-astra / high。Chat 默认值用于新对话；当前对话可在输入框旁单独调整。Automation 默认值用于下一次 Run，正在运行的任务保持启动时配置。</p>
             <p id="codexCatalogFeedback" class="auth-feedback" role="status" aria-live="polite"></p>
             <div class="settings-actions"><button id="refreshCodexModelsButton" class="secondary-button" type="button">刷新清单</button><button id="saveCodexSettingsButton" class="primary-button" type="button">保存 Codex 配置</button></div>
             <p id="codexSettingsFeedback" class="auth-feedback" role="status" aria-live="polite"></p>
