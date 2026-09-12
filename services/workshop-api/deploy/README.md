@@ -119,6 +119,17 @@ environment:
 
 **优先级**：`environment` > `env_file`
 
+### 待办邮件通知
+
+待办通知复用 nebula-auth 的受控事务邮件入口。生产环境需要同时配置：
+
+- `TASK_NOTIFICATION_EMAILS_ENABLED=true`
+- `TASK_NOTIFICATION_EMAIL_ENDPOINT`：Auth Server 的内部 `/v1/internal/notification-emails` 地址
+- `NOTIFICATION_INTERNAL_SHARED_SECRET`：与 nebula-auth 同名变量完全一致，且至少 32 字符；迁移期未设置时兼容读取 `FEEDBACK_NOTIFICATION_SHARED_SECRET`
+- `WORKSHOP_WEB_URL=https://workshop.feitianchengzi.com`
+
+Workshop 只向网关发送收件用户 UUID 和受控任务字段，不读取邮箱地址，也不能提交任意主题或 HTML。网关的 `NOTIFICATION_EMAIL_ALLOWED_LINK_HOSTS` 必须包含 `workshop.feitianchengzi.com`。
+
 ## 环境差异
 
 ### 开发环境（dev/）

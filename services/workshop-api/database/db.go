@@ -165,6 +165,7 @@ func Migrate(db *gorm.DB) error {
 		&models.FeedbackTaskLink{},
 		&models.ProjectFeedbackAccessKey{},
 		&models.ProjectEvent{},
+		&models.TaskNotificationPreference{},
 	)
 }
 

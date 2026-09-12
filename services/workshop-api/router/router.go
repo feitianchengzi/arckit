@@ -52,6 +52,8 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		userGroup := versionGroup.Group("/user")
 		userGroup.Use(middleware.ExtractUserID()) // 提取用户ID中间件
 		registerBusinessRoutes(userGroup)
+		userGroup.GET("/task-notification-preference", handler.GetTaskNotificationPreference)
+		userGroup.PUT("/task-notification-preference", handler.UpdateTaskNotificationPreference)
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(userGroup)
 			registerFeedbackNotificationRoutes(userGroup)

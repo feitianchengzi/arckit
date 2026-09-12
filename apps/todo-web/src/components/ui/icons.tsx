@@ -67,6 +67,22 @@ export function DocumentIcon({ className }: { className?: string }) {
   )
 }
 
+export function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17H9m9-2V11a6 6 0 10-12 0v4l-2 2h16l-2-2zm-8 5h4" />
+    </svg>
+  )
+}
+
+export function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  )
+}
+
 export function ImageIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -82,4 +98,3 @@ export function PaperClipIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-

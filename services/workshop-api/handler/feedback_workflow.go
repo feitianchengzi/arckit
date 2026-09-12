@@ -1594,6 +1594,7 @@ func ConvertFeedbackToTask(c *gin.Context) {
 	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.task_link.created", linkResp)
 	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.message.created", messageResp)
 	notifyFeedbackTaskAttachmentCreated(c, db, feedback.ProjectID, userID, taskAttachments)
+	queueTaskNotificationDelivery(db, taskNotificationMutation{Task: task, Created: true, ActorUserID: userID})
 
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(ConvertFeedbackToTaskResponse{
 		Feedback: feedbackResp,

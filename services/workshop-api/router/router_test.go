@@ -88,3 +88,16 @@ func TestFeedbackWorkflowRoutesAreV2Only(t *testing.T) {
 	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/apikey/feedback-notifications")
 	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/feedback/notifications")
 }
+
+func TestTaskNotificationPreferenceRoutesAreUserOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := SetupRouter("workshop")
+
+	for _, version := range []string{"v1", "v2"} {
+		base := "/workshop/" + version
+		requireRoute(t, engine, http.MethodGet, base+"/user/task-notification-preference")
+		requireRoute(t, engine, http.MethodPut, base+"/user/task-notification-preference")
+		forbidRoute(t, engine, http.MethodGet, base+"/apikey/task-notification-preference")
+		forbidRoute(t, engine, http.MethodPut, base+"/apikey/task-notification-preference")
+	}
+}
