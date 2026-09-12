@@ -14,7 +14,6 @@
 - 普通 Case Gap 的完成使用 `claim.resolve_selected_gap`；Completion Review candidate 是 Ledger 派生的审查门禁，不是可由该字段关闭的普通 Gap。
 - 选择 Completion Review candidate 时，`resolve_selected_gap` 必须为 `null`，Case 内容变更数组必须为空；只用 `completion_review_result` 提交 clean/findings/needs_human，或只用 `review_budget_extension` 提交 human 授权，两者不能同轮出现。
 - Review finding 由 `completion_review_result.findings` 声明并由 Ledger 派生后续普通修复 Gap。修复和事实变化在 fresh-read 后选择该普通 Gap 的下一轮提交，不能与 Review 合并。
-- 每项 finding 使用 `local:review-finding:<handle>`。本轮 `invariant_assessment.judgments[].gap_refs` 可显式引用该 finding，表示关联它由 Ledger 派生的开放修复 Gap；无需也不得在 `gaps_added` 中复制该 Gap。未在本轮声明的 finding 引用会被拒绝。
 
 ## Typed refs
 
@@ -40,4 +39,10 @@ Materializer 在编译内部 Transition 前校验 selected candidate、命令内
 
 成功结果返回 `arckit-semantic-command-receipt/v1`、内部 transition result、`arckit-round-closeout/v2` 与 post-commit snapshot token。下一 Gap 仍只来自独立 fresh-read。
 
-执行停止、责任与 Case completion 的区分见 [执行上下文](execution-context.md)。
+## Review finding 的修复义务引用
+
+Review 不新增普通 Gap。`invariant_assessment.gap_refs` 可以显式引用本次 `completion_review_result.findings` 中已声明的 `local:review-finding:<handle>`；Ledger 将它物化为该 finding 实际派生的开放修复 Gap。未知 handle 仍拒绝，Agent 不预测 Gap ID，也不降低 threatened/undetermined 判断来绕过提交。
+
+## 契约与运行版本
+
+Host 从当前可信 Ledger manifest 的 `agent_contracts` 读取 schema 与本说明；修复源码不等于当前运行副本已更新。使用 snapshot 的 `selection_tokens[case_id]` 提交所选 Case，顶层 `snapshot_token` 是快照观察凭据，不是可互换的选择 token。引用格式错误属于 claim 修复；真实状态过期需要 fresh-read；当前可信实现不能表达合法主张时保留原主张、证据、拒绝和实际能力路径，交回能力故障，不改写为业务已完成。

@@ -121,7 +121,7 @@ Chat 承接绑定本地 Product Workspace 的自由 Codex 对话。页面直接�
 
 ## 边界
 
-- Chat 直接使用 Codex 对话能力，但不调用 state-driven Runtime、`$arckit-state-driven-loop`、trusted ledger 或 Automation Coordinator。
+- Chat 直接使用 Codex 对话能力，但不调用 state-driven Runtime、`$using-arckit`、trusted ledger 或 Automation Coordinator。
 - Chat 不创建或修改 Workshop Project、Task、Feedback、Idea、Project State、Case 或 acceptance feedback。
 - Product Workspace 决定 `cwd`、workspace root、skill discovery 与 sandbox 边界；Renderer 不获得文件系统、Codex 凭据或通用 RPC 能力。
 - Chat 的停止不释放 Automation human Gate，不改变远端任务状态，也不抢占 Automation task thread lease。

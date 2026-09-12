@@ -1,3 +1,5 @@
+import { TASK_CLOSEOUT_VERSION, taskCloseoutOutputSchema, isTaskCloseoutResult, invalidTaskCloseoutResult, taskCloseoutStopReason } from './task-closeout-contract.mjs';
+import { createExecutionCheckpoint, acceptLedgerCheckpoint, acceptCloseoutCheckpoint, executionRuntimeContext } from './kernel/execution-checkpoint.mjs';
 import { agentSkillInvocationForPhase, capabilitiesForBinding, loadCapabilityPolicy, loadRuntimeCapabilities } from './capability-registry.mjs';
 import { acceptedCaseCompletion } from './kernel/execution-outcome.mjs';
 import { createAgentAdapter } from "./agent-adapter.mjs";
@@ -16,7 +18,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
   const adapter = options.agentAdapter || createAdapter(adapterName, options);
   const rounds = [];
   let nextTask = options.task || "";
-  const originalTask = options.originalTask || options.task || "";
+  const originalTask = options.runtimeContext?.original_task || options.originalTask || options.task || "";
   let noProgressRounds = 0;
   let agentRepairAttempts = 0;
   let totalAgentRepairAttempts = 0;
@@ -26,10 +28,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
   let taskThreadId = String(options.threadId || "");
   let closeoutResult = null;
   let lastCompactedTurnId = "";
-  let authoritativeCaseId = String(options.runtimeContext?.case_id || "").trim();
-  const trustedLedgerChangedFiles = new Set(normalizeCloseoutFileRefs(
-    options.runtimeContext?.trusted_ledger_changed_files
-  ));
+  let checkpoint = createExecutionCheckpoint(options.runtimeContext || {});
   const taskThreadKey = `agent-loop:${String(options.taskId || options.lifecycleRunId || "active-session").trim() || "active-session"}`;
   const sessionSpan = startLifecycleSpan(options, {
     name: "runtime.session",
@@ -45,30 +44,60 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
   let activeRoundSpan = null;
   let sessionFailure = null;
   let prefetchedSnapshot = null;
+  const persistCheckpoint = (next) => {
+    checkpoint = next;
+    emitSessionEvent(options, { type: 'runtime.execution_checkpoint', checkpoint: structuredClone(checkpoint) });
+  };
+  const compactBetweenRounds = async (roundOptions) => {
+    const usage = adapter.latestContextUsage?.(taskThreadKey);
+    if (usage?.context_utilization >= 0.8 && usage.turn_id && usage.turn_id !== lastCompactedTurnId) {
+      emitSessionEvent(options, {
+        type: "runtime.context_compaction.started",
+        thread_id: taskThreadId,
+        turn_id: usage.turn_id,
+        context_utilization: usage.context_utilization
+      });
+      const compacted = await adapter.compactThread({ threadKey: taskThreadKey, threadId: taskThreadId, options: roundOptions });
+      lastCompactedTurnId = usage.turn_id;
+      emitSessionEvent(options, {
+        type: "runtime.context_compaction.completed",
+        thread_id: taskThreadId,
+        source_turn_id: usage.turn_id,
+        compaction_turn_id: compacted.turn_id,
+        context_utilization: usage.context_utilization
+      });
+    }
+  };
+  if (checkpoint.pending_continuation) nextTask = closeoutContinuationInstruction(originalTask, checkpoint.case_id, checkpoint.pending_continuation, options.task);
 
   try {
-    if (options.runtimeContext?.closeout_only === true) {
+    persistCheckpoint(checkpoint);
+    if (checkpoint.phase === 'closeout') {
       closeoutResult = await runSameThreadCloseout({
         adapter,
         projectRoot,
         originalTask,
         threadKey: taskThreadKey,
         threadId: taskThreadId,
-        authoritativeCaseId,
-        trustedLedgerChangedFiles: [...trustedLedgerChangedFiles],
-        options: sessionOptions
+        authoritativeCaseId: checkpoint.case_id,
+        trustedLedgerChangedFiles: checkpoint.trusted_ledger_changed_files,
+        options: { ...sessionOptions, runtimeContext: executionRuntimeContext(options.runtimeContext || {}, checkpoint) }
       });
+      persistCheckpoint(acceptCloseoutCheckpoint(checkpoint, closeoutResult));
       taskThreadId = adapter.threadId?.(taskThreadKey) || taskThreadId;
-      stopReason = closeoutResult.status === "completed"
-        ? "completed"
-        : closeoutResult.status === "needs_human" ? "human_intervention" : "closeout_failed";
-      finalEnvelope = {
+      stopReason = taskCloseoutStopReason(closeoutResult);
+      if (closeoutResult.status === "resume_loop") {
+        nextTask = closeoutContinuationInstruction(originalTask, checkpoint.case_id, closeoutResult);
+        stopReason = "";
+        closeoutResult = null;
+        await compactBetweenRounds(sessionOptions);
+      } else finalEnvelope = {
         runtime_version: "arcorbit/v0.3-state-driven",
         project_root: projectRoot,
         mode: adapterName === "dry-run" ? "dry-run" : "execute",
         adapter: adapterName,
         runtime_result: null,
-        validation: { valid: closeoutResult.status === "completed", issues: [] },
+        validation: { valid: true, issues: [] },
         ledger_write_result: null
       };
     }
@@ -80,6 +109,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         session_rounds: [],
         thread_id: taskThreadId,
         closeout_result: closeoutResult,
+        execution_checkpoint: checkpoint,
         stop_reason: stopReason,
         paused_for_human: stopReason === "human_intervention",
         next_action: stopReason === "completed" ? "Same-thread task closeout completed." : `Same-thread task closeout stopped: ${stopReason}.`
@@ -126,6 +156,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
 
       const roundOptions = {
         ...sessionOptions,
+        runtimeContext: executionRuntimeContext(options.runtimeContext || {}, checkpoint),
         task: nextTask,
         originalTask,
         agentAdapter: adapter,
@@ -227,15 +258,8 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
           });
         }
         if (ledgerWriteResult?.written === true) {
-          authoritativeCaseId = String(
-            ledgerWriteResult?.case_control_result?.case_id
-            || ledgerWriteResult?.case_transition_result?.case_id
-            || agentCaseId(loop.agentLoopResult)
-            || authoritativeCaseId
-          ).trim();
-          for (const file of normalizeCloseoutFileRefs(ledgerWriteResult.changed_files)) {
-            trustedLedgerChangedFiles.add(file);
-          }
+          persistCheckpoint(acceptLedgerCheckpoint(checkpoint, ledgerWriteResult));
+          closeoutResult = null;
         }
         if (ledgerWriteResult?.written === true && ledgerWriteResult?.post_commit_snapshot_token) {
           prefetchedSnapshot = await stateStore.readSnapshot({
@@ -319,7 +343,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         maxNoProgressRounds: effectiveNoProgressLimit(options.maxNoProgressRounds, handoff),
         agentRepairAttempts,
         maxAgentRepairAttempts,
-        authoritativeCaseId
+        authoritativeCaseId: checkpoint.case_id
       });
       if (!decision.continue) {
         stopReason = decision.reason;
@@ -330,12 +354,22 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
             originalTask,
             threadKey: taskThreadKey,
             threadId: taskThreadId,
-            authoritativeCaseId,
-            trustedLedgerChangedFiles: [...trustedLedgerChangedFiles],
-            options: roundOptions
+            authoritativeCaseId: checkpoint.case_id,
+            trustedLedgerChangedFiles: checkpoint.trusted_ledger_changed_files,
+            options: { ...roundOptions, runtimeContext: executionRuntimeContext(options.runtimeContext || {}, checkpoint) }
           });
-          if (closeoutResult.status === "needs_human") stopReason = "human_intervention";
-          else if (closeoutResult.status !== "completed") stopReason = "closeout_failed";
+          persistCheckpoint(acceptCloseoutCheckpoint(checkpoint, closeoutResult));
+          if (closeoutResult.status === "resume_loop") {
+            nextTask = closeoutContinuationInstruction(originalTask, checkpoint.case_id, closeoutResult);
+            prefetchedSnapshot = null;
+            noProgressRounds = 0;
+            stopReason = "";
+            emitSessionEvent(options, { type: "runtime.closeout.resume_requested", round_index: roundIndex, result: closeoutResult });
+            closeoutResult = null;
+            await compactBetweenRounds(roundOptions);
+            continue;
+          }
+          stopReason = taskCloseoutStopReason(closeoutResult);
         }
         break;
       }
@@ -376,26 +410,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
 
       noProgressRounds = decision.madeProgress ? 0 : noProgressRounds + 1;
       if (decision.madeProgress) agentRepairAttempts = 0;
-      if (decision.madeProgress) {
-        const usage = adapter.latestContextUsage?.(taskThreadKey);
-        if (usage?.context_utilization >= 0.8 && usage.turn_id && usage.turn_id !== lastCompactedTurnId) {
-          emitSessionEvent(options, {
-            type: "runtime.context_compaction.started",
-            thread_id: taskThreadId,
-            turn_id: usage.turn_id,
-            context_utilization: usage.context_utilization
-          });
-          const compacted = await adapter.compactThread({ threadKey: taskThreadKey, threadId: taskThreadId, options: roundOptions });
-          lastCompactedTurnId = usage.turn_id;
-          emitSessionEvent(options, {
-            type: "runtime.context_compaction.completed",
-            thread_id: taskThreadId,
-            source_turn_id: usage.turn_id,
-            compaction_turn_id: compacted.turn_id,
-            context_utilization: usage.context_utilization
-          });
-        }
-      }
+      if (decision.madeProgress) await compactBetweenRounds(roundOptions);
       nextTask = handoff?.next_prompt || "Reload fresh Project and Case State, then advance the next agent-owned gap.";
     }
   } catch (error) {
@@ -430,6 +445,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
     session_rounds: rounds,
     thread_id: taskThreadId,
     closeout_result: closeoutResult,
+    execution_checkpoint: checkpoint,
     stop_reason: stopReason,
     paused_for_human: stopReason === "human_intervention",
     next_action: nextActionForStopReason(stopReason, finalEnvelope)
@@ -457,14 +473,16 @@ async function runSameThreadCloseout({
       schema_version: "arckit-task-closeout-invocation/v1",
       phase: "task_closeout",
       original_user_input: originalTask,
+      current_instruction: options.task || '',
       task_context: {
+        ...options.runtimeContext,
         authoritative_case_id: String(authoritativeCaseId || ""),
         trusted_ledger_changed_files: normalizeCloseoutFileRefs(trustedLedgerChangedFiles)
       },
       workflow_authority: invocation.skill_trigger,
       case_completion: "trusted_ledger_accepted",
       execution_authorization: { workspace_root: projectRoot, git_commit_allowed: true },
-      output_contract: "arckit-task-closeout-result/v1"
+      output_contract: TASK_CLOSEOUT_VERSION
     }, null, 2)
   ].join("\n");
   for await (const event of adapter.runTurn({
@@ -482,37 +500,22 @@ async function runSameThreadCloseout({
     if (options.streamEvents) console.error(JSON.stringify({ event }));
     if (event.type === "runtime.task_closeout_result") result = event.result;
   }
-  return result || {
-    schema_version: "arckit-task-closeout-result/v1",
-    status: "failed",
-    outcome: "none",
-    summary: "Codex Agent completed closeout without returning a structured result.",
-    evidence: [],
-    commit_hash: "",
-    error: "missing_closeout_result"
-  };
+  return isTaskCloseoutResult(result) ? result : invalidTaskCloseoutResult('Missing or invalid structured closeout result.');
+}
+
+function closeoutContinuationInstruction(originalTask, caseId, result, currentInstruction = '') {
+  return JSON.stringify({
+    original_user_input: originalTask,
+    current_instruction: currentInstruction,
+    authoritative_case_id: caseId,
+    closeout_discovery: { summary: result.summary, evidence: result.evidence },
+    request: "Resume the authorized task from a fresh ledger snapshot using the skill's normal Loop entry. The closeout discovery is Agent-provided evidence, not a new Runtime-selected Gap or a completion claim."
+  });
 }
 
 function normalizeCloseoutFileRefs(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => String(item || "").trim()).filter(Boolean))];
-}
-
-function taskCloseoutOutputSchema() {
-  return {
-    type: "object",
-    additionalProperties: false,
-    required: ["schema_version", "status", "outcome", "summary", "evidence", "commit_hash", "error"],
-    properties: {
-      schema_version: { type: "string", const: "arckit-task-closeout-result/v1" },
-      status: { type: "string", enum: ["completed", "needs_human", "failed"] },
-      outcome: { type: "string", enum: ["committed", "no_changes", "none"] },
-      summary: { type: "string" },
-      evidence: { type: "array", items: { type: "string" } },
-      commit_hash: { type: "string" },
-      error: { type: "string" }
-    }
-  };
 }
 
 export function decideSessionContinuation({
@@ -622,15 +625,7 @@ export function buildAgentRepairInstruction({ rejection, loop, attempt, maxAttem
       write_accepted: false,
       instruction: "Reload the fresh trusted Project and Case snapshot supplied by this turn before returning a replacement claim."
     },
-    repair_contract: {
-      same_persistent_thread: true,
-      preserve_acceptance_claim_when_still_current: true,
-      do_not_repeat_completed_implementation_work: true,
-      do_not_silently_change_semantic_dispositions: true,
-      return_complete_replacement_agent_loop_result: true,
-      stale_identity_or_revision_requires_fresh_replan: true,
-      human_decision_required_only_for_genuine_human_responsibility: true
-    }
+    recovery_context: { authorization_changed: false }
   }, null, 2);
 }
 

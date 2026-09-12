@@ -20,7 +20,7 @@ Setup Readiness 负责内置 Skills 的首次安装、更新、内容漂移恢�
 
 `arcforge-on-demand` 是 ArcForge Provider 随 ArcOrbit 提供的内置入口，默认直接发现，可以停用，不能设置为按需加载自身。该入口只在用户显式调用或宿主程序显式配置调用时工作；可见、已安装或位于按需集合均不构成调用授权。
 
-Automation 固定直接发现官方 `arckit-state-driven-loop`，不能停用或替换。Chat 可独立配置该官方核心。所有场景拒绝第三方同名核心覆盖，但该保护不把用户同名目录纳入 Engineering 管理。
+Automation 固定直接发现官方 `using-arckit`，不能停用或替换。Chat 可独立配置该官方核心。所有场景拒绝第三方同名核心覆盖，但该保护不把用户同名目录纳入 Engineering 管理。
 
 ## 页面与操作
 

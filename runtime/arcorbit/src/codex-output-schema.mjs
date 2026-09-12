@@ -1,6 +1,16 @@
 export function codexOutputSchemaIssues(schema, { name = "outputSchema" } = {}) {
   const issues = [];
   visitSchema(schema, name, issues);
+  const refs = (value, field) => {
+    if (!value || typeof value !== "object") return;
+    if (typeof value.$ref === "string") {
+      const ref = value.$ref;
+      const target = ref.startsWith("#/") ? ref.slice(2).split("/").reduce((node, key) => node?.[key.replaceAll("~1", "/").replaceAll("~0", "~")], schema) : null;
+      if (!target) issues.push(`${field} has an unresolved output schema reference: ${ref}`);
+    }
+    for (const [key, child] of Object.entries(value)) refs(child, `${field}.${key}`);
+  };
+  refs(schema, name);
   return issues;
 }
 

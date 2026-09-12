@@ -75,6 +75,8 @@ export function buildArtifactOwnershipScan(paths = []) {
 
   return {
     schema_version: "arckit-artifact-ownership-scan/v1",
+    classification_basis: "path_hint_only",
+    authority_verified: false,
     classified,
     source_facts_changed: sourceFactsChanged,
     projection_artifacts_changed: projectionArtifactsChanged,

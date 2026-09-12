@@ -1,6 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { createAgentAdapter } from "./agent-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import {
@@ -19,9 +17,7 @@ import {
 import { createCaseControlRuntimeResult } from "./kernel/runtime-result-builder.mjs";
 import { firstSafeSemanticText, safeSemanticText, SEMANTIC_LIMITS } from "./context-boundary.mjs";
 import { endLifecycleSpan, startLifecycleSpan } from "./observability/lifecycle-trace.mjs";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const agentLoopResultSchemaPath = join(here, "../schemas/agent-loop-result.schema.json");
+import { agentContractBindings, loadAgentOutputSchema } from "./agent-contracts.mjs";
 
 export async function runAgenticLoop(input) {
   const options = input.options || {};
@@ -56,9 +52,10 @@ async function runCoherentAgentLoop({ projectRoot, snapshot, round, compiledProm
   const controllerCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "controller");
   const runtimeCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "runtime");
   const adapter = options.agentAdapter || createAgentAdapter(options.dryRun ? "dry-run" : options.adapter || "codex-app-server", options);
-  const outputSchema = JSON.parse(await readFile(agentLoopResultSchemaPath, "utf8"));
+  const outputSchema = await loadAgentOutputSchema(runtimeCapabilities);
+  const contracts = agentContractBindings(runtimeCapabilities);
   const loopFrame = createLoopFrame({ snapshot, round, task: options.task || "", controllerCapabilities, runtimeCapabilities, options });
-  const prompt = compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, options, controllerCapabilities });
+  const prompt = compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, options: { ...options, agentContractBindings: contracts }, controllerCapabilities });
   const events = [];
   let agentLoopResult = null;
   emit(events, {
@@ -91,7 +88,7 @@ async function runCoherentAgentLoop({ projectRoot, snapshot, round, compiledProm
     summary: agentLoopResult.summary,
     case_id: agentLoopResult.case_command?.case_id || agentLoopResult.case_transition?.case_id || ""
   }, options);
-  const runtimeResult = await createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, round, snapshot, compiledPrompt });
+  const runtimeResult = await createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, round, snapshot, compiledPrompt, contracts });
   const validation = validateRuntimeResult(runtimeResult);
   emit(events, { type: "runtime.result", result: runtimeResult, validation }, options);
   return {
@@ -142,7 +139,7 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
     loop_contract: {
       workflow_authority: invocation.skill_trigger,
       output_contract: "arckit-agent-loop-result/v2",
-      semantic_command_contract: "arckit-semantic-case-command/v1",
+      agent_contracts: options.agentContractBindings || null,
       ledger_write_forbidden: true,
       protocol_recovery: protocolRecovery,
       ordinary_case_progress_forbidden: protocolRecovery,
@@ -191,10 +188,7 @@ export function createLoopFrame({ snapshot, round, task, controllerCapabilities 
       case_id: round.case_id || "",
       round_goal: roundGoal,
       round_status: "agent_loop",
-      selected_gap: selectedGap,
-      source_projection_check: {
-        source_facts_changed: [], projection_artifacts_changed: [], implementation_evidence: [], pending_items: [], source_unknown: false
-      }
+      selected_gap: selectedGap
     },
     execution_gate: {
       schema_version: "arckit-execution-gate/v1",
@@ -405,15 +399,12 @@ function agentLoopResultFailureReason(result, snapshot) {
   if (snapshot?.compatibility?.status === "incompatible" && result.action !== "handoff") {
     return "Protocol-incompatible canonical state forbids ordinary Case control and transitions; reconcile through the trusted ledger entrypoint first.";
   }
-  if (result.action === "case_control" && (!result.case_control || result.case_command || result.case_transition || !["create_case", "bind_closed_case"].includes(result.case_control.action))) return "case_control action is incomplete.";
+  if (result.action === "case_control" && (!result.case_control || result.case_command || result.case_transition)) return "case_control action is incomplete.";
   if (result.action === "case_command") {
     if (!result.case_command || result.case_control || result.case_transition) return "case_command action is incomplete.";
-    if (!Array.isArray(result.case_command.evidence) || result.case_command.evidence.length === 0) return "Agent Loop semantic command requires evidence.";
   }
   if (result.action === "case_transition") {
-    if (!result.case_transition || result.case_control) return "case_transition action is incomplete.";
-    const transition = result.case_transition;
-    if (!Array.isArray(transition.evidence) || transition.evidence.length === 0) return "Agent Loop transition requires evidence.";
+    if (!result.case_transition || result.case_control || result.case_command) return "case_transition action is incomplete.";
   }
   if (result.action === "handoff" && (result.case_control || result.case_command || result.case_transition)) return "handoff action cannot include Case payloads.";
   if (result.handoff.human_decision_required && result.handoff.next_responsibility !== "human") return "human_decision_required requires human responsibility.";
@@ -428,7 +419,7 @@ function invalidAgentLoopResult(reason) {
   };
 }
 
-async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, round, snapshot, compiledPrompt }) {
+async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, round, snapshot, compiledPrompt, contracts }) {
   if (agentLoopResult.action === "case_control") {
     const control = agentLoopResult.case_control;
     const reusesClosedCase = control.action === "bind_closed_case";
@@ -452,7 +443,7 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
       loopFrame.controller_frame.round_goal = goal;
     }
     loopFrame.controller_frame.controller_plan = controllerPlan;
-    const result = await createCaseControlRuntimeResult({ controllerPlan, loopFrame, round, snapshot, compiledPrompt, roundState: { state: "authorized", history: [] } });
+    const result = await createCaseControlRuntimeResult({ controllerPlan, loopFrame, round, snapshot, compiledPrompt, contract: contracts.contracts.case_control, roundState: { state: "authorized", history: [] } });
     result.summary = agentLoopResult.summary;
     result.agent_loop_result = agentLoopProjection(agentLoopResult);
     result.validation_evidence = ["runtime/arcorbit/schemas/agent-loop-result.schema.json"];
@@ -462,7 +453,8 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
   const transition = agentLoopResult.case_transition;
   const ownership = buildArtifactOwnershipScan(agentLoopResult.changed_files);
   const handoff = agentLoopResult.handoff;
-  const transitionReady = (agentLoopResult.action === "case_command" && command?.round_outcome !== "blocked") || (agentLoopResult.action === "case_transition" && transition?.round_outcome !== "blocked");
+  // Ledger decides whether a claim is legal; execution outcome is not a write gate.
+  const transitionReady = Boolean(command || transition);
   const caseStatus = transition?.case_resolution?.claimed_status || (command ? "unresolved" : "blocked");
   const responsibility = transition?.case_resolution?.claimed_status === "resolved"
     ? "none"
@@ -514,10 +506,6 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
     round_state: transitionReady ? "ledger_gate_ready" : responsibility === "human" ? "human_gate_required" : responsibility === "external" ? "external_wait" : "blocked",
     round_state_history: [], summary: agentLoopResult.summary, changed_files: agentLoopResult.changed_files,
     artifact_impact_scan: createArtifactImpactScan(ownership), artifact_ownership_scan: ownership,
-    source_projection_check: {
-      source_facts_changed: ownership.source_facts_changed, projection_artifacts_changed: ownership.projection_artifacts_changed,
-      source_unknown: ownership.unknown_artifacts.length > 0, deferred_projections: [], blocked_projections: ownership.unknown_artifacts.map((path) => `Unknown artifact: ${path}`)
-    },
     agent_loop_result: agentLoopProjection(agentLoopResult), controller_frame: loopFrame.controller_frame,
     execution_gate: loopFrame.execution_gate, executor_binding: loopFrame.executor_binding,
     ledger_stage: {

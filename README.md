@@ -121,9 +121,10 @@ Runtime 的详细行为和命令见 [ArcOrbit](runtime/arcorbit/README.md)。
 
 | 执行平面 | Skill | 核心职责 |
 | --- | --- | --- |
-| Entry | [`arckit-state-driven-loop`](entry/skills/arckit-state-driven-loop/) | 同一 Agent 逐轮选择并完成一个 Gap；包内可信 Ledger 校验主张、原子写回并提供 fresh snapshot |
+| Entry | [`using-arckit`](entry/skills/using-arckit/) | 同一 Agent 按完整状态驱动方法逐轮选择、执行并验证一个 Gap |
+| Entry | [`arckit-development-ledger`](entry/skills/arckit-development-ledger/) | 状态模型、语义提交契约、可信记账与 fresh snapshot |
 
-`arckit-state-driven-loop` 是一个自包含能力包。Agent 接口提供语义工作方法，trusted entrypoints 提供 schema、revision、审计、原子提交与可恢复投影。两个接口共享分发身份，语义判断与确定性写入仍各自负责。人工对话和 Runtime 使用同一条 Project State → Case → Loop 主轴。
+`using-arckit` 提供完整状态驱动方法；`arckit-development-ledger` 提供状态模型、语义提交契约、可信审计、原子提交与可恢复投影。两个 skill 分别通过 manifest 绑定，作为兼容集合随应用分发。Automation 默认提供两个入口；Chat 使用完整 Loop 时需让两个 skill 都可直接发现，单独使用 Ledger 可以进行显式状态维护。人工对话和 Runtime 使用同一条 Project State → Case → Loop 主轴。
 
 这里的“核心系统”特指 skills 层的状态驱动内核。Desktop 仍负责产品与人工控制，Runtime 仍负责调度、gate 和 writeback 协调，Codex 类 Agent 仍负责语义推理与工作区执行。`entry/` 让项目能够按同一套状态语义持续推进，后续两层则让每次 Loop 拥有经过实践验证的事实维护、工程诊断和具体实现能力；三层共同组成完整的 Arckit 能力框架。
 
@@ -213,13 +214,13 @@ Agent 用户级或项目级目录     应用目标
 
 ### 在 Agent 对话中直接协作
 
-安装 skills 后，可以让支持 Agent skills 的编码 Agent 使用 `arckit-state-driven-loop` 进入项目对话。同一 Agent 恢复 Project 和 active Case，选择一个 Gap，自主执行并验证，可信提交和 fresh-read 后进入下一轮。
+安装 skills 后，可以让支持 Agent skills 的编码 Agent 使用 `using-arckit` 进入项目对话。同一 Agent 恢复 Project 和 active Case，选择一个 Gap，自主执行并验证，可信提交和 fresh-read 后进入下一轮。
 
 需要单独维护稳定事实或进行诊断时，也可以直接触发相应 Worker skill。此时 skill 仍遵守自己的事实边界，但不会自行推断或写回 Case resolution。
 
 ### 通过 Desktop / Runtime 自动桥接
 
-Runtime 在同一 Agent thread 中调用 `arckit-state-driven-loop`，通过 capability manifest 调用包内 Ledger 的 trusted entrypoints，串行推进 Gap、Review 和修复。Desktop 是推荐的可视化产品入口。
+Runtime 在同一 Agent thread 中调用 `using-arckit`，通过 `arckit-development-ledger` capability manifest 调用 trusted entrypoints，串行推进 Gap、Review 和修复。Desktop 是推荐的可视化产品入口。
 
 快速启动开发版 Desktop：
 

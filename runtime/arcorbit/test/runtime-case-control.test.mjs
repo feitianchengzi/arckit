@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createDefaultCaseRecord } from "../../../entry/skills/arckit-state-driven-loop/scripts/development-case.mjs";
-import { createProjectStateRecord } from "../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs";
+import { createDefaultCaseRecord } from "../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs";
+import { createProjectStateRecord } from "../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs";
 import {
   applyRuntimeCaseControl,
   validateCaseControlHandoff
-} from "../../../entry/skills/arckit-state-driven-loop/scripts/runtime-case-control.mjs";
+} from "../../../entry/skills/arckit-development-ledger/scripts/runtime-case-control.mjs";
 import { createLoopFrame } from "../src/agent-orchestrator.mjs";
 import { createCaseControlRuntimeResult } from "../src/kernel/runtime-result-builder.mjs";
 import { validateRuntimeResult } from "../src/validator.mjs";

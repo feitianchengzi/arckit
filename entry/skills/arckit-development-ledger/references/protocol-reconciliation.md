@@ -13,19 +13,6 @@
 
 Probe 扫描 Project 明确引用的 active Case/Iteration，并补充 active Case 目录，输出每个对象的 `source_digest`。`snapshot_token` 绑定完整 observed set，防止恢复期间外部修改被覆盖。
 
-## Agent 责任
-
-形成 `arckit-protocol-reconciliation/v1` 候选 replacements。转换应满足：
-
-- 保留可映射的项目意图、Case/Iteration identity、accepted facts、evidence、open work、questions、impacts 和 handoffs；不静默关闭或删除义务。
-- 新协议要求但旧状态没有证据的内容保持 open/unknown，不编造项目事实。
-- canonical core decision areas 与 software invariants 精确使用当前协议定义；项目具体结论仍放在 decision/fact，而不是伪装成 invariant。
-- reconciliation 只恢复协议可读性，不顺带推进普通 Case 工作、解决普通 Gap 或完成 Completion Review。
-- 每个 replacement 写明 semantic basis；仍有不能可信映射的不确定性时不得提交 trusted writeback，应按真实责任 handoff。
-
-Agent 不直接编辑 canonical ledger。以当前授权 workspace root 为工作目录，使用 `arckit-state-driven-loop` manifest 声明的 trusted entrypoints 和 contract refs 执行 `read`、`probe`、`validate` 与 `reconcile`；不得假设目标业务仓库包含 Arckit 源码相对路径，也不得要求先注册 Case。stdin 或临时 JSON 只是 transport，不是持久 evidence。
-
-
 ## Reconciliation 输入
 
 `arckit-protocol-reconciliation/v1` 包含：

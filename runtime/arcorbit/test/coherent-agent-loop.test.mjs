@@ -5,12 +5,12 @@ import test from "node:test";
 
 import { runAgenticLoop } from "../src/agent-orchestrator.mjs";
 import { compilePrompt } from "../src/prompt-compiler.mjs";
-import { createProjectStateRecord } from "../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs";
+import { createProjectStateRecord } from "../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDir, "../../..");
 
-test("default execution accepts candidate and current-turn fresh gaps from one coherent arckit-state-driven-loop Agent", async () => {
+test("default execution accepts candidate and current-turn fresh gaps from one coherent using-arckit Agent", async () => {
   const caseId = "CASE-20260810-001";
   const gap = {
     id: "GAP-IMPLEMENT",
@@ -113,8 +113,8 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
   assert.equal(calls[0].options.resultKind, "agent-loop-result");
   assert.equal(calls[0].options.outputSchema.properties.schema_version.const, "arckit-agent-loop-result/v2");
   assert.equal("skillInputs" in calls[0].options, false);
-  assert.ok(calls[0].prompt.startsWith("$arckit-state-driven-loop\n"));
-  assert.match(calls[0].prompt, /"workflow_authority": "\$arckit-state-driven-loop"/);
+  assert.ok(calls[0].prompt.startsWith("$using-arckit\n"));
+  assert.match(calls[0].prompt, /"workflow_authority": "\$using-arckit"/);
   assert.doesNotMatch(calls[0].prompt, /"one_gap"|"typed_refs"|"future_gap_preplanning"/);
   const invocation = JSON.parse(calls[0].prompt.slice(calls[0].prompt.indexOf("\n\n") + 2));
   assert.equal(invocation.task_context.case_id, caseId);

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Using Arckit"
+  short_description: "用同一 Agent 按 Case gap 持续推进软件开发"
+  default_prompt: "使用 $using-arckit 从 trusted ledger snapshot 和 fresh facts 逐项解释 software invariants，选择当前已接受事实直接支持的最小 Gap；若后续结果依赖本轮才建立的事实或决定，只完成该前置 Gap并在 closeout、fresh-read 后重新选择。"
+policy:
+  allow_implicit_invocation: true

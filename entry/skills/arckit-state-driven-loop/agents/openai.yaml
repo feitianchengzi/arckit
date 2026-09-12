@@ -1,4 +1,0 @@
-interface:
-  display_name: "Arckit State Driven Loop"
-  short_description: "依据项目事实逐轮推进单个 Gap，并可信记账与恢复"
-  default_prompt: "使用 $arckit-state-driven-loop 推进当前事项：恢复意图与可信状态，自主选择并完成一个 Gap，提交后 fresh-read 再判断下一轮。按需读取协议细节，保留语义判断与确定性记账边界，汇报证据、状态及交接责任。"

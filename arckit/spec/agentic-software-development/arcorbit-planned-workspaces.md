@@ -72,7 +72,7 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 - 首次发送前必须在新会话内确认一个已绑定本地目录且 Setup Readiness 可用的 Product Workspace；即使只有一个可用工作区，页面也持续显示其归属。不存在可用工作区时页面说明阻塞原因，并提供前往工作区配置的恢复入口。
 - Product Workspace 决定 Codex 的 `cwd`、workspace root、project skill discovery 和文件权限边界；会话消息不会自动注入整个 Workset、Workshop 任务或 ledger state。
-- Chat 直接使用 Codex 自由对话 prompt，不触发 `$arckit-state-driven-loop`，不要求 `arckit-agent-loop-result/v1`，也不调用 trusted ledger entrypoint。
+- Chat 直接使用 Codex 自由对话 prompt，不触发 `$using-arckit`，不要求 `arckit-agent-loop-result/v1`，也不调用 trusted ledger entrypoint。
 - Codex 发起需要批准的文件、命令或网络操作时，沿用 app-server 的用户 approval request；拒绝只影响该操作或 turn，不改变 Workshop 与 Automation 状态。
 
 ### 边界
@@ -113,7 +113,7 @@ Operations 页面不宣称已经接入广告、社交媒体、邮件、分析或
 
 Engineering 是本机全局的 ArcOrbit 内置 Skills 安装后管理页面。用户可以查看内置安装状态、按名称或当前使用方式筛选、调整 Chat / Automation 的直接发现、按需使用或停用状态，并恢复场景默认。具体集合、生效时机与核心保护见 [场景技能规格](arcorbit-scene-skills.md)。
 
-Automation 固定使用官方 arckit-state-driven-loop 自包含核心包；Chat 可独立配置官方 Loop 配套。用户级、项目级、其他 catalog 和本地目录 Skills 不显示且不受 Engineering 操作。Engineering 不编辑 Project/Case 模型，也不为 Gap 选择技能。
+Automation 固定使用官方 using-arckit 与 arckit-development-ledger 两个核心 skill；Chat 可独立配置官方 Loop 配套。用户级、项目级、其他 catalog 和本地目录 Skills 不显示且不受 Engineering 操作。Engineering 不编辑 Project/Case 模型，也不为 Gap 选择技能。
 
 ## 生命周期关系
 

@@ -32,7 +32,7 @@ Engineering 帮助用户高效检查和调整 ArcOrbit 内置 Skills 在 Chat �
 - 按需使用：该内置 Skill 只进入显式调用范围。缺少 qualifiedName 的条目不提供此选项。
 - 已停用：该内置 Skill 不提供给当前场景。
 - `arcforge-on-demand` 不提供“按需使用”自身的选项。
-- Automation 的 `arckit-state-driven-loop` 使用方式锁定为直接发现，控件禁用并显示“Automation 必需”。
+- Automation 的 `using-arckit` 使用方式锁定为直接发现，控件禁用并显示“Automation 必需”。
 - Chat 的官方核心可调整，页面仍标记“官方核心”。
 
 ## 搜索、筛选与空状态

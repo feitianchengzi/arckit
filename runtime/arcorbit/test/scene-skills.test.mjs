@@ -29,7 +29,7 @@ async function skill(folder, name, description = `Use ${name} for its domain.`) 
 async function fixture({ installed = true } = {}) {
  const root=await realpath(await mkdtemp(path.join(os.tmpdir(),'scene-skills-'))),home=path.join(root,'home'),source=path.join(root,'source'),data=path.join(root,'data'),project=path.join(root,'project');
  await mkdir(project,{recursive:true});
- for(const name of ['arckit-state-driven-loop','arckit-spec','manual-skill']) await skill(path.join(source,'entry','skills',name),name);
+ for(const name of ['using-arckit','arckit-development-ledger','arckit-spec','manual-skill']) await skill(path.join(source,'entry','skills',name),name);
  await writeFile(path.join(source,'arcforge.skill-project.json'),JSON.stringify({version:1,sourceDir:'.',availability:{defaultMode:'user-ambient',skills:[{path:'entry/skills/manual-skill',mode:'user-on-demand'}]}}));
  const catalog=createBundledSkillCatalog({sourceRoot:source,dataRoot:data,homeDir:home,provider});if(installed){const first=await catalog.prepare();await catalog.install({planDigest:first.installation.planDigest,confirmed:true});}
  const options={dataRoot:data,homeDir:home,catalog,getProjectRoots:async()=>[project]};
@@ -38,26 +38,26 @@ async function fixture({ installed = true } = {}) {
 test('scene defaults persist built-in choices and reject non-built-in mutations',async()=>{
  const f=await fixture();let s=await f.manager.snapshot();
  assert.equal(s.scenes.find(x=>x.id==='chat').enabledCount,1);
- assert.equal(s.scenes.find(x=>x.id==='automation').enabledCount,3);
- await assert.rejects(f.manager.update({scene:'automation',expectedRevision:0,changes:[{id:'builtin:arckit-state-driven-loop',enabled:false}]}),/core/);
+ assert.equal(s.scenes.find(x=>x.id==='automation').enabledCount,4);
+ await assert.rejects(f.manager.update({scene:'automation',expectedRevision:0,changes:[{id:'builtin:using-arckit',enabled:false}]}),/core/);
  assert.equal((await f.manager.snapshot()).revision,0);
  await skill(path.join(f.home,'.codex/skills/my-spec'),'my-spec');
  assert.equal((await f.manager.snapshot()).skills.some(x=>x.name==='my-spec'),false);
  await assert.rejects(f.manager.update({scene:'automation',expectedRevision:0,changes:[{id:'user:my-spec',enabled:true}]}),/only manages ArcOrbit built-in/);
  s=await f.manager.update({scene:'automation',expectedRevision:0,changes:[{id:'builtin:arckit-spec',enabled:false}]});
  const reopened=createSceneSkillManager(f.options);const binding=await reopened.resolveScene('automation',f.project);
- assert.deepEqual(binding.skills.map(x=>x.name).sort(),['arcforge-on-demand','arckit-state-driven-loop']);
+ assert.deepEqual(binding.skills.map(x=>x.name).sort(),['arcforge-on-demand','arckit-development-ledger','using-arckit']);
  await assert.rejects(reopened.update({scene:'chat',expectedRevision:0,changes:[]}),/changed/);
  await validateSceneSkillBinding(binding);
  await writeFile(binding.skills[0].skillPath,'changed');
  await assert.rejects(validateSceneSkillBinding(binding),/package|catalog|metadata|changed/i);
 });
-test('Chat Loop opt-in is self-contained, independently switchable and never replaces core',async()=>{
- const f=await fixture();let s=await f.manager.update({scene:'chat',expectedRevision:0,changes:[{id:'builtin:arckit-state-driven-loop',enabled:true}]});
+test('Chat entry visibility is independently configurable and never replaces Automation core',async()=>{
+ const f=await fixture();let s=await f.manager.update({scene:'chat',expectedRevision:0,changes:[{id:'builtin:using-arckit',enabled:true}]});
  assert.equal((await f.manager.resolveScene('chat',f.project)).skills.length,2);
- await f.manager.update({scene:'chat',expectedRevision:s.revision,changes:[{id:'builtin:arckit-state-driven-loop',enabled:false}]});
+ await f.manager.update({scene:'chat',expectedRevision:s.revision,changes:[{id:'builtin:using-arckit',enabled:false}]});
  assert.equal((await f.manager.resolveScene('chat',f.project)).skills.length,1);
- assert.equal((await f.manager.resolveScene('automation',f.project)).skills.length,3);
+ assert.equal((await f.manager.resolveScene('automation',f.project)).skills.length,4);
 });
 test('editing Automation does not change the Chat process fingerprint', async () => {
  const f=await fixture(),before=await f.manager.resolveScene('chat',f.project);
@@ -68,7 +68,7 @@ test('legacy cleanup removes known Arckit only, preserves unrelated and linked f
  const f=await fixture(),local=path.join(f.project,'.codex','skills');
  await skill(path.join(local,'arckit-spec'),'arckit-spec');
  await skill(path.join(local,'arckit-user-tool'),'arckit-user-tool');
- await skill(path.join(local,'arckit-state-driven-loop'),'arckit-state-driven-loop','User maintained unrelated same name');
+ await skill(path.join(local,'using-arckit'),'using-arckit','User maintained unrelated same name');
  const outside=await skill(path.join(f.root,'outside'),'linked-tool');await symlink(outside,path.join(local,'linked-tool'));
  const first=await confirmMigration(f.catalog,[f.project]);assert.equal(first.removed.length,1);assert.equal(first.errors.length,0);assert.equal(first.preserved.length,3);
  await assert.rejects(access(path.join(local,'arckit-spec')));await access(outside);await access(path.join(local,'arckit-user-tool'));
@@ -94,10 +94,10 @@ test('stable catalog updates invalidate stale bindings and detect tampered insta
 });
 test('Codex roots and local config exclude disabled or shadowing native skills and preserve unrelated entries',async()=>{
  const f=await fixture();const binding=await f.manager.resolveScene('chat',f.project),requests=[];
- const client={async request(method,params){requests.push({method,params});return method==='skills/list'?{data:[{cwd:f.project,skills:[...binding.skills.map(x=>({name:x.name,path:x.skillPath,enabled:true})),{name:'arckit-state-driven-loop',path:'/native/arckit-state-driven-loop/SKILL.md',enabled:true},{name:'third-party',path:'/native/third-party/SKILL.md',enabled:true}]}]}:{};}};
+ const client={async request(method,params){requests.push({method,params});return method==='skills/list'?{data:[{cwd:f.project,skills:[...binding.skills.map(x=>({name:x.name,path:x.skillPath,enabled:true})),{name:'using-arckit',path:'/native/using-arckit/SKILL.md',enabled:true},{name:'third-party',path:'/native/third-party/SKILL.md',enabled:true}]}]}:{};}};
  const configured=await configureCodexSceneSkills(client,f.project,binding);
  assert.deepEqual(requests[0],{method:'skills/extraRoots/set',params:{extraRoots:binding.skills.map(x=>x.path)}});
- assert.equal(configured.config['skills.config'].find(x=>x.path==='/native/arckit-state-driven-loop/SKILL.md').enabled,false);
+ assert.equal(configured.config['skills.config'].find(x=>x.path==='/native/using-arckit/SKILL.md').enabled,false);
  assert.deepEqual(configured.skillInputs,[]);
  await assert.rejects(configureCodexSceneSkills({request:async()=>{throw Error('method not found');}},f.project,binding),/extraRoots/);
 });
@@ -114,11 +114,11 @@ test('readiness lists cleanup without deleting until the reviewed plan is explic
  await provision.assertReady(f.project);
 });
 test('native non-Arckit skills remain Codex-owned while same-name core stays shadowed',async()=>{
- const f=await fixture();await skill(path.join(f.home,'.codex/skills/third-party'),'third-party');await skill(path.join(f.home,'.codex/skills/arckit-state-driven-loop'),'arckit-state-driven-loop');
+ const f=await fixture();await skill(path.join(f.home,'.codex/skills/third-party'),'third-party');await skill(path.join(f.home,'.codex/skills/using-arckit'),'using-arckit');
  const s=await f.manager.snapshot();assert.ok(s.skills.every(x=>x.source==='builtin'));assert.equal(s.skills.some(x=>x.name==='third-party'),false);
  const binding=await f.manager.resolveScene('chat',f.project);assert.deepEqual(binding.skills.map(x=>x.name),['arcforge-on-demand']);
- const thirdParty=path.join(f.home,'.codex/skills/third-party/SKILL.md'),nativeCore=path.join(f.home,'.codex/skills/arckit-state-driven-loop/SKILL.md');
- const client={request:async method=>method==='skills/list'?{data:[{cwd:f.project,skills:[...binding.skills.map(x=>({name:x.name,path:x.skillPath,enabled:true})),{name:'third-party',path:thirdParty,enabled:true},{name:'arckit-state-driven-loop',path:nativeCore,enabled:true}]}]}:{}};
+ const thirdParty=path.join(f.home,'.codex/skills/third-party/SKILL.md'),nativeCore=path.join(f.home,'.codex/skills/using-arckit/SKILL.md');
+ const client={request:async method=>method==='skills/list'?{data:[{cwd:f.project,skills:[...binding.skills.map(x=>({name:x.name,path:x.skillPath,enabled:true})),{name:'third-party',path:thirdParty,enabled:true},{name:'using-arckit',path:nativeCore,enabled:true}]}]}:{}};
  const overrides=(await configureCodexSceneSkills(client,f.project,binding)).config['skills.config'];
  assert.equal(overrides.some(x=>x.path===path.resolve(thirdParty)),false);
  assert.equal(overrides.find(x=>x.path===path.resolve(nativeCore)).enabled,false);
@@ -148,21 +148,21 @@ test('non-built-in catalog conflicts stay outside Engineering and cannot be acti
  await assert.rejects(provider.queryCatalog({stateRoot:path.join(f.home,'.arcforge'),action:'resolve',query:'domain'}),/catalog|Catalog|qualifiedName/);
 });
 
-test('merged Loop preserves legacy Chat preference and excludes retired native entries without deleting them', async () => {
+test('dual entries preserve merged Chat preference and excludes retired native entries without deleting them', async () => {
  const f=await fixture();
- const legacy=await skill(path.join(f.home,'.codex/skills/using-arckit'),'using-arckit');
+ const legacy=await skill(path.join(f.home,'.codex/skills/arckit-state-driven-loop'),'arckit-state-driven-loop');
  await mkdir(path.join(f.data,'engineering'),{recursive:true});
- await writeFile(path.join(f.data,'engineering/scene-skills.json'),JSON.stringify({schema_version:'arcorbit-scene-skills/v1',revision:4,localPaths:['/legacy/user/path'],scenes:{chat:{'builtin:using-arckit':true,'builtin:arckit-development-ledger':true,'user:domain':'disabled'},automation:{}}}));
+ await writeFile(path.join(f.data,'engineering/scene-skills.json'),JSON.stringify({schema_version:'arcorbit-scene-skills/v1',revision:4,localPaths:['/legacy/user/path'],scenes:{chat:{'builtin:arckit-state-driven-loop':true,'user:domain':'disabled'},automation:{}}}));
  const binding=await f.manager.resolveScene('chat',f.project);
- assert.deepEqual(binding.skills.map(x=>x.name),['arcforge-on-demand','arckit-state-driven-loop']);
- assert.ok(binding.managedNames.includes('using-arckit'));assert.equal(binding.disabledPaths.includes(await realpath(legacy)),false);await access(legacy);
- const client={request:async method=>method==='skills/list'?{data:[{cwd:f.project,skills:[...binding.skills.map(x=>({name:x.name,path:x.skillPath,enabled:true})),{name:'using-arckit',path:path.join(legacy,'SKILL.md'),enabled:true}]}]}:{}};
+ assert.deepEqual(binding.skills.map(x=>x.name),['arcforge-on-demand','arckit-development-ledger','using-arckit']);
+ assert.ok(binding.managedNames.includes('arckit-state-driven-loop'));assert.equal(binding.disabledPaths.includes(await realpath(legacy)),false);await access(legacy);
+ const client={request:async method=>method==='skills/list'?{data:[{cwd:f.project,skills:[...binding.skills.map(x=>({name:x.name,path:x.skillPath,enabled:true})),{name:'arckit-state-driven-loop',path:path.join(legacy,'SKILL.md'),enabled:true}]}]}:{}};
  assert.equal((await configureCodexSceneSkills(client,f.project,binding)).config['skills.config'].find(x=>x.path===path.join(legacy,'SKILL.md')).enabled,false);
- const s=await f.manager.update({scene:'chat',expectedRevision:4,changes:[{id:'builtin:arckit-state-driven-loop',enabled:false}]});
+ const s=await f.manager.update({scene:'chat',expectedRevision:4,changes:[{id:'builtin:using-arckit',enabled:false},{id:'builtin:arckit-development-ledger',enabled:false}]});
  assert.equal(s.revision,5);assert.equal((await f.manager.resolveScene('chat',f.project)).skills.length,1);
  const reset=await f.manager.update({scene:'chat',expectedRevision:s.revision,reset:true});assert.equal(reset.revision,6);
  const persisted=JSON.parse(await readFile(path.join(f.data,'engineering/scene-skills.json'),'utf8'));
- assert.equal('builtin:using-arckit' in persisted.scenes.chat,false);
+ assert.equal('builtin:arckit-state-driven-loop' in persisted.scenes.chat,false);
  assert.equal(persisted.scenes.chat['user:domain'],'disabled');assert.deepEqual(persisted.localPaths,['/legacy/user/path']);
 });
 

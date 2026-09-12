@@ -13,7 +13,7 @@ The Runtime kernel owns:
 - one persistent Codex thread binding per todo;
 - process-restart recovery through `thread/resume`;
 - deterministic schema, revision, authorization, and ledger gates;
-- trusted `arckit-state-driven-loop` entrypoint invocation;
+- trusted `arckit-development-ledger` entrypoint invocation;
 - token/context telemetry, same-thread compaction, lifecycle tracing, and operator intervention;
 - same-thread final validation, repair, and Git closeout.
 
@@ -27,8 +27,8 @@ The Codex Agent owns:
 
 Runtime capability policy binds one self-contained package through two explicit interfaces:
 
-- `arckit-state-driven-loop`: the natural `$arckit-state-driven-loop` Agent entry trigger;
-- `arckit-state-driven-loop`: trusted deterministic Case control/writeback entrypoints.
+- `using-arckit`: the natural `$using-arckit` Agent entry trigger;
+- `arckit-development-ledger`: trusted deterministic Case control/writeback entrypoints.
 
 Runtime has no fixed skill routing, skill allowlist for gap execution, execution-role registry, predicted path scope, or separate planning/review/commit Agent pipeline.
 
@@ -52,7 +52,7 @@ There is no wall-clock limit, productive-round limit, or long-command watchdog. 
 claim todo
 -> load or establish persistent thread binding
 -> read the trusted ledger snapshot and persisted candidate catalog
--> invoke $arckit-state-driven-loop once for one gap
+-> invoke $using-arckit once for one gap
 -> Agent compares persisted/fresh candidates, executes, verifies, and returns a structured claim
 -> Runtime validates and calls trusted ledger writeback
 -> inspect context usage and compact at >= 80%
@@ -69,7 +69,7 @@ Automatic execution pauses only for an explicit human-responsibility handoff. Ex
 Each gap turn begins with the manifest-declared natural trigger:
 
 ```text
-$arckit-state-driven-loop
+$using-arckit
 ```
 
 The remaining input is a compact invocation containing the original user intent on the first turn, the current continuation increment, fresh canonical Project/Case facts, revisions, locale, and execution authorization. If canonical records do not satisfy the manifest-declared ledger protocol, Runtime passes the typed compatibility result to the same Agent thread instead of terminating before Agent execution; the Agent owns semantic reconciliation and the trusted ledger entrypoint owns freshness, validation, and atomic writeback. Runtime does not locate or read Codex-installed `SKILL.md` files, compare installed skill versions or directory drift, duplicate skill contents, inject a second skill input item, list other installed skills, or encode which skill the Agent should choose.

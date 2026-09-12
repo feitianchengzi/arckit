@@ -5,10 +5,14 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { ensureArckitProject } from '../src/project-initializer.mjs';
+import { createStateStore } from '../src/state-store.mjs';
+import { runAgenticLoop } from '../src/agent-orchestrator.mjs';
+import { compilePrompt } from '../src/prompt-compiler.mjs';
+import { writeLedger } from '../src/ledger-writer.mjs';
 import { runLedgerScript } from '../src/ledger-scripts.mjs';
-import { readLedgerSnapshot } from '../../../entry/skills/arckit-state-driven-loop/scripts/loop-snapshot.mjs';
-import { materializeSemanticCaseCommand, SemanticCommandError, validateSemanticCaseCommand } from '../../../entry/skills/arckit-state-driven-loop/scripts/semantic-case-command.mjs';
-import { applyRuntimeLedgerWriteback, rejectionPolicy } from '../../../entry/skills/arckit-state-driven-loop/scripts/runtime-writeback.mjs';
+import { readLedgerSnapshot } from '../../../entry/skills/arckit-development-ledger/scripts/loop-snapshot.mjs';
+import { materializeSemanticCaseCommand, SemanticCommandError, validateSemanticCaseCommand } from '../../../entry/skills/arckit-development-ledger/scripts/semantic-case-command.mjs';
+import { applyRuntimeLedgerWriteback, rejectionPolicy } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-writeback.mjs';
 
 test('Semantic Case Command materializes identities, revisions and reverse relations without reading prose', async () => {
   const projectRoot = await fixtureProject();
@@ -283,7 +287,31 @@ test('Review findings explicitly bind invariant judgments to their persisted rep
   const materialized = materializeSemanticCaseCommand({ command, snapshot });
   const gapId = `${active.record.id}:review-finding:${materialized.canonical_id_mapping[findingRef]}`;
   assert.deepEqual(materialized.transition.accepted_state_delta.gaps_added, []);
-  const accepted = await applyRuntimeLedgerWriteback({ projectRoot, runtimeResult: { case_command: command }, snapshot, gate: { allowed: true, reasons: [] } });
+  const hostSnapshot = await createStateStore(projectRoot).readSnapshot();
+  const round = { required_context_refs: [], stop_conditions: [], case_id: active.record.id };
+  const agentAdapter = { async *runTurn({ prompt, options }) {
+    assert.ok(prompt.startsWith('$using-arckit\n'));
+    assert.ok(options.outputSchema.$defs.ledger_case_command__root);
+    yield { type: 'runtime.agent_loop_result', result: {
+      schema_version: 'arckit-agent-loop-result/v2', action: 'case_command', summary: 'Review found missing submission context.',
+      case_control: null, case_command: command, changed_files: [], artifact_impacts: [], risks: [], unknowns: [],
+      handoff: { next_responsibility: 'agent', reason: 'Review finding needs repair.', next_prompt: 'Fresh-read and select the repair.', human_decision_required: false }
+    } };
+  } };
+  const loop = await runAgenticLoop({ projectRoot, snapshot: hostSnapshot, round,
+    compiledPrompt: compilePrompt(hostSnapshot, round, { task: 'Review' }), options: { task: 'Review', agentAdapter } });
+  // Obsolete path-derived hints cannot veto the Agent's evidenced assessment.
+  loop.runtimeResult.source_projection_check = { source_unknown: true, source_facts_changed: [], projection_artifacts_changed: ['arckit/project/STATE.md'] };
+  loop.runtimeResult.artifact_ownership_scan.unknown_artifacts = ['a/new/domain/artifact'];
+  // A blocked outcome cannot prevent validation/recording; it also cannot bypass Ledger legality.
+  const blocked = structuredClone(loop.runtimeResult);
+  blocked.case_command.round_outcome = 'blocked';
+  blocked.round_outcome.status = 'blocked';
+  const preview = await writeLedger({ projectRoot, runtimeResult: blocked, snapshot: hostSnapshot, dryRun: true });
+  assert.equal(preview.gate.allowed, true, JSON.stringify(preview));
+  assert.equal(preview.rejection, undefined, JSON.stringify(preview));
+  assert.equal(readLedgerSnapshot(projectRoot).snapshot_token, snapshot.snapshot_token);
+  const accepted = await writeLedger({ projectRoot, runtimeResult: loop.runtimeResult, snapshot: hostSnapshot });
   assert.equal(accepted.written, true, JSON.stringify(accepted));
   const fresh = readLedgerSnapshot(projectRoot, { afterCommitToken: accepted.post_commit_snapshot_token });
   const record = fresh.canonical.active_cases.find((item) => item.record.id === active.record.id).record;

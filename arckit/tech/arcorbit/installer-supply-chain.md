@@ -62,7 +62,7 @@ installed Desktop
 
 Runtime Kernel
   -> packaged trusted entrypoints
-  -> $arckit-state-driven-loop natural trigger
+  -> $using-arckit natural trigger
   -> no installed-skill tree inspection
 ```
 
@@ -72,8 +72,8 @@ Runtime Kernel
 
 Runtime 自己调用的 capability manifests 和 ledger scripts 随应用打包，来源包括：
 
-- `entry/skills/arckit-state-driven-loop/arckit.capability.json`；
-- `entry/skills/arckit-state-driven-loop/arckit.capability.json`；
+- `entry/skills/using-arckit/arckit.capability.json`；
+- `entry/skills/using-arckit/arckit.capability.json`；
 - ledger manifest 声明的 trusted scripts 与 schema/reference 依赖；
 - `runtime/arcorbit/config/capability-policy.json`。
 

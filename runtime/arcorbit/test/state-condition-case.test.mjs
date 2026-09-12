@@ -8,16 +8,16 @@ import {
   auditCaseRecord,
   createDefaultCaseRecord,
   validateCaseRecord,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/development-case.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs';
 import {
   applyCaseTransition,
   applyCaseTransitionToRecord,
   validateCaseTransition,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/case-transition.mjs';
-import { createProjectStateRecord } from '../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs';
-import { defaultSoftwareInvariants } from '../../../entry/skills/arckit-state-driven-loop/scripts/project-invariants.mjs';
-import { readLedgerSnapshot } from '../../../entry/skills/arckit-state-driven-loop/scripts/loop-snapshot.mjs';
-import { validateCaseControlHandoff } from '../../../entry/skills/arckit-state-driven-loop/scripts/runtime-case-control.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
+import { createProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
+import { defaultSoftwareInvariants } from '../../../entry/skills/arckit-development-ledger/scripts/project-invariants.mjs';
+import { readLedgerSnapshot } from '../../../entry/skills/arckit-development-ledger/scripts/loop-snapshot.mjs';
+import { validateCaseControlHandoff } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-case-control.mjs';
 import { createControllerContextDigest } from '../src/agent-orchestrator.mjs';
 
 test('new bug Case starts from facts and one diagnosis gap without facet ceremony', () => {

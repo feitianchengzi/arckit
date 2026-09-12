@@ -77,7 +77,7 @@ const payloadManifest = {
 };
 await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(payloadManifest, null, 2)}\n`);
 
-for (const skillName of ["arckit-state-driven-loop"]) {
+for (const skillName of ["using-arckit", "arckit-development-ledger"]) {
   await cp(path.join(repositoryRoot, "entry", "skills", skillName), path.join(trustedRoot, skillName), { recursive: true });
 }
 const trustedFiles = await fileManifest(trustedRoot);
@@ -117,7 +117,7 @@ async function discoverPayloadPaths() {
       }
     }
   }
-  if (!skillPaths.includes("entry/skills/arckit-state-driven-loop")) throw new Error("Required Runtime skills are absent from the payload.");
+  if (!["using-arckit", "arckit-development-ledger"].every(name => skillPaths.includes(`entry/skills/${name}`))) throw new Error("Required Runtime skills are absent from the payload.");
   return { skillPaths: skillPaths.sort(), sharedAssetPaths: sharedAssetPaths.sort() };
 }
 

@@ -6,11 +6,14 @@ import { fileURLToPath } from "node:url";
 import { assertCodexOutputSchema, codexOutputSchemaIssues } from "../src/codex-output-schema.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
+import { composeAgentOutputSchema } from "../src/agent-contracts.mjs";
+import { loadRuntimeCapabilities } from "../src/capability-registry.mjs";
+const ledgerSchema = async () => JSON.parse(await readFile(new URL("../../../entry/skills/arckit-development-ledger/schema/agent-contracts.schema.json", import.meta.url), "utf8"));
 const schemasDir = join(here, "../schemas");
 
 test("Codex model output schemas satisfy strict structured-output requirements", async () => {
   for (const filename of ["agent-loop-result.schema.json"]) {
-    const schema = JSON.parse(await readFile(join(schemasDir, filename), "utf8"));
+    const schema = await composeAgentOutputSchema(JSON.parse(await readFile(join(schemasDir, filename), "utf8")), await loadRuntimeCapabilities());
     assert.doesNotThrow(() => assertCodexOutputSchema(schema, { name: filename }));
   }
 });
@@ -23,7 +26,7 @@ test("every Runtime schema const declares its type", async () => {
 });
 
 test("Agent invariant judgment schema prevents Ledger-invalid disposition combinations", async () => {
-  const schema = JSON.parse(await readFile(join(schemasDir, "agent-loop-result.schema.json"), "utf8"));
+  const schema = await ledgerSchema();
   assert.equal(schema.$defs.semantic_invariant_judgment.$ref, "#/$defs/invariant_judgment");
   const variants = schema.$defs.invariant_judgment.anyOf;
   const notRelevant = variants.find((item) => item.properties.disposition.const === "not_relevant");
@@ -39,7 +42,7 @@ test("Agent invariant judgment schema prevents Ledger-invalid disposition combin
 });
 
 test("Agent Project-gap change schema binds content to its action", async () => {
-  const schema = JSON.parse(await readFile(join(schemasDir, "agent-loop-result.schema.json"), "utf8"));
+  const schema = await ledgerSchema();
   const variants = schema.$defs.semantic_project_gap_change.anyOf;
   const mutation = variants.find((item) => item.properties.action.enum?.includes("add"));
   const resolution = variants.find((item) => item.properties.action.const === "resolve");
@@ -49,7 +52,7 @@ test("Agent Project-gap change schema binds content to its action", async () => 
 });
 
 test("Case control schema uses supported mutually exclusive anyOf branches", async () => {
-  const schema = JSON.parse(await readFile(join(schemasDir, "agent-loop-result.schema.json"), "utf8"));
+  const schema = await ledgerSchema();
   const variants = schema.$defs.case_control.anyOf;
   assert.deepEqual(variants, [
     { $ref: "#/$defs/create_case_control" },

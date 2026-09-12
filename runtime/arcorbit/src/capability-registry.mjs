@@ -169,7 +169,7 @@ export async function resolvePackagedCapabilityRoot(resourcesPath, { accessFile 
     : [];
   for (const packagedRoot of packagedRoots) {
     try {
-      await accessFile(resolve(packagedRoot, "arckit-state-driven-loop", "arckit.capability.json"));
+      await accessFile(resolve(packagedRoot, "arckit-development-ledger", "arckit.capability.json"));
       return packagedRoot;
     } catch {
       // Continue through the canonical root, then the legacy packaged-resource fallback.
@@ -197,6 +197,8 @@ function normalizeCapabilities(capabilities = []) {
       schema_version: "arckit-capability/v1",
       id: String(capability.id),
       protocol_revision: String(capability.protocol_revision || ""),
+      canonical_protocol: normalizeRuntimeEntrypoints(capability.canonical_protocol),
+      agent_contracts: normalizeAgentContracts(capability.agent_contracts),
       kind: String(capability.kind || ""),
       runtime_role: arrayOfStrings(capability.runtime_role),
       binding_targets: arrayOfStrings(capability.binding_targets),
@@ -270,6 +272,28 @@ function normalizeRuntimeEntrypoints(entrypoints) {
   return Object.fromEntries(Object.entries(entrypoints)
     .filter(([, value]) => typeof value === "string" && value)
     .map(([key, value]) => [String(key), String(value)]));
+}
+
+function normalizeAgentContracts(contracts) {
+  if (!contracts || typeof contracts !== "object" || Array.isArray(contracts)) return {};
+  return Object.fromEntries(Object.entries(contracts).filter(([, value]) => value?.schema && value?.schema_version)
+    .map(([name, value]) => [name, {
+      schema: String(value.schema), definition: String(value.definition || ""), schema_version: String(value.schema_version),
+      reference: String(value.reference || ""), accepts: arrayOfStrings(value.accepts)
+    }]));
+}
+
+export function resolveCapabilityContract(capability, name) {
+  if (capability?.source !== "repository" || !capability.binding_targets?.includes("runtime")) {
+    throw new Error(`Agent contract ${name} requires a trusted Runtime capability.`);
+  }
+  const contract = capability.agent_contracts?.[name];
+  if (!contract) throw new Error(`Capability ${capability.id} does not declare Agent contract ${name}.`);
+  const schemaPath = resolve(capability.capability_root, contract.schema);
+  if (!isPathWithin(capability.capability_root, schemaPath)) throw new Error(`Agent contract escapes capability root: ${name}`);
+  const referencePath = contract.reference ? resolve(capability.capability_root, contract.reference) : "";
+  if (referencePath && !isPathWithin(capability.capability_root, referencePath)) throw new Error(`Agent contract reference escapes capability root: ${name}`);
+  return { ...contract, schema_path: schemaPath, reference_path: referencePath };
 }
 
 function arrayOfStrings(value) {

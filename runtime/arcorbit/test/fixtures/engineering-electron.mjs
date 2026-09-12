@@ -25,7 +25,7 @@ try {
  await window.loadFile(html);
  const waitFor=async expression=>{for(let i=0;i<100;i++){if(await window.webContents.executeJavaScript(expression))return;await new Promise(resolve=>setTimeout(resolve,40));}throw new Error('UI did not settle: '+expression);};
  await waitFor('window.ready===true');
- assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[data-mode="builtin:arckit-state-driven-loop"]').disabled`),true);
+ assert.equal(await window.webContents.executeJavaScript(`document.querySelector('[data-mode="builtin:using-arckit"]').disabled`),true);
  assert.equal(await window.webContents.executeJavaScript(`document.body.textContent.includes('my-private-skill')`),false);
  assert.equal(await window.webContents.executeJavaScript(`Boolean(document.querySelector('[data-action="import"], [data-replace], [data-role="source"]'))`),false);
  await assert.rejects(manager.update({scene:'automation',expectedRevision:0,changes:[{id:'local:forged',mode:'direct'}]}),/only manages ArcOrbit built-in/);
@@ -33,11 +33,11 @@ try {
  await waitFor(`document.querySelector('[data-mode="builtin:arckit-spec"]').value==='disabled'`);
  await window.webContents.executeJavaScript(`document.getElementById('chat').click()`);
  await waitFor(`document.querySelector('[data-scene="chat"]').getAttribute('aria-selected')==='true'`);
- await window.webContents.executeJavaScript(`{const mode=document.querySelector('[data-mode="builtin:arckit-state-driven-loop"]');mode.value='direct';mode.dispatchEvent(new Event('change',{bubbles:true}));}`);
- await waitFor(`document.querySelector('[data-mode="builtin:arckit-state-driven-loop"]').value==='direct'`);
+ await window.webContents.executeJavaScript(`{const mode=document.querySelector('[data-mode="builtin:using-arckit"]');mode.value='direct';mode.dispatchEvent(new Event('change',{bubbles:true}));}`);
+ await waitFor(`document.querySelector('[data-mode="builtin:using-arckit"]').value==='direct'`);
  assert.equal(await window.webContents.executeJavaScript(`document.getElementById('draft').value`),'保持草稿');
  const snapshot=await manager.snapshot();assert.ok(snapshot.skills.every(x=>x.source==='builtin'&&x.id.startsWith('builtin:')));
- const reopened=createSceneSkillManager({dataRoot:root,catalog});assert.equal((await reopened.snapshot()).skills.find(x=>x.name==='arckit-state-driven-loop').enabled.chat,true);
+ const reopened=createSceneSkillManager({dataRoot:root,catalog});assert.equal((await reopened.snapshot()).skills.find(x=>x.name==='using-arckit').enabled.chat,true);
  await writeFile('/private/tmp/arcorbit-engineering.png',(await window.webContents.capturePage()).toPNG());
  window.setSize(800,700);await new Promise(resolve=>setTimeout(resolve,80));assert.equal(await window.webContents.executeJavaScript('document.documentElement.scrollWidth<=window.innerWidth'),true);
  console.log(JSON.stringify({status:'passed',skills:snapshot.skills.length,builtin_only:true,core_protected:true,user_skill_hidden:true,chat_loop_self_contained:true,draft_preserved:true,narrow_layout:true,screenshot:'/private/tmp/arcorbit-engineering.png'}));

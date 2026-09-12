@@ -1,3 +1,4 @@
+import { invalidTaskCloseoutResult } from '../src/task-closeout-contract.mjs';
 import { createInterface } from "node:readline";
 import { resolve } from "node:path";
 import { JsonRpcStdioClient } from "../src/json-rpc-stdio-client.mjs";
@@ -911,17 +912,6 @@ function parseStructuredOutput({ text, completionParams, resultKind, error }) {
   };
 }
 
-function invalidTaskCloseoutResult(message) {
-  return {
-    schema_version: "arckit-task-closeout-result/v1",
-    status: "failed",
-    outcome: "none",
-    summary: "Task closeout failed.",
-    evidence: [],
-    commit_hash: "",
-    error: String(message || "unknown_closeout_error")
-  };
-}
 
 function parseRuntimeResultOrBlocked(text, completionParams) {
   try {

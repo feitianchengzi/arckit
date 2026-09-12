@@ -6,7 +6,7 @@ ArcOrbit Desktop 是以项目待办和验收问题为两条独立工作来源的
 
 该工作区承担任务服务器与本地 ArcOrbit 之间的控制面职责。任务服务器拥有项目、任务归属和任务生命周期事实；Runtime 拥有本地工作区绑定、自动化参与状态、单任务执行状态、Agent turn 生命周期、事件和 ledger 证据。
 
-Runtime 替代的是人类在 Codex 中持续读取最新状态、发送下一轮输入、观察执行、处理恢复、调用 ledger、提交代码和回写远端任务的自动化劳动，不替代 Codex Agent 对任务的语义理解、skill 选择、仓库调查、实现、验证与自我审查能力。人工直接使用 `$arckit-state-driven-loop` 与 Runtime 自动桥接使用同一个 Agent Loop 语义；差异只在触发、授权、事件存储、自动续轮和外部生命周期管理。
+Runtime 替代的是人类在 Codex 中持续读取最新状态、发送下一轮输入、观察执行、处理恢复、调用 ledger、提交代码和回写远端任务的自动化劳动，不替代 Codex Agent 对任务的语义理解、skill 选择、仓库调查、实现、验证与自我审查能力。人工直接使用 `$using-arckit` 与 Runtime 自动桥接使用同一个 Agent Loop 语义；差异只在触发、授权、事件存储、自动续轮和外部生命周期管理。
 
 默认执行路径把一个待办视为一个连贯的 Codex 工作单元。Runtime 为待办持久化唯一 Codex thread，并在每次 ledger 写回后向该 thread 发起新的 turn。每个 turn 从 fresh canonical Project/Case State 选择并完成一个 gap，Agent 在 turn 内自行使用必要工具与 skills，最后返回一个 Case control、Case transition 或需要人工/外部介入的 handoff。Runtime 不提供 Controller planning、Worker dispatch 或 Controller review 分段路径。
 
@@ -140,7 +140,7 @@ Work Sync 使用本地投影的确认版本执行必要的服务器条件式更�
 
 Runtime 按 Case State 驱动 Agent turn、结构与授权 Gate、ledger writeback。主页面把当前 gap、Agent 进展、工具执行、Case transition、Gate、ledger 和证据摘要投影为可观察状态；Workbench 把同一 Agent thread 的多个 turn 组合为当前待办的一条消息流。
 
-默认每个生产性 Loop 只发起一次 Codex Agent turn。Runtime 向已加载 `$arckit-state-driven-loop` 的 Agent 提供原始待办意图、当前增量、trusted ledger snapshot receipt、candidate catalog、revision 与执行授权；Agent 结合完整 Project decisions/invariants 与 fresh Case facts 发现并比较候选，选择唯一 Case 和一个 gap，自主发现并使用所需 skills 与工具，只完成该 Gap 的 acceptance claim 及必要证据，最后提交一个绑定 snapshot token、比较轨迹和证据的 Case transition。执行中暴露的新事实只进入 Case delta 与后续候选，不授权同一 turn 改做另一个独立结果。`arckit-state-driven-loop` 约束 Agent 如何从 Case gap 开始并形成 closeout，但不把同一个 Agent 强制拆成互相隔离的 Controller 与 Worker 调用。结构化 Agent 输出或 trusted Ledger claim 出现可修正校验错误时，Runtime 可在同一生产性 Loop 内发起有限 repair turn；repair 不重复实现工作、不形成新的 acceptance claim，也不计入业务 no-progress rounds。
+默认每个生产性 Loop 只发起一次 Codex Agent turn。Runtime 向已加载 `$using-arckit` 的 Agent 提供原始待办意图、当前增量、trusted ledger snapshot receipt、candidate catalog、revision 与执行授权；Agent 结合完整 Project decisions/invariants 与 fresh Case facts 发现并比较候选，选择唯一 Case 和一个 gap，自主发现并使用所需 skills 与工具，只完成该 Gap 的 acceptance claim 及必要证据，最后提交一个绑定 snapshot token、比较轨迹和证据的 Case transition。执行中暴露的新事实只进入 Case delta 与后续候选，不授权同一 turn 改做另一个独立结果。`using-arckit` 约束 Agent 如何从 Case gap 开始并形成 closeout，但不把同一个 Agent 强制拆成互相隔离的 Controller 与 Worker 调用。结构化 Agent 输出或 trusted Ledger claim 出现可修正校验错误时，Runtime 可在同一生产性 Loop 内发起有限 repair turn；repair 不重复实现工作、不形成新的 acceptance claim，也不计入业务 no-progress rounds。
 
 Runtime 不创建固定 Worker、独立复审或其它 Codex thread，也不以固定 definition skill 集合、预测式 `allowed_paths` 或固定 skill 顺序限制 Agent turn；工作区、sandbox、approval policy、外部权限和 ledger transition 校验仍构成确定性安全边界。
 
@@ -329,4 +329,6 @@ State Driven Loop 保持一轮一个 Gap、可信写回、post-commit fresh-read
 
 人工决定、外部等待和执行故障分别展示。外部等待保留 external 责任和恢复条件，使用 waiting_external 阶段；Runtime 故障进入执行恢复，不推导人工业务决策。中断进程与 Agent 明确停止相互区分，意外中断仍可恢复。
 
-继续执行携带任务身份、Case 绑定及可信来源、原任务、用户增量和来源 Run 引用。Prompt 提供 Host 上下文与输出契约，单 Gap 工作方法由 arckit-state-driven-loop 提供，不重复维护引用枚举与语义流程。
+继续执行携带任务身份、Case 绑定及可信来源、原任务、用户增量和来源 Run 引用。Prompt 提供 Host 上下文与输出契约，单 Gap 工作方法由 using-arckit 提供，不重复维护引用枚举与语义流程。
+
+Git 收尾发现新的实质义务时，可在原授权下恢复同一 thread 的普通 Loop。Host 保留发现和原 Case 关联；Agent fresh-read 后选择或创建后续 Case，Ledger 接受后才更新当前任务绑定。前后 Case 历史保留，没有可信续办关系的多个 Case 仍报绑定冲突。恢复阶段及累计 Ledger 变更路径必须持久保存，不能因退出时缺少最终结果文件而丢失发现、重复收尾或误报人工决定。

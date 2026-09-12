@@ -10,7 +10,7 @@ test('Engineering renders a dense built-in inventory and never projects user ski
   const {document,window}=parseHTML('<body><textarea id="draft">保留草稿</textarea><button id="chat">Skills</button><section id="root"></section></body>');
   const root=document.getElementById('root'),requests=[],navigation=[];
   const data={revision:1,catalogVersion:'catalog-v1',errors:[],scenes:[scene('chat',2,1,1,0),scene('automation',2,2,0,0)],skills:[
-    {id:'builtin:arckit-state-driven-loop',name:'arckit-state-driven-loop',description:'Loop',source:'builtin',path:'/official/entry',qualifiedName:'arckit-state-driven-loop',available:true,protected:true,modes:{chat:'on-demand',automation:'direct'},enabled:{chat:false,automation:true}},
+    {id:'builtin:using-arckit',name:'using-arckit',description:'Loop',source:'builtin',path:'/official/entry',qualifiedName:'using-arckit',available:true,protected:true,modes:{chat:'on-demand',automation:'direct'},enabled:{chat:false,automation:true}},
     {id:'builtin:arckit-spec',name:'arckit-spec',description:'Specifications',source:'builtin',path:'/official/spec',qualifiedName:'arckit-spec',available:true,protected:false,modes:{chat:'direct',automation:'direct'},enabled:{chat:true,automation:true}},
     {id:'user:private',name:'private-user-skill',description:'Must stay outside ArcOrbit',source:'user',path:'/user/private',available:true,protected:false,modes:{chat:'direct',automation:'direct'},enabled:{chat:true,automation:true}}
   ]};
@@ -25,7 +25,7 @@ test('Engineering renders a dense built-in inventory and never projects user ski
   assert.equal(root.querySelector('[data-action="import"]'),null);
   assert.equal(root.querySelector('[data-replace]'),null);
   assert.equal(root.querySelector('[data-role="source"]'),null);
-  assert.equal(root.querySelector('[data-mode="builtin:arckit-state-driven-loop"]').disabled,true);
+  assert.equal(root.querySelector('[data-mode="builtin:using-arckit"]').disabled,true);
 
   const mode=root.querySelector('[data-mode="builtin:arckit-spec"]');
   Object.defineProperty(mode,'value',{value:'disabled'});mode.dispatchEvent(new window.Event('change',{bubbles:true}));await tick();

@@ -5,12 +5,12 @@ import {
   auditCaseRecord,
   createDefaultCaseRecord,
   validateCaseRecord,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/development-case.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs';
 import {
   applyCaseTransitionToRecord,
   validateCaseTransition,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/case-transition.mjs';
-import { createProjectStateRecord } from '../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
+import { createProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
 import { selectNextRound } from '../src/loop-controller.mjs';
 
 test('the ledger accepts only current Case and transition schema versions', () => {

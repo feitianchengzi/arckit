@@ -6,9 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { withProjectCommitLock } from '../../../entry/skills/arckit-state-driven-loop/scripts/project-commit-lock.mjs';
+import { withProjectCommitLock } from '../../../entry/skills/arckit-development-ledger/scripts/project-commit-lock.mjs';
 
-const lockModuleUrl = new URL('../../../entry/skills/arckit-state-driven-loop/scripts/project-commit-lock.mjs', import.meta.url).href;
+const lockModuleUrl = new URL('../../../entry/skills/arckit-development-ledger/scripts/project-commit-lock.mjs', import.meta.url).href;
 
 test('Project ledger commit lock serializes separate processes', async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), 'arckit-project-lock-'));

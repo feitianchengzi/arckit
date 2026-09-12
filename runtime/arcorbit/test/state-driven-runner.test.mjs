@@ -55,7 +55,7 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
           : {
             written: true,
             changed_files: ["case.md", "state.record.json"],
-            case_transition_result: { case_resolution: { loop_handoff: terminalHandoff() } }
+            case_transition_result: { case_id: "CASE-1", case_resolution: { loop_handoff: terminalHandoff() } }
           };
       }
     }
@@ -73,7 +73,7 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   assert.equal(result.thread_id, "THREAD-1");
   assert.equal(adapter.compacted, 1);
   assert.equal(adapter.prompts.length, 1);
-  assert.match(adapter.prompts[0], /"workflow_authority": "\$arckit-state-driven-loop"/);
+  assert.match(adapter.prompts[0], /"workflow_authority": "\$using-arckit"/);
   assert.match(adapter.prompts[0], /"case_completion": "trusted_ledger_accepted"/);
   assert.match(adapter.prompts[0], /"authoritative_case_id": "CASE-1"/);
   assert.match(adapter.prompts[0], /"trusted_ledger_changed_files": \[/);
@@ -228,7 +228,7 @@ test("recoverable ledger rejection enters an independent Agent repair budget", (
   assert.equal(decision.reason, "agent_repair");
 });
 
-test("Agent repair instruction carries exact issues and forbids repeated implementation", () => {
+test("Agent repair instruction preserves rejected evidence and does not expand authorization", () => {
   const instruction = JSON.parse(buildAgentRepairInstruction({
     rejection: {
       kind: "ledger_gate_rejected",
@@ -244,7 +244,7 @@ test("Agent repair instruction carries exact issues and forbids repeated impleme
   assert.equal(instruction.schema_version, "arckit-agent-repair-instruction/v1");
   assert.equal(instruction.canonical_state.write_accepted, false);
   assert.equal(instruction.rejection.issues[0].path, "case_transition.invariant_assessment.judgments[2]");
-  assert.equal(instruction.repair_contract.do_not_repeat_completed_implementation_work, true);
+  assert.equal(instruction.recovery_context.authorization_changed, false);
   assert.equal(instruction.rejected_agent_output.case_transition.selected_gap.id, "GAP-1");
 });
 
@@ -275,7 +275,7 @@ test("invalid Runtime result is returned to the same Agent and succeeds after a 
         return {
           written: true,
           changed_files: ["case.md"],
-          case_transition_result: { case_resolution: { loop_handoff: terminalHandoff() } }
+          case_transition_result: { case_id: "CASE-1", case_resolution: { loop_handoff: terminalHandoff() } }
         };
       }
     }
@@ -324,7 +324,7 @@ test("Ledger rejection reason drives a targeted same-thread repair turn", async 
         return {
           written: true,
           changed_files: ["case.md"],
-          case_transition_result: { case_resolution: { loop_handoff: terminalHandoff() } }
+          case_transition_result: { case_id: "CASE-1", case_resolution: { loop_handoff: terminalHandoff() } }
         };
       }
     }
@@ -333,7 +333,7 @@ test("Ledger rejection reason drives a targeted same-thread repair turn", async 
   assert.equal(result.stop_reason, "completed");
   assert.equal(ledgerCalls, 2);
   assert.match(tasks[1], /not_relevant cannot carry evidence or gaps/);
-  assert.match(tasks[1], /do_not_repeat_completed_implementation_work/);
+  assert.match(tasks[1], /"authorization_changed": false/);
 });
 
 test("writeback-required terminal result cannot complete without an accepted ledger write", () => {
@@ -419,7 +419,7 @@ test("snapshot stale fresh-reads and replans without consuming Agent repair budg
           },
           changed_files: []
         };
-        return { written: true, changed_files: ["case.md"], case_transition_result: { case_resolution: { loop_handoff: terminalHandoff() } } };
+        return { written: true, changed_files: ["case.md"], case_transition_result: { case_id: "CASE-1", case_resolution: { loop_handoff: terminalHandoff() } } };
       }
     }
   });
@@ -697,3 +697,43 @@ function humanHandoff() {
     next_prompt: "Choose one option."
   };
 }
+
+test('closeout discoveries resume the same Agent thread through ordinary ledger work before another closeout', async () => {
+  const adapter = closeoutAdapter();
+  adapter.runTurn = async function* ({ prompt, options }) {
+    this.prompts.push(prompt);
+    assert.equal(options.threadId, 'THREAD-1');
+    yield { type: 'runtime.task_closeout_result', result: {
+      schema_version: 'arckit-task-closeout-result/v2', status: this.prompts.length === 1 ? 'resume_loop' : 'completed',
+      outcome: this.prompts.length === 1 ? 'none' : 'no_changes',
+      summary: this.prompts.length === 1 ? 'Evidence reveals a remaining acceptance obligation.' : 'Closeout complete.',
+      evidence: ['fixture:closeout-discovery'], commit_hash: '', error: ''
+    } };
+  };
+  let roundCalls = 0;
+  let reads = 0;
+  const result = await runStateDrivenSession({
+    projectRoot: '/workspace/project',
+    stateStore: { async readSnapshot() { reads += 1; return snapshot(reads); } },
+    options: { task: 'finish the original case', agentAdapter: adapter, runtimeContext: { case_id: 'CASE-1' } },
+    dependencies: {
+      async runRound({ options }) {
+        roundCalls += 1;
+        if (roundCalls === 2) {
+          const instruction = JSON.parse(options.task);
+          assert.equal(instruction.authoritative_case_id, 'CASE-1');
+          assert.deepEqual(instruction.closeout_discovery.evidence, ['fixture:closeout-discovery']);
+          assert.equal(options.agentAdapter, adapter);
+        }
+        return loopResult(terminalHandoff());
+      },
+      async writeRoundLedger() { return { written: true, changed_files: [], case_transition_result: { case_id: roundCalls === 1 ? "CASE-1" : "CASE-2", case_resolution: { loop_handoff: terminalHandoff() } } }; }
+    }
+  });
+  assert.equal(roundCalls, 2);
+  assert.equal(reads, 2);
+  assert.equal(adapter.prompts.length, 2);
+  assert.equal(adapter.closed, 1);
+  assert.equal(result.stop_reason, 'completed');
+  assert.equal(result.paused_for_human, false);
+});

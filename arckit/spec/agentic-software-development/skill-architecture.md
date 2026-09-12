@@ -18,7 +18,8 @@ Arckit Skill 架构把 `Project State -> Case -> Loop` 转成可安装、可复�
 
 ### Entry
 
-- `arckit-state-driven-loop`：自包含的状态驱动能力包，Agent 接口负责 Gap 语义与执行，包内 trusted entrypoints 负责 Project/Iteration/Case 的确定性验收、原子写入与 fresh snapshot。
+- `using-arckit`：完整状态驱动方法，负责 Gap 语义、动态能力选择与执行。
+- `arckit-development-ledger`：负责 Project/Iteration/Case 模型、语义载荷契约、确定性验收、原子写入与 fresh snapshot。
 
 ### Definition
 
@@ -35,7 +36,7 @@ Arckit Skill 架构把 `Project State -> Case -> Loop` 转成可安装、可复�
 
 ## 默认 Agent Loop
 
-`arckit-state-driven-loop` 在一次 turn 中约束当前 Agent：
+`using-arckit` 在一次 turn 中约束当前 Agent：
 
 1. 读取 Project State、全部 active Cases、iteration 和上一 handoff。
 2. 判断用户输入关系并选择唯一 Case/gap；无合适 Case 时请求 create_case。
@@ -44,7 +45,7 @@ Arckit Skill 架构把 `Project State -> Case -> Loop` 转成可安装、可复�
 5. 分离 round、Case、Project impact 与责任 handoff。
 6. 提交绑定 revision、完整 selected gap 与 evidence 的 transition claim。
 
-Runtime 只用 manifest 声明的自然 `$arckit-state-driven-loop` 文本 trigger 启动该 turn，不额外传 `skill` input item，也不拼接 SKILL.md 正文、固定 Worker 顺序、allowed skills、预测路径或 closeout 工作流。output schema 作为 Codex Adapter 的机器参数传递。
+Runtime 只用 manifest 声明的自然 `$using-arckit` 文本 trigger 启动该 turn，不额外传 `skill` input item，也不拼接 SKILL.md 正文、固定 Worker 顺序、allowed skills、预测路径或 closeout 工作流。output schema 作为 Codex Adapter 的机器参数传递。
 
 ## Capability Registry 与 policy
 
@@ -52,15 +53,15 @@ Runtime 只用 manifest 声明的自然 `$arckit-state-driven-loop` 文本 trigg
 
 默认 `runtime/arcorbit/config/capability-policy.json` 只包含：
 
-- Controller binding：`arckit-state-driven-loop`，负责自然 Agent skill trigger。
-- Runtime binding：`arckit-state-driven-loop`，负责 trusted scripts。
+- Controller binding：`using-arckit`，负责自然 Agent skill trigger。
+- Runtime binding：`arckit-development-ledger`，负责 trusted scripts。
 - Worker binding：空。
 
 这不是删除其它 skill；definition、diagnosis、code 和 quality 能力仍由 Agent 原生发现。Registry 只管理 Runtime 直接调用或约束的 capability，不充当 Codex skill catalog。
 
 policy layer 与 Kernel 分离。Kernel 不内置 gap、route、role、skill 序列、能力选择启发式或 ledger 维度推断，也不维护 Worker registry。
 
-Runtime 在远端任务 claim 前完成 readiness：确认安装的 `arckit-state-driven-loop` protocol 与仓库源兼容，并解析 repository-trusted ledger entrypoints。项目内同名 manifest 不能覆盖 Runtime trusted capability，entrypoint 不能逃逸 skill root。
+Runtime 在远端任务 claim 前完成 readiness：确认安装的 `using-arckit` protocol 与仓库源兼容，并解析 repository-trusted ledger entrypoints。项目内同名 manifest 不能覆盖 Runtime trusted capability，entrypoint 不能逃逸 skill root。
 
 ## 原生 skill composition
 
@@ -83,7 +84,7 @@ Ledger 写回要求：
 ## 验收口径
 
 - 仓库七个保留 skills 都有合法 manifest，但默认 Runtime policy 只直接管理 Agent 入口与 trusted ledger。
-- 默认一个 gap 只产生一次连贯 `$arckit-state-driven-loop` Agent invocation。
+- 默认一个 gap 只产生一次连贯 `$using-arckit` Agent invocation。
 - Agent 原生 skill discovery 在直接 Codex 和 Runtime 形态中一致。
 - Runtime prompt 不复制 skill workflow，也不显式传第二份 skill item。
 - Runtime readiness 在远端 claim 前发现安装漂移或 entrypoint 缺失。
@@ -91,4 +92,4 @@ Ledger 写回要求：
 - Runtime 不创建独立 Worker binding；其它 skills 只由当前 Agent原生使用。
 - definition、diagnosis、Case 与 Project State 写入边界清楚。
 - human/external 工作可通过 Case 与 handoff 恢复，不因能力精简丢失。
-- ledger 语义与脚本只来自真实 `arckit-state-driven-loop` entrypoint。
+- ledger 语义与脚本只来自真实 `arckit-development-ledger` entrypoint。

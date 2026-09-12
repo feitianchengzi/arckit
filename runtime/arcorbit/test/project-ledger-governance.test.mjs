@@ -8,17 +8,17 @@ import {
   createProjectStateRecord,
   projectTargetRefs,
   validateProjectStateRecord,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
 import {
   coreDecisionAreaDefinitions,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/project-software-definition.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/project-software-definition.mjs';
 import {
   CORE_SOFTWARE_INVARIANTS,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/project-invariants.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/project-invariants.mjs';
 import {
   auditIterationStateRecord,
   validateIterationStateRecord,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/project-iteration.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/project-iteration.mjs';
 
 test('Project v5 owns the complete explicit software-definition checklist and independent invariants', () => {
   const project = createProjectStateRecord({ name: 'Fixture', intent: 'Build a bounded product.' });

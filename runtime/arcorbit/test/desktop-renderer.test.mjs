@@ -1045,7 +1045,7 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   assert.doesNotMatch(html, /DOMAIN PROFILE MANAGEMENT|MANAGEMENT PREVIEW|Entry capabilities 不进入 Profile/);
   assert.doesNotMatch(sidebar, /data-page="state"|data-page="skills"/);
   assert.doesNotMatch(html, /data-page-view="state"|data-page-view="skills"/);
-  assert.doesNotMatch(html, /arckit-state-driven-loop|arckit-state-driven-loop|Trusted entrypoints/);
+  assert.doesNotMatch(html, /using-arckit|using-arckit|Trusted entrypoints/);
   assert.match(html, /id="ideaBlank"/);
   assert.match(html, /PLAN VIEW · 不调用外部平台/);
   assert.doesNotMatch(html, /data-plan-action|id="createIdeaButton"|id="publishReleaseButton"/);
@@ -2459,4 +2459,14 @@ test("desktop account panel supports bounded verification login, expiry, and con
   assert.match(styles, /\.modal-overlay\.login-gate[^}]+var\(--violet-100\)[^}]+var\(--ink-75\)/);
   assert.doesNotMatch(styles, /\.auth-boot-screen[^}]+var\(--ink-950\)/);
   assert.doesNotMatch(styles, /\.modal-overlay\.login-gate[^}]+var\(--ink-950\)/);
+});
+
+test('Automation presents every current closeout disposition with the shared closeout contract', () => {
+  for (const status of ['completed', 'resume_loop', 'stopped', 'needs_human', 'external_wait', 'failed']) {
+    const presentation = structuredResultPresentation({ structured_data: { schema_version: 'arckit-task-closeout-result/v2', value: {
+      schema_version: 'arckit-task-closeout-result/v2', status, outcome: status === 'completed' ? 'no_changes' : 'none', summary: 'Closeout result.', evidence: [], commit_hash: '', error: ''
+    } } });
+    assert.equal(presentation.title, '任务收尾结果');
+    assert.deepEqual(presentation.fields.find((field) => field.label === 'Status').values, [status]);
+  }
 });

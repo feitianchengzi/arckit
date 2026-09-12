@@ -61,27 +61,21 @@ function gateRejection(gate, runtimeResult) {
     path: gateIssuePath(reason),
     message: String(reason)
   }));
-  const stale = gateRecoveryAction(gate?.reasons) === "replan_from_fresh_state";
+  // Freshness is determined by trusted Ledger against canonical state, not error prose.
   return {
-    kind: stale ? "snapshot_stale" : "claim_invalid",
+    kind: "claim_invalid",
     recoverable: true,
     responsibility: "agent",
     reason: gate?.reasons?.filter(Boolean).join("\n") || "The trusted ledger gate rejected this writeback.",
     issues,
     case_id: command.case_id || transition.case_id || caseControl.case_id || "",
     selected_gap_id: command.selection?.selected_ref || transition.selected_gap?.id || "",
-    recovery_action: stale ? "replan_from_fresh_state" : "repair_rejected_claim",
-    counts_toward_agent_repair: !stale
+    recovery_action: "repair_rejected_claim",
+    counts_toward_agent_repair: true
   };
 }
 
 function gateIssuePath(reason) {
   const match = String(reason || "").match(/^([a-zA-Z0-9_.\[\]-]+):/);
   return match?.[1] || "case_command";
-}
-
-function gateRecoveryAction(reasons = []) {
-  return reasons.some((reason) => /\b(stale|snapshot|revision)\b/i.test(String(reason || "")))
-    ? "replan_from_fresh_state"
-    : "repair_rejected_claim";
 }

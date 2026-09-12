@@ -1,3 +1,4 @@
+import { isTaskCloseoutSchemaVersion } from '../task-closeout-contract.mjs';
 const TOOL_KINDS = new Set(["command", "command_execution", "tool", "tool_call", "file_change", "edit", "web_search"]);
 const LOOP_KINDS = new Set(["status", "round", "ledger", "handoff", "warning", "error"]);
 const READ_COMMANDS = new Set(["cat", "sed", "head", "tail", "bat", "less"]);
@@ -64,7 +65,7 @@ export function structuredResultPresentation(message = {}) {
     pushField(fields, "Gap", value?.case_command?.selection?.selected_ref || value?.case_transition?.selected_gap?.id || value?.selected_gap_id);
     pushField(fields, "Risks", value?.risks);
     pushField(fields, "Unknowns", value?.unknowns);
-  } else if (schemaVersion === "arckit-task-closeout-result/v1") {
+  } else if (isTaskCloseoutSchemaVersion(schemaVersion)) {
     pushField(fields, "Status", value?.status);
     pushField(fields, "Outcome", value?.outcome);
     pushField(fields, "Commit", value?.commit_hash);
@@ -152,7 +153,7 @@ function readStructuredValue(message) {
 
 function structuredResultTitle(schemaVersion) {
   if (["arckit-agent-loop-result/v1", "arckit-agent-loop-result/v2"].includes(schemaVersion)) return "Agent Loop 结果";
-  if (schemaVersion === "arckit-task-closeout-result/v1") return "任务收尾结果";
+  if (isTaskCloseoutSchemaVersion(schemaVersion)) return "任务收尾结果";
   if (schemaVersion === "arckit-round-closeout/v2") return "Round Closeout";
   return "结构化结果";
 }

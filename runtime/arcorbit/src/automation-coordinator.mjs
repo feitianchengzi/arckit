@@ -1,4 +1,7 @@
-import { executionOutcome } from './kernel/execution-outcome.mjs';
+import { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
+export { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
+import { checkpointFromRun, isExecutionCheckpoint } from './kernel/execution-checkpoint.mjs';
+import { executionOutcome, executionHandoff } from './kernel/execution-outcome.mjs';
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -904,6 +907,7 @@ function createLaneAutomationCoordinator({
         sessionId: session.id,
         taskId: active.task_id,
         task: buildInterventionTask(text),
+        threadId: active.thread_id,
         runtimeContext: {
           ...continuationContext(active, store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id))),
           kind: active.execution_kind === "acceptance_feedback" ? "acceptance_feedback_intervention" : "human_intervention",
@@ -1636,7 +1640,9 @@ function createLaneAutomationCoordinator({
           task_id: active.task_id
         });
       }
-      const closeoutOnly = active.phase === "closeout_starting" || active.closeout_status === "running";
+      const checkpoint = isExecutionCheckpoint(active.execution_checkpoint) ? active.execution_checkpoint : null;
+      const closeoutOnly = checkpoint ? checkpoint.phase === 'closeout'
+        : active.phase === "closeout_starting" || active.closeout_status === "running";
       const caseBinding = persistedCaseBinding(active);
       if (closeoutOnly && caseBinding.status !== "bound") {
         throw new Error("Task closeout requires an authoritative task-to-Case binding from a trusted Runtime ledger write.");
@@ -1649,7 +1655,10 @@ function createLaneAutomationCoordinator({
           ? buildAcceptanceFeedbackTask(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id))
           : taskOverride || buildAutomationTask(task),
         threadId: active.thread_id || "",
-        runtimeContext: closeoutOnly
+        runtimeContext: checkpoint ? {
+          ...continuationContext(active, task), closeout_only: closeoutOnly,
+          ...(active.execution_kind === 'acceptance_feedback' ? acceptanceFeedbackRuntimeContext(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id)) : {})
+        } : closeoutOnly
           ? active.execution_kind === "acceptance_feedback"
             ? { closeout_only: true, case_id: caseBinding.case_id, kind: "acceptance_feedback", feedback_id: active.feedback_id }
             : { closeout_only: true, case_id: caseBinding.case_id }
@@ -1706,6 +1715,10 @@ function createLaneAutomationCoordinator({
     if (!active || active.run_id !== event.runId) {
       return;
     }
+    return consumeFinishedRun(active, event);
+  }
+
+  async function consumeFinishedRun(active, event, { allowRemoteCompletion = true } = {}) {
     const eventThreadId = String(event.result?.thread_id || "");
     if (eventThreadId && eventThreadId !== active.thread_id) {
       await patchAutomation((automation) => {
@@ -1731,22 +1744,11 @@ function createLaneAutomationCoordinator({
     }
     if (active.cli_handoff_source_run_id === event.runId
       && ["switching_to_cli", "cli_handoff", "recovery"].includes(active.phase)) return;
-    if (["closeout_starting", "closeout_running"].includes(active.phase)) {
-      if (caseBinding.status !== "bound") {
-        await addRecovery({
-          type: "case_binding_missing",
-          task: active,
-          message: "A closeout result was ignored because this task has no authoritative Case binding.",
-          actions: caseBindingRecoveryActions()
-        });
-        return;
-      }
-      return finishSameThreadCloseout(active, event);
-    }
-    const runtimeResult = event.result?.runtime_result || null;
-    const handoff = selectEffectiveLoopHandoff({ runtimeResult, activity: event.activity });
+    active = (await readStore()).automation.active_task || active;
+    const handoff = executionHandoff({ result: event.result, activity: event.activity });
     const disposition = executionOutcome({ result: event.result, activity: event.activity, status: event.status });
-    if (await applyExecutionDisposition(active, event.runId, disposition, handoff)) return;
+    if (await applyExecutionDisposition(active, event.runId, disposition, handoff)) return disposition.state;
+    if (disposition.state === "continue") return "continue";
     const caseComplete = disposition.state === "completed";
     if (event.status === "completed" && caseComplete) {
       if (caseBinding.status !== "bound") {
@@ -1758,25 +1760,34 @@ function createLaneAutomationCoordinator({
         });
         return;
       }
-      if (event.result?.closeout_result?.status === "completed") {
+      const closeout = selectTaskCloseoutResult(event);
+      if (closeout?.status === "completed") {
         if (active.execution_kind === "acceptance_feedback") {
-          await finishAcceptanceFeedback(active, event, event.result.closeout_result);
+          await finishAcceptanceFeedback(active, event, closeout);
           return;
         }
-        await markCloseoutCompleted(active, event.runId, event.result.closeout_result);
+        await markCloseoutCompleted(active, event.runId, closeout);
         const refreshed = await readStore();
-        if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask();
+        if (allowRemoteCompletion && isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask({ syncAfter: false });
       } else {
         await startSameThreadCloseout();
       }
-      return;
+      return "completed";
     }
+    const closeoutFailed = active.execution_checkpoint?.phase === 'closeout'
+      || ["closeout_starting", "closeout_running"].includes(active.phase);
+    const recoveryType = closeoutFailed ? 'closeout_failed' : 'runtime_incomplete';
+    const message = disposition.reason || `Runtime finished with status ${event.status}.`;
+    const current = await readStore();
+    if (current.automation.recovery_items.some((item) => item.task_id === active.task_id
+      && item.type === recoveryType && item.message === message)) return 'failed';
     await addRecovery({
-      type: "runtime_incomplete", task: active,
-      message: disposition.reason || `Runtime finished with status ${event.status}.`,
+      type: recoveryType, task: active,
+      message,
       responsibility: disposition.responsibility,
-      actions: ["retry_start", "mark_blocked"]
+      actions: [closeoutFailed ? "retry_closeout" : "retry_start", "mark_blocked"]
     });
+    return "failed";
   }
 
   async function startSameThreadCloseout() {
@@ -1847,39 +1858,6 @@ function createLaneAutomationCoordinator({
       });
       return null;
     }
-  }
-
-  async function finishSameThreadCloseout(active, event) {
-    if (persistedCaseBinding(active).status !== "bound") {
-      await addRecovery({
-        type: "case_binding_missing",
-        task: active,
-        message: "A closeout result cannot complete the task without an authoritative Case binding.",
-        actions: caseBindingRecoveryActions()
-      });
-      return;
-    }
-    const result = selectTaskCloseoutResult(event);
-    if (event.status === "completed" && result?.status === "completed") {
-      if (active.execution_kind === "acceptance_feedback") {
-        await finishAcceptanceFeedback(active, event, result);
-        return;
-      }
-      await markCloseoutCompleted(active, event.runId, result);
-      const refreshed = await readStore();
-      if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask();
-      else emit("automation.changed", { reason: "remote-completion-pending", taskId: active.task_id });
-      return;
-    }
-    await patchAutomation((automation) => {
-      if (automation.active_task?.task_id === active.task_id) automation.active_task.closeout_status = "failed";
-    });
-    await addRecovery({
-      type: "closeout_failed",
-      task: active,
-      message: result?.error || `Same-thread closeout finished with status ${event.status}.`,
-      actions: ["retry_closeout", "mark_blocked"]
-    });
   }
 
   async function finishAcceptanceFeedback(active, event, result) {
@@ -2022,67 +2000,14 @@ function createLaneAutomationCoordinator({
     const latest = await getRunDetail(runManager, [], active.run_id, { projectId: active.local_project_id });
     if (!latest) return null;
 
-    const caseBinding = await resolveTaskCaseBinding(active, latest);
-    if (caseBinding.status === "conflict") return null;
-
-    const persistedResult = await runManager.readRunResult?.(latest.id).catch(() => null) || latest.result;
-    const disposition = executionOutcome({ result: persistedResult, activity: latest.activity, status: latest.status });
-    const persistedHandoff = selectEffectiveLoopHandoff({ runtimeResult: persistedResult?.runtime_result, activity: latest.activity });
-    if (await applyExecutionDisposition(active, latest.id, disposition, persistedHandoff)) return disposition.state;
-    if (latest.status !== "completed") return null;
-    if (["closeout_starting", "closeout_running"].includes(active.phase)) {
-      if (caseBinding.status !== "bound") {
-        await addRecovery({
-          type: "case_binding_missing",
-          task: active,
-          message: "Detached closeout completion was ignored because this task has no authoritative Case binding.",
-          actions: caseBindingRecoveryActions()
-        });
-        return null;
-      }
-      const result = await runManager.readRunResult?.(latest.id).catch(() => null);
-      const closeout = selectTaskCloseoutResult({ result, activity: latest.activity });
-      if (closeout?.status !== "completed") return null;
-      await markCloseoutCompleted(active, latest.id, closeout);
-      if (active.execution_kind === "acceptance_feedback") {
-        await finishAcceptanceFeedback(active, { runId: latest.id }, closeout);
-        return "resolved";
-      }
-      if (allowRemoteCompletion) return completeRemoteTask({ syncAfter: false });
-      return "remote_completion_pending";
-    }
-
-    const activity = latest.activity || {};
-    const handoff = selectEffectiveLoopHandoff({ activity });
-    const caseComplete = disposition.state === "completed";
-    if (disposition.state === "failed" && (persistedResult || activity.ledger_stage)) {
-      const recoveryExists = store.automation.recovery_items.some((item) => String(item.task_id) === String(active.task_id));
-      if (!recoveryExists) await addRecovery({
-        type: "runtime_incomplete", task: active,
-        message: disposition.reason || "Runtime stopped without an accepted result.",
-        responsibility: disposition.responsibility,
-        actions: ["retry_start", "mark_blocked"]
-      });
+    if (!["completed", "failed", "aborted"].includes(latest.status)) {
+      await resolveTaskCaseBinding(active, latest);
       return null;
     }
-    if (!caseComplete) return null;
-    if (caseBinding.status !== "bound") {
-      await addRecovery({
-        type: "case_binding_missing",
-        task: active,
-        message: "Detached Runtime completion has no authoritative task-to-Case binding; closeout was not started.",
-        actions: caseBindingRecoveryActions()
-      });
-      return null;
-    }
-
-    await patchAutomation((automation) => {
-      if (automation.active_task?.task_id !== active.task_id) return;
-      automation.active_task.run_id = latest.id;
-      automation.active_task.phase = "completing";
-      automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
-    });
-    return startSameThreadCloseout();
+    const result = await runManager.readRunResult?.(latest.id).catch(() => null) || latest.result;
+    if (!result && !latest.activity?.ledger_stage && !selectTaskCloseoutResult(latest) && !checkpointFromRun(latest)
+      && !Object.keys(executionHandoff(latest)).length) return null;
+    return consumeFinishedRun(active, { runId: latest.id, status: latest.status, activity: latest.activity, result }, { allowRemoteCompletion });
   }
 
   async function reconcileCanonicalCaseState({ allowAgentResume = false, requireCase = false, allowRemoteCompletion = true } = {}) {
@@ -2107,6 +2032,22 @@ function createLaneAutomationCoordinator({
         return "missing";
       }
       return "unbound";
+    }
+    const checkpoint = checkpointFromRun(run) || active.execution_checkpoint;
+    if (!allowAgentResume && ['needs_human', 'external_wait'].includes(checkpoint?.closeout_result?.status)) return 'human';
+    if (checkpoint?.pending_continuation) {
+      if (allowAgentResume) {
+        await patchAutomation((automation) => {
+          if (automation.active_task?.task_id !== active.task_id) return;
+          automation.active_task.phase = 'starting';
+          automation.active_task.closeout_status = 'pending';
+          automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
+          automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
+        });
+        await startRuntimeForActiveTask();
+        return 'agent_resumed';
+      }
+      return 'active';
     }
     const caseId = caseBinding.case_id;
     let caseState;
@@ -2236,6 +2177,19 @@ function createLaneAutomationCoordinator({
         actions: ["retry_start", "mark_blocked"]
       });
       return binding;
+    }
+    const checkpoint = checkpointFromRun(run);
+    if (checkpoint && binding.status === "bound") {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.execution_checkpoint = checkpoint;
+        automation.active_task.case_status = checkpoint.phase === 'closeout' || checkpoint.pending_continuation ? 'resolved' : 'active';
+        if (checkpoint.phase === 'loop' && !checkpoint.pending_continuation) automation.active_task.case_resolved_at = '';
+        if (checkpoint.phase === 'loop') {
+          automation.active_task.closeout_status = 'pending';
+          if (['closeout_starting', 'closeout_running'].includes(automation.active_task.phase)) automation.active_task.phase = 'running';
+        }
+      });
     }
     if (binding.status === "bound" && (
       active.case_id !== binding.case_id
@@ -3099,28 +3053,6 @@ export function extractCaseIdFromRun(run) {
   return binding.status === "bound" ? binding.case_id : "";
 }
 
-export function selectTaskCloseoutResult({ result, activity } = {}) {
-  const candidates = [
-    result?.closeout_result,
-    activity?.closeout_result,
-    ...[...(activity?.messages || [])]
-      .reverse()
-      .map((message) => message?.structured_data?.value)
-  ];
-  return candidates.find(isTaskCloseoutResult) || null;
-}
-
-function isTaskCloseoutResult(value) {
-  return value?.schema_version === "arckit-task-closeout-result/v1"
-    && ["completed", "needs_human", "failed"].includes(value.status)
-    && ["committed", "no_changes", "none"].includes(value.outcome)
-    && typeof value.summary === "string"
-    && Array.isArray(value.evidence)
-    && value.evidence.every((item) => typeof item === "string")
-    && typeof value.commit_hash === "string"
-    && typeof value.error === "string";
-}
-
 export function extractAuthoritativeCaseBindingFromRun(run) {
   const ledgers = [
     ...((run?.activity?.ledger_write_receipts || []).map((receipt, index) => ({
@@ -3145,6 +3077,16 @@ export function extractAuthoritativeCaseBindingFromRun(run) {
     }
   }
   const caseIds = [...new Set(observations.map((item) => item.case_id))];
+  const checkpoint = checkpointFromRun(run);
+  if (checkpoint?.case_id) {
+    const chainIds = checkpoint.case_chain.map((link) => link.case_id);
+    if (chainIds.every((id) => CASE_ID_PATTERN.test(id)) && caseIds.every((id) => chainIds.includes(id))) {
+      return { status: 'bound', case_id: checkpoint.case_id, case_ids: chainIds,
+        case_chain: checkpoint.case_chain, source: AUTHORITATIVE_CASE_BINDING_SOURCE,
+        run_id: String(run?.id || ''), observations };
+    }
+    return { status: 'conflict', case_ids: [...new Set([...caseIds, ...chainIds])], observations };
+  }
   if (caseIds.length > 1) return { status: "conflict", case_ids: caseIds, observations };
   if (caseIds.length === 0) return { status: "unbound", case_ids: [], observations: [] };
   return {
@@ -3164,7 +3106,9 @@ export function persistedCaseBinding(active) {
   if (!CASE_ID_PATTERN.test(caseId) || source !== AUTHORITATIVE_CASE_BINDING_SOURCE || !runId) {
     return { status: "unbound", case_ids: [], observations: [] };
   }
-  return { status: "bound", case_id: caseId, case_ids: [caseId], source, run_id: runId, observations: [] };
+  const checkpoint = isExecutionCheckpoint(active.execution_checkpoint) && active.execution_checkpoint.case_id === caseId ? active.execution_checkpoint : null;
+  return { status: "bound", case_id: caseId, case_ids: [caseId], source, run_id: runId, observations: [],
+    ...(checkpoint ? { case_chain: checkpoint.case_chain } : {}) };
 }
 
 export function mergeCaseBindings(left, right) {
@@ -3173,6 +3117,9 @@ export function mergeCaseBindings(left, right) {
   if (left?.status !== "bound") return right?.status === "bound" ? right : { status: "unbound", case_ids: [], observations: [] };
   if (right?.status !== "bound") return left;
   if (left.case_id === right.case_id) return right;
+  const index = right.case_chain?.findIndex((link) => link.case_id === left.case_id) ?? -1;
+  if (index >= 0 && index < right.case_chain.length - 1
+    && (!left.case_chain || left.case_chain.every((link, position) => right.case_chain[position]?.case_id === link.case_id))) return right;
   return {
     status: "conflict",
     case_ids: [...new Set([left.case_id, right.case_id])],
@@ -3246,6 +3193,7 @@ export function continuationContext(active, task = null) {
     task_id: String(active?.task_id || ''), original_task: task?.content || task?.title || active?.task_title || '',
     case_id: binding.status === 'bound' ? binding.case_id : '',
     case_binding: binding,
-    execution_id: active?.execution_id || ''
+    execution_id: active?.execution_id || '',
+    ...(isExecutionCheckpoint(active?.execution_checkpoint) ? { execution_checkpoint: active.execution_checkpoint } : {})
   };
 }

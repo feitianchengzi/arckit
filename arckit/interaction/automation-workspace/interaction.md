@@ -43,7 +43,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 6. Automation 向 Work Sync 提交 `待处理 → 进行中` 动作；Work 负责服务器版本、条件式更新、冲突和对账。失败时本地任务状态不变，Automation 不启动 Runtime。
 7. Work Sync 发布本地 `in_progress` 后，Automation 先以稳定 `execution_id` 保存任务、项目、规范化工作区 lane 和待启动 Runtime 的关联，再在该 lane 启动 Runtime loop。
 8. Runtime 在同一持久 Agent thread 中按 Gap 发起 turn、执行必要工具、完成 Gate 与 ledger writeback，并把语义进展聚合为当前待办的消息、阶段和证据摘要。
-9. 用户选择“切换到 Codex CLI”时，系统安全停止当前 run，确认进程退出后在绑定工作区打开可交互终端，并以 `$arckit-state-driven-loop`、Case 标识和待办意图开始接管会话。
+9. 用户选择“切换到 Codex CLI”时，系统安全停止当前 run，确认进程退出后在绑定工作区打开可交互终端，并以 `$using-arckit`、Case 标识和待办意图开始接管会话。
 10. CLI 接管期间 Command Center 显示执行权所在、Case 和“恢复自动执行”；同步发现 Case 已关闭时直接进入 commit 与远端完成写回，未关闭时只有用户显式交还执行权才启动 fresh Runtime run。
 11. Runtime 与 ledger 均收束后，Automation 向 Work Sync 提交完成动作；Work 发布本地 `completed` 后才领取下一项。
 12. 需要人工时，系统暂停当前推进并创建 attention item；用户在 Intervention Workbench 提交处理说明后，系统恢复当前任务并返回 Command Center。

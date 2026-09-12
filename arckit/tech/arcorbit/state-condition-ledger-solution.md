@@ -35,6 +35,16 @@ Canonical 协议只接受：
 
 不保留旧协议的业务执行兼容分支。trusted snapshot 首先做协议探测；若 canonical State 不兼容，则返回结构化 compatibility receipt 而不是进入 Case Loop。Agent 可在尚无可注册 Case 时通过 manifest 声明的协议恢复入口执行最小 reconcile，再重新调用 snapshot。协议升级因此不依赖 active Case 或 Case transition，不会形成“先升级才能注册、先注册才能升级”的循环。
 
+## 方法、接口与宿主责任
+
+`using-arckit` 保留完整的状态驱动方法；`arckit-development-ledger` 拥有 v1 Semantic Case Command、v8 Transition、状态模型和可信脚本。Runtime 的结果封装通过 Ledger manifest 的 `agent_contracts` 组合载荷 schema，不维护第二套字段/引用规则。Agent 使用实际运行能力的 schema/reference 与 fresh selection token；源码修复不能冒充安装副本已生效。
+
+Review finding 通过显式 `local:review-finding:<handle>` 关联 Ledger 实际派生的修复 Gap，使 threatened/undetermined 判断与 Review 结果在同次可信提交中闭合；未知引用仍拒绝。Runtime 不从 blocked 字面值或路径分类推断该主张能否记账，最终合法性由 Ledger 验收。
+
+本次执行停止与 Case 完成分别投影：`handoff/none` 可以正常结束并保留未完成事项；只有可信完成回执才进入 Git 收尾。Git 收尾发现新的实质义务时，通过 Host 的 `resume_loop` 结果回到同一线程正常 Loop，Agent 决定 active Case 或有证据的后续 Case；不手改已关闭 Case，也不因阶段切换强制转人工。
+
+拒绝恢复透传准确错误、原主张与未变的授权。方法负责判断恢复范围；工具缺陷不会自动扩大为通用能力维护，技术故障也不等同人工业务决策。既有单 Gap 因果反馈、不变量判断、Review 循环、freshness 与原子提交保证继续适用。
+
 ## Project State v5
 
 ### Advancement

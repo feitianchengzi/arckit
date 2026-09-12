@@ -42,14 +42,14 @@ test("Runtime and trusted ledger production paths do not bootstrap Electron as N
     new URL("../bin/arcorbit.mjs", import.meta.url),
     new URL("../src/desktop-run-manager.mjs", import.meta.url),
     new URL("../src/ledger-scripts.mjs", import.meta.url),
-    new URL("../../../entry/skills/arckit-state-driven-loop/scripts/runtime-case-control.mjs", import.meta.url),
-    new URL("../../../entry/skills/arckit-state-driven-loop/scripts/case-transition.mjs", import.meta.url),
-    new URL("../../../entry/skills/arckit-state-driven-loop/scripts/protocol-compatibility.mjs", import.meta.url)
+    new URL("../../../entry/skills/arckit-development-ledger/scripts/runtime-case-control.mjs", import.meta.url),
+    new URL("../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs", import.meta.url),
+    new URL("../../../entry/skills/arckit-development-ledger/scripts/protocol-compatibility.mjs", import.meta.url)
   ];
   for (const file of files) {
     const source = await readFile(fileURLToPath(file), "utf8");
     assert.doesNotMatch(source, /ELECTRON_RUN_AS_NODE/);
-    if (file.pathname.includes("arckit-state-driven-loop")) {
+    if (file.pathname.includes("using-arckit")) {
       assert.doesNotMatch(source, /spawnSync\(process\.execPath/);
     }
   }

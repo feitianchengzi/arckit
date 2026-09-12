@@ -7,13 +7,13 @@ import test from 'node:test';
 import {
   applyProtocolReconciliation,
   probeProtocolCompatibility,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/protocol-compatibility.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/protocol-compatibility.mjs';
 import {
   readCaseRecord,
   writeCaseRecord,
-} from '../../../entry/skills/arckit-state-driven-loop/scripts/development-case.mjs';
-import { createProjectStateRecord } from '../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs';
-import { readLedgerSnapshot } from '../../../entry/skills/arckit-state-driven-loop/scripts/loop-snapshot.mjs';
+} from '../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs';
+import { createProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
+import { readLedgerSnapshot } from '../../../entry/skills/arckit-development-ledger/scripts/loop-snapshot.mjs';
 import { compileCoherentAgentLoopPrompt, createLoopFrame } from '../src/agent-orchestrator.mjs';
 import { ensureArckitProject } from '../src/project-initializer.mjs';
 import { runLedgerScript } from '../src/ledger-scripts.mjs';
@@ -40,13 +40,13 @@ test('Runtime exposes an incompatible canonical state as a protocol recovery rou
     assert.match(round.stop_conditions.join('\n'), /Do not create or advance a normal Case/);
 
     const controllerCapability = {
-      id: 'arckit-state-driven-loop',
+      id: 'using-arckit',
       binding_targets: ['controller'],
-      invocation: { type: 'agent_skill', skill_trigger: '$arckit-state-driven-loop', phases: ['agent_loop'] },
+      invocation: { type: 'agent_skill', skill_trigger: '$using-arckit', phases: ['agent_loop'] },
     };
     const ledgerCapability = {
-      id: 'arckit-state-driven-loop',
-      capability_root: join(process.cwd(), 'entry/skills/arckit-state-driven-loop'),
+      id: 'using-arckit',
+      capability_root: join(process.cwd(), 'entry/skills/using-arckit'),
       runtime_entrypoints: { protocol_compatibility: 'scripts/protocol-compatibility.mjs' },
     };
     const loopFrame = createLoopFrame({ snapshot, round, task: 'Continue the original task.', runtimeCapabilities: [ledgerCapability] });

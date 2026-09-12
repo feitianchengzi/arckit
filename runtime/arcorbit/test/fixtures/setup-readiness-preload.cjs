@@ -1,6 +1,6 @@
 const { contextBridge } = require("electron");
 
-const staleSkillPath = "/fixture/.codex/skills/arckit-state-driven-loop";
+const staleSkillPath = "/fixture/.codex/skills/using-arckit";
 const staleLoaderPath = "/fixture/.codex/skills/arcforge-on-demand";
 const calls = [];
 let removalPlanAttempts = 0;
@@ -60,7 +60,7 @@ const drifted = {
     shared_assets: [],
     loader_targets: [],
     cleanup: [
-      { skill: "arckit-state-driven-loop", path: staleSkillPath, reason: "fixture stale skill" },
+      { skill: "using-arckit", path: staleSkillPath, reason: "fixture stale skill" },
       { skill: "arcforge-on-demand", path: staleLoaderPath, reason: "fixture stale loader" }
     ],
     cleanup_included_in_upgrade: false,
@@ -104,7 +104,7 @@ function installPlan(digest, { changed = 0 } = {}) {
         shared_assets: 0,
         arcforge_loader_targets: 1
       },
-      items: [{ skill: "arckit-state-driven-loop", mode: "project-ambient", destinations: [{ kind: "project-agent", path: "/fixture/project/.codex/skills/arckit-state-driven-loop" }] }],
+      items: [{ skill: "using-arckit", mode: "project-ambient", destinations: [{ kind: "project-agent", path: "/fixture/project/.codex/skills/using-arckit" }] }],
       shared_assets: [],
       loader_targets: [{ agent: "codex", path: "/fixture/project/.codex/skills/arcforge-on-demand", status: "missing" }],
       cleanup: [],

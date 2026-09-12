@@ -2,12 +2,14 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildArtifactOwnershipScan, createArtifactImpactScan } from "../artifact-ownership-map.mjs";
+import { loadRuntimeCapabilityForEntrypoint, resolveCapabilityContract } from "../capability-registry.mjs";
 
 const runtimeRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const casePolicyRef = "runtime/arcorbit/config/case-policy.json";
 const casePolicyPath = join(runtimeRoot, "config/case-policy.json");
 
-export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame, round, snapshot, compiledPrompt, roundState }) {
+export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame, round, snapshot, compiledPrompt, roundState, contract }) {
+  contract ||= resolveCapabilityContract(await loadRuntimeCapabilityForEntrypoint({ projectRoot: snapshot.projectRoot, entrypoint: "case_control" }), "case_control");
   const policy = JSON.parse(await readFile(casePolicyPath, "utf8"));
   const maxReviewCycles = policy?.completion_review?.max_autonomous_cycles;
   if (policy?.schema_version !== "arckit-case-policy/v1" || !Number.isInteger(maxReviewCycles) || maxReviewCycles < 1) {
@@ -20,27 +22,11 @@ export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame
     ? `Agent requested trusted reuse of closed resolved Case ${control.case_id}: ${control.coverage_reason}.`
     : `Agent requested creation and registration of a bounded Case: ${control.title}.`;
   const handoff = {
-    schema_version: "arckit-case-control-handoff/v1",
+    schema_version: contract.schema_version,
     action: control.action,
     expected_project_revision: snapshot.projectState?.project?.revision ?? 0,
-    ...(reusesClosedCase ? {
-      case_id: control.case_id || "",
-      expected_case_updated_at: control.expected_case_updated_at || "",
-      case_source_digest: control.case_source_digest || "",
-      coverage_reason: control.coverage_reason || "",
-      coverage_evidence: control.coverage_evidence || []
-    } : {
-      case_id: control.case_id || "",
-      title: control.title || "",
-      intent: control.intent || "",
-      expected_outcome: control.expected_outcome || "",
-      artifact_type: control.artifact_type || "unknown",
-      selection_reason: control.selection_reason || "",
-      initial_facts: control.initial_facts || [],
-      initial_impacts: control.initial_impacts || [],
-      initial_gaps: control.initial_gaps || [],
-      review_policy: { max_autonomous_cycles: maxReviewCycles, source: casePolicyRef }
-    })
+    ...Object.fromEntries(Object.entries(control).filter(([key]) => !["type", "schema_version", "expected_project_revision", "review_policy"].includes(key))),
+    ...(control.action === "create_case" ? { review_policy: { max_autonomous_cycles: maxReviewCycles, source: casePolicyRef } } : {})
   };
   const ownership = buildArtifactOwnershipScan([]);
   const nextPrompt = controllerPlan.continuation_intent.next_prompt;
@@ -69,12 +55,6 @@ export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame
     changed_files: [],
     artifact_impact_scan: createArtifactImpactScan(ownership, { dryRun: false }),
     artifact_ownership_scan: ownership,
-    source_projection_check: {
-      source_facts_changed: [], projection_artifacts_changed: [], source_unknown: false,
-      deferred_projections: [reusesClosedCase
-        ? "Task binding is pending deterministic closed Case validation."
-        : "Case creation is pending deterministic ledger application."], blocked_projections: []
-    },
     agent_loop_result: { schema_version: "arckit-agent-loop-projection/v1", action: "case_control", control_handoff: handoff },
     controller_frame: loopFrame.controller_frame,
     execution_gate: loopFrame.execution_gate,

@@ -156,8 +156,8 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
 
     const trustedRoot = path.join(resourcesRoot, "arcorbit", "trusted-capabilities");
     const capabilities = await loadRuntimeCapabilities({ repositoryCapabilityRoot: trustedRoot, projectRoot: fixture });
-    assert.deepEqual(capabilities.map((item) => item.id), ["arckit-state-driven-loop"]);
-    assert.match(resolveCapabilityEntrypoint(capabilities[0], "loop_snapshot"), /trusted-capabilities.*arckit-state-driven-loop.*loop-snapshot\.mjs/);
+    assert.deepEqual(capabilities.map((item) => item.id), ["arckit-development-ledger", "using-arckit"]);
+    assert.match(resolveCapabilityEntrypoint(capabilities[0], "loop_snapshot"), /trusted-capabilities.*arckit-development-ledger.*loop-snapshot\.mjs/);
 
     const releaseRoot = path.join(fixture, "release");
     await mkdir(releaseRoot, { recursive: true });

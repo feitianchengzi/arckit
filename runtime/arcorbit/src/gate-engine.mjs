@@ -26,17 +26,10 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
   if (runtimeResult?.ledger_stage?.status !== 'gate_ready' || runtimeResult?.ledger_stage?.writeback_required !== true) {
     reasons.push('ledger_stage must explicitly mark an accepted Case transition as gate_ready and writeback_required.');
   }
-  if (isCaseControl) {
-    if (snapshot?.projectState?.project?.revision !== caseControlHandoff.expected_project_revision) reasons.push('case_control_handoff is stale for Project State.');
-  } else {
-    if ((command?.round_outcome || transition?.round_outcome) === 'blocked') reasons.push('A blocked round is not eligible for automatic Case writeback.');
-  }
+  // Ledger owns the legality of unfinished, blocked and completed claims.
 
   const unsafeChangedFiles = findUnsafeChangedFiles(runtimeResult?.changed_files || []);
   if (unsafeChangedFiles.length) reasons.push(`changed_files contains unsafe paths: ${unsafeChangedFiles.join(', ')}`);
-  if (runtimeResult?.artifact_ownership_scan?.unknown_artifacts?.length) reasons.push(`artifact ownership contains unknown artifacts: ${runtimeResult.artifact_ownership_scan.unknown_artifacts.join(', ')}`);
-  const projection = runtimeResult?.source_projection_check || {};
-  if (projection.source_unknown === true && (projection.projection_artifacts_changed || []).length > 0 && (projection.source_facts_changed || []).length === 0) reasons.push('projection-only changes with unknown source facts cannot update Case State.');
   if (runtimeResult?.loop_handoff?.next_responsibility === 'human' || runtimeResult?.loop_handoff?.next_responsibility === 'external') {
     warnings.push('The accepted transition may be written, but Runtime must stop after writeback for the human/external handoff.');
   }

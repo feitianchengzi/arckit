@@ -1,4 +1,5 @@
 import { executionOutcome } from './kernel/execution-outcome.mjs';
+import { loadAgentOutputSchema } from './agent-contracts.mjs';
 import { normalizeCodexSettings, validateCodexSettingsPatch } from "./codex-model-settings.mjs";
 import { queryCodexModelCatalog } from "./codex-model-catalog.mjs";
 import { EventEmitter } from "node:events";
@@ -140,6 +141,8 @@ export function createDesktopRunManager({
     const controllerCapabilities = capabilitiesForBinding(capabilities, policy, "controller");
     const controllerInvocation = agentSkillInvocationForPhase(controllerCapabilities, "agent_loop");
     const runtimeCapabilities = capabilitiesForBinding(capabilities, policy, "runtime");
+    await loadAgentOutputSchema(runtimeCapabilities);
+    agentSkillInvocationForPhase(controllerCapabilities, 'task_closeout');
     const trustedEntrypoints = {};
     for (const entrypoint of ["protocol_compatibility", "loop_snapshot", "case_control", "writeback"]) {
       const capability = runtimeCapabilityForEntrypoint(runtimeCapabilities, entrypoint);
