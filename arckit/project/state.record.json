@@ -5,14 +5,15 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-09-12T03:18:16.506Z",
-    "revision": 376
+    "updated_at": "2026-09-12T03:33:06.901Z",
+    "revision": 377
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "active_case_refs": [
       "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md",
-      "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
+      "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md",
+      "arckit/cases/active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md"
     ],
     "project_gaps": [
       {
@@ -113,7 +114,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "合并两个 entry skills 并整体优化架构和内容，名称 arckit-state-driven-loop。",
+      "current_focus": "将 Codex Model 与 Level 配置按 Chat 和 Automation 场景拆分，并在 Chat 输入框附近提供可直接调整当前对话后续消息所用 Model 与 Level 的快捷入口。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 376
-Updated: 2026-09-12T03:18:16.506Z
+Revision: 377
+Updated: 2026-09-12T03:33:06.901Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,11 +11,11 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-合并两个 entry skills 并整体优化架构和内容，名称 arckit-state-driven-loop。
+将 Codex Model 与 Level 配置按 Chat 和 Automation 场景拆分，并在 Chat 输入框附近提供可直接调整当前对话后续消息所用 Model 与 Level 的快捷入口。
 
 ## Active Work
 
-- Active cases: 2
+- Active cases: 3
 - Project gaps: 4
 - GAP-agent-scenario-evaluation: Validate dynamic gap selection in isolated real software scenarios.
 - GAP-runtime-resilience-and-adapters: Strengthen Runtime timeout, transcript compaction and required adapter boundaries.
@@ -59,3 +59,4 @@ Arckit is a state-driven software-development protocol and optional supervised R
 - arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md
 - arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md
+- arckit/cases/active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md

@@ -8,6 +8,7 @@
 | --- | --- | --- | --- | --- |
 | [CASE-20260901-001](active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md) | handoff | Consolidate Workshop Todo and Feedback into the Arckit monorepo | none | 2026-09-03T05:54:52.452Z |
 | [CASE-20260909-002](active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md) | handoff | Implement the integrated Release terminal Git and Agent workspace | none | 2026-09-09T15:41:27.471Z |
+| [CASE-20260912-001](active/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md) | active | Separate Chat and Automation Codex model and level configuration | none | 2026-09-12T03:33:06.897Z |
 
 ## Closed Cases
 
