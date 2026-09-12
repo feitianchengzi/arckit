@@ -15,6 +15,7 @@ import clsx from 'clsx'
 interface TaskNotificationSettingsDialogProps {
   open: boolean
   onClose: () => void
+  onPreferenceChange?: (preference: TaskNotificationPreference) => void
   projectId: number
   projectName: string
 }
@@ -127,6 +128,7 @@ function PreferenceSwitch({
 export function TaskNotificationSettingsDialog({
   open,
   onClose,
+  onPreferenceChange,
   projectId,
   projectName,
 }: TaskNotificationSettingsDialogProps) {
@@ -161,6 +163,7 @@ export function TaskNotificationSettingsDialog({
         const errors: string[] = []
         if (preferenceResult.status === 'fulfilled') {
           setPreference(preferenceResult.value)
+          onPreferenceChange?.(preferenceResult.value)
         } else {
           errors.push(getErrorMessage(preferenceResult.reason, '无法加载待办通知设置'))
         }
@@ -178,7 +181,7 @@ export function TaskNotificationSettingsDialog({
     return () => {
       cancelled = true
     }
-  }, [open, projectId])
+  }, [open, onPreferenceChange, projectId])
 
   const selectedCount = useMemo(
     () => EVENT_OPTIONS.filter(({ key }) => preference[key] === true).length,
@@ -210,6 +213,7 @@ export function TaskNotificationSettingsDialog({
         notify_tags_changed: preference.notify_tags_changed,
       })
       setPreference(saved)
+      onPreferenceChange?.(saved)
       showGlobalToast('待办通知设置已保存', 'success', 2000)
       onClose()
     } catch (saveError) {
