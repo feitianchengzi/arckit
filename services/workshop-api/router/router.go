@@ -55,6 +55,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		userGroup.GET("/task-notification-preference", handler.GetTaskNotificationPreference)
 		userGroup.PUT("/task-notification-preference", handler.UpdateTaskNotificationPreference)
 		if enableFeedbackWorkflow {
+			userGroup.GET("/feedbacks/:id", handler.GetFeedback)
 			registerFeedbackWorkflowRoutes(userGroup)
 			registerFeedbackNotificationRoutes(userGroup)
 			userGroup.POST("/feedback-sessions", handler.CreateUserFeedbackSession)
@@ -161,6 +162,7 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 	group.PUT("/organizations/:id/members/role", handler.UpdateOrganizationMemberRole) // 设置成员角色（仅所有者）
 	group.POST("/projects", handler.CreateProject)                                     // 创建新项目
 	group.GET("/projects", handler.GetUserProjects)                                    // 根据用户UUID查询所有参与的项目
+	group.GET("/projects/:id", handler.GetProject)                                     // 查询单个项目（项目成员）
 	group.GET("/organization/projects", handler.GetOrganizationProjects)               // 管理员查询组织所有项目
 	group.PUT("/projects/:id", handler.UpdateProject)                                  // 更新项目信息
 	group.DELETE("/projects/:id", handler.DeleteProject)                               // 删除项目（仅所有者）
@@ -213,6 +215,8 @@ func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
 func registerFeedbackNotificationRoutes(group *gin.RouterGroup) {
 	group.GET("/feedback-notifications", handler.GetFeedbackNotifications)
 	group.POST("/feedback-notifications/read", handler.MarkFeedbackNotificationsRead)
+	group.GET("/feedback-subscription", handler.GetFeedbackSubscription)
+	group.PUT("/feedback-subscription", handler.UpdateFeedbackSubscription)
 }
 
 func registerFeedbackNotificationAPIKeyRoutes(group *gin.RouterGroup) {

@@ -162,6 +162,8 @@ func Migrate(db *gorm.DB) error {
 		&models.FeedbackMessage{},
 		&models.FeedbackMessageAttachment{},
 		&models.FeedbackNotification{},
+		&models.FeedbackSubscription{},
+		&models.FeedbackEmailDelivery{},
 		&models.FeedbackTaskLink{},
 		&models.ProjectFeedbackAccessKey{},
 		&models.ProjectEvent{},
@@ -186,6 +188,18 @@ func ValidateRuntimeSchema(db *gorm.DB) error {
 	}
 	if !migrator.HasIndex(&models.ProjectEvent{}, "idx_project_events_project_cursor") {
 		return fmt.Errorf("required project event cursor index is missing; run the migrate command before starting the service")
+	}
+	emailNotificationsEnabled, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("FEEDBACK_EMAIL_NOTIFICATIONS_ENABLED")))
+	if emailNotificationsEnabled {
+		for _, model := range []interface{}{&models.FeedbackSubscription{}, &models.FeedbackEmailDelivery{}} {
+			if !migrator.HasTable(model) {
+				return fmt.Errorf("feedback email notification schema is missing; run the migrate command before enabling FEEDBACK_EMAIL_NOTIFICATIONS_ENABLED")
+			}
+		}
+		if !migrator.HasIndex(&models.FeedbackSubscription{}, "uniq_feedback_subscription_project_user") ||
+			!migrator.HasIndex(&models.FeedbackEmailDelivery{}, "uniq_feedback_email_delivery_message_user") {
+			return fmt.Errorf("feedback email notification indexes are missing; run the migrate command before enabling FEEDBACK_EMAIL_NOTIFICATIONS_ENABLED")
+		}
 	}
 	return nil
 }

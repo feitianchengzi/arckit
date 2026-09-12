@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"todo/database"
+	"todo/feedbackemail"
 	"todo/handler"
 	"todo/realtime"
 	"todo/router"
@@ -38,6 +39,15 @@ func main() {
 		log.Fatal("实时事件 Broker 初始化失败:", err)
 	}
 	handler.ConfigureHealthReadiness(broker.Ready)
+
+	emailConfig, err := feedbackemail.LoadConfigFromEnv()
+	if err != nil {
+		log.Fatal("反馈邮件通知配置无效:", err)
+	}
+	if emailConfig.Enabled {
+		emailWorker := feedbackemail.NewWorker(database.GetDB(), emailConfig)
+		go emailWorker.Run(context.Background())
+	}
 
 	// 从环境变量读取端口，如果不存在则报错退出
 	port := os.Getenv("PORT")

@@ -45,6 +45,9 @@ func TestFeedbackWorkflowRoutesAreV2Only(t *testing.T) {
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedbacks/:id/upload-policies")
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/user/feedback-notifications")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedback-notifications/read")
+	requireRoute(t, engine, http.MethodGet, "/workshop/v2/user/feedback-subscription")
+	requireRoute(t, engine, http.MethodPut, "/workshop/v2/user/feedback-subscription")
+	requireRoute(t, engine, http.MethodGet, "/workshop/v2/user/feedbacks/:id")
 
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/user/feedbacks/:id/messages")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedbacks/:id/messages")
@@ -70,6 +73,8 @@ func TestFeedbackWorkflowRoutesAreV2Only(t *testing.T) {
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/feedback/feedbacks/:id/attachments/:attachment_id/oss/credentials")
 
 	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/user/feedbacks/:id/messages")
+	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/user/feedbacks/:id")
+	forbidRoute(t, engine, http.MethodGet, "/workshop/v2/apikey/feedbacks/:id")
 	forbidRoute(t, engine, http.MethodPost, "/workshop/v1/user/feedbacks/:id/messages")
 	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/user/feedbacks/:id/attachments/:attachment_id/oss/credentials")
 	forbidRoute(t, engine, http.MethodPost, "/workshop/v1/user/feedbacks/:id/convert-to-task")
@@ -85,6 +90,8 @@ func TestFeedbackWorkflowRoutesAreV2Only(t *testing.T) {
 	forbidRoute(t, engine, http.MethodPost, "/workshop/v1/user/feedback-sessions")
 	forbidRoute(t, engine, http.MethodPost, "/workshop/v1/feedback/feedbacks")
 	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/user/feedback-notifications")
+	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/user/feedback-subscription")
+	forbidRoute(t, engine, http.MethodPut, "/workshop/v1/user/feedback-subscription")
 	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/apikey/feedback-notifications")
 	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/feedback/notifications")
 }
@@ -99,5 +106,16 @@ func TestTaskNotificationPreferenceRoutesAreUserOnly(t *testing.T) {
 		requireRoute(t, engine, http.MethodPut, base+"/user/task-notification-preference")
 		forbidRoute(t, engine, http.MethodGet, base+"/apikey/task-notification-preference")
 		forbidRoute(t, engine, http.MethodPut, base+"/apikey/task-notification-preference")
+	}
+}
+
+func TestProjectDetailRoutesSupportAuthenticatedDeepLinks(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := SetupRouter("workshop")
+
+	for _, version := range []string{"v1", "v2"} {
+		base := "/workshop/" + version
+		requireRoute(t, engine, http.MethodGet, base+"/user/projects/:id")
+		requireRoute(t, engine, http.MethodGet, base+"/apikey/projects/:id")
 	}
 }
