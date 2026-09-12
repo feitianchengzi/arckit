@@ -291,7 +291,7 @@ export function TaskDetailContent({
       return
     }
 
-    navigate('/tasks', { replace: true })
+    navigate(buildProjectPath(projectId), { replace: true })
   }
 
   useEffect(() => {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,11 +48,12 @@ type ProjectMemberResponse struct {
 
 // CreateProjectResponse 创建项目响应结构
 type CreateProjectResponse struct {
-	ID        uint                    `json:"id"`         // 项目ID
-	Name      string                  `json:"name"`       // 项目名称
-	GitURL    string                  `json:"git_url"`    // Git地址
-	CreatorID uint                    `json:"creator_id"` // 创建者ID
-	Members   []ProjectMemberResponse `json:"members"`    // 项目成员列表
+	ID             uint                    `json:"id"`              // 项目ID
+	Name           string                  `json:"name"`            // 项目名称
+	GitURL         string                  `json:"git_url"`         // Git地址
+	OrganizationID *uint                   `json:"organization_id"` // 组织ID
+	CreatorID      uint                    `json:"creator_id"`      // 创建者ID
+	Members        []ProjectMemberResponse `json:"members"`         // 项目成员列表
 }
 
 // CreateProject 创建新项目
@@ -164,25 +166,27 @@ func CreateProject(c *gin.Context) {
 
 	// 7. 返回成功响应
 	resp := CreateProjectResponse{
-		ID:        project.ID,
-		Name:      project.Name,
-		GitURL:    strPtrVal(project.GitURL),
-		CreatorID: project.CreatorID,
-		Members:   memberResponses,
+		ID:             project.ID,
+		Name:           project.Name,
+		GitURL:         strPtrVal(project.GitURL),
+		OrganizationID: project.OrganizationID,
+		CreatorID:      project.CreatorID,
+		Members:        memberResponses,
 	}
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
 // ProjectResponse 项目响应结构（用于查询接口）
 type ProjectResponse struct {
-	ID        uint                    `json:"id"`                   // 项目ID
-	Name      string                  `json:"name"`                 // 项目名称
-	GitURL    string                  `json:"git_url"`              // Git地址
-	CreatorID uint                    `json:"creator_id"`           // 创建者ID
-	CreatedAt string                  `json:"created_at"`           // 创建时间
-	UpdatedAt string                  `json:"updated_at"`           // 更新时间
-	DeletedAt *string                 `json:"deleted_at,omitempty"` // 删除时间（如果存在）
-	Members   []ProjectMemberResponse `json:"members"`              // 项目成员列表
+	ID             uint                    `json:"id"`                   // 项目ID
+	Name           string                  `json:"name"`                 // 项目名称
+	GitURL         string                  `json:"git_url"`              // Git地址
+	OrganizationID *uint                   `json:"organization_id"`      // 组织ID
+	CreatorID      uint                    `json:"creator_id"`           // 创建者ID
+	CreatedAt      string                  `json:"created_at"`           // 创建时间
+	UpdatedAt      string                  `json:"updated_at"`           // 更新时间
+	DeletedAt      *string                 `json:"deleted_at,omitempty"` // 删除时间（如果存在）
+	Members        []ProjectMemberResponse `json:"members"`              // 项目成员列表
 }
 
 // GetUserProjectsResponse 查询用户项目响应结构
@@ -327,14 +331,15 @@ func GetUserProjects(c *gin.Context) {
 		}
 
 		projectResponses = append(projectResponses, ProjectResponse{
-			ID:        project.ID,
-			Name:      project.Name,
-			GitURL:    strPtrVal(project.GitURL),
-			CreatorID: project.CreatorID,
-			CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			DeletedAt: deletedAt,
-			Members:   memberResponses,
+			ID:             project.ID,
+			Name:           project.Name,
+			GitURL:         strPtrVal(project.GitURL),
+			OrganizationID: project.OrganizationID,
+			CreatorID:      project.CreatorID,
+			CreatedAt:      project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt:      project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			DeletedAt:      deletedAt,
+			Members:        memberResponses,
 		})
 	}
 
@@ -357,6 +362,79 @@ func GetUserProjects(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
+// GetProject returns one project by ID for an authenticated project member.
+// Deep links use this endpoint so their project and organization context does
+// not depend on whichever organization was last selected in the browser.
+func GetProject(c *gin.Context) {
+	projectIDValue, err := strconv.ParseUint(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || projectIDValue == 0 {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "项目ID格式无效", nil))
+		return
+	}
+
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	projectID := uint(projectIDValue)
+	var project models.Project
+	if err := db.First(&project, projectID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeProjectNotFound, "项目不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目失败: "+err.Error(), nil))
+		return
+	}
+
+	var currentMember models.ProjectMember
+	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&currentMember).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeProjectNotMember, "您不是该项目的成员", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "验证项目成员身份失败: "+err.Error(), nil))
+		return
+	}
+
+	var members []models.ProjectMember
+	if err := db.Where("project_id = ?", projectID).Order("created_at DESC").Order("id DESC").Preload("User").Find(&members).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目成员失败: "+err.Error(), nil))
+		return
+	}
+	memberResponses := make([]ProjectMemberResponse, 0, len(members))
+	for _, member := range members {
+		memberResponses = append(memberResponses, ProjectMemberResponse{
+			ID:         member.ID,
+			UserID:     member.UserID,
+			Role:       member.Role,
+			Duty:       member.Duty,
+			Username:   member.User.Username,
+			Avatar:     member.User.Avatar,
+			CreatedAt:  member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			IsMe:       member.UserID == userID,
+			IsExternal: member.IsExternal,
+		})
+	}
+
+	c.JSON(http.StatusOK, response.NewSuccessResponse(ProjectResponse{
+		ID:             project.ID,
+		Name:           project.Name,
+		GitURL:         strPtrVal(project.GitURL),
+		OrganizationID: project.OrganizationID,
+		CreatorID:      project.CreatorID,
+		CreatedAt:      project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:      project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Members:        memberResponses,
+	}))
+}
+
 // UpdateProjectRequest 更新项目请求结构
 type UpdateProjectRequest struct {
 	Name           *string `json:"name,omitempty"`            // 项目名称（可选）
@@ -366,13 +444,14 @@ type UpdateProjectRequest struct {
 
 // UpdateProjectResponse 更新项目响应结构
 type UpdateProjectResponse struct {
-	ID        uint                    `json:"id"`         // 项目ID
-	Name      string                  `json:"name"`       // 项目名称
-	GitURL    string                  `json:"git_url"`    // Git地址
-	CreatorID uint                    `json:"creator_id"` // 创建者ID
-	CreatedAt string                  `json:"created_at"` // 创建时间
-	UpdatedAt string                  `json:"updated_at"` // 更新时间
-	Members   []ProjectMemberResponse `json:"members"`    // 项目成员列表
+	ID             uint                    `json:"id"`              // 项目ID
+	Name           string                  `json:"name"`            // 项目名称
+	GitURL         string                  `json:"git_url"`         // Git地址
+	OrganizationID *uint                   `json:"organization_id"` // 组织ID
+	CreatorID      uint                    `json:"creator_id"`      // 创建者ID
+	CreatedAt      string                  `json:"created_at"`      // 创建时间
+	UpdatedAt      string                  `json:"updated_at"`      // 更新时间
+	Members        []ProjectMemberResponse `json:"members"`         // 项目成员列表
 }
 
 // UpdateProject 更新项目信息
@@ -486,13 +565,14 @@ func UpdateProject(c *gin.Context) {
 		}
 
 		resp := UpdateProjectResponse{
-			ID:        project.ID,
-			Name:      project.Name,
-			GitURL:    strPtrVal(project.GitURL),
-			CreatorID: project.CreatorID,
-			CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			Members:   memberResponses,
+			ID:             project.ID,
+			Name:           project.Name,
+			GitURL:         strPtrVal(project.GitURL),
+			OrganizationID: project.OrganizationID,
+			CreatorID:      project.CreatorID,
+			CreatedAt:      project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt:      project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			Members:        memberResponses,
 		}
 		c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 		return
@@ -540,13 +620,14 @@ func UpdateProject(c *gin.Context) {
 
 	// 15. 返回成功响应
 	resp := UpdateProjectResponse{
-		ID:        project.ID,
-		Name:      project.Name,
-		GitURL:    strPtrVal(project.GitURL),
-		CreatorID: project.CreatorID,
-		CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		Members:   memberResponses,
+		ID:             project.ID,
+		Name:           project.Name,
+		GitURL:         strPtrVal(project.GitURL),
+		OrganizationID: project.OrganizationID,
+		CreatorID:      project.CreatorID,
+		CreatedAt:      project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:      project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		Members:        memberResponses,
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
@@ -1456,14 +1537,15 @@ func GetOrganizationProjects(c *gin.Context) {
 		}
 
 		projectResponses = append(projectResponses, ProjectResponse{
-			ID:        project.ID,
-			Name:      project.Name,
-			GitURL:    strPtrVal(project.GitURL),
-			CreatorID: project.CreatorID,
-			CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			DeletedAt: deletedAt,
-			Members:   memberResponses,
+			ID:             project.ID,
+			Name:           project.Name,
+			GitURL:         strPtrVal(project.GitURL),
+			OrganizationID: project.OrganizationID,
+			CreatorID:      project.CreatorID,
+			CreatedAt:      project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt:      project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			DeletedAt:      deletedAt,
+			Members:        memberResponses,
 		})
 	}
 

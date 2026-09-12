@@ -506,6 +506,29 @@ func UpdateFeedback(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
+// GetFeedback returns one V2 feedback to an authenticated project member.
+// It is intentionally registered only on the V2 user route so Console email
+// deep links do not broaden the API-key or SDK feedback-session surface.
+func GetFeedback(c *gin.Context) {
+	feedbackID, ok := parseFeedbackIDParam(c)
+	if !ok {
+		return
+	}
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+	feedback, ok := loadFeedbackByID(c, db, feedbackID)
+	if !ok {
+		return
+	}
+	if _, ok := requireFeedbackProjectMember(c, db, feedback.ProjectID, "查看反馈"); !ok {
+		return
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(buildFeedbackResponse(feedback)))
+}
+
 // DeleteFeedback 删除反馈
 // 认证级别: user (需要JWT认证)
 // 权限: 项目成员

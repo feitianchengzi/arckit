@@ -3,14 +3,14 @@
  */
 
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { projectsApi, CreateProjectInput, UpdateProjectInput } from '@/lib/api/endpoints/projects'
 import { buildFeedbackProjectPath, buildProjectPath } from '@/lib/utils/projectRouting'
 import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import { showGlobalToast } from '@/components/ui/Toast'
-import type { Project } from '@/types'
+import type { Project, ProjectMember } from '@/types'
 
 export const PROJECT_LIST_PAGE_SIZE = 30
 
@@ -186,7 +186,8 @@ export function useInfiniteProjectList(
  */
 export function useProject(projectId: string) {
   const queryClient = useQueryClient()
-  const { currentOrganizationId } = useOrganizationStore()
+  const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
+  const setCurrentOrganizationId = useOrganizationStore((state) => state.setCurrentOrganizationId)
   
   // 尝试从缓存中查找项目信息（包含 organizationId）
   const cachedInfo = useMemo(() => {
@@ -212,12 +213,27 @@ export function useProject(projectId: string) {
     return null
   }, [queryClient, projectId])
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['projects', projectId],
-    queryFn: () => projectsApi.getById(projectId, cachedInfo?.organizationId ?? currentOrganizationId),
+    queryFn: () => projectsApi.getById(projectId),
     enabled: !!projectId, // 只在有 projectId 时查询
     initialData: cachedInfo?.project,
   })
+
+  useEffect(() => {
+    const project = query.data
+    if (!project || !Object.prototype.hasOwnProperty.call(project, 'organization_id')) return
+
+    const currentMember = project.members?.find((member: ProjectMember) => member.is_me)
+    const organizationId = currentMember?.is_external
+      ? null
+      : normalizeOrganizationId(project.organization_id)
+    if (currentOrganizationId !== organizationId) {
+      setCurrentOrganizationId(organizationId)
+    }
+  }, [currentOrganizationId, query.data, setCurrentOrganizationId])
+
+  return query
 }
 
 /**

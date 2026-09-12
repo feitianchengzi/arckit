@@ -102,6 +102,9 @@ func feedbackNotificationTypeForMessage(message models.FeedbackMessage) string {
 // the message write. A notification therefore can never point at a message
 // that was rolled back, and retries remain safe through the partial indexes.
 func createFeedbackNotificationsForMessage(tx *gorm.DB, feedback models.Feedback, message models.FeedbackMessage) error {
+	if err := enqueueFeedbackEmailDeliveries(tx, feedback, message); err != nil {
+		return err
+	}
 	if !feedbackNotificationsEnabledForProject(feedback.ProjectID) {
 		return nil
 	}

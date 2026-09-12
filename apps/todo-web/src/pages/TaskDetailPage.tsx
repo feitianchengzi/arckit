@@ -241,7 +241,7 @@ export default function TaskDetailPage() {
       return
     }
 
-    navigate('/tasks', { replace: true })
+    navigate(buildProjectPath(projectId), { replace: true })
   }
   
   // 加载状态

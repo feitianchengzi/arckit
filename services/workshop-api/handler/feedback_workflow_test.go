@@ -224,6 +224,30 @@ func TestInitialFeedbackMessageMetadataHasStableSource(t *testing.T) {
 	}
 }
 
+func TestFeedbackEmailEventTypeDistinguishesInitialAndReply(t *testing.T) {
+	initial := models.FeedbackMessage{
+		SenderType: models.FeedbackMessageSenderCustomer,
+		Metadata:   initialFeedbackMessageMetadata(false),
+	}
+	if got := feedbackEmailEventType(initial); got != models.FeedbackEmailEventNewFeedback {
+		t.Fatalf("initial event = %s, want %s", got, models.FeedbackEmailEventNewFeedback)
+	}
+	if got := feedbackEmailEventType(models.FeedbackMessage{SenderType: models.FeedbackMessageSenderCustomer}); got != models.FeedbackEmailEventCustomerReply {
+		t.Fatalf("reply event = %s, want %s", got, models.FeedbackEmailEventCustomerReply)
+	}
+}
+
+func TestFeedbackEmailNotificationsDefaultOff(t *testing.T) {
+	t.Setenv("FEEDBACK_EMAIL_NOTIFICATIONS_ENABLED", "")
+	if feedbackEmailNotificationsEnabled() {
+		t.Fatal("email notifications must default to disabled")
+	}
+	t.Setenv("FEEDBACK_EMAIL_NOTIFICATIONS_ENABLED", "true")
+	if !feedbackEmailNotificationsEnabled() {
+		t.Fatal("email notifications should be enabled only after explicit opt-in")
+	}
+}
+
 func TestBuildFeedbackTaskAttachmentCommentUsesRichAttachmentMarkers(t *testing.T) {
 	imageKey := "workshop/feedbacks/v2/12/user/screenshot.png"
 	fileKey := "workshop/feedbacks/v2/12/user/log.txt"

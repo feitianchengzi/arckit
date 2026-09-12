@@ -162,6 +162,7 @@ func CreateTask(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskCreateFailed, "创建任务失败: "+err.Error(), nil))
 		return
 	}
+	queueTaskNotificationDelivery(db, taskNotificationMutation{Task: task, Created: true, ActorUserID: userID})
 
 	// 10. 返回成功响应
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
@@ -370,6 +371,7 @@ func UpdateTask(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
+	previousTask := task
 	oldState := task.State
 
 	// 6. 验证权限（canModifyTask内部会查询项目成员表）
@@ -523,6 +525,7 @@ func UpdateTask(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskUpdateFailed, "更新任务失败: "+err.Error(), nil))
 			return
 		}
+		queueTaskNotificationDelivery(db, taskNotificationMutation{Task: task, PreviousTask: &previousTask, ActorUserID: userID})
 	}
 
 	// 11. 返回成功响应

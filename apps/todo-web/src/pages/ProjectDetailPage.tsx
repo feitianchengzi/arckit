@@ -9,7 +9,7 @@ import { useParams, useNavigate, useLocation, useSearchParams } from 'react-rout
 import { Avatar, Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
 import { getLinearPriorityOption, getLinearStatusOption, LinearPriorityMarker, LinearStatusMarker } from '@/components/features/TodoItem'
-import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect } from '@/components/features'
+import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect, TaskNotificationSettingsDialog } from '@/components/features'
 import { flattenTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { getDefaultTaskDateRange, isSameTaskDateRange, normalizeTaskDateRange, taskDateRangeToTimeFilters } from '@/lib/utils/taskDateRange'
@@ -19,6 +19,7 @@ import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useProjectWebSocket, type ProjectSocketEvent } from '@/hooks/useProjectWebSocket'
 import { requiresFullProjectInvalidation } from '@/lib/realtime/projectEventStream'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
+import { taskNotificationsApi, type TaskNotificationPreference } from '@/lib/api/endpoints/taskNotifications'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
@@ -26,7 +27,7 @@ import { useDashboardLayout } from '@/layouts/DashboardLayoutContext'
 import { showGlobalToast } from '@/components/ui/Toast'
 import { type DateRange } from '@/lib/utils/filterStorage'
 import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
-import { LinkIcon, PlusIcon } from '@/components/ui/icons'
+import { BellIcon, LinkIcon, PlusIcon } from '@/components/ui/icons'
 import type { TodoStatus, ProjectMember } from '@/types'
 import clsx from 'clsx'
 import { permissionManager } from '@/lib/permissions'
@@ -220,10 +221,40 @@ export default function ProjectDetailPage() {
   
   // 导出待办对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showTaskNotificationDialog, setShowTaskNotificationDialog] = useState(false)
+  const [taskNotificationEnabled, setTaskNotificationEnabled] = useState(false)
+  const taskNotificationRequestVersionRef = useRef(0)
   // 迁移项目状态
   const [showMigrateDialog, setShowMigrateDialog] = useState(false)
   const [migrateOrgId, setMigrateOrgId] = useState('')
   const [migrateError, setMigrateError] = useState('')
+
+  const handleTaskNotificationPreferenceChange = useCallback((preference: TaskNotificationPreference) => {
+    taskNotificationRequestVersionRef.current += 1
+    setTaskNotificationEnabled(preference.email_enabled)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const requestVersion = taskNotificationRequestVersionRef.current + 1
+    taskNotificationRequestVersionRef.current = requestVersion
+    setTaskNotificationEnabled(false)
+    if (!Number.isFinite(projectId) || projectId <= 0) return
+
+    taskNotificationsApi.getPreference(projectId)
+      .then((preference) => {
+        if (!cancelled && taskNotificationRequestVersionRef.current === requestVersion) {
+          setTaskNotificationEnabled(preference.email_enabled)
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) console.warn('读取待办通知状态失败:', loadError)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectId])
   
   const statusOptions = ([
     'PENDING_REVIEW',
@@ -310,6 +341,7 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     setShowMoreMenu(false)
     setShowProjectInfoDialog(false)
+    setShowTaskNotificationDialog(false)
     setProjectInfoError('')
   }, [projectIdParam])
   
@@ -1502,6 +1534,25 @@ export default function ProjectDetailPage() {
                     <span>项目信息</span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTaskNotificationDialog(true)
+                      setShowMoreMenu(false)
+                    }}
+                    className={clsx(
+                      'flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover sm:hidden',
+                      taskNotificationEnabled ? 'text-primary' : 'text-foreground'
+                    )}
+                    role="menuitem"
+                  >
+                    <BellIcon className="h-4 w-4 shrink-0" />
+                    <span>待办通知</span>
+                    {taskNotificationEnabled && (
+                      <span className="ml-auto text-xs font-medium">已开启</span>
+                    )}
+                  </button>
+
                   {/* 导出待办 - 所有用户可见 */}
                   <button
                     type="button"
@@ -1559,6 +1610,22 @@ export default function ProjectDetailPage() {
           
           {/* 操作按钮 - 顶部右对齐 */}
           <div className="flex shrink-0 items-center gap-2">
+            <div className="hidden sm:block">
+              <HeaderIconButton
+                icon={(
+                  <span className="relative block h-5 w-5">
+                    <BellIcon className="h-5 w-5" />
+                    {taskNotificationEnabled && (
+                      <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-surface-elevated" />
+                    )}
+                  </span>
+                )}
+                label={taskNotificationEnabled ? '待办通知已开启' : '待办通知'}
+                onClick={() => setShowTaskNotificationDialog(true)}
+                isActive={showTaskNotificationDialog || taskNotificationEnabled}
+                activeTone={taskNotificationEnabled ? 'primary' : 'neutral'}
+              />
+            </div>
             {/* 搜索区域 - 搜索按钮和搜索框共用位置 */}
             <div
               className={clsx(
@@ -2085,6 +2152,14 @@ export default function ProjectDetailPage() {
         }}
       />
 
+      <TaskNotificationSettingsDialog
+        open={showTaskNotificationDialog}
+        onClose={() => setShowTaskNotificationDialog(false)}
+        onPreferenceChange={handleTaskNotificationPreferenceChange}
+        projectId={projectId}
+        projectName={projectNameValue}
+      />
+
       {/* 创建子待办对话框 */}
       <CreateTaskDialog
         open={createSubtaskParentId !== null}
@@ -2221,6 +2296,7 @@ interface HeaderIconButtonProps {
   label: string
   onClick: () => void
   isActive?: boolean
+  activeTone?: 'neutral' | 'primary'
   disabled?: boolean
   buttonRef?: React.Ref<HTMLButtonElement>
 }
@@ -2230,6 +2306,7 @@ function HeaderIconButton({
   label,
   onClick,
   isActive = false,
+  activeTone = 'neutral',
   disabled = false,
   buttonRef,
 }: HeaderIconButtonProps) {
@@ -2242,7 +2319,8 @@ function HeaderIconButton({
       className={clsx(
         'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-transparent text-foreground-secondary transition-colors',
         'hover:bg-surface-hover hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-        isActive && 'bg-surface-hover text-foreground',
+        isActive && activeTone === 'neutral' && 'bg-surface-hover text-foreground',
+        isActive && activeTone === 'primary' && 'bg-primary-lighter text-primary hover:bg-primary-lighter hover:text-primary',
         disabled && 'cursor-not-allowed opacity-50'
       )}
       title={label}

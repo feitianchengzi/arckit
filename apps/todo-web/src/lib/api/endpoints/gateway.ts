@@ -30,6 +30,14 @@ const gatewayClient: AxiosInstance = axios.create({
   },
 })
 
+export interface NotificationEmailPreference {
+  account_email?: string
+  custom_email?: string
+  effective_email?: string
+  source: 'custom' | 'account' | 'none'
+  has_email: boolean
+}
+
 // 请求拦截器：为需要认证的接口添加 Authorization 头
 gatewayClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -56,6 +64,36 @@ gatewayClient.interceptors.request.use(
  * 网关 API
  */
 export const gatewayApi = {
+  /** 获取事务通知的有效收件邮箱。独立邮箱优先，未设置时回退账号邮箱。 */
+  getNotificationEmail: async (): Promise<NotificationEmailPreference> => {
+    const response = await gatewayClient.get<{ code: string; data: NotificationEmailPreference }>(
+      '/auth-server/v1/user/notification-email'
+    )
+    return response.data.data
+  },
+
+  /** 向待设置的独立通知邮箱发送专用验证码。 */
+  sendNotificationEmailVerification: async (email: string): Promise<void> => {
+    await gatewayClient.post('/auth-server/v1/user/notification-email/verification', { email })
+  },
+
+  /** 验证并保存独立通知邮箱。 */
+  setNotificationEmail: async (email: string, code: string): Promise<NotificationEmailPreference> => {
+    const response = await gatewayClient.put<{ code: string; data: NotificationEmailPreference }>(
+      '/auth-server/v1/user/notification-email',
+      { email, code }
+    )
+    return response.data.data
+  },
+
+  /** 清除独立通知邮箱，恢复使用账号邮箱。 */
+  deleteNotificationEmail: async (): Promise<NotificationEmailPreference> => {
+    const response = await gatewayClient.delete<{ code: string; data: NotificationEmailPreference }>(
+      '/auth-server/v1/user/notification-email'
+    )
+    return response.data.data
+  },
+
   /**
    * 发送验证码
    * POST /auth-server/v1/public/send_verification

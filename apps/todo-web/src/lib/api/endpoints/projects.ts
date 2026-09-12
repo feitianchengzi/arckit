@@ -165,21 +165,12 @@ export const projectsApi = {
   
   /**
    * 获取项目详情
-   * 注意：后端没有单独的获取项目详情接口
-   * 我们从项目列表中查找对应的项目
+   * 后端路由: GET /workshop/v1/user/projects/:id
+   * 直接按项目 ID 查询，避免深链依赖浏览器当前选中的组织。
    */
-  getById: async (id: string, organizationId?: number | null): Promise<Project> => {
-    // 由于后端不支持直接通过ID获取项目详情 (返回404)，
-    // 我们先获取项目列表，然后从中查找目标项目
-    // 如果已知 organizationId，则只获取该组织的项目列表
-    const projects = await projectsApi.list({ organizationId })
-    const project = projects.find((p) => p.id.toString() === id)
-    
-    if (!project) {
-      throw new Error('Project not found')
-    }
-    
-    return project
+  getById: async (id: string, _organizationId?: number | null): Promise<Project> => {
+    const response = await apiClient.get(`/user/projects/${id}`)
+    return handleResponse<Project>(response)
   },
   
   /**
@@ -200,18 +191,10 @@ export const projectsApi = {
   
   /**
    * 获取项目成员列表
-   * 注意：后端没有单独的获取成员列表接口
-   * 成员列表包含在项目详情中，我们从项目列表中查找对应的项目并返回其成员
+   * 成员列表包含在项目详情响应中。
    */
-  getMembers: async (projectId: string, organizationId?: number | null) => {
-    const projects = await projectsApi.list({ organizationId })
-    const project = projects.find((p) => p.id.toString() === projectId)
-    
-    if (!project) {
-      throw new Error('项目不存在')
-    }
-    
-    // 返回项目的成员列表
+  getMembers: async (projectId: string, _organizationId?: number | null) => {
+    const project = await projectsApi.getById(projectId)
     return project.members || []
   },
   

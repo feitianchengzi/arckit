@@ -79,6 +79,8 @@ func openFeedbackWorkflowPostgres(t *testing.T) *gorm.DB {
 		&models.FeedbackMessage{},
 		&models.FeedbackMessageAttachment{},
 		&models.FeedbackNotification{},
+		&models.FeedbackSubscription{},
+		&models.FeedbackEmailDelivery{},
 		&models.FeedbackTaskLink{},
 	); err != nil {
 		t.Fatalf("migrate PostgreSQL feedback workflow fixture: %v", err)
