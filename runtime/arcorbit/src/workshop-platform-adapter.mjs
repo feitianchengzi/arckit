@@ -43,7 +43,7 @@ export function createWorkshopPlatformAdapter({
         `/organizations/${encodeURIComponent(id)}/members`,
         {},
         ["members", "items"],
-        (member) => normalizeMember(member, { organizationId: id })
+        (member) => normalizeMember(member, { organizationId: id }), PAGE_SIZE, true
       );
     },
 
@@ -297,6 +297,9 @@ export function createWorkshopPlatformAdapter({
     joinProject(input = {}) {
       return request("/projects/join", { method: "POST", body: { invite_code: requiredText(input.invite_code, "Invitation code", 200) } });
     },
+    addProjectMember(projectId, input = {}) {
+      return request(`/projects/${numericId(projectId, "Project")}/members`, { method: "POST", body: { organization_member_id: numericId(input.organization_member_id, "Organization member") } });
+    },
     updateProjectMember(projectId, input = {}) {
       return request(`/projects/${encodeURIComponent(requiredId(projectId, "Project"))}/members/role`, { method: "PUT", body: compact({ target_user_id: numericId(input.target_user_id, "Target user"), role: input.role === undefined ? undefined : memberRole(input.role, false), duty: input.duty === undefined ? undefined : optionalText(input.duty, 500) }) });
     },
@@ -363,7 +366,7 @@ export function normalizeOrganization(value) {
 export function normalizeMember(value, { organizationId = "", projectId = "" } = {}) {
   if (!value || typeof value !== "object") return null;
   const userId = scalarId(value.user_id ?? value.user?.id);
-  const id = scalarId(value.id ?? value.member_id) || userId;
+  const id = scalarId(value.id ?? value.member_id) || (organizationId ? "" : userId);
   if (!id || !userId) return null;
   const role = PROJECT_ROLES.has(value.role) ? value.role : "member";
   return {
@@ -735,7 +738,7 @@ function extractList(payload, keys) {
   return [];
 }
 
-async function listAllPages(request, path, baseQuery, keys, normalize, pageSize = PAGE_SIZE) {
+async function listAllPages(request, path, baseQuery, keys, normalize, pageSize = PAGE_SIZE, requireComplete = false) {
   const values = [];
   const seen = new Set();
   for (let page = 1; page <= 1000; page += 1) {
@@ -744,7 +747,10 @@ async function listAllPages(request, path, baseQuery, keys, normalize, pageSize 
     let added = 0;
     for (const raw of pageValues) {
       const value = normalize(raw);
-      if (!value) continue;
+      if (!value) {
+        if (requireComplete) throw new Error("Organization member response has no stable identity.");
+        continue;
+      }
       const key = scalarId(value.id) || JSON.stringify(value);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -752,8 +758,12 @@ async function listAllPages(request, path, baseQuery, keys, normalize, pageSize 
       added += 1;
     }
     const total = paginationTotal(payload);
-    if ((Number.isFinite(total) && values.length >= total) || pageValues.length < pageSize || added === 0) break;
+    if (Number.isFinite(total) && values.length >= total) return values;
+    if (requireComplete && Number.isFinite(total)) {
+      if (added === 0) throw new Error("Organization member pagination is incomplete.");
+    } else if (pageValues.length < pageSize || added === 0) return values;
   }
+  if (requireComplete) throw new Error("Organization member pagination limit exceeded.");
   return values;
 }
 

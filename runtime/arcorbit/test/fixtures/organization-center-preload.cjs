@@ -341,6 +341,13 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   updateWorkset: async (input) => { calls.push(["updateWorkset", input]); platform.active_workset.project_ids = input.project_ids; return input; },
   executePlatformAction: async (command, input) => {
     calls.push([command, input]);
+    if (command === "project.member.candidates") return { status: "ready", candidates: [...members, { id: "501", user_id: "99", organization_id: "31", username: "New Member", role: "member" }], members: projectMembers.filter((member) => member.project_id === input.project_id) };
+    if (command === "project.member.add") {
+      const member = { id: "601", user_id: "99", project_id: input.project_id, username: "New Member", role: "member" };
+      projectMembers.push(member);
+      return { status: "completed", member };
+    }
+
     if (command === "task.update" && taskUpdateFailure) {
       const message = taskUpdateFailure;
       taskUpdateFailure = "";

@@ -1,0 +1,17 @@
+# Completion review — content revision 5
+
+2026-09-12, reviewer: agent. Governing snapshot: CASE-20260911-003, content revision 5, Project revision 375, post-commit observation 2026-09-12T03:16:05.327Z.
+
+Outcome: clean across all five dimensions. No new findings. This is a review claim pending trusted acceptance, not a ledger write or deployment claim.
+
+| Dimension | Review basis |
+| --- | --- |
+| Implementation correctness | Read the current production Sheet, Renderer integration and directMemberAction. Organization is matched to project.organization_id; selected name/user identity remains outside filtering. Main-process commands re-read account, project role and same-organization relationship, send organization_member_id only, and validate returned relation/project/user identity before confirming. |
+| Problem resolution | The organization project detail supports selecting an existing organization member without an invitation. Invitations remain independent. Existing members are disabled, new role is member, and organization/project/target are explicit before submission. The prior hidden-selection finding is repaired. |
+| Verification credibility | Reviewed selection-fix-focused.tap and selection-fix-verification.md (77 passing tests and actual production Renderer in Electron with deterministic service data), plus client-only-verification.json and the corresponding response/recovery tests (101 passing tests). Current coordinator SHA-256 remains 62d04ed7f4758c452e6fe6c120cfd8b36c8ea875b1a1d6bf42cc3bae55918636, matching the response-verification receipt. The Electron fixture explicitly verifies searching another member, searching no results, and submitting exactly the displayed target once. |
+| Regression risk | Reviewed single-flight submission, unknown-result reconciliation before separate retry, confirmed-write refresh-only recovery, stale account/project/closed-sheet guards, pagination and existing-member selection restrictions. The last repair adds display context without changing mutation/recovery logic. Current git status --short services/workshop-api is empty. No new unhandled regression identified. |
+| Minimality | Reuses existing modal, list, field and button styles, fixed IPC and adapter. The last repair is limited to passing organization context, displaying context/selection text, and focused regression evidence. No new dependency, backend mutation, theme or general request surface is introduced. |
+
+Evidence scope remains client source and isolated Renderer behavior. Historical PostgreSQL/Go authorization results concern the withdrawn server implementation and do not establish current caller-role protection. The unchanged service does not enforce caller project roles; this limitation is explicitly accepted in FACT-20260911-003-008 and the stable specification. No live-server, installation-package or deployment acceptance is inferred. This review inspected the existing passing evidence and current source; it did not rerun unchanged tests.
+
+Sources: runtime/arcorbit/desktop/renderer/project-member-add.mjs; runtime/arcorbit/desktop/renderer/renderer.js; runtime/arcorbit/src/platform-coordinator.mjs; runtime/arcorbit/test/project-member-add.test.mjs; runtime/arcorbit/test/fixtures/project-member-add-electron.mjs; arckit/spec/agentic-software-development/arcorbit-organization-management.md; selection-fix-verification.md; selection-fix-focused.tap; client-only-verification.json.

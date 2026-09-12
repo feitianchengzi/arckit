@@ -18,6 +18,6 @@
   - arcorbit-product-management.md Product 管理：定义仓库产品状态与资产、独立 Idea 接入、Agent 协作和 Today 来源入口。🟡 (112行)
   - arcorbit-release-workspace.md Release：真实终端、Git、源码、构建运行和共享 Agent。🟡 (37行)
   - arcorbit-planned-workspaces.md ArcOrbit Chat 与计划工作空间：定义按项目分组的真实 Codex Chat、新会话项目归属、共享 Conversation Surface 边界及计划工作空间职责。🟡 (168行)
-  - arcorbit-organization-management.md ArcOrbit 组织治理：定义组织范围、成员关系、项目可见性、邀请加入、分页及成员本地绑定与管理员项目授权边界。🟢 (159行)
+  - arcorbit-organization-management.md ArcOrbit 组织治理：组织范围、项目权限、同组织成员直接添加、独立邀请加入与分页。✅ (171行)
   - loop-engineering-research.md Loop Engineering 研究输入：保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。⚪ (132行)
 - all-integration-strategy.md all 候选 Skill 整合策略草案：历史迁移记录，保留 all 角色型研发流水线 skill 包的早期拆解和归并思路，不作为当前路由依据。⚪ (902行)

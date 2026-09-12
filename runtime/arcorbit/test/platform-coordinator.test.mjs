@@ -333,7 +333,7 @@ test("organization governance uses role-based project visibility without inherit
   ]);
 });
 
-test("platform coordinator exposes bounded management actions and omits unsafe direct project-member add", async () => {
+test("platform coordinator exposes bounded management actions and rejects direct add without required identity", async () => {
   const calls = [];
   const automationRefreshes = [];
   const acceptanceIssues = [{ feedback_id: "AF-OPEN", status: "queued" }];
@@ -387,7 +387,7 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   await coordinator.executeAction("task.reparent", { project_id: "11", task_id: "44", father_id: "42" });
   assert.deepEqual(calls.at(-1), ["task.update", "44", { father_id: "42" }]);
   await assert.rejects(coordinator.executeAction("task.reparent", { project_id: "11", task_id: "42", father_id: "44" }), /不能形成循环/);
-  await assert.rejects(coordinator.executeAction("project.member.add", { project_id: 11, target_user_id: 7 }), /Unsupported platform action/);
+  assert.equal((await coordinator.executeAction("project.member.add", { project_id: 11, target_user_id: 7 })).status, "failed");
 });
 
 test("platform coordinator restricts task project replacement to the active Workset and typed recovery actions", async () => {

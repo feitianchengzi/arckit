@@ -1,0 +1,31 @@
+{
+  "scope": "Read-only completion review reproduction using production coordinator and flow with deterministic source and refresh substitutes; no server calls or implementation edits.",
+  "results": [
+    {
+      "requested": {
+        "project_id": "11",
+        "user_id": "17",
+        "organization_member_id": "91"
+      },
+      "response": {},
+      "phase": "done",
+      "message": "成员已加入，项目成员已刷新。",
+      "refreshes": 1
+    },
+    {
+      "requested": {
+        "project_id": "11",
+        "user_id": "17",
+        "organization_member_id": "91"
+      },
+      "response": {
+        "project_id": 999,
+        "user_id": 888,
+        "id": 777
+      },
+      "phase": "done",
+      "message": "成员已加入，项目成员已刷新。",
+      "refreshes": 1
+    }
+  ]
+}

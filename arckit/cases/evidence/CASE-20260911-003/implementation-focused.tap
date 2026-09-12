@@ -1,0 +1,274 @@
+TAP version 13
+# Subtest: platform coordinator composes a simultaneous multi-product snapshot without changing automation participation
+ok 1 - platform coordinator composes a simultaneous multi-product snapshot without changing automation participation
+  ---
+  duration_ms: 22.260866
+  type: 'test'
+  ...
+# Subtest: platform coordinator preserves partial product results and exposes section errors
+ok 2 - platform coordinator preserves partial product results and exposes section errors
+  ---
+  duration_ms: 2.980352
+  type: 'test'
+  ...
+# Subtest: platform coordinator projects task-tree lineage and matched counts without flattening away hierarchy metadata
+ok 3 - platform coordinator projects task-tree lineage and matched counts without flattening away hierarchy metadata
+  ---
+  duration_ms: 2.137492
+  type: 'test'
+  ...
+# Subtest: dedicated Work query excludes unrelated snapshots and returns a bounded task window
+ok 4 - dedicated Work query excludes unrelated snapshots and returns a bounded task window
+  ---
+  duration_ms: 41.107409
+  type: 'test'
+  ...
+# Subtest: dedicated Work query derives all status counts from one local projection and the same non-state filters
+ok 5 - dedicated Work query derives all status counts from one local projection and the same non-state filters
+  ---
+  duration_ms: 2.001484
+  type: 'test'
+  ...
+# Subtest: dedicated Work query retains ancestor lineage around a matched window
+ok 6 - dedicated Work query retains ancestor lineage around a matched window
+  ---
+  duration_ms: 1.64205
+  type: 'test'
+  ...
+# Subtest: platform coordinator binds TaskAttachment upload and access to a visible task and persisted record
+ok 7 - platform coordinator binds TaskAttachment upload and access to a visible task and persisted record
+  ---
+  duration_ms: 3.964789
+  type: 'test'
+  ...
+# Subtest: organization governance uses role-based project visibility without inheriting Workset scope
+ok 8 - organization governance uses role-based project visibility without inheriting Workset scope
+  ---
+  duration_ms: 3.251934
+  type: 'test'
+  ...
+# Subtest: platform coordinator exposes bounded management actions and rejects direct add without required identity
+ok 9 - platform coordinator exposes bounded management actions and rejects direct add without required identity
+  ---
+  duration_ms: 4.592636
+  type: 'test'
+  ...
+# Subtest: platform coordinator restricts task project replacement to the active Workset and typed recovery actions
+ok 10 - platform coordinator restricts task project replacement to the active Workset and typed recovery actions
+  ---
+  duration_ms: 2.02253
+  type: 'test'
+  ...
+# Subtest: successful task creation is not reported as failed when the immediate Automation refresh degrades
+ok 11 - successful task creation is not reported as failed when the immediate Automation refresh degrades
+  ---
+  duration_ms: 0.558385
+  type: 'test'
+  ...
+# Subtest: feedback association recovery reuses the created task and never creates another task
+ok 12 - feedback association recovery reuses the created task and never creates another task
+  ---
+  duration_ms: 2.463857
+  type: 'test'
+  ...
+# Subtest: platform coordinator exposes project-gated Feedback V2 facts and dedicated actions
+ok 13 - platform coordinator exposes project-gated Feedback V2 facts and dedicated actions
+  ---
+  duration_ms: 5.242684
+  type: 'test'
+  ...
+# Subtest: Feedback V2 action failures degrade only that feature and preserve loaded facts
+ok 14 - Feedback V2 action failures degrade only that feature and preserve loaded facts
+  ---
+  duration_ms: 2.264392
+  type: 'test'
+  ...
+# Subtest: direct add adapter sends only relation id, traverses organization pages, never invents relation identity
+ok 15 - direct add adapter sends only relation id, traverses organization pages, never invents relation identity
+  ---
+  duration_ms: 6.720971
+  type: 'test'
+  ...
+# Subtest: bounded main command rejects non-admin, wrong account and target; preserves fixed add input
+ok 16 - bounded main command rejects non-admin, wrong account and target; preserves fixed add input
+  ---
+  duration_ms: 3.643028
+  type: 'test'
+  ...
+# Subtest: account change during candidate read prevents write; transport errors retain outcome ambiguity
+ok 17 - account change during candidate read prevents write; transport errors retain outcome ambiguity
+  ---
+  duration_ms: 1.116741
+  type: 'test'
+  ...
+# Subtest: confirmed mutation refresh failure retries only reads
+ok 18 - confirmed mutation refresh failure retries only reads
+  ---
+  duration_ms: 1.616955
+  type: 'test'
+  ...
+# Subtest: unknown mutation reconciles before retry, detects existing member
+ok 19 - unknown mutation reconciles before retry, detects existing member
+  ---
+  duration_ms: 0.75524
+  type: 'test'
+  ...
+# Subtest: single-flight submit and stale project/account/closed sheet responses never publish or refresh
+ok 20 - single-flight submit and stale project/account/closed sheet responses never publish or refresh
+  ---
+  duration_ms: 1.071316
+  type: 'test'
+  ...
+# Subtest: existing member cannot be selected and candidate failure does not permit submission
+ok 21 - existing member cannot be selected and candidate failure does not permit submission
+  ---
+  duration_ms: 0.976173
+  type: 'test'
+  ...
+# Subtest: organization pagination follows declared total even for short pages and fails closed on repeated pages
+ok 22 - organization pagination follows declared total even for short pages and fails closed on repeated pages
+  ---
+  duration_ms: 1.870334
+  type: 'test'
+  ...
+# Subtest: Today derives the formal first-run progression without persisted onboarding state
+ok 23 - Today derives the formal first-run progression without persisted onboarding state
+  ---
+  duration_ms: 5.382733
+  type: 'test'
+  ...
+# Subtest: Today prioritizes human and completion responsibilities before preparation
+ok 24 - Today prioritizes human and completion responsibilities before preparation
+  ---
+  duration_ms: 0.650773
+  type: 'test'
+  ...
+# Subtest: Today resolves current task ownership per Product Workspace instead of the global login identity
+ok 25 - Today resolves current task ownership per Product Workspace instead of the global login identity
+  ---
+  duration_ms: 1.281897
+  type: 'test'
+  ...
+# Subtest: Today and Automation preserve unknown data instead of projecting empty work
+ok 26 - Today and Automation preserve unknown data instead of projecting empty work
+  ---
+  duration_ms: 0.604561
+  type: 'test'
+  ...
+# Subtest: Work never describes pending review or another assignee as automatically executable
+ok 27 - Work never describes pending review or another assignee as automatically executable
+  ---
+  duration_ms: 0.761943
+  type: 'test'
+  ...
+# Subtest: new task executor guidance distinguishes all Automation qualification combinations
+ok 28 - new task executor guidance distinguishes all Automation qualification combinations
+  ---
+  duration_ms: 0.364887
+  type: 'test'
+  ...
+# Subtest: project ownership checks fail closed when either identity is missing
+ok 29 - project ownership checks fail closed when either identity is missing
+  ---
+  duration_ms: 0.444678
+  type: 'test'
+  ...
+# Subtest: local binding stays member-local while project participation keeps its admin boundary
+ok 30 - local binding stays member-local while project participation keeps its admin boundary
+  ---
+  duration_ms: 0.987743
+  type: 'test'
+  ...
+# Subtest: Automation distinguishes blocked candidates, review-only work and a truly empty queue
+ok 31 - Automation distinguishes blocked candidates, review-only work and a truly empty queue
+  ---
+  duration_ms: 1.224198
+  type: 'test'
+  ...
+# Subtest: Today and Automation expose queue pause as the next directly recoverable fact
+ok 32 - Today and Automation expose queue pause as the next directly recoverable fact
+  ---
+  duration_ms: 1.210247
+  type: 'test'
+  ...
+# Subtest: readiness steps are derived from current facts and mark only one current step
+ok 33 - readiness steps are derived from current facts and mark only one current step
+  ---
+  duration_ms: 1.449475
+  type: 'test'
+  ...
+# Subtest: Renderer reuses owned mutations, fresh-reads after success, and preserves ordinary Work defaults
+ok 34 - Renderer reuses owned mutations, fresh-reads after success, and preserves ordinary Work defaults
+  ---
+  duration_ms: 36.640873
+  type: 'test'
+  ...
+# Subtest: Workshop member normalization never invents an id-shaped username
+ok 35 - Workshop member normalization never invents an id-shaped username
+  ---
+  duration_ms: 2.35451
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter keeps Feedback V2 in fixed project-scoped routes
+ok 36 - Workshop platform adapter keeps Feedback V2 in fixed project-scoped routes
+  ---
+  duration_ms: 7.697688
+  type: 'test'
+  ...
+# Subtest: Feedback V2 normalization preserves V1 compatibility and explicit statuses
+ok 37 - Feedback V2 normalization preserves V1 compatibility and explicit statuses
+  ---
+  duration_ms: 0.55139
+  type: 'test'
+  ...
+# Subtest: Feedback V2 restore preserves provider failure status without a fallback mutation
+ok 38 - Feedback V2 restore preserves provider failure status without a fallback mutation
+  ---
+  duration_ms: 1.572543
+  type: 'test'
+  ...
+# Subtest: Workshop platform management uses the existing bounded service routes and fields
+ok 39 - Workshop platform management uses the existing bounded service routes and fields
+  ---
+  duration_ms: 3.30016
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter keeps TaskAttachment OSS credentials behind bounded resource methods
+ok 40 - Workshop platform adapter keeps TaskAttachment OSS credentials behind bounded resource methods
+  ---
+  duration_ms: 0.806459
+  type: 'test'
+  ...
+# Subtest: Workshop platform management validates ids and rejects unsupported owner assignment
+ok 41 - Workshop platform management validates ids and rejects unsupported owner assignment
+  ---
+  duration_ms: 0.907077
+  type: 'test'
+  ...
+# Subtest: Workshop task queries serialize multi-value filters and normalize the bounded task tree
+ok 42 - Workshop task queries serialize multi-value filters and normalize the bounded task tree
+  ---
+  duration_ms: 5.999766
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter normalizes historical Feedback V1 processing fields
+ok 43 - Workshop platform adapter normalizes historical Feedback V1 processing fields
+  ---
+  duration_ms: 1.638689
+  type: 'test'
+  ...
+# Subtest: Workshop platform adapter follows service pagination and keeps organization governance bounded
+ok 44 - Workshop platform adapter follows service pagination and keeps organization governance bounded
+  ---
+  duration_ms: 4.834218
+  type: 'test'
+  ...
+1..44
+# tests 44
+# suites 0
+# pass 44
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 668.1944

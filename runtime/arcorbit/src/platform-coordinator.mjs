@@ -256,14 +256,14 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       capabilities: {
         organizations: organizationsResult.error ? "degraded" : "available",
         organization_governance: errors.some((item) => ["organization_members", "organization_projects", "personal_projects"].includes(item.section)) ? "degraded" : "available",
-        project_members: "managed_with_permissions_except_direct_add",
+        project_members: "managed_with_permissions",
         invitation_lifecycle: "create_once_no_list_or_revoke",
         project_tasks: "read_write",
         task_project_replacement: "create_then_delete_with_recovery",
         platform_management: "available_with_server_permissions",
         feedback_v1: "read_write",
         feedback_v2: aggregateFeedbackV2Capability(productWorkspaces),
-        direct_add_project_member: "unavailable",
+        direct_add_project_member: "project_owner_admin",
         task_history: "unavailable",
         task_claim_consistency: "weak_claim_consistency"
       },
@@ -477,6 +477,8 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       "project.delete": () => platformSource.deleteProject(input.project_id),
       "project.invite": () => platformSource.inviteProjectMember(input.project_id, input),
       "project.join": () => platformSource.joinProject(input),
+      "project.member.candidates": () => directMemberAction(input, false),
+      "project.member.add": () => directMemberAction(input, true),
       "project.member.update": () => platformSource.updateProjectMember(input.project_id, input),
       "project.member.delete": () => platformSource.deleteProjectMember(input.project_id, input),
       "task.create": () => createWorkTask(input),
@@ -575,6 +577,52 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     const handler = handlers[action];
     if (!handler) throw new TypeError(`Unsupported platform action: ${action}`);
     return handler();
+  }
+
+  // Re-read source-owned identity and relationships for each bounded command.
+  async function directMemberAction(input, add) {
+    let mutationStarted = false;
+    try {
+      const id = positiveMemberId(input.project_id);
+      const accountId = positiveMemberId(input.account_id);
+      const currentAccount = async () => String((await automationCoordinator.getSnapshot({})).user?.id || "");
+      if (await currentAccount() !== accountId) throw memberActionError(401, "登录身份已变化，请重新打开成员选择。");
+      const project = (await platformSource.listProjects()).find((item) => String(item.id) === id);
+      if (!project) throw memberActionError(403, "当前账号无法管理此项目。");
+      const organizationId = projectOrganizationId(project);
+      if (!organizationId) throw memberActionError(400, "个人项目不支持从组织添加成员。");
+      const members = await platformSource.listProjectMembers(id);
+      const caller = members.find((item) => String(item.user_id) === accountId);
+      if (!caller || !["owner", "admin"].includes(caller.role)) throw memberActionError(403, "只有项目 owner/admin 可以添加成员。");
+      const candidates = await platformSource.listOrganizationMembers(organizationId);
+      const sameOrg = candidates.filter((item) => String(item.organization_id) === organizationId);
+      if (await currentAccount() !== accountId) throw memberActionError(401, "登录身份已变化，请重新打开成员选择。");
+      if (!add) return { status: "ready", project_id: id, organization_id: organizationId, members, candidates: sameOrg };
+      const memberId = positiveMemberId(input.organization_member_id);
+      const target = sameOrg.find((item) => String(item.id) === memberId);
+      if (!target) throw memberActionError(404, "组织成员已不可用，请刷新候选。");
+      mutationStarted = true;
+      const member = await platformSource.addProjectMember(id, { organization_member_id: memberId });
+      // A transport success alone does not confirm this project's selected user.
+      // Keep ambiguous replies on the reconciliation path; never retry the write here.
+      const responseId = (value) => {
+        if (!["string", "number"].includes(typeof value)) return "";
+        const text = String(value);
+        return /^[1-9][0-9]*$/.test(text) && Number.isSafeInteger(Number(text)) ? text : "";
+      };
+      if (!member || Array.isArray(member) || !responseId(member.id)
+        || responseId(member.project_id) !== id
+        || !responseId(member.user_id) || responseId(member.user_id) !== responseId(target.user_id)) {
+        throw new Error("Member response does not confirm the selected target");
+      }
+      if (await currentAccount() !== accountId) throw new Error("Account changed during member addition");
+      return { status: "completed", member };
+    } catch (error) {
+      const status = Number(error?.status || error?.statusCode || 0);
+      return { status: "failed", outcome_unknown: mutationStarted && ![400, 401, 403, 404, 409, 422].includes(status), error: {
+        status, message: status === 401 ? "登录已失效，请重新登录后重试。" : status === 403 ? "当前账号没有项目管理权限。" : status === 404 ? "项目或组织成员已不可用，请刷新。" : "成员操作未完成，请刷新后重试。"
+      } };
+    }
   }
 
   async function createWorkTask(input = {}) {
@@ -1029,3 +1077,10 @@ function safeColor(value) {
   if (text && !/^[a-z0-9-]{1,32}$/i.test(text)) throw new TypeError("Workspace color token is invalid.");
   return text;
 }
+
+function positiveMemberId(value) {
+  const text = String(value ?? "");
+  if (!/^[1-9][0-9]*$/.test(text) || !Number.isSafeInteger(Number(text))) throw memberActionError(400, "成员或项目标识无效。");
+  return text;
+}
+function memberActionError(status, message) { return Object.assign(new Error(message), { status }); }

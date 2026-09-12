@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>从组织添加项目成员</title><link rel="stylesheet" href="../wireframe-style.css"></head>
+<body><div class="wireframe-container">
+<header><h1>从组织添加项目成员</h1><p>Organization / Projects · 状态线框，非运行界面</p><a href="collaboration-views.html">返回组织治理视图</a></header>
+<details open><summary>项目成员入口</summary>
+<div class="state-content"><div class="state-description"><strong>触发条件：</strong>项目 owner/admin 打开组织项目详情。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop">
+<section class="page-content"><h2>ArcOrbit · 项目成员</h2><p>飞天橙子 · 当前项目角色 admin</p><button>从组织添加成员</button><button>生成项目邀请</button></section>
+</div></div>
+<div class="component-list"><h3>组件清单</h3><p>项目身份、当前角色、并列加入入口</p></div>
+<div class="interactions"><h3>交互行为</h3><p>直接添加打开固定目标的 Sheet；邀请保持独立。</p></div>
+</div></details>
+<details><summary>加载候选</summary>
+<div class="state-content"><div class="state-description"><strong>触发条件：</strong>打开添加 Sheet，组织成员或项目成员尚未读完。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop">
+<section class="page-content" data-kit="Sheet"><h2>添加成员到 ArcOrbit</h2><p>所属组织：飞天橙子</p><p role="status">正在加载组织成员…</p><button disabled>添加</button><button>取消</button></section>
+</div></div>
+<div class="component-list"><h3>组件清单</h3><p>目标项目、加载状态、禁用提交</p></div>
+<div class="interactions"><h3>交互行为</h3><p>完整分页结束后进入选择；加载失败保留目标并提供重新加载。</p></div>
+</div></details>
+<details><summary>搜索并选择成员</summary>
+<div class="state-content"><div class="state-description"><strong>触发条件：</strong>候选加载完成。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop">
+<section class="page-content" data-kit="Sheet"><h2>添加成员到 ArcOrbit</h2><p>所属组织：飞天橙子 · 加入角色：member</p><label>搜索组织成员 <input placeholder="输入姓名" value="Lin"></label><p><label><input type="radio" name="member" checked> Lin · 组织 admin · 尚未加入</label></p><p><label><input type="radio" disabled> Lin · 组织 member · 已加入</label></p><button>添加 Lin</button><button>取消</button></section>
+</div></div>
+<div class="component-list"><h3>组件清单</h3><p>搜索框、单选候选、已加入标识、固定项目角色</p></div>
+<div class="interactions"><h3>交互行为</h3><p>按关系身份区分同名成员；新增角色为 member；取消不写入。</p></div>
+</div></details>
+<details><summary>无可选成员</summary>
+<div class="state-content"><div class="state-description"><strong>触发条件：</strong>搜索无匹配、组织无成员或全部已加入。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop">
+<section class="page-content" data-kit="Sheet"><h2>添加成员到 ArcOrbit</h2><label>搜索成员 <input value="Lin"></label><p>没有匹配的组织成员</p><button>清空搜索</button><button disabled>添加</button><p>其他空态：组织暂无成员 / 所有组织成员均已加入此项目</p><button>重新加载</button><button>关闭</button></section>
+</div></div>
+<div class="component-list"><h3>组件清单</h3><p>空态说明、清空搜索、刷新、禁用提交</p></div>
+<div class="interactions"><h3>交互行为</h3><p>按实际原因显示一种空态；不能以手填用户编号绕过候选。</p></div>
+</div></details>
+<details><summary>正在添加</summary>
+<div class="state-content"><div class="state-description"><strong>触发条件：</strong>用户明确选择 Lin 并提交。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop">
+<section class="page-content" data-kit="Sheet"><h2>正在添加到 ArcOrbit</h2><p>飞天橙子 / ArcOrbit / Lin · member</p><p role="status">等待服务器确认</p><button disabled>正在添加…</button><button>关闭</button></section>
+</div></div>
+<div class="component-list"><h3>组件清单</h3><p>固定目标摘要、进行中反馈、禁用提交</p></div>
+<div class="interactions"><h3>交互行为</h3><p>禁止重复提交及改选；关闭不取消已发请求，晚到结果不覆盖新的弹层。</p></div>
+</div></details>
+<details><summary>确认成功与同步恢复</summary>
+<div class="state-content"><div class="state-description"><strong>触发条件：</strong>服务器已确认同一项目和目标成员的关系。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop">
+<section class="page-content" data-kit="Sheet"><h2>Lin 已加入 ArcOrbit</h2><p role="status">项目成员列表已更新 · member</p><button>完成</button><section class="surface"><h3>列表同步失败时</h3><p>成员已加入，列表同步失败</p><button>重新加载成员列表</button></section></section>
+</div></div>
+<div class="component-list"><h3>组件清单</h3><p>已加入反馈、成员结果、独立同步恢复</p></div>
+<div class="interactions"><h3>交互行为</h3><p>成功刷新矩阵和成员关系；同步失败只重读，不重发添加。已有新项目选择时不跳回。</p></div>
+</div></details>
+<details><summary>网络结果不明</summary>
+<div class="state-content"><div class="state-description"><strong>触发条件：</strong>提交后连接中断，无法确定是否成功。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop">
+<section class="page-content" data-kit="Sheet"><h2>核对 Lin 是否已加入 ArcOrbit</h2><p role="status">正在读取项目成员…</p><p>核对失败时：暂时无法确认加入结果，目标选择已保留。</p><button>重新核对</button><button>重试添加 Lin</button></section>
+</div></div>
+<div class="component-list"><h3>组件清单</h3><p>原始目标、核对进度、核对与幂等重试</p></div>
+<div class="interactions"><h3>交互行为</h3><p>核对存在即成功；未确认时才允许用户重试同一目标，重新校验权限。</p></div>
+</div></details>
+<details><summary>权限与对象变化</summary>
+<div class="state-content"><div class="state-description"><strong>触发条件：</strong>服务拒绝操作、目标成员失效或候选读取失败。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop">
+<section class="page-content" data-kit="Sheet"><h2>无法添加成员到 ArcOrbit</h2><p role="alert">项目权限已变化，需要项目 owner/admin。</p><button disabled>添加</button><button>刷新权限与成员</button><button>关闭</button><section class="surface"><p>候选加载失败：组织成员暂不可用，可重新加载。</p><p>对象失效：所选成员已离开组织，请重新选择。</p><p>登录失效：返回登录页面。</p></section></section>
+</div></div>
+<div class="component-list"><h3>组件清单</h3><p>错误提示、禁用提交、范围刷新、登录恢复</p></div>
+<div class="interactions"><h3>交互行为</h3><p>403 保留只读事实并停用提交；目标失效清除选择并说明；401 清理旧账户上下文。</p></div>
+</div></details>
+</div></body></html>

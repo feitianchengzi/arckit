@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-09-11T08:25:32.839Z",
-    "revision": 367
+    "updated_at": "2026-09-12T03:18:16.506Z",
+    "revision": 376
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -275,16 +275,16 @@
         "evidence_expectation": "Durable product and technical evidence sufficient to recover access decisions.",
         "decision": {
           "status": "settled",
-          "statement": "Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. Runtime sessions use a server-backed rolling seven-day inactivity window: successful verification login, successful startup session restoration/refresh, or successful token refresh renews the window through rotated server credentials; only more than seven days without such activity, missing or expired credentials, explicit logout, or explicit server rejection/revocation requires login again. ArcOrbit 产品反馈要求有效 Workshop 登录，并以服务端 current-user 的不可变业务 ID 作为反馈身份；退出或切换账户会关闭旧反馈上下文。Codex authentication 是独立于 ArcOrbit/Workshop authentication 的状态域，由 `codex login status` 退出码确认。未认证用户必须显式选择 ChatGPT、API Key 或明确支持的 Enterprise Access Token；ChatGPT 还必须显式选择 system-browser 或 device-auth，所有选项均无默认值。",
-          "reason": "Codex executor identity and Workshop product identity must not be conflated or silently inferred.",
+          "statement": "认证仍限定于配置的执行与任务来源，授权受用户批准、工作区、沙箱和可信入口约束。Runtime 会话保持服务端支持的七天不活动窗口，成功登录、启动恢复或 token 刷新通过轮换凭据续期；超期、凭据缺失或失效、退出和服务端拒绝要求重新登录。产品反馈使用有效 Workshop 登录及 current-user 不可变业务 ID，账户变化关闭旧上下文。Codex 认证独立，以 codex login status 退出码确认；认证方式和 ChatGPT 浏览器或 device-auth 路径均由用户显式选择，无默认值。组织项目直接添加由 ArcOrbit 主进程限制为项目 owner/admin，组织角色不替代项目角色；目标同组织，新增角色固定 member。Workshop 服务保持原样：现有接口要求已认证并校验目标同组织，但不校验 caller 项目角色。客户端限制不能替代或被描述为服务端保护，本功能不要求服务端修改或发布。",
+          "reason": "用户明确要求服务端保持不变，修订预期事实和客户端逻辑。",
           "evidence": [
-            "Current operator input, 2026-08-25",
-            "arckit/spec/arcorbit-distribution.md",
-            "https://learn.chatgpt.com/docs/auth"
+            "arckit/spec/agentic-software-development/arcorbit-organization-management.md",
+            "arckit/tech/arcorbit/platform-composition-solution.md",
+            "services/workshop-api/api/project.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 Codex 官方认证方式、企业 token 支持、状态检测或与 Workshop 身份的边界变化时重审。",
-          "revision": 4
+          "resume_condition": "认证域或直接添加客户端角色、服务端范围改变时重审。",
+          "revision": 6
         },
         "gap_refs": []
       },

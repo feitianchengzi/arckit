@@ -36,7 +36,7 @@
 
 `agentic-software-development/arcorbit-planned-workspaces.md` 定义绑定本地 Product Workspace 的真实 Codex Chat，以及 Operations 和 Engineering 的团队计划展示面（Idea/Product 和 Release 由独立规格维护），并把主导航组织为 Personal、Product Lifecycle 和 Organization 三组。Chat 只持久化独立自由会话、消息与 thread binding，不调用 state-driven Runtime、ledger、Automation 或其他对象转换；对应技术边界位于 `arckit/tech/arcorbit/desktop-execution-solution.md`。Engineering 用 Profile Library、State Model、Capability Mapping、Lifecycle Mapping、变更预览和 Apply 确认表达可管理 Domain Profile，明确排除 entry skills；其余计划页面消费现有 Product Workspace、Task、Feedback、Run、ledger、代码/配置/测试/运行证据和 release workflow 事实，但不因此建立新的服务端、Profile persistence、发布、监控或市场平台合约。对应交互事实位于 `arckit/interaction/chat-workspace/`、`idea-workspace/`、`release-workspace/`、`operations-workspace/` 和 `engineering-profile/`。
 
-`agentic-software-development/arcorbit-organization-management.md` 从平台能力规格拆出组织治理的稳定行为，定义 Organization Center 不受 Workset 裁剪、角色决定项目可见性、成员页只展示已有关系、项目上下文通用邀请与邀请码加入。对应交互事实位于 `arckit/interaction/platform-workspace/`，技术实现位于 `arckit/tech/arcorbit/platform-composition-solution.md`。
+`agentic-software-development/arcorbit-organization-management.md` 从平台能力规格拆出组织治理的稳定行为，定义 Organization Center 不受 Workset 裁剪、角色决定项目可见性、成员页只展示已有关系、项目上下文直接添加同组织成员、通用邀请与邀请码加入。对应交互事实位于 `arckit/interaction/platform-workspace/`，技术实现位于 `arckit/tech/arcorbit/platform-composition-solution.md`。
 
 `agentic-software-development/loop-engineering-research.md` 保存吴恩达三层 loop 与 2026 loop engineering 架构调研结果，是候选输入，不直接作为已确认产品需求。
 

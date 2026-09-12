@@ -1,0 +1,28 @@
+{
+  "scope": "Client-only contract correction and withdrawal of Case server changes; no client implementation acceptance or live-service verification.",
+  "operator_instruction": "我预期不修改服务端代码，所以应该是保持服务端代码不变，修改预期事实，修改客户端逻辑",
+  "server_files": {
+    "services/workshop-api/handler/project.go": {
+      "equals_head": true,
+      "sha256": "e363aa988063ed4b00ba20e975b86786bf956bb97b1fe36356f947aa7f519c4c"
+    },
+    "services/workshop-api/api/project.md": {
+      "equals_head": true,
+      "sha256": "c65325bc44495879a2b25b9bb87d3310d8c11a9b3b2330bffa495aeb12dd4cc0"
+    }
+  },
+  "server_status": "",
+  "withdrawn_test": "withdrawn-server-test.go.txt",
+  "historical_evidence_limit": "Previous PostgreSQL results tested the withdrawn server patch; they do not establish caller-role enforcement in the restored server.",
+  "client_remaining": "Production coordinator accepts empty and mismatched member-add responses; see review-response-identity.json.",
+  "diff_check": {
+    "exit_code": 0,
+    "output": ""
+  },
+  "document_scope": {
+    "same_domain": true,
+    "split": false,
+    "reason": "Amend existing organization feature and platform integration contract."
+  },
+  "fact_result": "Client-only owner/admin operation policy; existing authenticated same-organization API unchanged; no server caller-role protection claim."
+}

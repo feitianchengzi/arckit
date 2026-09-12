@@ -242,7 +242,7 @@ Preload 新增以下产品动作：
 - macOS 图片查看器是独立顶层窗口，不通过 BrowserWindow `parent` 加入主窗口原生子窗口层级；其全屏与关闭不调用主窗口的 show/focus、尺寸、可见性或全屏控制，不重载主页面。窗口关闭后的激活与 Space 切换由系统管理，不承诺两个窗口始终同屏可见。主窗口仍是应用层生命周期所有者：主窗口销毁时关闭对应查看器，查看器销毁时解绑该监听；反向关闭不操纵主窗口。非 macOS 保留原生父子关联。
 - macOS 查看器等待 `leave-full-screen` 时，等待状态优先于即时 `isFullScreen()` 布尔值；重复关闭不能绕过等待，不假设两个窗口全屏状态相同。应用退出或所有者销毁的内部强制销毁取消等待，Renderer 无权请求强制销毁。源码隔离、IPC 和事件序列验证不替代原生画面、输入与布局恢复的验收。
 
-当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、创建、专用忽略、专用恢复和原子转待办。V2 的 `restoreFeedbackV2` 固定调用 `POST /feedbacks/{id}/restore`；main IPC 与 preload 只暴露 project id 与 feedback id，Renderer 不能传入 URL、header、凭据或 triage 字段。Workshop Todo 服务在事务内锁定反馈记录，重新校验其仍为 `ignored` 且不存在主待办关系，再把同一记录的 `triage_status`、状态和兼容 metadata 原子恢复为 `pending`，并返回更新后的 Feedback。Task create 与 update 接受显式七状态；Platform Coordinator 还提供受限的 `replaceTaskProject` 领域动作，由 Work Sync 使用既有 `createTask` 和 `deleteTask` 完成跨产品受控替换。Renderer 只能提交源 Task id、目标产品和目标产品限定字段，不能选择调用顺序或注入服务端拥有字段。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
+当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、创建、专用忽略、专用恢复和原子转待办。V2 的 `restoreFeedbackV2` 固定调用 `POST /feedbacks/{id}/restore`；main IPC 与 preload 只暴露 project id 与 feedback id，Renderer 不能传入 URL、header、凭据或 triage 字段。Workshop Todo 服务在事务内锁定反馈记录，重新校验其仍为 `ignored` 且不存在主待办关系，再把同一记录的 `triage_status`、状态和兼容 metadata 原子恢复为 `pending`，并返回更新后的 Feedback。Task create 与 update 接受显式七状态；Platform Coordinator 还提供受限的 `replaceTaskProject` 领域动作，由 Work Sync 使用既有 `createTask` 和 `deleteTask` 完成跨产品受控替换。Renderer 只能提交源 Task id、目标产品和目标产品限定字段，不能选择调用顺序或注入服务端拥有字段。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。直接添加使用下述固定 `project.member.add` 命令；边界不包含项目组织迁移或不存在的 Task history。
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
@@ -264,7 +264,19 @@ Workshop 服务是最终授权方。ArcOrbit Renderer 根据已读取角色隐�
 - Attachment 创建对 Project member 开放；更新只允许创建人；删除允许创建人、Task 创建人、admin 或 owner。
 - Feedback V1 的服务端权限继续由现有 handler 判定。
 
-`POST /projects/:id/members` 的当前服务实现未验证 caller role。ArcOrbit 不把这一缺口当作授权能力：第一生产实现不暴露直接添加成员命令，只展示成员和使用已有邀请创建/加入路径中已验证的部分。服务端补齐授权并有测试证据后才开放直接添加成员。
+### 组织成员直接加入项目
+
+直接添加复用 `POST /projects/:id/members`，请求只有 `organization_member_id`；它是 OrganizationMember 的关系 ID，不是 user_id 或 ProjectMember.id。新关系为 member，已有关系幂等返回且不重置 role、duty 或 is_external。项目没有组织或目标成员不属于同一组织时拒绝。
+
+本功能只修改 ArcOrbit 客户端，不修改或部署 Workshop 服务。现有接口要求已认证并校验项目、组织成员与同组织关系，但不校验 caller 的项目管理角色。ArcOrbit 主进程重新读取当前 ProjectMember，仅允许 owner/admin；组织管理角色不自动取得项目权限。该限制控制 ArcOrbit 操作路径，不能防止直接调用现有 API；本 Case 不宣称修复该服务端边界。范围依据是用户明确要求保持服务端代码不变。
+
+Desktop 通过固定 `project.member.add` 管理命令和 Platform Adapter 调用；主进程校验项目 ID、组织成员 ID 的合法形状、当前账户和已知项目角色，不接受调用者提供的角色、URL、任意请求体或认证信息。组织归属来自已验证的组织范围查询上下文；不要求新增 Project 响应字段。候选完整分页，按组织成员关系 ID 选择，用 user_id 与项目成员匹配“已加入”。
+
+成功响应验证目标 project_id 与所选成员 user_id 一致后重新同步治理投影，不能用客户端拼装关系伪装成功。新建与 project_member.created 事件同事务写入，唯一项目/用户约束处理并发重复，幂等成功不重复生成创建事件。添加操作不更新 Workset、Workspace Control 或 Automation participation。
+
+mutation 成功与后续 refresh 分开反馈；refresh 失败只重读。连接中断导致结果不明时先读取项目成员核对；重试保持同一项目和组织成员 ID，并再次执行客户端账户、项目角色和组织关系核对。客户端以账户、项目和弹层请求身份隔离异步结果，旧响应不能覆盖新的选择或账户投影。
+
+客户端验收覆盖 owner/admin 成功、member/非成员/仅组织管理员拒绝（含目标已加入时）、账户失效、跨组织/个人项目拒绝、200 条以上候选分页、ID 区分、空响应及错误目标响应核对、错误恢复与上下文切换。以现有接口响应契约验证客户端，不要求新增服务端授权或发布；此前修改版服务的 PostgreSQL 测试仅是历史证据，不能证明恢复后的服务具备 caller role 保护。
 
 ## 普通反馈与验收反馈
 
@@ -416,7 +428,7 @@ Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo �
 
 - Workshop Todo 当前 `UpdateTaskRequest` 不接受 `project_id`，ArcOrbit 因而使用既有 Task create/delete 契约完成产品归属替换；该流程不保留 Task 身份、评论附件或执行关联，也不能提供跨请求原子回滚。
 - Workshop Todo 未实现可证实的 `If-Match` 条件更新，自动领取只能声明弱一致。
-- Project 直接添加成员 handler 未验证 caller role，ArcOrbit 不开放该动作。
+- 现有 Workshop 直接添加接口缺少 caller role 校验；该边界在本 Case 保持不变。客户端 owner/admin 限制不能阻止绕过客户端直接调用 API，不作为服务端风险已受控的证据。
 - Workshop 项目查询响应不包含 `organization_id`；平台从组织范围请求上下文补全归属，并从项目成员的 `is_external` 标记识别外部参与，不修改服务端响应契约。
 - Workshop 项目邀请缺少列表和撤销接口，ArcOrbit 只显示创建响应的一次性结果。
 - Task history 缺少服务端实现，ArcOrbit 不展示伪历史。

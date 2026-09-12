@@ -2,7 +2,7 @@
 
 ## Platform Workspace
 
-`platform-workspace/interaction.md` 定义登录后的三组一级信息架构：Personal 下的 Today、Chat；Product Lifecycle 下的 Idea、Work、Automation、Release、Operations、Feedback；Organization 下的 Organization、Engineering。它与 `task-browser/interaction.md` 共同约束 Work/Feedback 的主工作区骨架：全局产品栏之后只保留一条页面控制轨，列表与详情取得剩余高度并独立滚动。`default.html` 投影应用壳、Feedback 主工作台和完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系、项目上下文邀请和项目连接缺口；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
+`platform-workspace/interaction.md` 定义登录后的三组一级信息架构：Personal 下的 Today、Chat；Product Lifecycle 下的 Idea、Work、Automation、Release、Operations、Feedback；Organization 下的 Organization、Engineering。它与 `task-browser/interaction.md` 共同约束 Work/Feedback 的主工作区骨架：全局产品栏之后只保留一条页面控制轨，列表与详情取得剩余高度并独立滚动。`default.html` 投影应用壳、Feedback 主工作台和完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系、项目上下文直接添加入口、邀请和项目连接缺口；`member-add.html` 投影同组织成员单选、提交确认与权限/网络恢复；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
 
 Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md`、`arcorbit-planned-workspaces.md` 与 `arckit/tech/arcorbit/platform-composition-solution.md`。Product Workspace 组合 Workshop Project 与 ArcOrbit 本地 repository binding、participation 和偏好；Workset 只控制同时展示范围，不能改变 Automation participation、workspace lane 串行顺序或全局并发容量。
 

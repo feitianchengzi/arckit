@@ -1,3 +1,4 @@
+import { openMemberAddSheet } from "./project-member-add.mjs";
 import { createReleaseSurface } from "./release-surface.mjs";
 import { createProductSurface } from "./product-surface.mjs";
 import { createConversationComposer } from "./conversation-composer.mjs";
@@ -211,6 +212,7 @@ const state = {
 
 let platformActionResolver = null;
 let platformActionSubmitter = null;
+let activeMemberAddSheet = null;
 let platformActionBusy = false;
 let platformActionDisabledControls = new Map();
 
@@ -1659,6 +1661,7 @@ function chatStatusLabel(status) {
 }
 
 function render() {
+  dismissStaleMemberAddSheet();
   renderPageVisibility();
   renderNavigation();
   renderCommandBar();
@@ -2299,6 +2302,7 @@ async function createTaskForArcOrbit(defaultProjectId = "") {
 }
 
 function renderOrganization() {
+  dismissStaleMemberAddSheet();
   const scopes = state.platform.organization_scopes || [];
   const scope = currentOrganizationScope();
   const personal = state.organizationScopeId === "personal" || !scope;
@@ -2369,7 +2373,7 @@ function renderOrganizationProjects(scope, personalProjects) {
   const members = selected ? (state.platform.project_members || []).filter((member) => String(member.project_id) === String(selected.id)) : [];
   const canManage = selected && ["owner", "admin"].includes(selected.current_user_role);
   const selectedScopeLabel = personal ? (selected?.external_participation ? "外部参与" : "个人项目") : scope?.name || "";
-  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><p>${escapeHtml(selected.git_url || "未设置 Git 地址")}</p><div class="project-connection-list"><span><strong>组织归属</strong><small>${escapeHtml(selectedScopeLabel)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>本地项目</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span></div>${organizationProjectGuidance(selected, canManage)}<div class="row-actions project-detail-actions"><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
+  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><p>${escapeHtml(selected.git_url || "未设置 Git 地址")}</p><div class="project-connection-list"><span><strong>组织归属</strong><small>${escapeHtml(selectedScopeLabel)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>本地项目</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span></div>${organizationProjectGuidance(selected, canManage)}<div class="row-actions project-detail-actions"><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${canManage && !personal ? `<button data-project-member-add="${escapeHtml(selected.id)}" type="button">从组织添加成员</button>` : ""}${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
 }
 
 function organizationProjectGuidance(project, canManage) {
@@ -2378,7 +2382,30 @@ function organizationProjectGuidance(project, canManage) {
   return `<div class="inline-guidance is-ready"><strong>项目连接已准备</strong><p>本地目录和项目授权已就绪；Workset 仍只控制观察范围。</p></div>`;
 }
 
+function dismissStaleMemberAddSheet() {
+  if (activeMemberAddSheet && !activeMemberAddSheet.isCurrent()) { activeMemberAddSheet.close(); activeMemberAddSheet = null; }
+}
+
 function wireOrganizationActions() {
+  els.organizationContent.querySelectorAll("[data-project-member-add]").forEach((button) => button.addEventListener("click", () => {
+    const project = state.platform.projects.find((item) => String(item.id) === button.dataset.projectMemberAdd);
+    if (!project) return;
+    const accountId = String(state.platform.user?.id || "");
+    const scopeId = state.organizationScopeId;
+    const isCurrent = () => state.page === "organization" && state.organizationScopeId === scopeId && String(state.platform.user?.id || "") === accountId && state.selectedOrganizationProjectId === String(project.id);
+    activeMemberAddSheet?.close();
+    const organization = state.platform.organizations.find((item) => String(item.id) === String(project.organization_id));
+    const close = openMemberAddSheet({ project, organization, accountId, isCurrent, execute: (command, input) => api.executePlatformAction(command, input), refresh: async (current) => {
+      if (state.refreshing) await state.snapshotRefreshPromise;
+      if (!current()) return;
+      const snapshot = await api.platformSnapshot({ sections: ["organizations", "members"] });
+      if (!current()) return;
+      if (String(snapshot.user?.id || "") !== accountId || (snapshot.errors || []).some((error) => ["projects", "organization_projects", "organization_members", "project_members", "members"].includes(error.section))) throw new Error("项目成员刷新失败");
+      state.platform = { ...state.platform, projects: snapshot.projects, organization_scopes: snapshot.organization_scopes, organization_members: snapshot.organization_members, project_members: snapshot.project_members };
+      renderOrganization();
+    } });
+    activeMemberAddSheet = { close, isCurrent };
+  }));
   els.organizationContent.querySelectorAll("[data-organization-member-open]").forEach((button) => button.addEventListener("click", () => { state.selectedOrganizationMemberId = button.dataset.organizationMemberOpen; state.organizationSection = "members"; renderOrganization(); }));
   els.organizationContent.querySelectorAll("[data-organization-project-open]").forEach((button) => button.addEventListener("click", () => { state.selectedOrganizationProjectId = button.dataset.organizationProjectOpen; state.organizationSection = "projects"; renderOrganization(); }));
   document.querySelectorAll("[data-project-create]").forEach((button) => button.onclick = () => runAction(createProduct));
@@ -5554,13 +5581,13 @@ function emptyPlatformSnapshot() {
     capabilities: {
       organizations: "unavailable",
       organization_governance: "unavailable",
-      project_members: "managed_with_permissions_except_direct_add",
+      project_members: "managed_with_permissions",
       invitation_lifecycle: "create_once_no_list_or_revoke",
       project_tasks: "read_write",
       platform_management: "available_with_server_permissions",
       feedback_v1: "read_write",
       feedback_v2: "unavailable",
-      direct_add_project_member: "unavailable",
+      direct_add_project_member: "project_owner_admin",
       task_history: "unavailable"
     },
     errors: []

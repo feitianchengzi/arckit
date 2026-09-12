@@ -1,0 +1,125 @@
+{
+  "scope": "Contract definition only; no implementation, server deployment, or GUI execution claim.",
+  "index_analysis": {
+    "intent": "change",
+    "placement": "Merge into existing organization specification, platform interaction and platform composition solution; add same-page member-add state subview.",
+    "split_required": false,
+    "basis": "Affected documents remain below 500 lines; indexes below 150 lines. No parallel capability domain created."
+  },
+  "document_scope": [
+    {
+      "scope_kind": "change",
+      "root": "arckit/spec/",
+      "updated": [
+        {
+          "path": "agentic-software-development/arcorbit-organization-management.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        },
+        {
+          "path": "INDEX.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        },
+        {
+          "path": "_map/feature-matrix.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        },
+        {
+          "path": "_map/RELATIONS.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        }
+      ],
+      "created": []
+    },
+    {
+      "scope_kind": "change",
+      "root": "arckit/interaction/",
+      "updated": [
+        {
+          "path": "platform-workspace/interaction.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        },
+        {
+          "path": "platform-workspace/collaboration-views.html",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        },
+        {
+          "path": "INDEX.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        },
+        {
+          "path": "_map/RELATIONS.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        }
+      ],
+      "created": [
+        {
+          "path": "platform-workspace/member-add.html",
+          "summary": "Eight direct-add state wireframes.",
+          "source_basis": "Interaction strategy requires member selection, submission and recovery projections."
+        }
+      ]
+    },
+    {
+      "scope_kind": "change",
+      "root": "arckit/tech/",
+      "updated": [
+        {
+          "path": "arcorbit/platform-composition-solution.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        },
+        {
+          "path": "INDEX.md",
+          "summary": "Record direct project member addition contract and its navigation/index projections.",
+          "source_basis": "Project-scoped owner/admin action, server confirmation and explicit recovery states."
+        }
+      ],
+      "created": []
+    }
+  ],
+  "fact_result": {
+    "schema_version": "arckit-fact-result/v2",
+    "mode": "managed_case",
+    "case_id": "CASE-20260911-003",
+    "gap_id": "GAP-20260911-003-001",
+    "outcome": "updated",
+    "facts": [
+      {
+        "statement": "Project owner/admin may directly add a member of the same organization as role member, using a project-scoped single-member picker; server authorization precedes both insertion and idempotent return.",
+        "basis": "User direct-add requirement and existing project invitation authorization boundary.",
+        "source_refs": [
+          "services/workshop-api/handler/project.go",
+          "arckit/spec/agentic-software-development/arcorbit-organization-management.md",
+          "arckit/interaction/platform-workspace/interaction.md",
+          "arckit/tech/arcorbit/platform-composition-solution.md"
+        ],
+        "evidence": [
+          "arckit/spec/agentic-software-development/arcorbit-organization-management.md",
+          "arckit/interaction/platform-workspace/interaction.md",
+          "arckit/tech/arcorbit/platform-composition-solution.md"
+        ]
+      }
+    ],
+    "unresolved": [],
+    "human_decision_required": false
+  },
+  "verification": {
+    "git_diff_check": "passed",
+    "stale_direct_add_ban_in_affected_documents": "none",
+    "html_structure": "8 annotated states, 7 Sheet projections; local links resolve; no scripts or inline styles",
+    "index_counts": "spec 171, tech 438, member-add.html 70: passed",
+    "limitations": [
+      "No browser rendering performed for static wireframes.",
+      "No code tests run because this round changes documentation only.",
+      "Service authorization and client behavior remain implementation obligations."
+    ]
+  }
+}

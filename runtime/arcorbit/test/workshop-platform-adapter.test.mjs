@@ -127,7 +127,7 @@ test("Workshop platform management uses the existing bounded service routes and 
   assert.deepEqual(calls[7], { path: "/tasks/attachments", options: { method: "POST", body: { task_id: 21, type: "url", content: "https://example.test/spec" } } });
   assert.deepEqual(calls[8], { path: "/projects/11/tags", options: { method: "POST", body: { project_id: 11, name: "platform" } } });
   assert.deepEqual(calls[9].options.body, { project_id: 11, title: "Feedback", content: "Detail", data: JSON.stringify({ priority: "P1", ignored: false }) });
-  assert.equal("addProjectMember" in adapter, false);
+  assert.equal(typeof adapter.addProjectMember, "function");
 });
 
 test("Workshop platform adapter keeps TaskAttachment OSS credentials behind bounded resource methods", async () => {

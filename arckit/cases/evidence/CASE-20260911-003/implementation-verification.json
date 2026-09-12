@@ -1,0 +1,82 @@
+{
+  "scope": "Source implementation, isolated PostgreSQL and production Electron Renderer verification. No deployment or installed-package claim.",
+  "implementation": [
+    "Project owner/admin required on server before target lookup, duplicate success and insert; gateway identity remains authoritative.",
+    "Organization relation ID is distinct from user/project-member IDs; new role is member; duplicate preserves relationship fields.",
+    "Organization candidates traverse declared pagination and reject missing relation identities or incomplete pagination.",
+    "Main-process project.member.candidates and project.member.add commands recheck account, project role and target organization; adapter sends only organization_member_id.",
+    "Renderer offers single searchable selection with existing members disabled, guarded account/project scope, focus restoration, unknown-result reconciliation and read-only retry after confirmed mutation."
+  ],
+  "validation": {
+    "focused": {
+      "command": "node --test runtime/arcorbit/test/project-member-add.test.mjs runtime/arcorbit/test/platform-coordinator.test.mjs runtime/arcorbit/test/workshop-platform-adapter.test.mjs runtime/arcorbit/test/today-guidance.test.mjs",
+      "passed": 44,
+      "failed": 0
+    },
+    "arcorbit_regression": {
+      "command": "node scripts/run-tests.mjs (cwd runtime/arcorbit, GUI execution allowed)",
+      "passed": 675,
+      "failed": 0,
+      "skipped": 30,
+      "scope_note": "Full run precedes final focus restoration correction and added short-page regression. Final focused tests and Electron fixture ran after those changes."
+    },
+    "postgres": {
+      "command": "GIN_MODE=release WORKSHOP_TEST_POSTGRES_DSN=<disposable localhost PostgreSQL> go test ./handler -run TestProjectMemberAddAuthorizationAndTransactions -race -count=1 -v",
+      "passed": true,
+      "coverage": [
+        "401",
+        "owner/admin success",
+        "member/nonmember/organization-only manager denied including existing target",
+        "cross organization",
+        "personal project",
+        "relation versus user ID",
+        "fixed new role",
+        "idempotent role/duty/external preservation",
+        "8 concurrent requests: 1 member + 1 event",
+        "event failure rolls back member"
+      ]
+    },
+    "go_module": {
+      "command": "go test ./... (cwd services/workshop-api)",
+      "passed": true,
+      "scope_note": "Integration tests requiring an explicit DSN skip in this run; direct-add PostgreSQL coverage is separate."
+    },
+    "electron": {
+      "command": "env -u ELECTRON_RUN_AS_NODE ./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron test/fixtures/project-member-add-electron.mjs (cwd runtime/arcorbit)",
+      "passed": true,
+      "scope_note": "Production Renderer in real Electron with deterministic preload source; no live account changes."
+    },
+    "syntax": {
+      "command": "node runtime/arcorbit/scripts/check-syntax.mjs",
+      "passed": true
+    },
+    "whitespace": {
+      "command": "git diff --check",
+      "passed": true
+    }
+  },
+  "limitations": [
+    "Live Workshop deployment authorization is not verified. Existing deployed servers must receive the server change before claiming online permission protection.",
+    "No installed ArcOrbit package was rebuilt or validated.",
+    "Completion Review is a separate ledger-derived candidate after acceptance."
+  ],
+  "document_scope": [
+    {
+      "scope_kind": "change",
+      "root": "arckit/spec/",
+      "updated": [
+        {
+          "path": "INDEX.md",
+          "summary": "Mark organization feature source validation complete.",
+          "source_basis": "Implementation evidence in this directory."
+        },
+        {
+          "path": "_map/feature-matrix.md",
+          "summary": "Distinguish source and isolated verification from unverified online deployment.",
+          "source_basis": "PostgreSQL, focused Node and Electron results."
+        }
+      ],
+      "created": []
+    }
+  ]
+}

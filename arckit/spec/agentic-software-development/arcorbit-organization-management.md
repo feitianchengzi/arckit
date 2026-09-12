@@ -73,7 +73,15 @@ owner/admin 可以修改组织名称和说明、生成组织邀请、移除其�
 
 项目 owner/admin 可以更新名称和 Git URL、生成项目邀请；只有 owner 可以删除项目。项目 owner 可以修改非 owner 成员的 admin/member 角色与职责；owner/admin 可以移除其他非 owner 成员；成员可自行退出。
 
-ArcOrbit 不开放 `POST /projects/:id/members` 直接添加入口，因为当前 Workshop handler 没有形成 caller 项目管理权限校验。
+### 从组织成员直接添加
+
+组织项目的项目 owner/admin 可以在项目详情选择“从组织添加成员”，将同组织的已有成员直接加入项目，无需对方使用邀请链接。组织 owner/admin 身份本身不授予该项目的管理权限；普通项目成员、非项目成员和角色未知者不能直接添加。这是 ArcOrbit 客户端的操作限制，由主进程重新读取项目角色后执行。按用户明确要求，保持服务端代码和接口不变；现有直接添加接口只要求已认证并校验目标同组织，不校验操作者项目角色，客户端限制不构成服务端权限保护。
+
+候选范围是项目所属组织的完整成员列表，按姓名搜索，以组织成员关系身份选人；用户无需手填内部编号。已有项目成员显示“已加入”且不可选。单次选择一位成员，新增项目角色固定为 member，不在添加表单中授予 admin。已有关系的重复添加返回现有角色与职责，不重置权限。
+
+无组织的个人项目不显示直接添加入口；无法读取所属组织成员时显示原因与重试，不能用其他组织的成员或手填用户编号代替。邀请加入仍是独立入口，适用于需要凭证加入的场景；直接添加不生成邀请，也不产生待接受状态。
+
+提交前明确展示组织、项目和目标成员。只有服务端确认后才显示已加入并刷新项目成员、成员已有关系和关系矩阵；不隐式修改 Workset、本地工作区绑定或当前设备的 Automation participation。失败保留选择并提供恢复；服务已成功但列表刷新失败时只重试读取，不重复提交。网络结果不明时先读取核对，仍无法确认时允许用户重试同一幂等添加。
 
 ## 项目邀请与加入
 
@@ -119,7 +127,7 @@ ArcOrbit 不发送 500 并假定服务会返回全部结果。分页结果按稳
 
 ## 权限投影
 
-Renderer 的按钮可见性只用于减少无效操作。所有写操作都经主进程有界 IPC 到 Workshop，服务端权限仍是最终判定。
+Renderer 的按钮可见性只用于减少无效操作。所有写操作都经主进程有界 IPC 到 Workshop，服务端实际校验决定请求结果；直接添加的项目角色限制由客户端执行，不据此推断服务端具备相同保护。
 
 当角色事实缺失、组织成员列表失败或项目成员中没有 `is_me` 时，ArcOrbit 采用失败关闭：显示只读事实，不显示管理动作。
 
@@ -145,14 +153,18 @@ owner/admin 的“组织全部项目”查询失败时，不静默回退成“�
 8. 项目创建后不能在 ArcOrbit 中修改组织归属。
 9. Workset、本地绑定和 Automation participation 是独立动作；任意可访问项目成员都能维护自己设备上的本地绑定，只有 owner/admin 能改变 Automation participation。
 10. 所有列表完整消费服务端分页，不因数据超过 200 条而截断。
-11. 不开放直接添加项目成员，不伪造邀请历史或撤销。
+11. 项目 owner/admin 可直接添加同组织成员；仅有组织管理角色、普通项目成员、非成员和角色未知者不获得该能力，ArcOrbit 主进程拒绝这些操作；不声称现有接口会拒绝绕过客户端的同类请求。
+12. 候选完整分页、可搜索，已有成员禁选；重复添加保留已有角色/职责，跨组织目标和个人项目被拒绝。
+13. 添加成功刷新服务端成员事实；失败保留选择，响应不明先核对，成功后刷新失败仅重试读取；切换项目或账户后的旧响应不覆盖新上下文。
+14. 邀请加入独立保留，不伪造邀请历史、撤销或直接添加的待接受状态。
 
 ## Source Basis
 
-- `../../hoewo/workshop-todo/router/router.go`
-- `../../hoewo/workshop-todo/handler/organization.go`
-- `../../hoewo/workshop-todo/handler/project.go`
-- `../../hoewo/workshop-todo/handler/pagination.go`
+- 用户要求支持从组织成员直接添加项目成员，并明确服务端保持不变、修订预期与客户端逻辑（2026-09-11）。
+- `services/workshop-api/router/router.go`
+- `services/workshop-api/handler/organization.go`
+- `services/workshop-api/handler/project.go`
+- `services/workshop-api/handler/pagination.go`
 - `runtime/arcorbit/src/workshop-platform-adapter.mjs`
 - `runtime/arcorbit/src/platform-coordinator.mjs`
 - `runtime/arcorbit/src/desktop/desktop-store.mjs`

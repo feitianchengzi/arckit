@@ -1,0 +1,16 @@
+{
+  "scope": "Client-only implementation verification; no service changes, live requests, or package acceptance.",
+  "tests": {
+    "command": "node --test runtime/arcorbit/test/project-member-add.test.mjs runtime/arcorbit/test/platform-coordinator.test.mjs runtime/arcorbit/test/workshop-platform-adapter.test.mjs runtime/arcorbit/test/desktop-renderer.test.mjs",
+    "summary": "101\n# tests 101\n# suites 0\n# pass 101\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 885.730365\n"
+  },
+  "behavior": "Only positive member identity with matching project_id and selected user_id is confirmed; malformed or mismatched replies remain unknown and reconcile before explicit retry. Account changes after write do not confirm success. Existing roles and duties are not rewritten.",
+  "server_status": "",
+  "diff_check_exit": 0,
+  "source_sha256": "62d04ed7f4758c452e6fe6c120cfd8b36c8ea875b1a1d6bf42cc3bae55918636",
+  "limitations": [
+    "Current tests use deterministic source responses matching the unchanged documented API.",
+    "Prior Electron evidence covers unchanged Sheet and Renderer; no new Electron or full-suite run this round.",
+    "Existing service caller-role limitation remains unchanged and is not claimed controlled."
+  ]
+}
