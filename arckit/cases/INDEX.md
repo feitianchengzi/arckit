@@ -184,5 +184,8 @@
 | [CASE-20260910-001](closed/CASE-20260910-001-enable-agent-environment-exploration-with-deterministic-applicat.md) | closed | Enable Agent environment exploration with deterministic application boundaries | 2026-09-10T02:38:31.211Z |
 | [CASE-20260910-002](closed/CASE-20260910-002-align-idea-formal-workspace-intake-and-shared-ui-agent-context.md) | closed | Align Idea formal workspace intake and shared UI Agent context | 2026-09-10T10:08:34.528Z |
 | [CASE-20260910-003](closed/CASE-20260910-003-escape.md) | closed | 追查图片查看器 Escape 关闭后持续出现的全屏主窗口黑屏 | 2026-09-11T07:32:33.315Z |
+| [CASE-20260911-001](closed/CASE-20260911-001-implement-consumer-scoped-engineering-skills-and-automatic-legac.md) | closed | Implement consumer-scoped Engineering skills and automatic legacy migration | 2026-09-11T08:33:32.983Z |
 | [CASE-20260911-002](closed/CASE-20260911-002-diagnose-missing-acceptance-issues-in-the-today-third-column-det.md) | closed | Diagnose missing acceptance issues in the Today third-column detail | 2026-09-11T08:25:32.839Z |
 | [CASE-20260911-003](closed/CASE-20260911-003-arcorbit.md) | closed | 支持在 ArcOrbit 组织页面从组织成员直接添加项目成员 | 2026-09-12T03:18:16.506Z |
+| [CASE-20260911-004](closed/CASE-20260911-004-separate-arcorbit-execution-lifecycle-from-case-completion.md) | closed | Separate ArcOrbit execution lifecycle from Case completion | 2026-09-11T10:39:49.658Z |
+| [CASE-20260911-005](closed/CASE-20260911-005-unify-arckit-state-driven-loop-capability-and-invocation-surface.md) | closed | Unify arckit-state-driven-loop capability and invocation surfaces | 2026-09-11T13:32:03.858Z |

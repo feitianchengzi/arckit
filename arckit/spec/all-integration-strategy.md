@@ -2,7 +2,7 @@
 
 更新时间：2026-06-15
 
-状态：历史迁移记录。本文保留 `all/` 候选体系进入 Arckit 的早期拆解思路，不代表 2026-07-05 之后当前仓库可用 skill 集合，也不作为 `using-arckit` 当前路由依据。当前可用能力以 README 和 `entry/skills/using-arckit/SKILL.md` 为准。
+状态：历史迁移记录。本文保留 `all/` 候选体系进入 Arckit 的早期拆解思路，不代表 2026-07-05 之后当前仓库可用 skill 集合，也不作为 `using-arckit` 当前路由依据。历史名称不作为当前依赖；当前可用能力以 README 和 `entry/skills/arckit-state-driven-loop/SKILL.md` 为准。
 
 ## 1. 背景
 

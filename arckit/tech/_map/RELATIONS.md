@@ -37,3 +37,6 @@
 Product 管理以 `arckit/spec/agentic-software-development/arcorbit-product-management.md` 为产品源，技术协议在 `arckit/tech/arcorbit/product-management-solution.md`；页面为 `product-list` → `product-detail`、`idea-workspace` → `idea-add`，Today 通过 `today-workspace/product-continuity.html` 续接原对象。原 Lifecycle 页面保持独立。
 
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
+
+
+Engineering 与 Chat 场景技能以 arcorbit-scene-skills.md 为产品源，scene-skills-solution.md 为技术源，engineering-profile/ 为交互投影。原 Engineering 静态 Profile 示意已由该契约替代。

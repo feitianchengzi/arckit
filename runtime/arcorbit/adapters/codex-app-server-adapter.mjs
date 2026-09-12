@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { JsonRpcStdioClient } from "../src/json-rpc-stdio-client.mjs";
 import { AsyncEventQueue } from "../src/async-event-queue.mjs";
 import { assertCodexOutputSchema } from "../src/codex-output-schema.mjs";
+import { configureCodexSceneSkills } from "../src/codex-scene-skills.mjs";
 import { endLifecycleSpan, startLifecycleSpan } from "../src/observability/lifecycle-trace.mjs";
 
 export function createCodexAppServerAdapter(adapterOptions = {}) {
@@ -10,6 +11,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
   let initialized = false;
   let initializedProjectRoot = "";
   let initializeResult = null;
+  let sceneSkills = null;
   let activeTurn = null;
   let activeCompaction = null;
   let stdinControls = null;
@@ -85,6 +87,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             }
             client = null;
             initialized = false;
+            sceneSkills = null;
             threads.clear();
             loadedThreadIds.clear();
             activeCommands.clear();
@@ -106,6 +109,17 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             throw error;
           }
         }
+        if (effectiveOptions.sceneSkillBinding) {
+          if (sceneSkills && sceneSkills.fingerprint !== effectiveOptions.sceneSkillBinding.fingerprint) throw new Error('Scene skills changed; recreate the idle adapter and resume the same thread.');
+          if (!sceneSkills) sceneSkills = await configureCodexSceneSkills(client, projectRoot, effectiveOptions.sceneSkillBinding);
+        }
+        if (sceneSkills?.dynamicTools) {
+          const upstream = effectiveOptions.dynamicToolProvider;
+          effectiveOptions.dynamicTools = [...(effectiveOptions.dynamicTools || []).filter(t => !sceneSkills.dynamicTools.some(s => s.name === t.name)), ...sceneSkills.dynamicTools];
+          effectiveOptions.dynamicToolProvider = params => sceneSkills.dynamicTools.some(t => t.name === params.tool) ? sceneSkills.dynamicToolProvider(params) : upstream?.(params);
+          tracedOptions.dynamicTools = effectiveOptions.dynamicTools;
+          tracedOptions.dynamicToolProvider = effectiveOptions.dynamicToolProvider;
+        }
         state.resultKind = effectiveOptions.resultKind || "runtime-result";
         queue.push({ type: "codex.initialize.completed", result: initializeResult });
 
@@ -121,6 +135,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           });
           try {
             const resumeResult = await client.request("thread/resume", {
+              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               threadId: state.threadId,
               cwd: projectRoot,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
@@ -142,6 +157,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             }
             const missingThreadId = state.threadId;
             const fallback = await client.request("thread/start", {
+              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               cwd: projectRoot,
               ephemeral: false,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
@@ -184,6 +200,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           let threadStartResult;
           try {
             threadStartResult = await client.request("thread/start", {
+              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               cwd: projectRoot,
               ephemeral: false,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
@@ -235,7 +252,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
           approvalsReviewer: "user",
           model: effectiveOptions.model || null,
-          input: [{ type: "text", text: prompt }, ...(effectiveOptions.skillInputs || [])]
+          input: [{ type: "text", text: prompt }, ...(effectiveOptions.skillInputs || []), ...(sceneSkills?.skillInputs || [])]
         };
         if (effectiveOptions.sandboxPolicy) turnStartParams.sandboxPolicy = effectiveOptions.sandboxPolicy;
         if (effectiveOptions.reasoningEffort) {
@@ -322,6 +339,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
       initialized = false;
       initializedProjectRoot = "";
       initializeResult = null;
+      sceneSkills = null;
       threads.clear();
       loadedThreadIds.clear();
       latestUsageByThread.clear();

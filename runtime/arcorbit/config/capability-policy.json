@@ -1,9 +1,9 @@
 {
   "schema_version": "arckit-capability-policy/v3",
   "controller_capability_ids": [
-    "using-arckit"
+    "arckit-state-driven-loop"
   ],
   "runtime_capability_ids": [
-    "arckit-development-ledger"
+    "arckit-state-driven-loop"
   ]
 }

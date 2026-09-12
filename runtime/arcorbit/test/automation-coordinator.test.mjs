@@ -1020,7 +1020,8 @@ test("retry_start clears stale closeout state and starts a normal Runtime", asyn
   });
 
   assert.equal(starts.length, 1);
-  assert.equal(starts[0].runtimeContext, null);
+  assert.equal(starts[0].runtimeContext.task_id, "t");
+  assert.equal(starts[0].runtimeContext.case_binding.status, "unbound");
   assert.equal(store.automation.active_task.phase, "running");
   assert.equal(store.automation.active_task.closeout_status, "pending");
   coordinator.dispose();
@@ -1092,6 +1093,9 @@ test("recovery feedback continues the same Agent thread and persists the user me
   assert.equal(starts[0].sessionId, "SESSION-T");
   assert.equal(starts[0].task, "说明文字可以改写，请从 fresh state 继续。");
   assert.deepEqual(starts[0].runtimeContext, {
+    task_id: "t", original_task: "finish", case_id: "",
+    case_binding: { status: "unbound", case_ids: [], observations: [] },
+    execution_id: starts[0].runtimeContext.execution_id,
     kind: "recovery_feedback",
     recovery_id: "RECOVERY-runtime-incomplete-t",
     recovery_type: "runtime_incomplete",
@@ -1136,7 +1140,8 @@ test("initial Desktop sync resumes one recoverable in-progress task on its persi
   assert.equal(starts[0].threadId, "THREAD-PERSISTED");
   assert.equal(starts[0].sessionId, "SESSION-T");
   assert.equal(starts[0].task, "finish");
-  assert.equal(starts[0].runtimeContext, null);
+  assert.equal(starts[0].runtimeContext.task_id, "t");
+  assert.equal(starts[0].runtimeContext.case_binding.status, "unbound");
   assert.equal(store.automation.active_task.phase, "running");
   assert.equal(store.automation.recovery_items.length, 0);
   coordinator.dispose();
@@ -1522,7 +1527,7 @@ test("live accepted ledger handoff overrides a stale pre-commit Runtime handoff"
   coordinator.dispose();
 });
 
-test("live external handoff becomes actionable human intervention and resumes the same thread after confirmation", async () => {
+test("live external handoff preserves external responsibility and resumes the same thread after confirmation", async () => {
   const starts = [];
   const store = recoveryStore({ phase: "running" });
   const runManager = fakeRunManager(store, starts);
@@ -1561,14 +1566,14 @@ test("live external handoff becomes actionable human intervention and resumes th
     }
   });
 
-  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.active_task.phase, "waiting_external");
   assert.equal(store.automation.active_task.intervention_kind, "external_dependency");
   assert.equal(store.automation.active_task.intervention_reason, "Provider restore route is not available yet.");
   assert.equal(store.automation.active_task.intervention_resume_condition, "Resume after the provider restore contract is deployed.");
   assert.equal(store.automation.recovery_items.length, 0);
   assert.equal(store.automation.attention_items.length, 1);
   assert.equal(store.automation.attention_items[0].kind, "external_dependency");
-  assert.match((await coordinator.getSnapshot()).health.label, /需.*人工介入/);
+  assert.match((await coordinator.getSnapshot()).health.label, /等待外部结果/);
 
   await coordinator.confirmExternalDependency();
 
@@ -1580,7 +1585,7 @@ test("live external handoff becomes actionable human intervention and resumes th
   coordinator.dispose();
 });
 
-test("startup reconciliation projects detached external wait as human intervention without retrying Runtime", async () => {
+test("startup reconciliation projects detached external wait as external waiting without retrying Runtime", async () => {
   const starts = [];
   const externalHandoff = {
     version: "loop-handoff/v2",
@@ -1628,7 +1633,7 @@ test("startup reconciliation projects detached external wait as human interventi
   await coordinator.sync({ dispatch: false, resumeRecoverable: true });
 
   assert.equal(starts.length, 0);
-  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.active_task.phase, "waiting_external");
   assert.equal(store.automation.active_task.intervention_kind, "external_dependency");
   assert.equal(store.automation.recovery_items.length, 0);
   assert.equal(store.automation.attention_items.length, 1);
@@ -2160,3 +2165,43 @@ function fakeRunManager(store, starts, overrides = {}) {
     ...overrides
   };
 }
+
+test('Agent stop releases the lane and survives restart without completing or reclaiming the task', async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: 'running' });
+  const result = { stop_reason: 'stopped', validation: { valid: true }, agent_loop_result: { action: 'handoff' }, runtime_result: {
+    round_result: 'blocked', summary: 'Stopped with unresolved obligations.', ledger_stage: { writeback_required: false },
+    loop_handoff: { next_responsibility: 'none', human_decision_required: false }
+  } };
+  const manager = fakeRunManager(store, starts, { async getProjectCaseState() { return null; }, async readRunResult() { return result; } });
+  let coordinator = unconfiguredCoordinator(manager);
+  await manager.emitEvent({ type: 'run.finished', runId: 'RUN-OLD', status: 'completed', result });
+  assert.equal(store.automation.active_task, null);
+  assert.equal(store.automation.recovery_items.length, 0);
+  assert.equal(store.automation.attention_items.length, 0);
+  assert.equal(store.automation.stopped_executions.length, 1);
+  assert.equal(store.automation.snapshot.tasks[0].state, 'in_progress');
+  coordinator.dispose();
+  coordinator = createAutomationCoordinator({ runManager: manager, taskSourceFactory: healthyTaskSourceFactory(store) });
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+  assert.equal(store.automation.active_task, null);
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.stopped_executions.length, 1);
+  coordinator.dispose();
+});
+
+test('live completion consumes the result receipt when the activity tail is missing', async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: 'running' });
+  const manager = fakeRunManager(store, starts);
+  const coordinator = unconfiguredCoordinator(manager);
+  await manager.emitEvent({ type: 'run.finished', runId: 'RUN-OLD', status: 'completed', activity: {}, result: {
+    validation: { valid: true }, stop_reason: 'completed', closeout_result: closeoutResult(),
+    ledger_write_result: { written: true, case_transition_result: { case_id: 'CASE-20260809-001', case_resolution: { status: 'resolved', loop_handoff: { next_responsibility: 'none' } } } },
+    runtime_result: { ledger_stage: { writeback_required: true }, loop_handoff: { next_responsibility: 'none' } }
+  } });
+  assert.equal(store.automation.recovery_items.length, 0);
+  assert.equal(store.automation.active_task.closeout_status, 'completed');
+  assert.equal(store.automation.active_task.case_id, 'CASE-20260809-001');
+  coordinator.dispose();
+});

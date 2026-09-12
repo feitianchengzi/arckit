@@ -691,6 +691,18 @@ async function chatFixture() {
   };
 }
 
+test('Chat skill changes recreate the idle process while retaining the same thread', async () => {
+ const fixture=await chatFixture();let fingerprint='one',created=0,closed=0;const calls=[];
+ const coordinator=createChatCoordinator({...fixture.options,getTurnContext:async()=>({options:{sceneSkillBinding:{fingerprint}}}),createAdapter:()=>({...completedAdapter(++created,calls),close(){closed++;}})});
+ try {
+   const first=await coordinator.send({project_id:'PROJECT-1',client_request_id:'SKILLS-1',text:'Inspect'}),id=first.selected_session_id;
+   await waitForChatTerminal(coordinator,id);
+   await coordinator.send({session_id:id,client_request_id:'SKILLS-2',text:'Continue'});await waitForChatTerminal(coordinator,id);assert.equal(created,1);
+   fingerprint='two';await coordinator.send({session_id:id,client_request_id:'SKILLS-3',text:'Use updated skills'});await waitForChatTerminal(coordinator,id);
+   assert.equal(created,2);assert.equal(closed,1);assert.equal(calls[2].options.threadId,'THREAD-1');assert.equal(calls[2].options.sceneSkillBinding.fingerprint,'two');
+ } finally {await coordinator.close();await fixture.cleanup();}
+});
+
 function completedAdapter(adapterId, calls) {
   return {
     async *runTurn({ options }) {

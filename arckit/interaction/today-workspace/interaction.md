@@ -143,7 +143,7 @@ Today 导航项显示当前可确认的全部人工责任数。来源未知时�
 ### Automation 人工交接
 
 - 产品决定或缺失事实：展示 Task、Case、当前 gap、Agent 已确认事实、选项影响和相关消息；提交决定后继续同一 task session/thread/Case。
-- 外部依赖：展示责任方、外部对象、完成条件和最近检查；用户选择“已处理，重新检查”，通过后才恢复。
+- 外部等待和 Runtime 技术故障不自动收录为人工责任；在 Automation 查看原始责任、原因和恢复条件。只有明确需要当前用户作出的决定进入 Today。
 - 用户离开或选择其他责任项时，当前输入按 attention item 保存，Automation 保持等待人。
 
 ### Automation 恢复

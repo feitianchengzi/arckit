@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { execLocalTar } from "./local-tar.mjs";
 
 const execFileAsync = promisify(execFile);
-const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"];
+const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1", "stable-catalog/v1", "project-skill-migration/v1"];
 const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(runtimeRoot, "..", "..");
 const options = parseArgs(process.argv.slice(2));
@@ -77,7 +77,7 @@ const payloadManifest = {
 };
 await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(payloadManifest, null, 2)}\n`);
 
-for (const skillName of ["using-arckit", "arckit-development-ledger"]) {
+for (const skillName of ["arckit-state-driven-loop"]) {
   await cp(path.join(repositoryRoot, "entry", "skills", skillName), path.join(trustedRoot, skillName), { recursive: true });
 }
 const trustedFiles = await fileManifest(trustedRoot);
@@ -117,7 +117,7 @@ async function discoverPayloadPaths() {
       }
     }
   }
-  if (!skillPaths.includes("entry/skills/using-arckit") || !skillPaths.includes("entry/skills/arckit-development-ledger")) throw new Error("Required Runtime skills are absent from the payload.");
+  if (!skillPaths.includes("entry/skills/arckit-state-driven-loop")) throw new Error("Required Runtime skills are absent from the payload.");
   return { skillPaths: skillPaths.sort(), sharedAssetPaths: sharedAssetPaths.sort() };
 }
 

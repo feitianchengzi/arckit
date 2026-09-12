@@ -1,8 +1,9 @@
 # ArcOrbit 分发与安装
 
+
 ## 目标
 
-ArcOrbit 通过可追溯的桌面安装包交付。内部用户只需要取得并运行所选平台的安装包，并把 Workshop Project 关联到本地项目，即可获得 Runtime/Desktop、受信 ledger 能力、`$using-arckit` Agent 入口以及只在关联项目中生效的 Arckit skills。
+ArcOrbit 通过可追溯的桌面安装包交付。内部用户只需要取得并运行所选平台的安装包，并把 Workshop Project 关联到本地项目，即可获得 Runtime/Desktop、受信 ledger 能力、`$arckit-state-driven-loop` Agent 入口以及按 Chat / Automation 场景配置的 Arckit skills。
 
 安装包是一次完整产品交付，不要求用户另行 clone Arckit 或 ArcForge 仓库，也不要求先安装 ArcForge Desktop、ArcForge CLI、Node、npm 或 Homebrew。Codex CLI 缺失、版本不可验证或尚未登录时，Setup Readiness 提供官方 standalone 安装、更新和显式登录恢复流程；操作系统权限、外部任务源账号和签名信任仍属于对应平台的显式前置条件。
 
@@ -99,30 +100,11 @@ workflow 不创建、移动或覆盖 tag。tag 不存在、tag 与选择的渠�
 
 ## Setup Readiness
 
-Desktop 只在应用冷启动时自动执行完整的协调式 Setup Readiness：先检查全局资源，再从 Desktop Store 读取全部已关联本地 Product Workspace 的规范化项目根，并检查这些项目相对于当前内置 payload 的 skills 安装关系与 drift。没有已关联本地项目时只执行全局检查。该启动范围不依赖关闭应用前界面显示“项目集全部”还是某个具体项目。运行期间新增或改变本地项目关联后立即再检查全部当前关联 roots；用户也可以从 Setup 恢复页主动“重新检查”。项目集、具体项目、Workset 或其它纯查看范围切换、解除关联和 Runtime task start 都不得自动重新扫描 skills；task start 只消费最近一次成功检查建立的 readiness，并对当前 task root 不在已验证 roots 中的情况 fail closed。这些检查都不进入 Runtime `preflightRun` 或 Agent Loop。
+冷启动从 Desktop Store 读取全部关联项目，校验随包 checksum、distribution lock、trusted resources 和 skill payload，调用 ArcForge Embedded Provider 检查消费方 catalog 并展示待安装更新清单，用户确认后安装，再通过 Provider 展示项目 `.codex/skills` 中有可靠归属证据且内容未修改的旧副本清理清单；用户明确确认后才删除。用户级和第三方目录保持不变；不创建备份，也不重新安装项目技能。具体归属与失败规则见 [场景技能规格](agentic-software-development/arcorbit-scene-skills.md)。
 
-Setup Readiness 检查：
+新增或改变本地项目关联后重新检查全部关联 roots；纯查看切换、解除绑定和 task start 不触发迁移。task start 断言最近 ready 状态包含当前项目。没有本地项目时只声明全局资源 ready。
 
-- 安装包内 Runtime trusted resources 完整且 digest 与 distribution lock 一致；
-- ArcForge Embedded Provider 版本和 digest 一致；
-- Arckit skill payload 版本、来源 commit、manifest 和文件 digest 一致；
-- Codex CLI discovery 已完整结束，executable 来源可识别、可启动且 `codex --version` 成功；
-- Codex 登录状态由 `codex login status` 的退出码确认；
-- Product Workspace 对应的规范化本地项目根和 Codex 项目级 skill 目标可解析；
-- 当前项目的 skills 安装关系、项目适用性判断和 drift 状态可读取；
-- Codex 用户级 skill 目录不存在由 ArcOrbit 管理的 Arckit skill 或 `arcforge-on-demand` loader。
-
-状态至少包括：
-
-- `ready`：全局受信资源有效，且当前关联项目的必须 skills 可被 Codex 从项目目录发现；
-- `needs-project`：全局资源有效，但当前操作尚未确定关联本地项目；
-- `needs-install`：当前关联项目尚未建立 Arckit 安装关系；
-- `needs-confirmation`：计划会写入项目目录、迁移历史受管理用户级副本或覆盖受管理副本；
-- `drifted`：目标与当前 payload 不一致；
-- `conflict`：项目 target、loader、共享资源或用户按需 catalog 中存在不能安全选定来源的同名内容；若 provider 能证明当前 bundle 与目标一一对应，必须同时提供带备份的显式覆盖恢复动作；
-- `blocked`：资源损坏、权限不足、provider 失败，或 Codex 安装与认证恢复仍未成功。
-
-应用启动时，只有全局资源和全部已关联本地项目都达到 `ready` 才开放 Automation；任一项目出现 `needs-install`、`drifted`、`conflict` 或 `blocked` 都进入安装、修复或人工恢复界面。没有本地项目时，全局检查通过只允许进入普通工作区，不替任意未来项目声明 skills ready。只有当前任务对应项目达到 `ready` 才可以启动该任务。
+页面呈现 checking、ready、blocked，显示内置技能版本/数量和已清理、保留、失败的具体路径。失败允许重试；Codex executable、版本和认证仍按以下独立流程检查。没有项目技能安装或覆盖确认步骤。
 
 ### Codex CLI 安装与更新
 
@@ -188,69 +170,13 @@ ChatGPT 登录完全交给 `codex login` 或 `codex login --device-auth` 的官�
 
 最终 Runtime `ready` 同时要求：Codex executable 可执行、`codex --version` 成功、`codex login status` 退出码为零，以及当前全局资源和项目级 Setup Readiness 其它检查全部通过。任何安装、更新、登录或退出结果都会按这个顺序自动重新验证；失败保留稳定错误分类、可复制的无敏感诊断和重试入口。
 
-## 首次安装行为
+## 首次安装、场景能力与升级
 
-首次启动从安装包内的离线 payload 建立应用管理的本地维护源，不从 GitHub 下载 `main`、`latest` 或未锁定资源，也不在 Codex 用户级目录安装 Arckit skills。用户把 Workshop Project 绑定到本地项目后，Desktop 才为该项目生成 provisioning plan。
+所有内置 skill 连同脚本、references、共享资源安装到应用数据目录的版本化 on-demand catalog。用户 ArcForge catalog 保持独立，应用不覆盖其中同名版本。Engineering 保存每个场景的选择；Chat 默认关闭内置技能，Automation 保留官方核心，普通技能可开关或替换。
 
-Desktop 展示：
+升级准备并校验新版本后使用稳定身份恢复用户显式选择，旧 catalog 版本保留供已有运行引用。明确确认清单后才清理关联项目中来源可证明的 Arckit 副本；修改过或缺少可验证基线的受管理 Arckit 保留并报告；符合条件的清理不创建备份。第三方、归属不明和目录链接保留并报告。来源损坏或权限失败时阻止启动并显示具体恢复条件。
 
-- 来源版本和 commit；
-- 当前 Product Workspace、本地项目名称和规范化绝对路径；
-- 将作为项目常驻能力安装的 source user-ambient skills；
-- 将按项目适用性判断的 source project-ambient skills；
-- 将进入用户按需 catalog 的 skills和只写入当前项目的按需 loader；
-- 当前项目的 Codex 目标目录；
-- 历史受管理用户级目标及其迁移或清理 disposition；
-- 现有同名目录、changed、extra 和 managed-stale；
-- 将写入的关系记录位置。
-
-用户确认后，provider 执行同一份 fresh plan 对应的事务化 apply：
-
-- source `user-ambient` 表示该能力对每个关联项目默认常驻，实际目标是 `<project-root>/.codex/skills/<skill>`；ArcOrbit 不把它写入 `~/.codex/skills`；
-- source `project-ambient` 只在当前项目的 applicability assessment 为 `suitable` 或用户显式 override 后写入同一项目级目录；`unsuitable` 与 `needs-input` 不进入 apply；
-- source `user-on-demand` 内容保存在 ArcForge 用户 catalog 作为非 Codex 发现的控制面资产，轻量 `arcforge-on-demand` loader 只写入当前项目的 `.codex/skills`，并把解析范围绑定到该项目；
-- 共享 assets 只随当前项目内的消费 skills 写入项目级目标，不创建用户级共享副本；
-- 应用关系以 ArcOrbit consumer identity 保存当前来源、profile、availability、项目根、目标、managed names、assessment 和 source digest；每个项目独立 drift、修复和升级。
-
-ArcForge 用户 catalog 不属于 Codex skill 应用目标，也不使 catalog 中的内容成为用户级 ambient skill。未受当前关系管理的同名目录不会被静默覆盖；但用户明确选择目标、确认备份位置和当前 bundled source 后，可以进入同名 skill 兜底覆盖。普通 extra 只显示为 `uncertain` 或 `unrelated`；只有历史关系确认管理过的旧目标可以显示为 `managed-stale`，删除仍需单独确认。
-
-## 项目级能力
-
-Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Desktop 不依据当前进程 cwd、最近打开目录或 Runtime Gap 猜测目标；同一本地项目被多个 Workshop Project 引用时复用同一个规范化项目根和关系，同一来源版本不会重复安装。
-
-每项 project applicability 由当前 Agent 或用户根据项目规格、源码和任务事实判断；`unsuitable` 或 `needs-input` 不进入 apply。项目级 apply 使用 fresh plan、drift、确认、事务和关系记录语义。冷启动、绑定新增或改变以及用户主动恢复触发 fresh 检查；payload 升级和关系 drift 在这些边界被发现。task preflight 只断言缓存状态和 task root 覆盖，不重新读取项目 skills；Runtime 不预先为 Gap 绑定项目级 skill。
-
-解除 Product Workspace 绑定或移除本地项目不会静默删除项目目录中的受管理 skills。Desktop 保留关系并将其标为未关联，用户从设置中查看精确项目路径后才可单独确认移除。
-
-## 修复与升级
-
-安装新版本 ArcOrbit 时，Desktop 比较旧维护源、现有目标和新 payload：
-
-1. 先依据旧关系中的实际目标、最后应用摘要和旧维护源检查现有目标，不使用新 provider 重新计算的目标位置冒充旧目标事实；
-2. 把差异分类为可修复的受管理缺失、provider 管理的路径/策略/loader 迁移、已有内容变化、未受管理同名冲突和 catalog 同名版本冲突；
-3. 受管理缺失和能够由关系与摘要证明的 provider 迁移进入待确认 upgrade plan，不作为用户内容冲突阻断；
-4. 已有内容变化在旧 source 保持 current 时展示逐目标/文件差异，用户选择“备份本地内容并恢复受管理副本”或保留当前内容并退出；
-5. 同名冲突不进入普通 apply；provider 能证明目标位于允许边界且与当前 bundled source 一一对应时，页面提供“备份并使用当前应用包覆盖所选同名 skill”，否则用户在外部消除冲突后重新检查；
-6. 处置完成后重新生成 plan，对新 payload 执行 source switch、受管理目标 apply、关系迁移和 post-drift；
-7. 成功后保留足以回滚本次切换的上一份来源快照和本轮用户内容备份引用。
-
-从旧版本的用户级 provisioning 迁移时，旧关系中能够证明由 ArcOrbit 管理的 `~/.codex/skills` 目标和 loader 进入 `managed-migration`，与至少一个关联项目的项目级安装在同一受确认事务中迁移。内容与最后应用摘要不同或摘要缺失时先备份并要求逐目标 disposition；用户选择保留时，ArcOrbit 不删除该目录，也不把相关项目声明为 scope-clean ready。`uncertain`、`unrelated` 或没有关系所有权证据的用户级目录永不自动删除。用户级 catalog 可以保留，因为它不是 Codex 发现目录；旧用户级 loader 必须迁移或经独立确认移除。
-
-关系记录保存每个受管理目标最后一次成功 apply 的内容摘要、有效目标、availability/policy、provider 能力版本和 shared-loader 所有权证据。旧关系缺少完成安全分类所需的摘要时，现有内容差异进入“未验证的受管理目标”，不得静默覆盖；用户仍可查看差异并明确选择备份后恢复。检查阶段尚未发生写入时，结果显示“未写入”，不显示成 apply 回滚。
-
-“修复”只把当前锁定 payload 重新应用到已确认的项目级受管理目标。它不删除 unrelated 内容，不从远端获取新版本，也不修改维护源的 availability 推荐；ArcOrbit 的项目目标覆盖属于产品调用策略。
-
-### 同名 skill 兜底覆盖
-
-同名 skill 冲突是可恢复状态，不得只压缩为无目标、无动作的 `SETUP_FAILED`。plan 在进入 drift 前保留项目 skill、项目 loader、共享资源和 catalog entry 的 typed diagnostic；页面逐项显示稳定 code、skill 名、目标类型、绝对路径、当前与 bundled digest、阻塞原因和允许动作。
-
-只有 provider fresh assessment 同时证明目标属于允许的项目根或 ArcForge catalog、skill 名安全、目标不是文件系统根或越界路径、且存在唯一同名 bundled source 时，才允许兜底覆盖。页面默认不选择任何项，允许逐项或全选可恢复项；确认摘要列出 skill、绝对目标、当前与 bundled digest 和备份位置。
-
-该动作独立于普通安装、受管理恢复和 `managed-stale` 删除。确认携带 fresh assessment digest；执行前再次核对目标、当前内容和 bundled source。provider 必须在第一次替换前，把全部已选目标备份到仅当前用户可访问的 recovery area 并写入 manifest。catalog 版本冲突中的确认表示用户明确选择当前应用包内来源；旧内容保留在 recovery area，不删除 catalog index 中其它来源声明。
-
-任一备份、替换、catalog、loader 或关系提交失败时，整个选择集合回滚到确认前状态；回滚不完整时列出备份 manifest 与残留路径。未选择项和无关内容始终不变；仍有未处置冲突时保持非 ready。权限、只读文件系统、越界目标或 source 映射不唯一时保留逐项诊断，并给出精确外部恢复条件和“重新检查”，不得显示成只能重装应用的资源损坏。
-
-卸载桌面应用不会静默删除用户级或项目级 skills。用户需要先在 Desktop 中选择“移除受 Arckit 管理的 skills”，查看精确目录并单独确认；应用关系以外的目录不在清理范围内。
+Runtime trusted ledger 仍从应用可信能力资源调用；Agent 从场景 binding 的绝对路径原生发现技能。Desktop adapter 配置 Codex 的进程 roots 和线程技能开关，不修改用户/项目 Codex 配置。原生用户技能按既有可用性继承，可在 ArcOrbit 显式开关。
 
 ## 签名与发布授权
 
@@ -262,28 +188,18 @@ Product Workspace 的本地绑定是项目级 plan 的唯一目标来源。Deskt
 
 ## 失败与恢复
 
-- 任一平台矩阵任务失败不产出该目标的可发布状态。
-- checksum、lock、payload 或 provider 校验失败时，应用不得进入 skills apply。
-- apply 失败时 provider 回滚目标目录、catalog 和关系记录；回滚不完整时显示具体残留路径并停止 Runtime task。
-- 同名兜底覆盖失败时保留 recovery manifest、备份位置和逐目标回滚结果，不把失败重新折叠成无目标的 setup 错误。
-- GitHub workflow 失败只保留构建日志和 artifacts；不会 fallback 到开发者本机出包。
-- 缺少签名 secrets、GitHub 权限或 release 授权属于人工责任；代码、配置、测试或可复现构建失败属于 Agent 可继续修复的责任。
+资源校验失败不安装 catalog、不清理项目；迁移失败记录具体路径，可幂等重试。配置 revision 冲突拒绝覆盖，已启用来源消失或核心不可信时拒绝启动，用户可在 Engineering 关闭失效项或重新选择。关闭技能不删除 thread 历史，需要清空历史影响时新建 Chat。
+
+平台构建失败保留日志和 artifacts，不产生该目标的可发布状态；签名、GitHub 权限和发布授权保持显式人工责任。
 
 ## 验收口径
 
 - workflow 只能由人工 dispatch 激活，并在构建前验证 tag、版本、渠道和基线。
 - 操作者可以独立选择平台，也可以一次选择全部受支持平台。
 - 安装包在无 ArcForge 或 Arckit checkout 的用户环境中包含完整 provisioning 输入。
-- Runtime trusted ledger 使用应用内受信资源；Codex Agent 只使用关联项目 `.codex/skills` 中按策略安装的 skills 和 loader；两者不会混用消费副本，ArcOrbit 不创建 Codex 用户级副本。
-- 全局 Setup Readiness 不会在没有项目绑定时写入 Agent 目录；每个关联项目都有独立 plan、关系、drift 和 ready 结果。
-- 应用启动会对 Desktop Store 中全部已关联本地项目执行 fresh project skill drift 检查；关闭前选择项目集全部或具体项目不会改变检查范围，任一未 ready 项目都会阻止 Automation 启动。
-- 新增或改变本地项目关联会再次检查全部当前关联 roots；纯查看范围切换、解除关联和 task start 不重新扫描，主动“重新检查”入口保持可用。
-- 旧版受管理用户级 targets 只在所有权、目标、备份和 disposition 可见并经确认后迁移；未知或无关用户目录保持不变。
-- 首次安装、drift、修复、升级和清理都展示目标并要求相应确认。
-- source upgrade 能区分受管理缺失、provider 管理迁移、用户内容变化和未受管理冲突；每个非 ready 状态都提供与其风险相符的可执行恢复动作或明确的外部恢复条件。
-- 当前 catalog 中同名、无有效 SemVer 且内容与 bundle 不同的 skill 显示 `CATALOG_VERSION_CONFLICT`、目标、双方 digest 和“备份并使用当前应用包覆盖所选同名 skill”，不会只显示 `SETUP_FAILED` 或 `No target paths were reported`。
-- 项目 skill、项目 loader、共享资源和 catalog entry 的同名冲突都遵守 fresh digest、默认未选、逐项确认、先完整备份再替换、失败全量回滚和未选目标不变；无法证明安全目标或唯一 bundled source 时只提供精确外部恢复条件。
-- 受管理内容变化只有在逐目标差异可见且用户明确选择备份或放弃本地内容后才能恢复；missing 和可证明的 managed migration 不得被错误标记为用户修改。
+- 内置 skill 通过 ArcForge 确认安装到消费方 catalog，Chat 默认不暴露，Automation 核心受保护，用户技能可按场景替换。
+- 首次启动和新增项目只生成清理清单：用户明确确认后，有可靠证据且未修改的 Arckit 才删除、无备份，修改/第三方/未知保留；重复检查幂等。
+- 来源、选择、持久化、运行边界与实际 Codex 配置满足场景技能规格；项目目录无新增 skill 副本。
 - macOS、Linux 和 Windows 缺少 Codex 时都能从 Setup Readiness 确认运行官方 standalone installer，安装后无需重启即可发现并验证 executable。
 - proven standalone、npm 与 Homebrew Codex 可以从 ArcOrbit 通过各自 owner adapter 发起更新；活动 Codex 任务会阻止更新，inferred 或自定义安装不会被静默替换或制造第二份 PATH 候选。
 - 未登录时没有任何认证选项被预选，当前层级未完成选择时不能继续；每个可见登录命令只在用户明确选择后执行。

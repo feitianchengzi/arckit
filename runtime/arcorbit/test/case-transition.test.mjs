@@ -5,12 +5,12 @@ import {
   auditCaseRecord,
   createDefaultCaseRecord,
   validateCaseRecord,
-} from '../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs';
+} from '../../../entry/skills/arckit-state-driven-loop/scripts/development-case.mjs';
 import {
   applyCaseTransitionToRecord,
   validateCaseTransition,
-} from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
-import { createProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
+} from '../../../entry/skills/arckit-state-driven-loop/scripts/case-transition.mjs';
+import { createProjectStateRecord } from '../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs';
 import { selectNextRound } from '../src/loop-controller.mjs';
 
 test('the ledger accepts only current Case and transition schema versions', () => {
@@ -395,7 +395,7 @@ test('Runtime leaves Case identity empty so the Agent can create the first Case'
 
   assert.equal(round.case_id, '');
   assert.deepEqual(round.candidate_cases, []);
-  assert.match(round.reason, /Agent must create one/);
+  assert.doesNotMatch(round.reason, /must create|initial gap/i);
 });
 
 function caseRecord({ maxReviewCycles = 3 } = {}) {

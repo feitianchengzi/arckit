@@ -14,19 +14,21 @@ import {
   runtimeCapabilityForEntrypoint
 } from "../src/capability-registry.mjs";
 
-test("Runtime policy binds only using-arckit and the trusted ledger", async () => {
+test("Runtime binds one package through semantic and trusted ledger interfaces", async () => {
   const policy = await loadCapabilityPolicy();
   assert.equal(policy.schema_version, "arckit-capability-policy/v3");
-  assert.deepEqual(policy.controller_capability_ids, ["using-arckit"]);
-  assert.deepEqual(policy.runtime_capability_ids, ["arckit-development-ledger"]);
+  assert.deepEqual(policy.controller_capability_ids, ["arckit-state-driven-loop"]);
+  assert.deepEqual(policy.runtime_capability_ids, ["arckit-state-driven-loop"]);
   assert.equal("worker_capability_ids" in policy, false);
 
   const capabilities = await loadRuntimeCapabilities({ capabilityPolicy: policy });
-  assert.deepEqual(capabilities.map((item) => item.id).sort(), ["arckit-development-ledger", "using-arckit"]);
+  assert.deepEqual(capabilities.map((item) => item.id).sort(), ["arckit-state-driven-loop"]);
   const agent = capabilitiesForBinding(capabilities, policy, "controller");
   const runtime = capabilitiesForBinding(capabilities, policy, "runtime");
-  assert.equal(agentSkillInvocationForPhase(agent, "agent_loop").skill_trigger, "$using-arckit");
-  assert.equal(runtimeCapabilityForEntrypoint(runtime, "case_transition").id, "arckit-development-ledger");
+  assert.equal(agentSkillInvocationForPhase(agent, "agent_loop").skill_trigger, "$arckit-state-driven-loop");
+  assert.equal(runtimeCapabilityForEntrypoint(runtime, "case_transition").id, "arckit-state-driven-loop");
+  assert.equal(agentSkillInvocationForPhase(agent, "task_closeout").skill_trigger, "$arckit-state-driven-loop");
+  assert.equal(agent[0].capability_root, runtime[0].capability_root);
 });
 
 test("new Cases receive ten autonomous completion-review cycles", async () => {
@@ -37,8 +39,8 @@ test("new Cases receive ten autonomous completion-review cycles", async () => {
 
 test("packaged capabilities prefer ArcOrbit resources and retain the legacy resource fallback", async () => {
   const resourcesRoot = await mkdtemp(path.join(tmpdir(), "arcorbit-capabilities-"));
-  const legacyManifest = path.join(resourcesRoot, "arckit-runtime", "trusted-capabilities", "arckit-development-ledger", "arckit.capability.json");
-  const canonicalManifest = path.join(resourcesRoot, "arcorbit", "trusted-capabilities", "arckit-development-ledger", "arckit.capability.json");
+  const legacyManifest = path.join(resourcesRoot, "arckit-runtime", "trusted-capabilities", "arckit-state-driven-loop", "arckit.capability.json");
+  const canonicalManifest = path.join(resourcesRoot, "arcorbit", "trusted-capabilities", "arckit-state-driven-loop", "arckit.capability.json");
   try {
     await mkdir(path.dirname(legacyManifest), { recursive: true });
     await writeFile(legacyManifest, "{}\n");
@@ -54,8 +56,8 @@ test("packaged capabilities prefer ArcOrbit resources and retain the legacy reso
 
 test("Windows cross-drive project paths stay outside the packaged capability root", () => {
   const repositoryRoot = "C:\\Users\\operator\\AppData\\Local\\Programs\\arcorbit\\resources\\arcorbit\\trusted-capabilities";
-  const projectManifest = "D:\\workspace\\repos\\JuSong\\.agents\\skills\\arckit-development-ledger\\arckit.capability.json";
-  const repositoryManifest = path.win32.join(repositoryRoot, "arckit-development-ledger", "arckit.capability.json");
+  const projectManifest = "D:\\workspace\\repos\\JuSong\\.agents\\skills\\arckit-state-driven-loop\\arckit.capability.json";
+  const repositoryManifest = path.win32.join(repositoryRoot, "arckit-state-driven-loop", "arckit.capability.json");
 
   assert.equal(path.win32.isAbsolute(path.win32.relative(repositoryRoot, projectManifest)), true);
   assert.equal(isPathWithin(repositoryRoot, projectManifest, path.win32), false);
@@ -66,11 +68,11 @@ test("a project capability cannot override the trusted repository capability", a
   const fixture = await mkdtemp(path.join(tmpdir(), "arcorbit-capability-source-"));
   const repositoryRoot = path.join(fixture, "resources", "arcorbit", "trusted-capabilities");
   const projectRoot = path.join(fixture, "project");
-  const repositoryManifest = path.join(repositoryRoot, "arckit-development-ledger", "arckit.capability.json");
-  const projectManifest = path.join(projectRoot, ".agents", "skills", "arckit-development-ledger", "arckit.capability.json");
+  const repositoryManifest = path.join(repositoryRoot, "arckit-state-driven-loop", "arckit.capability.json");
+  const projectManifest = path.join(projectRoot, ".agents", "skills", "arckit-state-driven-loop", "arckit.capability.json");
   const manifest = (entrypoint) => ({
     schema_version: "arckit-capability/v1",
-    id: "arckit-development-ledger",
+    id: "arckit-state-driven-loop",
     binding_targets: ["runtime"],
     runtime_entrypoints: { case_transition: entrypoint }
   });

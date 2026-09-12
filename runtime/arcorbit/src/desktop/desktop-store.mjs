@@ -690,6 +690,7 @@ export function defaultAutomationState() {
     acceptance_feedback_items: [],
     attention_items: [],
     recovery_items: [],
+    stopped_executions: [],
     recent_completions: []
   };
 }
@@ -721,7 +722,7 @@ export function normalizeAutomationState(value = {}) {
       item.ready_at ||= item.updated_at || item.created_at;
     }
   }
-  const attentionItems = Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [];
+  const attentionItems = Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50).map((item) => item.kind === "external_dependency" ? { ...item, responsibility: "external" } : item) : [];
   for (const execution of Object.values(activeExecutions)) {
     if (execution.intervention_kind !== "external_dependency") continue;
     if (attentionItems.some((item) => String(item.task_id) === String(execution.task_id))) continue;
@@ -732,6 +733,7 @@ export function normalizeAutomationState(value = {}) {
       run_id: execution.run_id || "",
       feedback_id: execution.feedback_id || "",
       kind: "external_dependency",
+      responsibility: "external",
       reason: execution.intervention_reason || "存在 Automation 无法自行完成的外部依赖。",
       question: execution.intervention_resume_condition || "请协调依赖完成后确认，Automation 将重新检查并继续。",
       created_at: execution.intervention_started_at || ""
@@ -748,8 +750,9 @@ export function normalizeAutomationState(value = {}) {
     acceptance_feedback_items: feedbackItems,
     attention_items: attentionItems.slice(0, 50),
     recovery_items: Array.isArray(value.recovery_items)
-      ? value.recovery_items.slice(0, 50).map((item) => ({ ...item, responsibility: "operator" }))
+      ? value.recovery_items.slice(0, 50).map((item) => ({ ...item, responsibility: item.responsibility || "runtime" }))
       : [],
+    stopped_executions: Array.isArray(value.stopped_executions) ? value.stopped_executions : [],
     recent_completions: Array.isArray(value.recent_completions)
       ? value.recent_completions.map((item) => ({
           ...item,
@@ -783,7 +786,7 @@ function normalizeActiveTask(value, persistedLaneKey = "") {
   const legacyExternalWait = value.phase === "external_wait";
   return {
     ...value,
-    phase: legacyExternalWait ? "awaiting_human" : value.phase,
+    phase: legacyExternalWait || value.intervention_kind === "external_dependency" ? "waiting_external" : value.phase,
     execution_id: executionId,
     workspace_key: workspaceKey,
     task_title: taskDisplayTitle(value.task_title, value.task_id),
@@ -829,8 +832,8 @@ export function normalizeAcceptanceFeedbackItem(value) {
   const feedbackId = String(value.feedback_id || "").trim();
   const taskId = String(value.source_task_id || "").trim();
   if (!feedbackId || !taskId) return null;
-  const statuses = new Set(["queued", "running", "awaiting_human", "blocked", "resolved", "cancelled"]);
-  const status = value.status === "external_wait" ? "awaiting_human" : value.status;
+  const statuses = new Set(["queued", "running", "awaiting_human", "blocked", "resolved", "cancelled", "external_wait", "stopped"]);
+  const status = value.status;
   return {
     feedback_id: feedbackId,
     idempotency_key: String(value.idempotency_key || ""),

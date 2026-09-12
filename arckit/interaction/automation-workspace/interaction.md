@@ -2,6 +2,9 @@
 
 ## 交互策略
 
+执行停止、Case 完成、人工决定、外部等待与技术故障分别呈现。用户要求停止且 Agent 返回停止结果后，当前执行释放占用，显示停止原因与未完成事实；不进入人工责任列表，不自动改写待办状态。外部等待显示原因和恢复条件，用户可通知依赖已就绪，再由同一 thread 重新检查。
+
+
 ### 核心任务
 
 用户在 Automation Command Center 中沿用顶部产品集的全局观察范围，查看普通待办队列、验收问题队列、自动化吞吐、当前运行和需要人工判断的事项，并可用“仅看验收问题”聚焦独立问题工作。系统按项目拉取待办形成跨项目待办队列，并只从已完成待办的结果审查接收独立验收问题；任务消息仅在审查执行过程、提出验收问题或处理人工中断时进入独立的 Intervention Workbench。Personal / Chat 的自由会话不参与 Automation 数据或控制，但两处消息列表使用同一个 Conversation Surface。
@@ -27,7 +30,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 13. 用户在项目绑定选择器内没有合适的本地项目时，直接选择“添加本地项目”，完成目录选择后继续当前绑定流程。
 14. 用户通过全局侧栏底部的头像打开原账号页面，查看 Workshop 连接、会话和 Runtime 设置；Workshop 账户标题显示平台 current-user 的名称。
 15. 用户希望亲自观察和参与当前任务时，从当前运行直接切换到交互式 Codex CLI；Desktop 安全停止 Runtime 后打开终端，用户在同一 Case 上继续，返回时再显式交还执行权或由已关闭 Case 自动进入收尾。
-16. Runtime 已完成本地工作并由 accepted ledger handoff 明确交给外部责任方。因为 Automation 无法自行完成该依赖，Command Center 将该 lane 统一列为“需要人工介入 · 外部依赖”，展示原因和恢复条件；用户协调完成后选择“已处理，重新检查”，系统用同一任务、session 和 thread fresh-read Case 后继续。
+16. Runtime 已完成本地工作并由 accepted ledger handoff 明确交给外部责任方。因为 Automation 无法自行完成该依赖，Command Center 将该 lane 统一列为“等待外部结果”，展示原因和恢复条件；用户协调完成后选择“已处理，重新检查”，系统用同一任务、session 和 thread fresh-read Case 后继续。
 17. 用户从受支持的旧版本直接覆盖安装新版。应用保留原 Workset、项目绑定、项目级自动领取授权和活动执行身份，先从统一 Project Catalog 恢复项目行，再逐项目重建待办就绪状态；用户不需要退出登录、清缓存或重新添加项目。
 
 ### 主路径
@@ -40,7 +43,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 6. Automation 向 Work Sync 提交 `待处理 → 进行中` 动作；Work 负责服务器版本、条件式更新、冲突和对账。失败时本地任务状态不变，Automation 不启动 Runtime。
 7. Work Sync 发布本地 `in_progress` 后，Automation 先以稳定 `execution_id` 保存任务、项目、规范化工作区 lane 和待启动 Runtime 的关联，再在该 lane 启动 Runtime loop。
 8. Runtime 在同一持久 Agent thread 中按 Gap 发起 turn、执行必要工具、完成 Gate 与 ledger writeback，并把语义进展聚合为当前待办的消息、阶段和证据摘要。
-9. 用户选择“切换到 Codex CLI”时，系统安全停止当前 run，确认进程退出后在绑定工作区打开可交互终端，并以 `$using-arckit`、Case 标识和待办意图开始接管会话。
+9. 用户选择“切换到 Codex CLI”时，系统安全停止当前 run，确认进程退出后在绑定工作区打开可交互终端，并以 `$arckit-state-driven-loop`、Case 标识和待办意图开始接管会话。
 10. CLI 接管期间 Command Center 显示执行权所在、Case 和“恢复自动执行”；同步发现 Case 已关闭时直接进入 commit 与远端完成写回，未关闭时只有用户显式交还执行权才启动 fresh Runtime run。
 11. Runtime 与 ledger 均收束后，Automation 向 Work Sync 提交完成动作；Work 发布本地 `completed` 后才领取下一项。
 12. 需要人工时，系统暂停当前推进并创建 attention item；用户在 Intervention Workbench 提交处理说明后，系统恢复当前任务并返回 Command Center。
@@ -193,7 +196,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 
 `自动执行中 → 需要人工处理 → Intervention Workbench → 恢复自动执行`
 
-`自动执行中 → accepted external handoff → 需要人工介入（外部依赖）→ 用户确认已处理并重新检查 → 同一 thread fresh Runtime → 再次介入或完成收尾`
+`自动执行中 → accepted external handoff → 等待外部结果→ 用户确认已处理并重新检查 → 同一 thread fresh Runtime → 再次介入或完成收尾`
 
 `自动执行中 → 切换到 Codex CLI → 安全停止 Runtime → CLI 接管 → 交还执行权或 Case 已关闭 → fresh Runtime 或完成收尾`
 
@@ -246,7 +249,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - Work Sync 返回条件式领取冲突时，候选任务保持原本地状态并显示恢复原因；Automation 从后续本地状态重新计算队列。
 - `待处理 → 进行中` 已成功但 Runtime 启动失败时保留任务与启动意图关联，冻结下一任务并提供重试启动。
 - Runtime result validation、trusted ledger Gate 或 transition 拒绝时，Runtime 不展示 Case 完成、不启动 Git closeout；可修正拒绝先在同一 Agent thread 上进入可见的“Agent repair n/N”状态，向 Agent 提供具体 issue path、reason、被拒 claim 和 fresh canonical state，要求只替换无效 claim 而不重复实现。repair 成功后继续原待办；仅预算耗尽或错误不可修正时进入恢复卡，恢复卡优先展示最终 rejection 原因，不使用未接受的成功 handoff 文案。
-- accepted ledger handoff 明确交给 external 时，当前运行进入统一人工介入并以“外部依赖”标明原因子类；它创建 attention item、不进入 Recovery Center、不要求用户填写反馈，也不自动启动替代 Runtime。用户协调完成后选择“已处理，重新检查”。
+- accepted ledger handoff 明确交给 external 时，当前运行进入外部等待，保留 external 责任；它创建 attention item、不进入 Recovery Center、不要求用户填写反馈，也不自动启动替代 Runtime。用户协调完成后选择“已处理，重新检查”。
 - Runtime 已返回 terminal handoff、但 Run activity 没有 accepted task-to-Case receipt 时，恢复卡显示“需要确认任务对应的 Case”，且不投影完成或 closeout。卡片提供“复用已有 Case”“作为新事项继续”“补充说明并继续”和“标记为已阻塞”；前两项恢复当前 task session 与持久 Agent thread，分别要求 fresh-read 后提交精确 closed/resolved Case 的类型化复用主张，或创建独立 Case。替代 Run 建立后才消费原恢复项。
 - 已绑定持久 Agent thread 的 Runtime 失败卡展示说明输入与“补充说明并继续”；空白说明不提交。提交成功后原文进入当前待办时间线并打开只读审查，新 Run 继续同一 thread；启动失败则保留输入场景和恢复项。
 - Work Sync 未发布 `completed` 时保留本地完成证据并冻结下一任务，直到 Work 完成服务器同步。
@@ -264,7 +267,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 
 ### 线框投影要求
 
-- `default.html` 投影应用壳、顶部产品集观察范围、管理项目集、Automation 的“仅看验收问题”、项目绑定内添加本地项目、头像账号入口、Command Center 待命、自动领取配置缺口、启动同步、自动执行中、交互式 Codex CLI 接管、包含外部依赖原因的统一人工介入入口、完成续接、空队列和异常恢复。
+- `default.html` 投影应用壳、顶部产品集观察范围、管理项目集、Automation 的“仅看验收问题”、项目绑定内添加本地项目、头像账号入口、Command Center 待命、自动领取配置缺口、启动同步、自动执行中、交互式 Codex CLI 接管、分别呈现人工决定和外部等待的执行入口、完成续接、空队列和异常恢复。
 - `default.html` 还投影普通待办与验收问题双队列总览，以及验收问题等待执行、执行中和需人工状态。
 - `../login/default.html` 投影应用启动时的会话恢复、未登录、验证码已发送和登录失败状态。
 - `authentication.html` 投影账号设置覆盖层的已登录、会话失效和 Codex 配置状态。
@@ -287,7 +290,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 | 覆盖安装重建 | 受支持旧 Store 首次由新版打开 | 分阶段恢复时间线、项目行就绪状态 | 无需用户操作；按项目自动恢复并只开放健康 lane |
 | 项目同步降级 | Catalog 已确认但某项目任务或标签同步失败 | 项目绑定行、同步异常标记、最近数据时间 | 保留绑定与授权，自动重试或立即同步 |
 | 自动执行中 | 任务已确认更新为进行中 | ProgressView、DisclosureGroup | 观察、切换到 Codex CLI、停止当前运行 |
-| 人工介入：外部依赖 | accepted ledger handoff 的下一责任为 external，Automation 无法自行推进 | attention、依赖原因、恢复条件、同一执行标识 | 查看对话或协调完成后选择“已处理，重新检查” |
+| 等待外部结果 | accepted ledger handoff 的下一责任为 external，Automation 无法自行推进 | attention、依赖原因、恢复条件、同一执行标识 | 查看对话或协调完成后选择“已处理，重新检查” |
 | Codex CLI 接管 | Runtime 已安全停止且交互式终端已打开 | 当前 Case、执行权提示、Button | 在 CLI 参与或恢复自动执行 |
 | 人工介入入口 | Runtime 声明 requires_human，或 Automation 遇到 external dependency | attention strip、原因子类、Inspector | 进入 Intervention Workbench，或确认依赖已处理后重新检查 |
 | 完成并续接 | ledger 和远端完成写回成功 | stage strip、Table | 观察下一项领取 |

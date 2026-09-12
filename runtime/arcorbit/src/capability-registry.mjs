@@ -169,7 +169,7 @@ export async function resolvePackagedCapabilityRoot(resourcesPath, { accessFile 
     : [];
   for (const packagedRoot of packagedRoots) {
     try {
-      await accessFile(resolve(packagedRoot, "arckit-development-ledger", "arckit.capability.json"));
+      await accessFile(resolve(packagedRoot, "arckit-state-driven-loop", "arckit.capability.json"));
       return packagedRoot;
     } catch {
       // Continue through the canonical root, then the legacy packaged-resource fallback.
@@ -237,12 +237,10 @@ function normalizeCapabilityPolicy(policy, source) {
   if (![policy.controller_capability_ids, policy.runtime_capability_ids].every(Array.isArray)) {
     throw new Error(`Invalid Arckit capability policy: ${source}`);
   }
-  const allIds = [
-    ...normalized.controller_capability_ids,
-    ...normalized.runtime_capability_ids
-  ];
-  if (new Set(allIds).size !== allIds.length) {
-    throw new Error(`Capability ids must belong to exactly one binding target: ${source}`);
+  // A capability package may expose both a semantic invocation and trusted entrypoints.
+  // Duplicate ids within one binding are invalid; overlap between bindings is intentional.
+  for (const ids of [normalized.controller_capability_ids, normalized.runtime_capability_ids]) {
+    if (new Set(ids).size !== ids.length) throw new Error(`Duplicate capability ids within a binding: ${source}`);
   }
   return normalized;
 }

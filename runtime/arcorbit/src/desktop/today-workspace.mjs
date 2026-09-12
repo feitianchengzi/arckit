@@ -125,7 +125,7 @@ function chatInterventions(chat = {}) {
 }
 
 function automationInterventions(automation = {}) {
-  const attention = (automation.attention_items || []).filter((item) => item.responsibility !== "automation").map((item) => intervention({
+  const attention = (automation.attention_items || []).filter((item) => ["human", "operator"].includes(item.responsibility || "operator") && item.kind !== "external_dependency").map((item) => intervention({
     ...item,
     id: `automation-attention:${item.id || sourceObjectId(item)}`,
     kind: "automation_attention",
@@ -137,7 +137,7 @@ function automationInterventions(automation = {}) {
     reason: item.reason || item.question || item.message || "当前执行需要人工补充事实或作出决定。",
     actions: item.actions?.length ? item.actions : item.kind === "external_dependency" ? ["confirm_external_dependency"] : ["submit_intervention"]
   }));
-  const recovery = (automation.recovery_items || []).filter((item) => item.responsibility !== "automation").map((item) => intervention({
+  const recovery = (automation.recovery_items || []).filter((item) => ["human", "operator"].includes(item.responsibility || "operator") && item.kind !== "external_dependency").map((item) => intervention({
     ...item,
     id: `automation-recovery:${item.id || sourceObjectId(item)}`,
     kind: "automation_recovery",

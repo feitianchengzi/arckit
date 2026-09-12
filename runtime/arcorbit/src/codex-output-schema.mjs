@@ -17,7 +17,11 @@ function visitSchema(schema, path, issues) {
     issues.push(`${path} must be a JSON Schema object.`);
     return;
   }
-  if (typeof schema.$ref === "string") return;
+  if (typeof schema.$ref === "string") {
+    const siblings = Object.keys(schema).filter(key => key !== "$ref");
+    if (siblings.length) issues.push(`${path} $ref cannot have sibling keywords: ${siblings.join(", ")}. Move annotations to the referenced definition.`);
+    return;
+  }
 
   if ((Object.hasOwn(schema, "const") || Object.hasOwn(schema, "enum")) && !Object.hasOwn(schema, "type")) {
     issues.push(`${path} uses const or enum without an explicit type.`);

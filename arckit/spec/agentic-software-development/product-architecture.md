@@ -43,7 +43,7 @@ Arckit 的执行产品形态采用三层分工：
 
 该分层保证 Desktop 控制运行，Agent 处理语义和执行，Skill 只增强 Agent 的可复用能力。Project State、Case 和 Loop 的产品语义不由单个 skill 决定。
 
-默认 Loop 由同一 Codex Agent 完成；Skill 是该 Agent 原生加载的能力包。`using-arckit` 提供 Agent Loop 控制协议，`arckit-development-ledger` 提供 Runtime trusted writeback。Runtime 不固定业务路线、skill、role 或路径，也不为验证、修复或提交创建其它 Agent 身份。
+默认 Loop 由同一 Codex Agent 完成；Skill 是该 Agent 原生加载的能力包。`arckit-state-driven-loop` 在一个包中提供 Agent Loop 协议与包内 Runtime trusted writeback 两个接口。Runtime 不固定业务路线、skill、role 或路径，也不为验证、修复或提交创建其它 Agent 身份。
 
 ## 概念关系
 

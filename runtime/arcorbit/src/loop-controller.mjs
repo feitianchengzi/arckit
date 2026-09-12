@@ -30,12 +30,10 @@ export function selectNextRound(snapshot, options = {}) {
     case_id: '',
     case_updated_at: '',
     goal: roundGoal,
-    reason: activeCases.length
-      ? 'The Agent must semantically select one active Case for this Loop and advance one of its current candidate gaps; Runtime does not preselect Case identity.'
-      : 'Project State has no active Case; the Agent must create one before gap execution.',
+    reason: 'Fresh canonical candidates for the Agent; selection and execution intent belong to the active skill and current user instruction.',
     derived_from: activeCases.length ? ['active_cases', 'project_state'] : ['project_state', 'user_intent'],
     blocked_by: [],
-    priority_basis: { blocking: 'high', uncertainty: 'medium', risk: 'medium', user_impact: 'high' },
+    priority_basis: {},
     responsibility: 'agent',
     evidence_required: ['A semantic Case control or one evidence-backed Case transition.'],
     round_goal: roundGoal,
@@ -61,12 +59,7 @@ export function selectNextRound(snapshot, options = {}) {
       snapshot.paths.visualIndex,
       snapshot.paths.techIndex,
     ]),
-    stop_conditions: [
-      'Stop if no bounded Case and Case gap are selected.',
-      'Stop if the accepted Case State delta or its evidence is incomplete.',
-      'Stop when the next Case gap requires human judgment or an external result.',
-      'Stop if the turn would require destructive or cross-workspace actions.',
-    ],
+    stop_conditions: [],
     max_auto_rounds: options.maxNoProgressRounds || 8,
   };
 }

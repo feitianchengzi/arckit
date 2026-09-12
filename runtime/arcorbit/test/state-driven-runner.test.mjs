@@ -73,15 +73,12 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   assert.equal(result.thread_id, "THREAD-1");
   assert.equal(adapter.compacted, 1);
   assert.equal(adapter.prompts.length, 1);
-  assert.match(adapter.prompts[0], /Git-only closeout/);
+  assert.match(adapter.prompts[0], /"workflow_authority": "\$arckit-state-driven-loop"/);
+  assert.match(adapter.prompts[0], /"case_completion": "trusted_ledger_accepted"/);
   assert.match(adapter.prompts[0], /"authoritative_case_id": "CASE-1"/);
   assert.match(adapter.prompts[0], /"trusted_ledger_changed_files": \[/);
   assert.match(adapter.prompts[0], /"case\.md"/);
   assert.match(adapter.prompts[0], /"state\.record\.json"/);
-  assert.match(adapter.prompts[0], /canonical Arckit ledger artifacts/);
-  assert.match(adapter.prompts[0], /strong context, not an exclusive allowlist/);
-  assert.match(adapter.prompts[0], /both related and unrelated hunks/);
-  assert.match(adapter.prompts[0], /Do not inspect semantic correctness, run validation, edit files, or repair content/);
   assert.doesNotMatch(adapter.prompts[0], /final proportionate checks|repair issues if necessary/);
   const candidatesIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_candidates");
   const selectionIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_selection");
@@ -180,8 +177,8 @@ test("terminal Agent result without an authoritative Case binding stops before c
     }
   });
 
-  assert.equal(result.stop_reason, "case_binding_required");
-  assert.match(result.next_action, /trusted closed Case reuse receipt or create and advance a new Case/);
+  assert.equal(result.stop_reason, "stopped");
+  assert.match(result.next_action, /unresolved Case obligations are preserved/);
   assert.equal(result.closeout_result, null);
   assert.deepEqual(adapter.prompts, []);
 });

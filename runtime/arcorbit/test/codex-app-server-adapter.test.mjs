@@ -1,6 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCodexAppServerAdapter, waitForActiveTurn } from "../adapters/codex-app-server-adapter.mjs";
+import { digest } from '../src/skill-files.mjs';
+
+test('scene roots are configured once per process and exclusions travel with thread resume', async () => {
+ const client=new FakeClient(),request=client.request.bind(client);
+ client.request=async(method,params)=>{
+  if(method==='skills/extraRoots/set'){client.requests.push({method,params});return {};}
+  if(method==='skills/list'){client.requests.push({method,params});return {data:[{cwd:'/workspace/project',skills:[{name:'arckit-state-driven-loop',path:'/legacy/arckit-state-driven-loop/SKILL.md',enabled:true}]}]};}
+  return request(method,params);
+ };
+ const body={schema_version:'arcorbit-scene-skill-binding/v1',scene:'chat',skills:[],managedNames:['arckit-state-driven-loop'],disabledPaths:[]};
+ const options={threadId:'THREAD-PERSISTED',threadKey:'chat:scene',resultKind:'agent-loop-result',sceneSkillBinding:{...body,fingerprint:digest(JSON.stringify(body))}};
+ const adapter=createCodexAppServerAdapter({clientFactory:()=>client});
+ try {
+  await collect(adapter.runTurn({projectRoot:'/workspace/project',prompt:'one',options}));
+  await collect(adapter.runTurn({projectRoot:'/workspace/project',prompt:'two',options}));
+  assert.equal(client.requests.filter(x=>x.method==='skills/extraRoots/set').length,1);
+  assert.deepEqual(client.requests.find(x=>x.method==='thread/resume').params.config,{'skills.config':[{path:'/legacy/arckit-state-driven-loop/SKILL.md',enabled:false}]});
+  assert.equal(client.requests.filter(x=>x.method==='turn/start').length,2);
+ } finally {adapter.close();}
+});
 
 test("one app-server client starts one persistent thread and reuses it for every turn", async () => {
   const client = new FakeClient();
@@ -62,8 +82,8 @@ test("matching Agent turns reuse their stable lane", async () => {
     threadKey: "agent-loop:TASK-1"
   };
 
-  await collect(adapter.runTurn({ projectRoot: "/workspace/project", prompt: "$using-arckit\n{}", options }));
-  await collect(adapter.runTurn({ projectRoot: "/workspace/project", prompt: "$using-arckit\n{}", options }));
+  await collect(adapter.runTurn({ projectRoot: "/workspace/project", prompt: "$arckit-state-driven-loop\n{}", options }));
+  await collect(adapter.runTurn({ projectRoot: "/workspace/project", prompt: "$arckit-state-driven-loop\n{}", options }));
   adapter.close();
 
   const threadStarts = client.requests.filter(({ method }) => method === "thread/start");
@@ -71,14 +91,14 @@ test("matching Agent turns reuse their stable lane", async () => {
   assert.equal(threadStarts.length, 1);
   assert.equal(client.requests.filter(({ method }) => method === "thread/unsubscribe").length, 0);
   assert.equal(turnStarts[0].params.threadId, turnStarts[1].params.threadId);
-  assert.deepEqual(turnStarts[0].params.input, [{ type: "text", text: "$using-arckit\n{}" }]);
+  assert.deepEqual(turnStarts[0].params.input, [{ type: "text", text: "$arckit-state-driven-loop\n{}" }]);
 });
 
 test("context compaction runs on the same loaded thread", async () => {
   const client = new FakeClient();
   const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
   await collect(adapter.runTurn({
-    projectRoot: "/workspace/project", prompt: "$using-arckit\n{}",
+    projectRoot: "/workspace/project", prompt: "$arckit-state-driven-loop\n{}",
     options: { resultKind: "agent-loop-result", threadKey: "agent-loop:TASK-1" }
   }));
   const result = await adapter.compactThread({ threadKey: "agent-loop:TASK-1" });

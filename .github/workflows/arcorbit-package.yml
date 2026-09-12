@@ -247,6 +247,12 @@ jobs:
         working-directory: runtime/arcorbit
         run: npm run smoke:distribution
 
+      - name: Test scene integration against the packaged ArcForge provider
+        working-directory: runtime/arcorbit
+        env:
+          ARCFORGE_REQUIRE_PROVIDER_TESTS: '1'
+        run: node --test test/scene-skills.test.mjs
+
       - name: Build installer
         working-directory: runtime/arcorbit
         env:

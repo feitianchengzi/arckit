@@ -1,5 +1,6 @@
 # Chat Workspace - 交互规范
 
+
 ## 交互策略
 
 Chat 承接绑定本地 Product Workspace 的自由 Codex 对话。页面直接按项目分组展示全部自由会话，用户浏览历史时不需要先选择项目；新建对话时，系统在首条消息发送前持续显式展示将要绑定的 Product Workspace，并允许快速切换。系统持续展示用户消息、Agent 正文、折叠 reasoning、工具活动、权限请求和运行状态。Chat 不要求用户先创建待办，也不把对话自动转成 Idea、Work、Case 或其他正式对象。
@@ -117,8 +118,12 @@ Chat 承接绑定本地 Product Workspace 的自由 Codex 对话。页面直接�
 
 ## 边界
 
-- Chat 直接使用 Codex 对话能力，但不调用 state-driven Runtime、`$using-arckit`、trusted ledger 或 Automation Coordinator。
+- Chat 直接使用 Codex 对话能力，但不调用 state-driven Runtime、`$arckit-state-driven-loop`、trusted ledger 或 Automation Coordinator。
 - Chat 不创建或修改 Workshop Project、Task、Feedback、Idea、Project State、Case 或 acceptance feedback。
 - Product Workspace 决定 `cwd`、workspace root、skill discovery 与 sandbox 边界；Renderer 不获得文件系统、Codex 凭据或通用 RPC 能力。
 - Chat 的停止不释放 Automation human Gate，不改变远端任务状态，也不抢占 Automation task thread lease。
 - Chat 不提供附件、语音、共享链接、跨设备同步、会话分支或模型管理；Composer 专注文本自由对话。
+
+## 场景技能入口
+
+输入框附近的“技能”入口进入 Engineering 的 Chat 配置。默认关闭内置 Automation 技能，可开启普通技能或官方 Loop 核心配套。返回后保留当前会话、工作区与草稿；保存从下一条消息生效。关闭技能不清除已有历史，需要全新上下文时新建会话。用户主动让 Agent 依据 skill 推进 Loop 时，Agent 可执行对应项目操作；Chat 产品层不自动创建 Automation Run 或调度租约。

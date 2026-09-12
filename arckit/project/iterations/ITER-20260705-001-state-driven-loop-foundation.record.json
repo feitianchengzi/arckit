@@ -3706,6 +3706,9 @@
     "arckit/cases/closed/CASE-20260910-002-align-idea-formal-workspace-intake-and-shared-ui-agent-context.md",
     "arckit/cases/closed/CASE-20260910-003-escape.md",
     "arckit/cases/closed/CASE-20260911-002-diagnose-missing-acceptance-issues-in-the-today-third-column-det.md",
+    "arckit/cases/closed/CASE-20260911-001-implement-consumer-scoped-engineering-skills-and-automatic-legac.md",
+    "arckit/cases/closed/CASE-20260911-004-separate-arcorbit-execution-lifecycle-from-case-completion.md",
+    "arckit/cases/closed/CASE-20260911-005-unify-arckit-state-driven-loop-capability-and-invocation-surface.md",
     "arckit/cases/closed/CASE-20260911-003-arcorbit.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",

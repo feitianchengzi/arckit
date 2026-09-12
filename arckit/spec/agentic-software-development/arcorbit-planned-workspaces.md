@@ -1,5 +1,6 @@
 # ArcOrbit Chat 与计划工作空间能力规格
 
+
 ## 文档定位
 
 本文定义 ArcOrbit 的真实 Chat，以及用于团队计划对齐的 Idea、Operations 和 Engineering 工作空间，并说明它们与现有 Today、Work、Automation、Feedback 和 Organization 的关系。
@@ -30,7 +31,7 @@ Organization 保留组织治理职责。Engineering 位于其下方，是 Domain
 - Chat 会话列表直接按本地 Product Workspace 分组，不要求先选择项目；新对话在首条消息发送前显式显示并允许切换目标工作区。没有可用本地工作区时保留草稿，但不启动对话。
 - Chat 会话、消息、Codex thread 绑定和运行状态由 ArcOrbit 本地持久化，不写入 Workshop、Project State、Case 或 Automation queue。
 - Chat 中的工具和文件操作继续受 Codex sandbox、workspace roots 与 approval policy 约束；Renderer 不获得 Codex 进程、凭据、文件系统或通用 RPC 权限。
-- Operations 和 Engineering 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
+- Operations 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
 - 计划示例优先来自 ArcOrbit 当前真实对象与约束，不虚构已接入的远端接口、权限或自动化结果。
 - 未建立真实写入合约的计划动作以“计划动作”“示意”或不可用状态表达，不产生远端记录、Runtime Run、Project State transition 或发布授权。
 - Chat 与 Idea、Work 等正式形态之间没有转换、关联或来源写入；自由对话只保留为独立 Chat 会话。
@@ -71,7 +72,7 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 - 首次发送前必须在新会话内确认一个已绑定本地目录且 Setup Readiness 可用的 Product Workspace；即使只有一个可用工作区，页面也持续显示其归属。不存在可用工作区时页面说明阻塞原因，并提供前往工作区配置的恢复入口。
 - Product Workspace 决定 Codex 的 `cwd`、workspace root、project skill discovery 和文件权限边界；会话消息不会自动注入整个 Workset、Workshop 任务或 ledger state。
-- Chat 直接使用 Codex 自由对话 prompt，不触发 `$using-arckit`，不要求 `arckit-agent-loop-result/v1`，也不调用 trusted ledger entrypoint。
+- Chat 直接使用 Codex 自由对话 prompt，不触发 `$arckit-state-driven-loop`，不要求 `arckit-agent-loop-result/v1`，也不调用 trusted ledger entrypoint。
 - Codex 发起需要批准的文件、命令或网络操作时，沿用 app-server 的用户 approval request；拒绝只影响该操作或 turn，不改变 Workshop 与 Automation 状态。
 
 ### 边界
@@ -110,28 +111,9 @@ Operations 页面不宣称已经接入广告、社交媒体、邮件、分析或
 
 ## Engineering
 
-### 目标
+Engineering 是本机全局的 Chat / Automation 场景技能配置中心。用户可以查看实际来源、启用和关闭普通技能、用熟悉的技能替换内置能力、添加本地技能目录、恢复场景默认。具体集合、生效时机、核心保护与迁移契约见 [场景技能规格](arcorbit-scene-skills.md)。
 
-Engineering 管理当前组织可使用的 Domain Profiles。每个 Profile 把“Loop 要理解和持久化什么”的 State Model、“Agent 如何维护、比较和诊断这些事实”的 Capability Mapping，以及固定产品生命周期各阶段对领域对象的解释组合为一份可版本化配置。当前激活项是 Software Engineering Profile。
-
-用户可以在同一页面选择现有 Profile、从模板复制、新建草稿、编辑 State Model 和 Capability Mapping、比较替换前后的影响，并在确认后应用到目标组织或团队。当前页面只演示完整管理模型，不执行真实保存、安装、同步或应用。
-
-### 主要内容
-
-- Profile Library：当前 Profile、团队草稿与跨行业模板，并提供新建、复制、导入、归档和切换的计划入口；
-- Profile 元数据：名称、适用范围、版本、负责人、继承来源、状态与目标团队；
-- State Model 编辑器：配置 Project State 的领域定义清单与长期不变量，以及 Case State 的事实类型、影响目标、Gap 分类和证据要求；
-- Capability Mapping 编辑器：按“预期事实”“实现现状”“问题定位”三个能力槽位添加、移除、替换领域 Skills，并显示每项能力维护或检查的事实源；
-- Lifecycle Mapping：保持 Idea、Work、Automation、Release、Operations、Feedback 主流程稳定，同时配置每个阶段在当前领域中承接的对象、输入和完成证据；
-- Change Preview：比较当前激活 Profile 与草稿在 State 定义、能力绑定、生命周期解释和目标团队上的变化；
-- Apply 确认：显示作用范围、兼容性检查和回退版本，确认后才允许应用 Profile；当前为不持久化的计划动作；
-- Software Engineering、Campaign Operations、Research Program 等跨团队或跨行业示例，用于说明同一 Loop Kernel 如何加载不同领域配置。
-
-### 边界
-
-Engineering 中的编辑对象是 Domain Profile 草稿，不是直接修改当前 canonical Project/Case record。页面把 State Model 与 Capability Mapping 作为一组进行版本化、校验、预览和应用；只有显式确认后的 Profile 版本才影响后续领域工作，既有 Case 与证据不能被静默改写。
-
-当前展示不执行真实保存、skill 安装/同步、profile apply、registry 写入或 Case 迁移。`using-arckit` 与 `arckit-development-ledger` 属于所有 Profile 共用的 Loop Kernel，不属于可替换领域 Skills，也不在 Capability Mapping 中展示。责任、事实、证据、Gap、handoff、review 与 transition 的通用协议边界保持稳定；领域 Skills 维护或检查对应事实源，但不拥有 State，也不决定下一个 Gap。
+Automation 固定使用官方 arckit-state-driven-loop 自包含核心包；Chat 默认不启用内置技能，允许显式开启官方 Loop 配套。Engineering 不编辑 Project/Case 模型，也不为 Gap 选择技能。组织级 Domain Profile 管理不属于本期已实现能力。
 
 ## 生命周期关系
 
@@ -143,7 +125,7 @@ Engineering 中的编辑对象是 Domain Profile 草稿，不是直接修改当�
 4. Release 汇总候选变更、验证、发布准备与上线观察。
 5. Operations 组织对外动作，并把新信号回流到 Feedback、Idea 或 Work。
 6. Feedback 保持用户反馈处理工作台职责，为产品生命周期提供外部输入。
-7. Organization 描述谁在协作；Engineering 管理这些团队使用哪一份 Domain Profile，以及该 Profile 如何定义 State、映射能力并解释同一生命周期。
+7. Organization 描述谁在协作；Engineering 管理本机各消费者对技能的可见集合。
 
 Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户看见来源、目标形态和确认动作。Chat 当前不参与这些转换关系。
 
@@ -151,7 +133,7 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 
 - 左侧导航完整显示四个职责组和十一项入口，顺序与本文一致。
 - `Release` 与 `Operations` 在英文界面使用英文，在中文说明中分别对应“发布”和“运营”。
-- 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，Idea 遵守 Product 管理规格，其余三个页面展示符合本规格的计划内容。
+- 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，Idea 遵守 Product 管理规格，Engineering 提供真实技能配置；Operations 展示计划内容。
 - 页面明确区分真实 Chat 状态、真实项目事实、计划示例和未接入动作。
 - Chat 会话列表不依赖预先选择项目，直接按 Product Workspace 分组；每组默认最多显示最近 10 个会话，超出时可从组底部查看并收起完整历史。
 - Chat 新对话在首条消息发送前显式显示目标 Product Workspace，允许保留草稿快速切换；发送后项目归属固定，不能迁移既有 thread。
@@ -161,8 +143,6 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 - Chat 不调用 state-driven Runtime、trusted ledger、Workshop mutation 或其他对象转换；Automation task session 与 thread 不进入 Chat 列表。
 - Idea 展示探索、讨论与确认后建项目。
 - Release 同时覆盖发版准备与线上监控；Operations 覆盖对外市场化动作。
-- Engineering 提供 Profile Library、State Model 编辑、Capability Mapping、Lifecycle Mapping、变更预览与 Apply 确认的完整管理示意。
-- Engineering 支持把 State 定义与领域 Skills 作为一组替换，并显示 Software Engineering 以外的团队或行业 Profile 示例。
-- Profile 替换不改变 Idea → Work → Automation → Release → Operations → Feedback 的主流程，也不改变 Loop Kernel 的责任、证据、Gap、handoff、review 和 transition 边界。
-- Capability Mapping 不把 entry skills 误作领域能力；所有管理动作均明确标记为不持久化示意。
 - 现有 Today、Work、Automation、Feedback、Organization 和账号入口保持可用。
+
+- Engineering 的真实保存、核心保护、Chat 入口与迁移验收遵守场景技能规格。

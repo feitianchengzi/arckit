@@ -1,5 +1,6 @@
 # ArcOrbit 安装包供应链
 
+
 ## 定位
 
 ArcOrbit 安装包供应链把仓库内 Runtime、trusted ledger capabilities、Arckit skills 和 ArcForge provisioning engine 组合成一份可验证的 Electron 分发物。供应链属于 Desktop setup 与 delivery plane，不进入 Runtime Kernel 的语义或调度路径。
@@ -55,12 +56,13 @@ manual GitHub workflow_dispatch
 installed Desktop
   -> Setup Readiness / CodexSetupManager / SkillProvisioningManager
   -> Product Workspace local-project binding
-  -> ArcForge Embedded Provider
-  -> <project-root>/.codex/skills + ~/.arcforge catalog/relations
+  -> versioned app-owned on-demand catalog + automatic legacy project migration
+  -> SceneSkillManager consumer bindings
+  -> Codex process extraRoots + thread skill enablement
 
 Runtime Kernel
   -> packaged trusted entrypoints
-  -> $using-arckit natural trigger
+  -> $arckit-state-driven-loop natural trigger
   -> no installed-skill tree inspection
 ```
 
@@ -70,8 +72,8 @@ Runtime Kernel
 
 Runtime 自己调用的 capability manifests 和 ledger scripts 随应用打包，来源包括：
 
-- `entry/skills/using-arckit/arckit.capability.json`；
-- `entry/skills/arckit-development-ledger/arckit.capability.json`；
+- `entry/skills/arckit-state-driven-loop/arckit.capability.json`；
+- `entry/skills/arckit-state-driven-loop/arckit.capability.json`；
 - ledger manifest 声明的 trusted scripts 与 schema/reference 依赖；
 - `runtime/arcorbit/config/capability-policy.json`。
 
@@ -100,7 +102,7 @@ ArcForge provider 是 ArcForge 仓库独立产出的稳定 GitHub Release artifa
 
 它不包含 ArcForge Desktop UI，不安装 shell shim，不修改 PATH，不启动外部 ArcForge 进程，也不把 ArcForge governance skills 加入 Codex ambient skills。
 
-### 语义复用与能力边界
+### 历史 Provider 语义复用（当前场景配置见 Scene Skills 方案）
 
 ArcForge Core 是 skill source 发现与标准化、availability plan、事务化 apply、drift、catalog 和 relation 的唯一语义实现。ArcForge CLI、ArcForge Desktop 与 Embedded Provider 是同一 Core 上的不同适配面；它们不维护平行的扫描、目标解析、复制或漂移规则。
 
@@ -116,7 +118,7 @@ Arckit payload manifest 是 Runtime 供应链契约，不进入通用 ArcForge �
 
 Runtime 对 manifest、provider plan 和 drift 做完整性交叉校验，并在 provider capability 缺失或声明资源未进入 plan 时 fail closed。Renderer 只投影 provider 返回的 shared asset destinations，不根据用户 home 或 Agent 目录规则构造 fallback 目标。
 
-## Embedded Provider API
+## 历史 Embedded Provider API（保留供应链兼容，当前启动不调用）
 
 provider 暴露稳定的版本化入口，输入和输出只使用 JSON-compatible values：
 
@@ -283,46 +285,11 @@ workflow 根据渠道选择 `internal`、`beta` 或 `appstore` GitHub Environmen
 
 ## Desktop Setup Readiness
 
-Desktop 由 Electron main process 持有独立 `CodexSetupManager` 与 `SkillProvisioningManager`。前者拥有 Codex discovery、官方 installer、版本、认证与 logout 子进程；后者拥有项目 skill 文件写入。Renderer 只通过窄 IPC 请求 setup snapshot 和结构化动作；preload 不暴露任意 URL、路径、参数、shell command、process handle 或 provider module handle。
+生产 Desktop 使用 `scene-skill-provisioning.mjs` 调用 ArcForge Embedded Provider 生成稳定路径 catalog 的安装更新计划及全部已关联项目的待确认清理清单。`scene-skill-manager.mjs` 持久化场景配置，`codex-scene-skills.mjs` 负责原生发现、同名排除和线程级开关。旧 `skill-provisioning-manager.mjs` 的项目安装编排保留历史兼容测试；生产路径使用 Provider 的 `stable-catalog/v1` 和 `project-skill-migration/v1` 能力，构建和启动均校验能力锁。分发 smoke 使用生产场景管理器，断言项目目录没有新增技能。
 
-Manager 分为全局资源检查和项目准备。全局检查校验 bundle、provider、source store 与 Codex executable，不生成 Agent apply plan。应用冷启动的 coordinated check 从 Desktop Store fresh-read 全部本地 Product Workspace roots，去重并规范化后一次性交给项目准备；新增或改变本地项目关联后使用同一 aggregate check，用户主动 retry 也 fresh-read Store。Renderer 的项目集、具体项目、Workset 等查看筛选不参与触发或作用域，解除关联不启动检查。空 roots 以显式空集合清除既有项目 plan 并回到 global-only，不复用上一次检查的项目作用域。项目准备只接受 Automation/Product Workspace Coordinator 已解析的项目 id、规范化绝对根路径和绑定证据。
+完整契约见 [Scene Skills 技术方案](scene-skills-solution.md)。准备顺序为校验随包资源、只读生成安装更新计划、用户确认后原子应用并验证目录、通过 Provider 生成旧副本清理清单（不删除）、完成 Codex 检查。用户明确确认清单后才执行 Provider 删除，执行时重新核对摘要；用户可暂不清理继续使用。场景配置不写项目、不写用户 ArcForge catalog、不写 Codex 全局配置。
 
-项目准备顺序：
-
-1. 校验 distribution lock 与 bundled resources；
-2. 把 payload staging 到 source store；
-3. 校验 Product Workspace 绑定与本地项目根，向 provider 传入 `projectTargetDirs`、完整 skill selection、project assessments 和 ArcOrbit project-only invocation override；
-4. 由 ArcForge Core/provider 依据旧 relation 的已记录目标、最后应用摘要、旧 source 和 provider capability 生成 typed source-upgrade assessment；旧版用户级 managed targets 与新的项目 target 同时进入 assessment；
-5. assessment 将目标区分为 `managed-repair`、`managed-migration`、`local-content-conflict`、`unverified-managed`、`unmanaged-conflict` 和 catalog version conflict，并携带 diagnostic code、目标类型、旧/新目标、摘要、文件差异、所有权依据和允许动作；
-6. 生成与 assessment 一致的新项目 plan 和 drift，把纯数据结果交给 Renderer；
-7. 接收包含项目根、assessment digest、plan digest 和逐类 disposition 的用户确认；
-8. 调用 provider fresh-read，在同一事务中执行 source switch、项目目标 apply、catalog、项目 loader、关系迁移、旧用户级 managed target 处置和已确认备份；
-9. 重新 assessment/drift，并以项目根启动 Codex discoverability probe；
-10. 项目状态为 `ready` 且不存在未处置的旧用户级 managed target 后，开放该项目的 Runtime task start。
-
-ArcForge Core 是 upgrade classification 与迁移语义的唯一实现。Embedded Provider 暴露 capability-gated typed assessment/apply；Runtime 不从 `missing`/`changed` 计数、路径形态或 skill 名称推断分类，也不复制 catalog 或 loader 迁移规则。provider artifact 不具备 Runtime 要求的 source-upgrade reconciliation capability 时，构建和 Setup Readiness 都 fail closed。
-
-关系记录为每个项目根和受管理 destination 保存最后成功 apply 的内容摘要、有效 mode/policy、project assessment、source/provider identity 和 shared-loader 所有权证据。旧记录没有摘要时，Core 只能把仍存在且内容不同的目标标记为 `unverified-managed`；它不能把这种状态自动提升为安全迁移。关系证明的 missing destination 没有可被覆盖的本地内容，归类为 `managed-repair`。provider 造成的用户级到项目级目标变化、策略变化或 shared loader 迁移，只有在旧目标与最后应用摘要一致、目标缺失，或 shared loader 的受管理更新证据成立时才归类为 `managed-migration`。
-
-`local-content-conflict` 和 `unverified-managed` 的写入动作要求逐目标 disposition。备份并恢复在 source switch 前把现有目录事务化保存到应用数据中的不可变 recovery area，记录内容摘要和可展示引用，再把恢复动作纳入同一 fresh plan；任一步失败恢复原目标、source、catalog 和 relation。
-
-旧版关系能够证明所有权的 `<user-home>/.codex/skills/<managed-name>` 和用户级 loader 进入用户目标迁移集合。项目副本写入与旧用户目标移除属于同一事务；内容变化先备份，用户选择保留时不删除，也不把项目投影为 `scope-clean ready`。没有关系所有权证据的用户级目录只报告为 `uncertain` 或 `unrelated`，永不进入移除集合。解除绑定或删除本地项目记录只把 relation 标为未关联；项目目标清理由用户查看绝对路径后独立确认。
-
-`unmanaged-conflict` 与 `CATALOG_VERSION_CONFLICT` 永不进入普通 apply replacement set。fresh assessment 能为用户选择的阻塞目标证明安全边界和唯一 bundled source 映射时，provider 允许 `backup-and-overwrite-selected`；旧 `backup-and-reinstall` 名称只可作为进入同一事务的兼容别名。assessment digest 变化、source 映射缺失、备份失败、目标提交失败或关系提交失败都会 fail closed；覆盖前的内容保持可恢复。Runtime 只选择并转发 provider 声明的动作，不从路径、版本字符串或 `changed` 计数自行提升可覆盖性。检查阶段没有写入时，snapshot 使用 `write_state: not_started`，Renderer 不把它投影为 rollback。
-
-Manager 不修改现有 `preflightRun` 的 kernel 语义。SkillProvisioningManager 的 task-start `assertReady(projectRoot)` 只读取内存 snapshot：状态必须为 `ready`，且规范化 task root 必须存在于最近成功 full check 的 `plan.project_roots`；它不调用 provider、读取项目 skills 或刷新 snapshot。Automation Coordinator 将这项缓存断言与 Runtime preflight 组合，任一失败都 fail closed；用户通过独立 Setup retry 建立新状态，Runtime 不通过文件扫描推断 Agent native skill discovery。
-
-CodexSetupManager 的 preflight 与 SkillProvisioningManager 的缓存断言保持不同职责。Codex snapshot 为 `ready` 时 preflight 复用当前受控 binding；snapshot 非 ready 时，在没有活动 Setup mutation 的前提下进入 manager 串行边界执行 fresh executable、version 和 login-status inspection，使外部安装或升级能够替换旧失败状态。活动 mutation 期间 preflight 立即 fail closed，不覆盖 operation id、取消入口或中间状态。
-
-Codex discoverability 解析一个经过 `--version` 验证的绝对 executable，而不假设 Desktop GUI 进程继承终端 shell 的 `PATH`。常规顺序为显式 `ARCORBIT_CODEX_BIN`、当前会话最近一次成功路径、当前进程 `PATH`、standalone 和常见用户级 package-manager 目录，以及 NVM/FNM 版本目录；显式 standalone migration 的 post-check 临时把 standalone 放在首位。macOS/Linux 在静态候选没有发现 executable 时，以固定、无 Renderer 输入的 login-shell 命令读取 `PATH` 并只据此补充 executable 候选。Node 版本管理器和 shell fallback 中的 CLI 携带解析目录及 shell `PATH` 作为子进程环境，保证 shim 和 `#!/usr/bin/env node` 启动器使用同一可验证环境。resolver 不执行 shell alias/function，不修改系统或用户 `PATH`。
-
-每个可选候选源独立失败。NVM、FNM、Windows Desktop runtime、文件访问或 login-shell source 的读取错误形成结构化 discovery issue，但不终止其它候选验证；只要独立候选通过 version probe，结果仍为 ready。没有候选且存在 discovery issue 时返回 `check-failed/CODEX_DISCOVERY_FAILED`，所有 source 完整且无候选时才返回 `missing/CODEX_NOT_FOUND`。发现可访问候选但 `--version` 失败时返回 `broken/CODEX_EXECUTABLE_UNRUNNABLE`，保留候选绝对路径、PATH prefix、provenance 和安全错误摘要；snapshot 与 Renderer 不把它清空为“未发现”。
-
-`--version` 使用绝对 executable 和受控环境，单次超时保持十秒。`EAGAIN`、`EBUSY`、`ENOENT`、`ETIMEDOUT`、`ETXTBSY`、被信号终止或 timeout kill 等瞬时启动错误在一百五十毫秒后只重试一次；其它失败不重试。一次成功 binding 在当前 Desktop 进程中作为 last-known candidate 优先复核，但任何新 probe 仍必须重新通过 `--version`，失败 binding 不进入 Chat、Automation、Runtime child 或交互式 CLI。
-
-Windows 的 npm 安装通常暴露 `.cmd`/`.bat` command shim。版本探测不得把这类文件直接交给 `execFile`，也不得用拼接用户路径的 shell 字符串；必须通过固定 PowerShell 脚本启动，并仅用结构化环境变量传递 executable 和 JSON 参数。原生 executable 继续使用直接参数边界。
-
-同一次成功 probe 的 executable 与必要 `PATH` 前缀由 Desktop 进程持有，并由 Runtime child、Codex app-server 和交互式 CLI handoff 共同复用。Setup 重试会重新解析并替换该结果；未成功 probe 的裸命令不得进入任务执行链路。
+冷启动与关联根变更触发检查；浏览范围切换不触发。Runtime 启动断言 ready 后解析 Automation binding，固定到运行记录，Loop 不扫描安装树或做 Gap→skill 路由。Chat 在消息边界重建必要的 app-server 并恢复原 thread。
 
 ### Codex installation 与 authentication manager
 
@@ -432,25 +399,15 @@ Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Ele
 
 分发构建在签名前通过 `@electron/fuses` 显式关闭 `RunAsNode`、Node options 与 CLI inspect fuses，并启用 ASAR 完整性与 only-load-from-ASAR 约束。Desktop Renderer 仍由 `BrowserWindow.loadFile()` 从 `app.asar` 的 `file://` 入口加载，因此 `GrantFileProtocolExtraPrivileges` 保持启用；该权限只维持包内页面及其本地模块和样式的加载契约，不允许把 Electron executable 解释为 Node。构建验证必须读取实际 packaged fuse wire，证明设置该环境变量也不能把 ArcOrbit executable 转成 Node；packaged smoke 同时证明 Renderer 首屏资源、utility Runtime 与 trusted ledger 均可加载，且不会产生额外 Browser/GPU/Renderer 应用树。该边界使“无意打开新窗口”从每层调用者都要记住的环境约定，变成 Desktop host API、in-process trusted API 和二进制 fuse 共同保证的结构约束。
 
-## 更新、回滚与清理
+## 更新与清理
 
-升级是 source switch + governed reapply，不是目录覆盖：
+内置来源以 payload digest 为版本。新版本准备失败只移除 staging；旧版本保留，供原运行继续引用。显式用户场景配置按稳定身份延续；用户技能文件保留原路径，并在运行绑定验证内容摘要。已启用来源消失时拒绝静默丢弃。
 
-- 旧目标 assessment 含 `local-content-conflict`、`unverified-managed` 或 `unmanaged-conflict` 且没有有效 disposition 时不切换 source；
-- ordinary drift、consumer relation 缺失或 catalog version conflict 只有在 provider 声明 `backup-and-overwrite-selected` 可用且用户独立确认具体目标后才使用当前 bundle 内容；
-- `managed-repair` 与 `managed-migration` 进入可确认 plan，不被折叠成无动作的 source conflict；
-- 用户级到项目级的受管理迁移只有在至少一个明确项目 target、旧目标所有权和 disposition 同时存在时执行，不产生临时用户级 fallback；
-- 新 source staging 校验失败时删除 staging，不影响 current；
-- current 切换失败时恢复 previous；
-- provider apply 失败时同时回滚项目目标、旧用户目标、用户内容备份移动、catalog、项目 loader 和 relation；
-- apply 成功并 post-drift clean 后才清理超过保留数量的旧 source；
-- managed-stale 只报告，清理需要具体路径与单独 confirmation digest；
-- 解除 Product Workspace 绑定不隐式删除项目 Agent 目录；
-- app uninstall 不隐式删除外部 Agent 目录。
+项目 `.codex/skills` 的旧副本仅在来源归属可证明时直接清理，无备份；第三方与归属不明的目录保留。迁移失败记录具体路径并阻止就绪，可幂等重试。解除绑定和卸载应用不触发额外外部目录清理。
 
 ## 可验证性
 
-本地和 CI 测试覆盖：
+当前场景能力由 scene-skills、scene-skills-discovery、engineering-surface、Chat/adapter/run-manager 测试和分发 smoke 验证。下列旧 Provider 测试继续覆盖保留的供应链/历史模块，不代表当前 Desktop 安装流程：
 
 - tag/channel/version/baseline validation；
 - target matrix selection 和 artifact naming；

@@ -13,7 +13,7 @@ The Runtime kernel owns:
 - one persistent Codex thread binding per todo;
 - process-restart recovery through `thread/resume`;
 - deterministic schema, revision, authorization, and ledger gates;
-- trusted `arckit-development-ledger` entrypoint invocation;
+- trusted `arckit-state-driven-loop` entrypoint invocation;
 - token/context telemetry, same-thread compaction, lifecycle tracing, and operator intervention;
 - same-thread final validation, repair, and Git closeout.
 
@@ -25,10 +25,10 @@ The Codex Agent owns:
 - editing, building, testing, diagnosing, and self-reviewing;
 - returning one evidence-backed Case control, Case transition, or responsibility handoff.
 
-Runtime capability policy contains exactly two explicit bindings:
+Runtime capability policy binds one self-contained package through two explicit interfaces:
 
-- `using-arckit`: the natural `$using-arckit` Agent entry trigger;
-- `arckit-development-ledger`: trusted deterministic Case control/writeback entrypoints.
+- `arckit-state-driven-loop`: the natural `$arckit-state-driven-loop` Agent entry trigger;
+- `arckit-state-driven-loop`: trusted deterministic Case control/writeback entrypoints.
 
 Runtime has no fixed skill routing, skill allowlist for gap execution, execution-role registry, predicted path scope, or separate planning/review/commit Agent pipeline.
 
@@ -52,7 +52,7 @@ There is no wall-clock limit, productive-round limit, or long-command watchdog. 
 claim todo
 -> load or establish persistent thread binding
 -> read the trusted ledger snapshot and persisted candidate catalog
--> invoke $using-arckit once for one gap
+-> invoke $arckit-state-driven-loop once for one gap
 -> Agent compares persisted/fresh candidates, executes, verifies, and returns a structured claim
 -> Runtime validates and calls trusted ledger writeback
 -> inspect context usage and compact at >= 80%
@@ -69,7 +69,7 @@ Automatic execution pauses only for an explicit human-responsibility handoff. Ex
 Each gap turn begins with the manifest-declared natural trigger:
 
 ```text
-$using-arckit
+$arckit-state-driven-loop
 ```
 
 The remaining input is a compact invocation containing the original user intent on the first turn, the current continuation increment, fresh canonical Project/Case facts, revisions, locale, and execution authorization. If canonical records do not satisfy the manifest-declared ledger protocol, Runtime passes the typed compatibility result to the same Agent thread instead of terminating before Agent execution; the Agent owns semantic reconciliation and the trusted ledger entrypoint owns freshness, validation, and atomic writeback. Runtime does not locate or read Codex-installed `SKILL.md` files, compare installed skill versions or directory drift, duplicate skill contents, inject a second skill input item, list other installed skills, or encode which skill the Agent should choose.
@@ -191,7 +191,7 @@ Every installer carries three independently verifiable resources outside ASAR:
 
 The application package also carries the ArcOrbit license, its Simplified Chinese reference translation, and third-party notices in both languages. The governed Arckit skill payload carries the authoritative English Apache License 2.0 with each independently distributed skill.
 
-On startup, Desktop's main process validates those resources and fresh-checks every local Product Workspace in the Desktop Store against the packaged skill payload before Automation can start. With no local workspace it remains a global-only check; the last Renderer project filter never narrows the startup scope. Setup Readiness opens when any associated project needs installation, has drift, or contains a conflict. It stages the packaged payload into the app data source store and only applies a provider plan after the user expands the target summary and confirms the plan digest. Changed managed targets and loader conflicts are never overwritten; `managed-stale` removal uses a separate path-bound confirmation.
+On startup, Desktop validates the distribution and ArcForge provider capability lock, then requests a read-only installation/update plan for the shared ArcForge user catalog. All associated Product Workspaces are checked through the provider's digest-bound migration plan. Checks only display the full proposed cleanup list. Deletion requires explicit user acknowledgement and confirmation of the current plan digest; users may defer cleanup and continue. Only then are unchanged, proven legacy project copies removed without backups; modified, unknown or competing ownership is preserved and reported. ArcForge records catalog provenance and updates old installation relations. ArcOrbit owns scene selection and Codex bindings, and does not install skills into project directories.
 
 Automation task starts have an independent Setup Readiness preflight in addition to the existing Runtime project/capability preflight. A later drift therefore routes back to setup instead of letting the Runtime Kernel infer or repair Codex skill discovery itself.
 
@@ -211,3 +211,13 @@ Release 使用顶部已有产品集和项目范围。项目已关联本地目录
 验证入口：`npm run test:release --workspace @arckit/arcorbit`；设置 `ARCORBIT_RELEASE_ELECTRON_TEST=1` 后运行 `npm run test:release:electron --workspace @arckit/arcorbit`。Electron 测试使用临时仓库、真实 Git/进程/编辑器和确定性 Agent 替身，不调用真实发布渠道。`scripts/prepare-release-asar-smoke.mjs` 可用已安装依赖准备离线 ASAR 验证载荷；它不代替签名安装包验证。
 
 源码文本编辑上限 2 MiB；执行保留最近 200 条已结束记录，每条保留最多 512 KiB 日志，Agent 分页读取。应用退出清理受管理进程，异常退出后未结束记录标记中断，不通过旧 PID 恢复。发布渠道、健康监控和自动回滚尚未接入；可以执行项目既有命令并查看真实结果。
+
+### ArcForge 内置技能管理
+
+内置技能由随包 ArcForge Embedded Provider 管理。开发态需先准备包含 `stable-catalog/v1` 与 `project-skill-migration/v1` 的资源；没有兼容 Provider 时环境检查失败，不回退到独立 catalog 或直接删除。Provider 沿用 ArcForge catalog v2 与 projects/appliedSources 安装关系；统一索引位于 stateRoot/catalog/index.json，技能文件位于 catalog/<skillName>/，迁移明细位于 migrations/。首次安装和更新（含 on-demand）均须先展示计划并确认，清理单独确认。
+
+运行场景集成测试时，可通过 `ARCFORGE_TEST_PROVIDER=/absolute/path/to/arcforge/dist/provider/index.js` 显式指定已编译 Provider；默认使用本地分发资源中的 Provider。`package:local` 在资源组装前将已编译 Provider 显式传给测试。测试只操作临时目录。
+
+无 Provider 资源的普通测试运行会明确跳过场景 Provider 集成测试。分发 CI 在资源组装后设置 `ARCFORGE_REQUIRE_PROVIDER_TESTS=1` 强制运行，资源缺失即失败；本地双仓库构建通过显式 Provider 路径强制运行。
+
+安装状态、来源类型和场景启用是不同维度：统一用户 catalog 可存储所有来源类型，按需类型仍单独展示。旧版独立 catalog 目录不会自动删除；新路径不再读写 managed-catalogs 账本。普通 CLI `catalog list/resolve` 默认查询同一用户索引，支持 `--state-root <绝对路径>`；已有安装关系的 `applied list/drift/run` 支持显式 `--state-root` 并保留原目标策略。

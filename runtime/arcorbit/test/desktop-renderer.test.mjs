@@ -30,6 +30,24 @@ const codexSetupIpcPath = new URL("../src/desktop/codex-setup-ipc.mjs", import.m
 const imageViewerRendererPath = new URL("../desktop/image-viewer/renderer.js", import.meta.url);
 const conversationSurfacePath = new URL("../desktop/renderer/conversation-surface.mjs", import.meta.url);
 
+test('Engineering IPC rejects foreign renderer callers before accessing settings or dialogs', async () => {
+  const source=await readFile(desktopMainPath,'utf8'),handlers=new Map(),calls=[];
+  const mainWindow={webContents:{}};
+  const start=source.indexOf('function registerIpc() {'),end=source.indexOf('  ipcMain.handle("arckit:release-snapshot"',start);
+  const guardStart=source.indexOf('function assertMainRenderer(event)'),guardEnd=source.indexOf('\nasync function ',guardStart);
+  vm.runInNewContext(source.slice(start,end)+'}\n'+source.slice(guardStart,guardEnd)+'\nregisterIpc();',{
+    mainWindow,ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
+    sceneSkillManager:{snapshot:()=>calls.push('snapshot'),update:()=>calls.push('update'),importLocal:()=>calls.push('import')},
+    dialog:{showOpenDialog:async()=>{calls.push('dialog');return {canceled:true};}}
+  });
+  for(const name of ['snapshot','update','import']) await assert.rejects(async()=>handlers.get(`arckit:engineering-${name}`)({sender:{}},{}),/main ArcOrbit window/);
+  assert.deepEqual(calls,[]);
+  await handlers.get('arckit:engineering-snapshot')({sender:mainWindow.webContents});
+  await handlers.get('arckit:engineering-update')({sender:mainWindow.webContents},{});
+  await handlers.get('arckit:engineering-import')({sender:mainWindow.webContents});
+  assert.deepEqual(calls,['snapshot','update','dialog']);
+});
+
 function chatSnapshot({ selected = "", project = "PROJECT-A", sessions = [], messages = [], draft = "" } = {}) {
   return {
     selected_session_id: selected,
@@ -1022,30 +1040,13 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   assert.match(html, /id="releaseView"[^>]+data-page-view="release"/);
   assert.match(html, /PRODUCT LIFECYCLE · OPERATIONS/);
   assert.match(html, /Operations 是“运营”的统一英文入口/);
-  assert.match(html, /ORGANIZATION · DOMAIN PROFILE MANAGEMENT/);
-  assert.match(html, /领域模型与能力管理/);
-  assert.match(html, /MANAGEMENT PREVIEW · 无真实写入/);
-  assert.match(html, /Domain Profiles/);
-  assert.match(html, /Software Engineering/);
-  assert.match(html, /Campaign Operations/);
-  assert.match(html, /Research Program/);
-  assert.match(html, /State Model/);
-  assert.match(html, /Project State · Software Definition/);
-  assert.match(html, /Case State · Engineering Mapping/);
-  assert.match(html, /Capability Mapping/);
-  assert.match(html, /预期事实/);
-  assert.match(html, /实现现状/);
-  assert.match(html, /问题定位/);
-  assert.match(html, /Lifecycle Mapping/);
-  assert.match(html, /Change Preview/);
-  assert.match(html, /Review &amp; Apply/);
-  assert.match(html, /Stable operating model/);
-  assert.match(html, /Idea[\s\S]*Work[\s\S]*Automation[\s\S]*Release[\s\S]*Operations[\s\S]*Feedback/);
-  assert.match(html, /LOOP KERNEL · 保持不变/);
-  assert.match(html, /Entry capabilities 不进入 Profile/);
+  assert.match(source, /createEngineeringSurface/);
+  assert.match(html, /id="engineeringView"[^>]+data-page-view="engineering"/);
+  assert.match(html, /id="chatSkillsButton"/);
+  assert.doesNotMatch(html, /DOMAIN PROFILE MANAGEMENT|MANAGEMENT PREVIEW|Entry capabilities 不进入 Profile/);
   assert.doesNotMatch(sidebar, /data-page="state"|data-page="skills"/);
   assert.doesNotMatch(html, /data-page-view="state"|data-page-view="skills"/);
-  assert.doesNotMatch(html, /using-arckit|arckit-development-ledger|Trusted entrypoints/);
+  assert.doesNotMatch(html, /arckit-state-driven-loop|arckit-state-driven-loop|Trusted entrypoints/);
   assert.match(html, /id="ideaBlank"/);
   assert.match(html, /PLAN VIEW · 不调用外部平台/);
   assert.doesNotMatch(html, /data-plan-action|id="createIdeaButton"|id="publishReleaseButton"/);
@@ -2325,7 +2326,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(preload, /confirmAutomationExternalDependency/);
   assert.match(source, /切换到 Codex CLI/);
   assert.match(source, /Codex CLI 接管/);
-  assert.match(source, /需要人工介入 · 外部依赖/);
+  assert.match(source, /等待外部结果/);
   assert.match(source, /已处理，重新检查/);
   assert.match(source, /Human · 恢复自动化/);
   assert.match(source, /Human · Codex CLI/);

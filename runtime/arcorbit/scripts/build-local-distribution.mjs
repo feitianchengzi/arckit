@@ -117,20 +117,20 @@ export async function runLocalBuild(options = {}) {
 
   logPlan(plan);
   await run(npm, ["run", "check"], arcforgeDirectory);
-  await run(process.execPath, ["--test", "--test-name-pattern=embedded provider", "tests/provider.test.mjs"], arcforgeDirectory);
   await run(npm, [
     "run", "package:provider", "--",
     "--version", plan.provider.version,
     "--commit", providerCommit,
     "--tag", plan.provider.releaseTag
   ], arcforgeDirectory);
+  await run(process.execPath, ["--test", "tests/provider.test.mjs", "tests/consumer-catalog.test.mjs", "tests/project-skill-migration.test.mjs"], arcforgeDirectory);
 
   const providerManifest = JSON.parse(await readFile(plan.provider.manifest, "utf8"));
   const providerBytes = await readFile(plan.provider.archive);
   const providerSha256 = sha256(providerBytes);
   assertProviderOutput(plan, providerManifest, providerSha256);
 
-  await run(npm, ["run", "check"], runtimeRoot);
+  await run(npm, ["run", "check"], runtimeRoot, { ARCFORGE_TEST_PROVIDER: path.join(arcforgeDirectory, "dist", "provider", "index.js") });
   await run(process.execPath, [
     "scripts/prepare-distribution.mjs",
     "--release-tag", plan.runtime.releaseTag,
@@ -225,9 +225,9 @@ async function gitRevision(root) {
   return status ? `${revision}-dirty` : revision;
 }
 
-export async function runLocalBuildCommand(executable, args, cwd) {
+export async function runLocalBuildCommand(executable, args, cwd, extraEnv = {}) {
   process.stdout.write(`[local-build] ${cwd}\n[local-build] ${displayCommand(executable, args)}\n`);
-  await execWithOutput(executable, args, { cwd, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  await execWithOutput(executable, args, { cwd, env: { ...process.env, ...extraEnv }, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
 }
 
 const run = runLocalBuildCommand;

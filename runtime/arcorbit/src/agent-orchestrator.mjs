@@ -112,7 +112,7 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
     schema_version: "arckit-agent-loop-invocation/v1",
     phase: "agent_loop",
     conversation_locale: options.conversationLocale || round.conversation_locale || "en",
-    original_user_input: firstTurn ? options.originalTask || options.task || "" : "",
+    original_user_input: firstTurn ? options.runtimeContext?.original_task || options.originalTask || options.task || "" : "",
     current_instruction: options.task || "",
     conversation_contract: {
       user_visible_commentary: {
@@ -138,42 +138,14 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
       trusted_protocol_recovery: loopFrame.protocol_recovery,
       trusted_ledger_snapshot: loopFrame.ledger_snapshot
     },
+    task_context: loopFrame.runtime_context,
     loop_contract: {
-      one_gap: !protocolRecovery,
-      one_acceptance_claim: !protocolRecovery,
-      execute_in_current_turn: true,
-      fresh_gap_selection: !protocolRecovery,
-      future_gap_preplanning: false,
-      newly_discovered_work_must_wait_for_post_commit_fresh_read: !protocolRecovery,
-      complete_project_invariant_assessment_required: !protocolRecovery,
-      invariant_assessment_is_semantic_agent_work: true,
-      invariant_judgment_contract: {
-        not_relevant: "reason required; evidence=[]; gap_refs=[]",
-        upheld: "persistent evidence required; gap_refs=[]",
-        threatened_or_undetermined: "accepted fact_refs and open gap_refs required"
-      },
-      semantic_case_command_contract: {
-        agent_owns: ["fact and gap meaning", "impact target and effect", "Project decision intent", "invariant disposition and explicit relations"],
-        ledger_owns: ["canonical ids", "Case and Project revisions", "selected candidate rehydration", "reverse relation projection", "internal transition", "atomic commit receipt"],
-        typed_refs: ["local:fact:<handle>", "local:gap:<handle>", "local:impact:<handle>", "case:fact:<id>", "case:gap:<id>", "case:impact:<id>", "project:decision:<id>", "project:invariant:<id>", "project:project-gap:<id>", "system:<source>"],
-        forbidden_agent_bookkeeping: ["new canonical ids", "fact or decision revisions", "Case updated_at", "selected Gap copies", "decision gap_refs reverse indexes", "arckit-case-transition/v8"]
-      },
-      case_control_contract: {
-        create_case: "Use only when the todo needs a new bounded Case. Submit semantic initial_facts, initial_gaps, and optional initial_impacts with command-local refs (local:fact:<handle>, local:gap:<handle>, local:impact:<handle>) and typed relations. Do not submit canonical ids, revisions, statuses, resolutions, or target revisions; the trusted Ledger allocates and materializes them.",
-        bind_closed_case: "Use only when one exact canonical Case is already closed and resolved and fully covers the current todo. Supply its current updated_at, SHA-256 source digest, a semantic coverage reason, and evidence refs. Natural-language mentions are never authoritative bindings.",
-        forbidden: ["reporting completion without a trusted binding receipt", "creating a duplicate Case when exact closed Case coverage is proven", "inferring a binding from assistant prose"]
-      },
-      completion_review_is_only_semantic_self_check: true,
-      native_skill_discovery: true,
+      workflow_authority: invocation.skill_trigger,
+      output_contract: "arckit-agent-loop-result/v2",
+      semantic_command_contract: "arckit-semantic-case-command/v1",
       ledger_write_forbidden: true,
-      ordinary_ledger_write_forbidden: true,
       protocol_recovery: protocolRecovery,
       ordinary_case_progress_forbidden: protocolRecovery,
-      trusted_protocol_reconciliation_allowed: protocolRecovery,
-      snapshot_bound_selection: !protocolRecovery,
-      persisted_candidate_comparison_required: !protocolRecovery,
-      round_closeout_is_ledger_receipt: true,
-      post_write_snapshot_required: true,
       valid_actions: protocolRecovery ? ["handoff"] : ["case_control", "case_command", "handoff"]
     }
   }, null, 2)].join("\n");

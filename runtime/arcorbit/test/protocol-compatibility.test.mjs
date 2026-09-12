@@ -7,13 +7,13 @@ import test from 'node:test';
 import {
   applyProtocolReconciliation,
   probeProtocolCompatibility,
-} from '../../../entry/skills/arckit-development-ledger/scripts/protocol-compatibility.mjs';
+} from '../../../entry/skills/arckit-state-driven-loop/scripts/protocol-compatibility.mjs';
 import {
   readCaseRecord,
   writeCaseRecord,
-} from '../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs';
-import { createProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
-import { readLedgerSnapshot } from '../../../entry/skills/arckit-development-ledger/scripts/loop-snapshot.mjs';
+} from '../../../entry/skills/arckit-state-driven-loop/scripts/development-case.mjs';
+import { createProjectStateRecord } from '../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs';
+import { readLedgerSnapshot } from '../../../entry/skills/arckit-state-driven-loop/scripts/loop-snapshot.mjs';
 import { compileCoherentAgentLoopPrompt, createLoopFrame } from '../src/agent-orchestrator.mjs';
 import { ensureArckitProject } from '../src/project-initializer.mjs';
 import { runLedgerScript } from '../src/ledger-scripts.mjs';
@@ -40,13 +40,13 @@ test('Runtime exposes an incompatible canonical state as a protocol recovery rou
     assert.match(round.stop_conditions.join('\n'), /Do not create or advance a normal Case/);
 
     const controllerCapability = {
-      id: 'using-arckit',
+      id: 'arckit-state-driven-loop',
       binding_targets: ['controller'],
-      invocation: { type: 'agent_skill', skill_trigger: '$using-arckit', phases: ['agent_loop'] },
+      invocation: { type: 'agent_skill', skill_trigger: '$arckit-state-driven-loop', phases: ['agent_loop'] },
     };
     const ledgerCapability = {
-      id: 'arckit-development-ledger',
-      capability_root: join(process.cwd(), 'entry/skills/arckit-development-ledger'),
+      id: 'arckit-state-driven-loop',
+      capability_root: join(process.cwd(), 'entry/skills/arckit-state-driven-loop'),
       runtime_entrypoints: { protocol_compatibility: 'scripts/protocol-compatibility.mjs' },
     };
     const loopFrame = createLoopFrame({ snapshot, round, task: 'Continue the original task.', runtimeCapabilities: [ledgerCapability] });
@@ -61,7 +61,7 @@ test('Runtime exposes an incompatible canonical state as a protocol recovery rou
     assert.equal(invocation.canonical_context.state_availability, 'unavailable');
     assert.equal(invocation.canonical_context.protocol_compatibility.snapshot_token, snapshot.compatibility.snapshot_token);
     assert.equal(invocation.loop_contract.protocol_recovery, true);
-    assert.equal(invocation.loop_contract.trusted_protocol_reconciliation_allowed, true);
+    assert.equal(invocation.loop_contract.ordinary_case_progress_forbidden, true);
     assert.deepEqual(invocation.loop_contract.valid_actions, ['handoff']);
     assert.equal(invocation.execution_authorization.trusted_protocol_recovery.authorized, true);
     assert.match(invocation.execution_authorization.trusted_protocol_recovery.entrypoint, /protocol-compatibility\.mjs$/);

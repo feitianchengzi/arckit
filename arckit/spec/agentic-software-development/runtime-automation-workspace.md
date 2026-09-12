@@ -6,7 +6,7 @@ ArcOrbit Desktop 是以项目待办和验收问题为两条独立工作来源的
 
 该工作区承担任务服务器与本地 ArcOrbit 之间的控制面职责。任务服务器拥有项目、任务归属和任务生命周期事实；Runtime 拥有本地工作区绑定、自动化参与状态、单任务执行状态、Agent turn 生命周期、事件和 ledger 证据。
 
-Runtime 替代的是人类在 Codex 中持续读取最新状态、发送下一轮输入、观察执行、处理恢复、调用 ledger、提交代码和回写远端任务的自动化劳动，不替代 Codex Agent 对任务的语义理解、skill 选择、仓库调查、实现、验证与自我审查能力。人工直接使用 `$using-arckit` 与 Runtime 自动桥接使用同一个 Agent Loop 语义；差异只在触发、授权、事件存储、自动续轮和外部生命周期管理。
+Runtime 替代的是人类在 Codex 中持续读取最新状态、发送下一轮输入、观察执行、处理恢复、调用 ledger、提交代码和回写远端任务的自动化劳动，不替代 Codex Agent 对任务的语义理解、skill 选择、仓库调查、实现、验证与自我审查能力。人工直接使用 `$arckit-state-driven-loop` 与 Runtime 自动桥接使用同一个 Agent Loop 语义；差异只在触发、授权、事件存储、自动续轮和外部生命周期管理。
 
 默认执行路径把一个待办视为一个连贯的 Codex 工作单元。Runtime 为待办持久化唯一 Codex thread，并在每次 ledger 写回后向该 thread 发起新的 turn。每个 turn 从 fresh canonical Project/Case State 选择并完成一个 gap，Agent 在 turn 内自行使用必要工具与 skills，最后返回一个 Case control、Case transition 或需要人工/外部介入的 handoff。Runtime 不提供 Controller planning、Worker dispatch 或 Controller review 分段路径。
 
@@ -140,7 +140,7 @@ Work Sync 使用本地投影的确认版本执行必要的服务器条件式更�
 
 Runtime 按 Case State 驱动 Agent turn、结构与授权 Gate、ledger writeback。主页面把当前 gap、Agent 进展、工具执行、Case transition、Gate、ledger 和证据摘要投影为可观察状态；Workbench 把同一 Agent thread 的多个 turn 组合为当前待办的一条消息流。
 
-默认每个生产性 Loop 只发起一次 Codex Agent turn。Runtime 向已加载 `$using-arckit` 的 Agent 提供原始待办意图、当前增量、trusted ledger snapshot receipt、candidate catalog、revision 与执行授权；Agent 结合完整 Project decisions/invariants 与 fresh Case facts 发现并比较候选，选择唯一 Case 和一个 gap，自主发现并使用所需 skills 与工具，只完成该 Gap 的 acceptance claim 及必要证据，最后提交一个绑定 snapshot token、比较轨迹和证据的 Case transition。执行中暴露的新事实只进入 Case delta 与后续候选，不授权同一 turn 改做另一个独立结果。`using-arckit` 约束 Agent 如何从 Case gap 开始并形成 closeout，但不把同一个 Agent 强制拆成互相隔离的 Controller 与 Worker 调用。结构化 Agent 输出或 trusted Ledger claim 出现可修正校验错误时，Runtime 可在同一生产性 Loop 内发起有限 repair turn；repair 不重复实现工作、不形成新的 acceptance claim，也不计入业务 no-progress rounds。
+默认每个生产性 Loop 只发起一次 Codex Agent turn。Runtime 向已加载 `$arckit-state-driven-loop` 的 Agent 提供原始待办意图、当前增量、trusted ledger snapshot receipt、candidate catalog、revision 与执行授权；Agent 结合完整 Project decisions/invariants 与 fresh Case facts 发现并比较候选，选择唯一 Case 和一个 gap，自主发现并使用所需 skills 与工具，只完成该 Gap 的 acceptance claim 及必要证据，最后提交一个绑定 snapshot token、比较轨迹和证据的 Case transition。执行中暴露的新事实只进入 Case delta 与后续候选，不授权同一 turn 改做另一个独立结果。`arckit-state-driven-loop` 约束 Agent 如何从 Case gap 开始并形成 closeout，但不把同一个 Agent 强制拆成互相隔离的 Controller 与 Worker 调用。结构化 Agent 输出或 trusted Ledger claim 出现可修正校验错误时，Runtime 可在同一生产性 Loop 内发起有限 repair turn；repair 不重复实现工作、不形成新的 acceptance claim，也不计入业务 no-progress rounds。
 
 Runtime 不创建固定 Worker、独立复审或其它 Codex thread，也不以固定 definition skill 集合、预测式 `allowed_paths` 或固定 skill 顺序限制 Agent turn；工作区、sandbox、approval policy、外部权限和 ledger transition 校验仍构成确定性安全边界。
 
@@ -288,7 +288,7 @@ Renderer 与 Automation 不持有任务服务器凭证，也不直接请求任�
 - 领取冲突不会启动重复 Runtime，完成写回未确认时同一 lane 不会领取下一任务，其他健康 lane 可以继续。
 - 待处理任务在服务器确认进行中后启动 Runtime，在 Runtime 与 ledger 收束且服务器确认后变为已完成。
 - 当前待办可以通过 trusted ledger 的类型化 `bind_closed_case` 收据复用一个精确匹配的 closed/resolved Case；收据校验 Case 唯一身份、当前 `updated_at`、SHA-256、覆盖理由和证据，重复请求不修改 canonical Case。
-- terminal Agent handoff 缺少权威 Case 绑定时返回 `case_binding_required`，不会进入 completed、Git closeout 或远端完成；恢复中心明确提供复用已有 Case、作为新事项继续、补充说明和标记阻塞。
+- Agent 单独停止 handoff 结束执行并保留未完成 Case；只有提交 Case 完成及远端完成时要求可信绑定与验收收据。停止不触发 Git closeout，不生成完成声明或人工恢复。
 - Runtime 需要人工输入时，主页面给出明确提示但不自动打开 Intervention Workbench 或 Personal / Chat；用户在对应 Workbench 提交后能够恢复同一任务。
 - Command Center 队列、当前运行、Intervention Workbench 顶部、确认对话和 session/CLI 标签使用同一个 64-grapheme 展示标题投影；Workbench 顶部保持单行且不被完整正文撑高，完整正文只在任务详情或上下文正文区域展示一次并保留换行。
 - Runtime 失败且已有持久 Agent thread 时，Recovery Center 可以直接提交非空用户说明并继续；说明在同一待办对话中可见，且不会因恢复动作创建新 thread。
@@ -320,3 +320,13 @@ Renderer 与 Automation 不持有任务服务器凭证，也不直接请求任�
 - Work Sync 认证失效时重启 Desktop，closed/resolved Case 仍被本地识别；界面不显示 Case 或 Runtime 仍在执行。
 - Case、commit 和远端写回检查点跨重启保持单调；已完成 commit 不会因登录失效或再次同步而重复执行。
 - Renderer 与 Automation 不暴露或使用任务服务器凭证；所有远端状态变更由 Work Sync 同步，并以其发布的本地确认状态作为 Automation 输入。
+
+## 执行结果与 Case 完成边界
+
+State Driven Loop 保持一轮一个 Gap、可信写回、post-commit fresh-read 和同一持久 thread。Agent 负责语义判断，Ledger 负责正式事实，Runtime 负责执行会话。三者的状态互不替代。
+
+单独 Agent handoff 的 none 表示执行停止，保存未完成义务；可信 Ledger 的 resolved 才代表 Case 完成。停止记录持久化为 stopped_executions，清除该执行的恢复项与占用，不自动修改远端待办，不在重启后重新领取；用户将待办重新设为待处理后可再次启动。
+
+人工决定、外部等待和执行故障分别展示。外部等待保留 external 责任和恢复条件，使用 waiting_external 阶段；Runtime 故障进入执行恢复，不推导人工业务决策。中断进程与 Agent 明确停止相互区分，意外中断仍可恢复。
+
+继续执行携带任务身份、Case 绑定及可信来源、原任务、用户增量和来源 Run 引用。Prompt 提供 Host 上下文与输出契约，单 Gap 工作方法由 arckit-state-driven-loop 提供，不重复维护引用枚举与语义流程。

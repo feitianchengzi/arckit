@@ -113,7 +113,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "解决用户在 Today 第三栏详情提出验收问题后，仍看不到问题列表和对应处理状态的问题，跟进已关闭的 CASE-20260904-001 所未覆盖的实际使用路径。",
+      "current_focus": "合并两个 entry skills 并整体优化架构和内容，名称 arckit-state-driven-loop。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

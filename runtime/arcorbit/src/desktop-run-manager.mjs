@@ -1,3 +1,4 @@
+import { executionOutcome } from './kernel/execution-outcome.mjs';
 import { normalizeCodexSettings, validateCodexSettingsPatch } from "./codex-model-settings.mjs";
 import { queryCodexModelCatalog } from "./codex-model-catalog.mjs";
 import { EventEmitter } from "node:events";
@@ -53,6 +54,7 @@ export function createDesktopRunManager({
   queryModelCatalog = queryCodexModelCatalog,
   spawnProcess = spawn,
   runtimeHost = null,
+  resolveSceneSkills = async () => null,
   ensureProject = ensureArckitProject
 }) {
   const emitter = new EventEmitter();
@@ -665,6 +667,9 @@ export function createDesktopRunManager({
     const runId = `RUN-${new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}-${randomUUID().slice(0, 8)}`;
     const runDir = join(runsDir, runId);
     await mkdir(runDir, { recursive: true });
+    const sceneSkillBinding = input.dryRun ? null : await resolveSceneSkills('automation', project.path);
+    const sceneSkillBindingFile = sceneSkillBinding ? join(runDir, 'scene-skills.json') : '';
+    if (sceneSkillBinding) await writeJson(sceneSkillBindingFile, sceneSkillBinding);
 
     const lifecycleContext = lifecycleContextFromInput(input);
     const lifecycleRunSpan = lifecycleTraces.startSpan(lifecycleContext, {
@@ -703,6 +708,8 @@ export function createDesktopRunManager({
       max_no_progress_rounds: positiveInteger(input.maxNoProgressRounds, 8),
       max_agent_repair_attempts: nonNegativeInteger(input.maxAgentRepairAttempts, 2),
       runtime_context: normalizeRuntimeContext(input.runtimeContext),
+      scene_skill_binding_file: sceneSkillBindingFile,
+      scene_skill_revision: sceneSkillBinding?.revision ?? null,
       status: "running",
       started_at: new Date().toISOString(),
       finished_at: "",
@@ -735,6 +742,7 @@ export function createDesktopRunManager({
     await writeJson(run.activity_file, run.activity);
 
     const args = ["run", "--project", project.path, "--json"];
+    if (sceneSkillBindingFile) args.push('--scene-skill-binding-file', sceneSkillBindingFile);
     if (run.task) {
       args.push("--task", run.task);
     }
@@ -1372,6 +1380,8 @@ function prependRuntimePath(env, entries = []) {
 
 export function runtimeFailureForCompletedProcess(result) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return "";
+  const disposition = executionOutcome({ result });
+  if (["stopped", "needs_human", "waiting_external"].includes(disposition.state)) return "";
   const stopReason = String(result.stop_reason || "");
   if (stopReason === "agent_repair_limit") {
     return result.ledger_write_result?.rejection?.reason

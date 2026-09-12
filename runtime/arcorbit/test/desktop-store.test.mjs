@@ -239,7 +239,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
   assert.equal("snapshot" in store.automation, false);
   assert.equal(store.platform.task_sync.source_status, "degraded");
   assert.deepEqual(store.automation.project_bindings, {});
-  assert.equal(store.automation.recovery_items[0].responsibility, "operator");
+  assert.equal(store.automation.recovery_items[0].responsibility, "human");
   const visible = publicSettings(store.settings);
   assert.equal(visible.task_source.access_token, "");
   assert.equal(visible.task_source.access_token_configured, true);
@@ -288,7 +288,7 @@ test("desktop store bounds historical task labels without changing task content"
   assert.equal(store.sessions.local[0].title.endsWith("…"), true);
 });
 
-test("desktop store migrates legacy external wait into actionable human intervention", () => {
+test("desktop store migrates legacy external wait into external responsibility", () => {
   const store = normalizeStore({
     automation: {
       active_task: {
@@ -311,13 +311,13 @@ test("desktop store migrates legacy external wait into actionable human interven
   });
 
   const execution = store.automation.active_executions.local;
-  assert.equal(execution.phase, "awaiting_human");
+  assert.equal(execution.phase, "waiting_external");
   assert.equal(execution.intervention_kind, "external_dependency");
   assert.equal(execution.intervention_reason, "Provider route is unavailable.");
   assert.equal(store.automation.attention_items.length, 1);
   assert.equal(store.automation.attention_items[0].kind, "external_dependency");
   assert.equal(store.automation.attention_items[0].question, "Confirm after provider deployment.");
-  assert.equal(store.automation.acceptance_feedback_items[0].status, "awaiting_human");
+  assert.equal(store.automation.acceptance_feedback_items[0].status, "external_wait");
   assert.equal(store.automation.acceptance_feedback_items[0].intervention_kind, "external_dependency");
 });
 
@@ -555,4 +555,17 @@ test("desktop store retains every historical reference needed by acceptance revi
   assert.equal(store.automation.recent_completions.length, 520);
   assert.equal(store.automation.acceptance_feedback_items.length, 520);
   assert.equal(store.automation.recent_completions.at(-1).task_id, "TASK-519");
+});
+
+test('execution stop archives and technical/external responsibility survive store normalization', () => {
+  const input = { automation: {
+    stopped_executions: [{ id: 'EXEC-stop', task_id: '1301', phase: 'stopped', case_id: 'CASE-20260911-003' }],
+    recovery_items: [{ id: 'RECOVERY-tech', responsibility: 'runtime' }],
+    attention_items: [{ id: 'WAIT', kind: 'external_dependency', responsibility: 'external' }]
+  } };
+  const once = normalizeStore(input);
+  const twice = normalizeStore(JSON.parse(JSON.stringify(once)));
+  assert.deepEqual(twice.automation.stopped_executions, input.automation.stopped_executions);
+  assert.equal(twice.automation.recovery_items[0].responsibility, 'runtime');
+  assert.equal(twice.automation.attention_items[0].responsibility, 'external');
 });

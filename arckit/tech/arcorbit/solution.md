@@ -4,7 +4,7 @@
 
 ArcOrbit 是 Arckit 的自动化监督与执行控制面。它替代人类在 Codex 会话外持续触发下一 turn、观察过程、处理恢复、调用 ledger 和衔接远端生命周期的工作；Codex、opencode 或其他 coding agent 继续拥有语义推理、skill 选择、工作区执行、证据收集和 transition claim。
 
-Runtime 不替代 Agent 或 Arckit skills。Skills 继续承载方法、事实源维护规则、输出契约和模板；Runtime 负责 readiness preflight、读取 Project/Case 状态、通过 `$using-arckit` 启动一个连贯 Agent turn、观察执行事件、校验结构/授权/安全边界，并调用 trusted ledger entrypoint。
+Runtime 不替代 Agent 或 Arckit skills。Skills 继续承载方法、事实源维护规则、输出契约和模板；Runtime 负责 readiness preflight、读取 Project/Case 状态、通过 `$arckit-state-driven-loop` 启动一个连贯 Agent turn、观察执行事件、校验结构/授权/安全边界，并调用 trusted ledger entrypoint。
 
 ## 架构组件
 
@@ -29,7 +29,7 @@ Desktop UI 只展示 Runtime Kernel 的 control state，不自己猜测业务流
 
 Skill layer 位于系统底层。Skills 只承载可复用能力、底层协议、事实源维护规则和各 execution plane 的能力边界，不沉淀 Desktop Runtime 的产品架构、状态机、自动写回策略或控制内核决策。这类上层架构事实只写入 `arckit/tech` 与 runtime 代码。
 
-Runtime 只解析 `arckit.capability.json`，不自行解释或复制 `SKILL.md` 正文。Manifest 声明 Agent Loop 的自然 `$using-arckit` trigger 与确定性 `arckit-development-ledger` trusted entrypoints。当前 Agent 在 turn 内按 Codex 原生机制发现和使用其他已安装 skills；Runtime 不维护 definition、diagnosis、code 或其他 skill 白名单，不复制 skill 语义，也不预先生成 Worker 能力关联。
+Runtime 只解析 `arckit.capability.json`，不自行解释或复制 `SKILL.md` 正文。Manifest 声明 Agent Loop 的自然 `$arckit-state-driven-loop` trigger 与确定性 `arckit-state-driven-loop` trusted entrypoints。当前 Agent 在 turn 内按 Codex 原生机制发现和使用其他已安装 skills；Runtime 不维护 definition、diagnosis、code 或其他 skill 白名单，不复制 skill 语义，也不预先生成 Worker 能力关联。
 
 ### Runtime Kernel
 
@@ -151,7 +151,7 @@ Preload 只暴露产品动作，Renderer 只消费 Automation Snapshot 和 Run a
 
 ### Loop Controller
 
-Loop Controller 通过 ledger manifest 的 trusted `loop_snapshot` 入口读取 advancement、完整 software definition decisions、software invariants、全部 active Cases、最近 invariant assessments、candidate catalog、revisions 与 snapshot tokens。Project gap 只作为选择/创建 Case 的宏观依据；数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 每轮结合 invariants、fresh Case facts 和原生 skills 发现并可见地比较 persisted/fresh candidates，记录 eligibility、priority basis 和 selected/deferred/excluded 理由后选择唯一 Case 与一个 gap。Runtime 不解析 canonical records 复刻候选规则，也不根据关键词、decision/invariant、固定优先级或 skill/path 映射拍板业务 route；上一轮不得通过 impacts、事实域、复合步骤 Gap 或 closeout 预排下一轮路径。
+Loop Controller 通过 ledger manifest 的 trusted `loop_snapshot` 入口读取 advancement、完整 software definition decisions、software invariants、全部 active Cases、最近 invariant assessments、candidate catalog、revisions 与 snapshot tokens。Project gap 只作为选择/创建 Case 的宏观依据；数组顺序不表达优先级。通过 `$arckit-state-driven-loop` 调用的 Agent 每轮结合 invariants、fresh Case facts 和原生 skills 发现并可见地比较 persisted/fresh candidates，记录 eligibility、priority basis 和 selected/deferred/excluded 理由后选择唯一 Case 与一个 gap。Runtime 不解析 canonical records 复刻候选规则，也不根据关键词、decision/invariant、固定优先级或 skill/path 映射拍板业务 route；上一轮不得通过 impacts、事实域、复合步骤 Gap 或 closeout 预排下一轮路径。
 
 本轮目标必须形成：
 
@@ -166,7 +166,7 @@ Loop Controller 不从 Project State 读取轮次 continuation。Project `case_c
 
 ### Capability Registry
 
-Capability Registry 读取 repository 和目标项目中的 `arckit.capability.json` manifest，并应用 `runtime/arcorbit/config/capability-policy.json`。默认 Kernel policy 只绑定两个 Runtime 管理能力：Agent 入口 `using-arckit` 与 trusted Runtime 能力 `arckit-development-ledger`。其他 definition、diagnosis、code 和 quality skills 由当前 Codex Agent 通过原生 skill discovery 在同一 turn 中选择，不进入 Runtime 预测式 route。
+Capability Registry 读取 repository 和目标项目中的 `arckit.capability.json` manifest，并应用 `runtime/arcorbit/config/capability-policy.json`。默认 policy 把同一 `arckit-state-driven-loop` 包绑定到 Agent invocation 与 trusted Runtime entrypoints；包身份不要求接口互斥。 Registry 对每种接口独立解析：Agent 使用 invocation 的 phase/trigger，Ledger 使用 repository-trusted runtime_entrypoints。普通 Loop 和 task_closeout 均解析 manifest；prompt 只携带当前事实、授权、phase 与 output contract，工作方法由 skill 按需披露。其他 definition、diagnosis、code 和 quality skills 由当前 Codex Agent 通过原生 skill discovery 在同一 turn 中选择，不进入 Runtime 预测式 route。
 
 Manifest 只提供 runtime 可读的能力元数据：
 
@@ -189,9 +189,9 @@ Agent Loop invocation 只使用 repository capability manifest 声明的自然 t
 
 ### Prompt Compiler
 
-Prompt Compiler 为 Agent Loop 生成最小 invocation。首个 turn 包含自然 `$using-arckit` trigger、待办原始意图、fresh canonical digest、授权与输出契约；后续 turn 只提供仍稳定的任务标识、当前增量、fresh revisions/digest、授权与契约，不重复拼接旧 prompt、完整状态正文或历史报告。
+Prompt Compiler 为 Agent Loop 生成最小 invocation。首个 turn 包含自然 `$arckit-state-driven-loop` trigger、待办原始意图、fresh canonical digest、授权与输出契约；后续 turn 只提供仍稳定的任务标识、当前增量、fresh revisions/digest、授权与契约，不重复拼接旧 prompt、完整状态正文或历史报告。
 
-默认 invocation 以 manifest 声明的自然 `$using-arckit` 文本 trigger 进入 Codex 原生 skill 机制，不额外发送 `skill` input item。其余内容只有 locale、原始待办意图、当前增量、bounded canonical facts、revision、execution authorization 和 compact output contract。Agent 在 turn 内自行读取必要仓库事实、发现其他 skills、执行工具并完成自我审查；Runtime 不拼接 skill 清单、固定 Worker role 或预测式 allowed paths。
+默认 invocation 以 manifest 声明的自然 `$arckit-state-driven-loop` 文本 trigger 进入 Codex 原生 skill 机制，不额外发送 `skill` input item。其余内容只有 locale、原始待办意图、当前增量、bounded canonical facts、revision、execution authorization 和 compact output contract。Agent 在 turn 内自行读取必要仓库事实、发现其他 skills、执行工具并完成自我审查；Runtime 不拼接 skill 清单、固定 Worker role 或预测式 allowed paths。
 
 Runtime 从 trusted ledger snapshot receipt 投影 Agent context digest。Receipt 已包含 Project revision、software decisions/invariants、advancement/project gaps、全部 active Cases、candidate catalog、source digests 与 snapshot tokens；Runtime 不再自己读取 canonical JSON、推导 candidates 或重判协议兼容性。Digest 不包含 raw transcript、模型 reasoning 或未接受 claim；snapshot 报告协议不兼容时进入恢复流程，不启动业务 Loop。
 
@@ -201,7 +201,7 @@ Runtime 从 trusted ledger snapshot receipt 投影 Agent context digest。Receip
 
 Agent Loop result 通过互斥 `action=case_control|case_transition|handoff` 表达本轮结果。没有合适 Case 时返回包含 expected outcome、initial facts、实际相关 impacts 与至少一个具体 gap 的 `case_control.create_case`；Runtime 只绑定 Project revision 与 review policy，不解析关键词补造语义。
 
-Runtime 把创建动作绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并在 Project commit lock 中把 Case 创建、Project/iteration 注册和投影索引作为可回滚提交；Project 不保存独占 selected Case。成功后同一 Runtime 进程重新读取 canonical state，并在同一 Agent thread 发起下一 turn。revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入有 no-progress budget 的 fresh-state replan。
+Runtime 把创建动作绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-state-driven-loop` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并在 Project commit lock 中把 Case 创建、Project/iteration 注册和投影索引作为可回滚提交；Project 不保存独占 selected Case。成功后同一 Runtime 进程重新读取 canonical state，并在同一 Agent thread 发起下一 turn。revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入有 no-progress budget 的 fresh-state replan。
 
 Case 的模型边界只使用 v4 fact/impact/gap delta；普通 transition 必须关闭 selected gap，并可在同轮增加事实、更新相关 impacts 或增加后续 gaps。
 
@@ -313,7 +313,7 @@ Runtime 内部 handoff 必须区分 `next_responsibility` 和 `trigger_mode`。�
 
 ### Ledger Writer
 
-Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适配器。Runtime 先确定性计算 gate；只有 gate 允许时，才从受信任 `arckit-development-ledger` manifest 解析并调用 `scripts/runtime-writeback.mjs`。账本语义、字段映射、渲染和索引由 skill 内实现负责，Runtime 不维护副本。
+Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适配器。Runtime 先确定性计算 gate；只有 gate 允许时，才从受信任 `arckit-state-driven-loop` manifest 解析并调用 `scripts/runtime-writeback.mjs`。账本语义、字段映射、渲染和索引由 skill 内实现负责，Runtime 不维护副本。
 
 Ledger capability 负责将验证后的结果写回：
 
@@ -381,14 +381,14 @@ M1 已验证本地 Codex app-server initialize 握手；真实模型 turn 因会
 
 ### M2：Gate 与 ledger writeback
 
-M2 将 gate 和 validator 结果接入 `arckit-development-ledger`，当前实现位于：
+M2 将 gate 和 validator 结果接入 `arckit-state-driven-loop`，当前实现位于：
 
 - `runtime/arcorbit/src/gate-engine.mjs`
 - `runtime/arcorbit/src/ledger-writer.mjs`
-- `entry/skills/arckit-development-ledger/scripts/runtime-writeback.mjs`
-- `entry/skills/arckit-development-ledger/scripts/project-state.mjs`
-- `entry/skills/arckit-development-ledger/scripts/project-iteration.mjs`
-- `entry/skills/arckit-development-ledger/scripts/development-case.mjs`
+- `entry/skills/arckit-state-driven-loop/scripts/runtime-writeback.mjs`
+- `entry/skills/arckit-state-driven-loop/scripts/project-state.mjs`
+- `entry/skills/arckit-state-driven-loop/scripts/project-iteration.mjs`
+- `entry/skills/arckit-state-driven-loop/scripts/development-case.mjs`
 
 - 自动创建或更新 case
 - 校验 loop handoff
@@ -457,7 +457,7 @@ ArcOrbit 满足方案时表现为：
 - 能展示 Runtime Kernel 输出的 round state、Agent transition、artifact ownership scan 和 ledger stage。
 - 能拒绝缺少 artifact impact scan、source-projection check 或 loop handoff 的结果。
 - 能把 Agent 的语义判断限制为结构化 claim，再由代码验证协议、证据、路径归属和门禁条件。
-- 只绑定 `using-arckit` Agent 入口与 `arckit-development-ledger` trusted entrypoints，并保留 Agent 原生 skill discovery；Runtime 不建立 Worker registry。
+- 只绑定 `arckit-state-driven-loop` Agent 入口与 `arckit-state-driven-loop` trusted entrypoints，并保留 Agent 原生 skill discovery；Runtime 不建立 Worker registry。
 - 能把 agent 续轮、人工决策、外部等待和完成状态区分为不同 loop handoff。
 - 能让一个待办从首轮、普通 Gap、Completion Review、finding 修复到 Git-only closeout 只使用一个持久 Agent thread，并在进程重启后 resume 同一 thread、每次写回后 fresh-read state。
 - 能以 manifest 声明的自然文本 trigger 触发兼容的 Controller skill，不显式注入 `skill` input item，并按当前 app-server schema 返回 command、file 与 permission approval 响应。

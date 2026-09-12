@@ -89,7 +89,7 @@ Windows Desktop 对 Codex executable 使用单一、可验证的解析结果。�
 
 仅安装 Codex Desktop、未安装独立 CLI 时，ArcOrbit 可以复用已经落到用户可访问本地目录且通过版本探测的 Desktop runtime。该 fallback 是对已验证本机布局的兼容层，不把 OpenAI 未承诺的固定路径当成协议；找不到可运行候选时必须保持 `CODEX_UNAVAILABLE`，不得扫描后直接执行访问受限的 `Program Files\WindowsApps` binary，也不得在 Runtime 内静默安装 CLI。
 
-Runtime 与 Chat 复用上述 transport 和基础事件，不复用语义 orchestration。State-driven Runtime 继续在其上叠加 `$using-arckit` prompt、`arckit-agent-loop-result/v1` output schema、Project/Case fresh snapshot、trusted ledger、Gap Loop、Automation lease 和 closeout。Chat Coordinator 直接提交用户文本，不设置 Agent Loop output schema，不调用 state-driven runner、Agent orchestrator、trusted ledger 或 Automation Coordinator。
+Runtime 与 Chat 复用上述 transport 和基础事件，不复用语义 orchestration。State-driven Runtime 继续在其上叠加 `$arckit-state-driven-loop` prompt、`arckit-agent-loop-result/v1` output schema、Project/Case fresh snapshot、trusted ledger、Gap Loop、Automation lease 和 closeout。Chat Coordinator 直接提交用户文本，不设置 Agent Loop output schema，不调用 state-driven runner、Agent orchestrator、trusted ledger 或 Automation Coordinator。
 
 现有 adapter 实例只支持一个活动 turn 并固定绑定一个 project root。Chat Coordinator 因此按活动 Chat session 懒创建 adapter owner；同一 session 串行 turn，不同 session 与不同项目使用独立 owner。owner 空闲或应用退出时可以关闭 app-server client，下一次通过持久 `thread_id` resume。Chat owner 不占用 Automation 的 task/thread lease，Automation owner 也不能向 Chat session 写消息或控制 turn。
 
@@ -118,7 +118,7 @@ Desktop Store 持久化 `acceptance_feedback_items`，它与远端任务 snapsho
 
 创建流程先以幂等键原子写入反馈记录，再向来源 task session 追加带 `feedback_id` 的 user message。任一步重试都按同一键返回现有记录，不重复消息或 Run。来源任务必须是 completed 或 accepted，并且项目、工作区、session 与 thread 引用完整；创建反馈不调用任务源状态更新。
 
-反馈执行复用来源待办的 task session 和持久 Codex thread，但启动新的 Run。该 Run 的 Runtime context 携带 `kind=acceptance_feedback`、`feedback_id`、source task/run/case/completion refs；fresh `$using-arckit` turn 从反馈原文创建新的 Case，并把新 Case id 回写反馈记录。旧 closed Case 只作为证据引用，不重开、不变更。反馈 Case resolved、Git closeout 完成后，反馈记录进入 resolved；它不触发来源待办的完成写回。
+反馈执行复用来源待办的 task session 和持久 Codex thread，但启动新的 Run。该 Run 的 Runtime context 携带 `kind=acceptance_feedback`、`feedback_id`、source task/run/case/completion refs；fresh `$arckit-state-driven-loop` turn 从反馈原文创建新的 Case，并把新 Case id 回写反馈记录。旧 closed Case 只作为证据引用，不重开、不变更。反馈 Case resolved、Git closeout 完成后，反馈记录进入 resolved；它不触发来源待办的完成写回。
 
 普通待办队列与验收反馈队列各自派生 ready 项，并按规范化本地项目身份分入 workspace lane。每个 lane 的 execution arbiter 只在该 lane 没有活动执行时比较两个队首的 `ready_at`，再以来源 lane 和稳定 id 打破平局；选中反馈时获取 workspace 与 task thread lease，并把记录原子推进为 running。租约冲突只保留 queued/blocked 进展。当前执行不被抢占，两条队列也不互相改写排序字段。
 
@@ -287,7 +287,7 @@ State-driven runner 维护 `authoritativeCaseId`，仅从 Runtime context 或 ac
 
 已绑定任务的 `handoffToCodexCli` 采用串行控制：先向当前 Runtime run 发送 interrupt，再等待 Desktop Run Manager 释放 thread lease；停止超时则进入恢复状态且不启动 CLI。停止成功后，主进程通过平台终端启动器打开新终端，工作目录固定为绑定项目，并执行交互式 `codex resume <thread_id>`。启动器以参数数组和平台级转义生成命令，不经 Renderer shell；Renderer 只调用有界 IPC。
 
-CLI resume 后追加一条自然 `$using-arckit` 指令，包含已知 `case_id` 和“从 fresh Project/Case State 自动推进，仅在需要人工介入时暂停”的要求。它不重复待办全文，不包含 raw event、隐藏 transcript 或未写回 claim；Agent 从同一 thread 与 fresh canonical state 继续。
+CLI resume 后追加一条自然 `$arckit-state-driven-loop` 指令，包含已知 `case_id` 和“从 fresh Project/Case State 自动推进，仅在需要人工介入时暂停”的要求。它不重复待办全文，不包含 raw event、隐藏 transcript 或未写回 claim；Agent 从同一 thread 与 fresh canonical state 继续。
 
 CLI 启动成功后，目标活动执行进入 `cli_handoff`，远端任务保持 `in_progress`，对应 workspace lane 的下一项继续冻结，其他 lane 不受影响。Desktop 不读取终端 transcript，也不把终端关闭视为执行结果；“重新打开终端”只重复同一有界启动动作。
 
@@ -295,7 +295,6 @@ Case Reader 只在权威绑定已经存在时根据 `case_id` 匹配 Project `ad
 
 - `active` 且 handoff 由 Agent 负责：显式交还执行权后启动 fresh Runtime run。
 - `active/handoff` 且需要 human：创建 attention item。
-- `active/handoff` 且下一责任为 external：协议层保留 external 原因，Desktop 将其持久投影为 `awaiting_human + external_dependency`，创建 attention item，释放 Runtime 进程但继续持有 lane；只有人工确认动作才启动同一 task session/thread 的 fresh Runtime。
 - `closed` 且 Git closeout checkpoint 已完成：进入远端完成写回。
 - `closed` 且 Git closeout 尚未完成：resume 同一 thread 执行 closeout turn。
 - 权威绑定缺失、冲突，或 Case 缺失、解析失败、状态歧义：进入 recovery，不得扫描仓库、依据旧 run 或利用候选数量猜测身份与完成状态。
@@ -306,7 +305,6 @@ Case Reader 只在权威绑定已经存在时根据 `case_id` 匹配 Project `ad
 
 Runtime 成功完成本轮并写入 accepted ledger 后，若 effective handoff 的 `next_responsibility=external`，Coordinator 必须把该结果解释为 Automation 无法自行推进的人工介入，而不是 `runtime_incomplete`。Case/Loop 仍可使用 external 表达事实责任来源和停止原因，但 Desktop 顶层责任模型只有 Automation 可继续与 Human 需介入两类。Store 在活动 execution 上持久化 `phase=awaiting_human`、`intervention_kind=external_dependency`、accepted handoff reason、恢复条件和开始时间；同 lane 下一项继续冻结，该 execution 不占 Runtime 进程槽位，并创建可操作的 attention item，但不创建 recovery item。
 
-live Run 完成、detached Run 对账和 canonical Case 启动恢复必须收敛到同一 `awaiting_human + external_dependency` 投影。Presence Recovery 因 attention item 明确停止，应用重启不得把“没有存活 Runtime”升级为 `runtime_process_missing`，也不得自动重试尚未满足的依赖。Ledger 为 external handoff 生成稳定 `next_prompt`；旧记录缺失该字段时 Desktop 使用不改变事实的兜底说明。Store normalization 将旧 `phase=external_wait` 与验收问题同名状态迁移为这一投影并补建 attention item，避免升级遗留任务悬空。
 
 Renderer 统一显示“需要人工介入”，以“外部依赖”标明原因子类，并展示原因、恢复条件和“已处理，重新检查”。类型化 `confirm-external-dependency` IPC 只接受稳定 `execution_id`；main process 校验 lane/task/session/thread 与介入类型后清除 attention 投影并启动 fresh Runtime run。Run Manager 复用原 task session 和持久 thread，由 Agent fresh-read canonical Case 决定完成、继续推进或再次请求介入。该确认动作不接收用户正文；需要授权、事实或决策的其他介入仍通过既有有正文 Intervention 流程恢复。
 
@@ -322,7 +320,7 @@ Agent Loop 的状态输出是 `Semantic Case Command`，不是 `development-case
 
 命令使用 snapshot token、canonical candidate ref、既有稳定 ref 和仅在当前命令内有效的 local handle 表达语义关系。新事实、新 Gap、新影响和其他新增实体使用 local handle 相互引用；Agent 不分配 canonical id，不填写内容 revision，不复制 selected Gap，不预测 Project 决策更新后的 revision，也不维护同一关系的反向存储字段。Agent 仍完整评估当前 invariant catalog，并为每个 judgment 提供 disposition、理由、证据以及显式事实/Gap 关系；local handle 只替代机械身份，不替代语义关系。
 
-`arckit-development-ledger` 的 manifest-declared trusted entrypoint 在 Project commit lock 内完成唯一的 `Command Materializer`。Materializer 只执行以下确定性工作：验证 snapshot/candidate freshness；校验 stable ref 与 local handle 可解析且作用域正确；分配无冲突 canonical id 和 revision；从 canonical state 读取当前 Project/Case revision；把 Agent 已声明的单向权威关系展开为反向索引；把命令编译成内部完整 Case Transition；对完整 projected Project/Case/Iteration 执行交叉校验；最后原子提交或不写入。Materializer 不根据 statement、reason、文件内容或字段缺失选择业务 target、effect、disposition、Gap 责任或下一步工作。
+`arckit-state-driven-loop` 的 manifest-declared trusted entrypoint 在 Project commit lock 内完成唯一的 `Command Materializer`。Materializer 只执行以下确定性工作：验证 snapshot/candidate freshness；校验 stable ref 与 local handle 可解析且作用域正确；分配无冲突 canonical id 和 revision；从 canonical state 读取当前 Project/Case revision；把 Agent 已声明的单向权威关系展开为反向索引；把命令编译成内部完整 Case Transition；对完整 projected Project/Case/Iteration 执行交叉校验；最后原子提交或不写入。Materializer 不根据 statement、reason、文件内容或字段缺失选择业务 target、effect、disposition、Gap 责任或下一步工作。
 
 内部 Case Transition 保留为 Ledger 的 canonical commit protocol 和直接 Agent 的可信入口，但不再作为 ArcOrbit Agent output schema。Runtime 只做传输、shape validation、artifact ownership 扫描和结果投影，不持有第二份命令到 Transition 的转换规则。Command Materializer 返回 accepted command receipt、内部 transition receipt、canonical id mapping、round closeout 与 post-commit snapshot token；这些 receipt 是 append-only Run 事实，latest activity 只是投影，不能覆盖先前成功 receipt。
 
@@ -363,7 +361,7 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 - 新建自由 Chat 在首条非空消息前不产生空 session；首条消息只创建一个 `kind=chat` session、一个持久 thread 和一个可见用户消息。
 - Chat session 固定绑定一个 Product Workspace 和规范化项目根；切换工作区创建新 session，Renderer 不能覆盖 cwd 或 thread id。
 - 同一 Chat session 的连续消息 resume 同一 thread，活动 turn 期间第二个 send 被拒绝；不同 Chat session 和 Automation owner 不共享 adapter ownership 或 lease。
-- Chat 不设置 Agent Loop output schema，不触发 `$using-arckit`、trusted ledger、Workshop mutation、Case 或 Automation Run。
+- Chat 不设置 Agent Loop output schema，不触发 `$arckit-state-driven-loop`、trusted ledger、Workshop mutation、Case 或 Automation Run。
 - Agent 正文、reasoning、工具与权限状态按稳定 item 更新；raw JSON-RPC、完整 stdout/stderr 与文件正文不进入普通 transcript。
 - 用户可在 starting、running 或 waiting approval 状态停止；interrupt 后保留部分输出并标记 interrupted，下一次继续是同 thread 的新 turn。
 - 会话切换和页面切换不隐式停止 turn；应用重启把丢失 owner 的非终态 Chat 标记为 interrupted，不重复用户请求。
@@ -375,7 +373,6 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 - 已绑定持久 thread 的 Runtime 失败项可接收非空用户反馈；反馈启动同 thread 的新 Run、保留来源 refs，并在同一 Workbench transcript 中显示，失败时不提前移除恢复项。
 - 电脑断电或 Desktop 进程异常退出后，每个 lane 中仍为 `in_progress` 且没有存活 Run 的活动任务会从持久事实重建恢复项，并以原 task session 和 thread 启动替代 Run；缺失 `recovery_items` 不会让任务永久停滞。
 - 恢复标记只在替代 Run 绑定成功的同一次 Store mutation 中消费；启动失败保留唯一可操作恢复项，存活 Run 或需要人工处理的恢复决策都不会被自动恢复绕过。
-- accepted external handoff 在 live、detached 与重启对账中都持久投影为 `awaiting_human + external_dependency` 并创建 attention，不产生 Runtime error 或进程丢失恢复项；人工确认恢复复用同一 execution、task session 和 thread，并允许 fresh Agent 结果再次请求介入。
 - thread id 在首个 turn 前持久化；进程重启和 Runtime Run 切换都 resume 同一 thread。
 - 不同待办不共享 Codex thread；同一待办不会创建 Controller、Worker、Review 或 commit thread。
 - 同一 `cwd + command` 的并发请求只批准一个进程，并留下可审查软异常。
@@ -414,3 +411,13 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 - 未登录或认证失效的启动路径仍先读取本地 canonical Case；closed Case 显示为等待远端收尾，不显示 Runtime 仍在执行。
 - closeout completed checkpoint 只能由同一 thread 的结构化 success/no-op 结果形成；认证恢复后只重试远端完成写回，不重复 Git closeout。
 - 最新请求上下文占用达到 80% 时，Runtime 在 gap 间压缩同一 thread 并保存 checkpoint；压缩不创建新 thread。
+
+## 执行结果与 Case 完成边界
+
+State Driven Loop 保持一轮一个 Gap、可信写回、post-commit fresh-read 和同一持久 thread。Agent 负责语义判断，Ledger 负责正式事实，Runtime 负责执行会话。三者的状态互不替代。
+
+单独 Agent handoff 的 none 表示执行停止，保存未完成义务；可信 Ledger 的 resolved 才代表 Case 完成。停止记录持久化为 stopped_executions，清除该执行的恢复项与占用，不自动修改远端待办，不在重启后重新领取；用户将待办重新设为待处理后可再次启动。
+
+人工决定、外部等待和执行故障分别展示。外部等待保留 external 责任和恢复条件，使用 waiting_external 阶段；Runtime 故障进入执行恢复，不推导人工业务决策。中断进程与 Agent 明确停止相互区分，意外中断仍可恢复。
+
+继续执行携带任务身份、Case 绑定及可信来源、原任务、用户增量和来源 Run 引用。Prompt 提供 Host 上下文与输出契约，单 Gap 工作方法由 arckit-state-driven-loop 提供，不重复维护引用枚举与语义流程。

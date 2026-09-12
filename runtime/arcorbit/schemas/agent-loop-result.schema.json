@@ -672,6 +672,7 @@
       "additionalProperties": false
     },
     "handoff": {
+      "description": "Execution disposition: a standalone handoff with next_responsibility=none stops execution without claiming Case completion. Only trusted Ledger acceptance establishes Case completion. human requests a human decision; external waits for an external result; agent continues the State Driven Loop.",
       "type": "object",
       "required": ["next_responsibility", "reason", "next_prompt", "human_decision_required"],
       "properties": {

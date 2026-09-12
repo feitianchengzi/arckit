@@ -11,9 +11,9 @@ import {
   auditCaseRecord,
   readCaseRecord,
   writeCaseRecord,
-} from '../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs';
-import { applyCaseTransition } from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
-import { applyRuntimeLedgerWriteback } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-writeback.mjs';
+} from '../../../entry/skills/arckit-state-driven-loop/scripts/development-case.mjs';
+import { applyCaseTransition } from '../../../entry/skills/arckit-state-driven-loop/scripts/case-transition.mjs';
+import { applyRuntimeLedgerWriteback } from '../../../entry/skills/arckit-state-driven-loop/scripts/runtime-writeback.mjs';
 
 test('different active Cases advance concurrently without changing Project selection state', async () => {
   const projectRoot = await projectWithCases(2);

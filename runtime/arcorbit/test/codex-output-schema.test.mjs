@@ -95,3 +95,11 @@ function findUntypedConsts(value, path = "$") {
   }
   return issues;
 }
+
+test('output schema rejects ref sibling annotations before sending a model request', () => {
+ const invalid={type:'object',properties:{handoff:{$ref:'#/$defs/handoff',description:'execution handoff'}},required:['handoff'],additionalProperties:false,$defs:{handoff:{type:'string'}}};
+ assert.throws(()=>assertCodexOutputSchema(invalid),/properties.handoff.*\$ref.*description/);
+ delete invalid.properties.handoff.description;
+ invalid.$defs.handoff.description='execution handoff';
+ assert.doesNotThrow(()=>assertCodexOutputSchema(invalid));
+});

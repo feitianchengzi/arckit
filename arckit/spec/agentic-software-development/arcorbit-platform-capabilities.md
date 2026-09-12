@@ -212,7 +212,7 @@ Desktop 在 Workshop 登录和自动执行之前检查安装包资源、ArcForge
 
 已变更的受管内容和 loader 冲突不被静默覆盖；清理 stale 受管路径使用独立确认。
 
-Runtime 保持 policy-neutral，只显式绑定自然 `$using-arckit` Agent 入口和 trusted ledger entrypoints。
+Runtime 保持 policy-neutral，只显式绑定自然 `$arckit-state-driven-loop` Agent 入口和 trusted ledger entrypoints。
 
 Runtime 不维护 Worker registry，不内置固定 skill 顺序、业务 gap、角色或预测路径。
 

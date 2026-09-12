@@ -6,9 +6,9 @@ import test from 'node:test';
 
 import { ensureArckitProject } from '../src/project-initializer.mjs';
 import { runLedgerScript } from '../src/ledger-scripts.mjs';
-import { readLedgerSnapshot } from '../../../entry/skills/arckit-development-ledger/scripts/loop-snapshot.mjs';
-import { materializeSemanticCaseCommand, SemanticCommandError, validateSemanticCaseCommand } from '../../../entry/skills/arckit-development-ledger/scripts/semantic-case-command.mjs';
-import { applyRuntimeLedgerWriteback, rejectionPolicy } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-writeback.mjs';
+import { readLedgerSnapshot } from '../../../entry/skills/arckit-state-driven-loop/scripts/loop-snapshot.mjs';
+import { materializeSemanticCaseCommand, SemanticCommandError, validateSemanticCaseCommand } from '../../../entry/skills/arckit-state-driven-loop/scripts/semantic-case-command.mjs';
+import { applyRuntimeLedgerWriteback, rejectionPolicy } from '../../../entry/skills/arckit-state-driven-loop/scripts/runtime-writeback.mjs';
 
 test('Semantic Case Command materializes identities, revisions and reverse relations without reading prose', async () => {
   const projectRoot = await fixtureProject();
@@ -259,6 +259,37 @@ test('Semantic Completion Review uses the Agent-facing review contract', async (
   });
   assert.equal(accepted.written, true);
   assert.equal(accepted.case_transition_result.case_resolution.status, 'resolved');
+});
+
+test('Review findings explicitly bind invariant judgments to their persisted repair gaps', async () => {
+  const { projectRoot, snapshot, active } = await reviewReadyFixture();
+  const command = completionReviewCommand(snapshot, active.record);
+  const findingRef = 'local:review-finding:visible-context';
+  command.claim.completion_review_result.outcome = 'findings';
+  command.claim.completion_review_result.dimensions.problem_resolution = 'findings';
+  command.claim.completion_review_result.findings = [{
+    ref: findingRef, kind: 'omission', statement: 'Submission context is missing.',
+    responsibility: 'agent', artifact_refs: ['fixture:source'], evidence: ['fixture:review'],
+  }];
+  const judgment = command.invariant_assessment.judgments.find((item) => item.invariant_ref.endsWith(':accepted-facts-are-realized'));
+  Object.assign(judgment, { disposition: 'threatened', reason: 'The accepted context is missing.',
+    fact_refs: ['case:fact:FACT-INTENT'], evidence: ['fixture:review'], gap_refs: [findingRef] });
+  const unknown = structuredClone(command);
+  unknown.invariant_assessment.judgments.find((item) => item.disposition === 'threatened').gap_refs = ['local:review-finding:unknown'];
+  assert.throws(() => materializeSemanticCaseCommand({ command: unknown, snapshot }), /unknown local review-finding/);
+  const wrongType = structuredClone(command);
+  wrongType.invariant_assessment.judgments.find((item) => item.disposition === 'threatened').gap_refs = ['local:gap:visible-context'];
+  assert.throws(() => materializeSemanticCaseCommand({ command: wrongType, snapshot }), /unknown local gap/);
+  const materialized = materializeSemanticCaseCommand({ command, snapshot });
+  const gapId = `${active.record.id}:review-finding:${materialized.canonical_id_mapping[findingRef]}`;
+  assert.deepEqual(materialized.transition.accepted_state_delta.gaps_added, []);
+  const accepted = await applyRuntimeLedgerWriteback({ projectRoot, runtimeResult: { case_command: command }, snapshot, gate: { allowed: true, reasons: [] } });
+  assert.equal(accepted.written, true, JSON.stringify(accepted));
+  const fresh = readLedgerSnapshot(projectRoot, { afterCommitToken: accepted.post_commit_snapshot_token });
+  const record = fresh.canonical.active_cases.find((item) => item.record.id === active.record.id).record;
+  assert.equal(record.gaps.find((item) => item.id === gapId)?.status, 'open');
+  assert.deepEqual(materialized.transition.invariant_assessment.judgments.find((item) => item.disposition === 'threatened').gap_refs, [gapId]);
+  assert.equal(record.case_resolution.status, 'unresolved');
 });
 
 test('Semantic Completion Review rejects responsibility, outcome and identity contradictions', async () => {

@@ -14,7 +14,7 @@ test("Codex CLI handoff prompt continues the stable Case without repeating the t
     taskIntent: "实现并验证 Runtime 与 CLI 接力。"
   });
 
-  assert.match(prompt, /^\$using-arckit/);
+  assert.match(prompt, /^\$arckit-state-driven-loop/);
   assert.match(prompt, /CASE-20260807-001/);
   assert.doesNotMatch(prompt, /实现并验证 Runtime 与 CLI 接力/);
   assert.match(prompt, /仅在确实需要人工介入时暂停/);
@@ -26,6 +26,12 @@ test("Codex CLI handoff prompt refuses an unbound task", () => {
     () => buildCodexCliHandoffPrompt({ taskTitle: "unbound todo" }),
     /requires an authoritative Case id/
   );
+});
+
+test('CLI handoff preserves the selected on-demand paths after project migration', () => {
+ const prompt=buildCodexCliHandoffPrompt({caseId:'CASE-20260911-001',sceneSkillBinding:{skills:[{name:'arckit-state-driven-loop',skillPath:'/app/catalog/version/entry/skills/arckit-state-driven-loop/SKILL.md'},{name:'my-debug',skillPath:'/user/on-demand/my-debug/SKILL.md'}]}});
+ assert.match(prompt,/\/app\/catalog\/version\/entry\/skills\/arckit-state-driven-loop\/SKILL.md/);
+ assert.match(prompt,/\/user\/on-demand\/my-debug\/SKILL.md/);
 });
 
 test("Codex CLI handoff uses the bounded single-line task label", () => {
@@ -43,7 +49,7 @@ test("macOS launch spec opens interactive codex in Terminal without codex exec",
   const spec = buildInteractiveCodexLaunchSpec({
     projectPath: "/workspace/Project with space",
     threadId: "THREAD-PERSISTED",
-    prompt: "$using-arckit\n继续 CASE-20260807-001",
+    prompt: "$arckit-state-driven-loop\n继续 CASE-20260807-001",
     platform: "darwin",
     codexExecutable: { command: "/Users/test/.nvm/versions/node/v22/bin/codex", pathEntries: ["/Users/test/.nvm/versions/node/v22/bin"] }
   });
@@ -61,7 +67,7 @@ test("Windows launch spec passes the resolved Codex executable to Start-Process"
   const spec = buildInteractiveCodexLaunchSpec({
     projectPath: "C:\\workspace\\project",
     threadId: "THREAD-PERSISTED",
-    prompt: "$using-arckit",
+    prompt: "$arckit-state-driven-loop",
     platform: "win32",
     codexExecutable: { command: "C:\\Users\\test\\AppData\\Roaming\\npm\\codex.cmd", pathEntries: [] }
   });
@@ -85,7 +91,7 @@ test("interactive launcher confirms the macOS terminal request and detaches it",
     }
   });
 
-  const result = await launcher.launch({ projectPath: "/workspace/project", threadId: "THREAD-PERSISTED", prompt: "$using-arckit" });
+  const result = await launcher.launch({ projectPath: "/workspace/project", threadId: "THREAD-PERSISTED", prompt: "$arckit-state-driven-loop" });
 
   assert.equal(result.launched, true);
   assert.equal(result.pid, 42);
@@ -104,7 +110,7 @@ test("interactive launcher reports a rejected macOS terminal request", async () 
   });
 
   await assert.rejects(
-    launcher.launch({ projectPath: "/workspace/project", threadId: "THREAD-PERSISTED", prompt: "$using-arckit" }),
+    launcher.launch({ projectPath: "/workspace/project", threadId: "THREAD-PERSISTED", prompt: "$arckit-state-driven-loop" }),
     /osascript failed with exit code 1/
   );
 });

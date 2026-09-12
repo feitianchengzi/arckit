@@ -1,5 +1,8 @@
+import { executionOutcome } from './kernel/execution-outcome.mjs';
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { validateSceneSkillBinding } from "./scene-skill-manager.mjs";
 import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
 import { buildCodexCliHandoffPrompt, createInteractiveCodexCliLauncher } from "./interactive-cli-launcher.mjs";
 import { taskDisplayTitle } from "./task-display-title.mjs";
@@ -494,6 +497,7 @@ function projectLaneStore(store, workspaceKey) {
   ));
   automation.attention_items = (automation.attention_items || []).filter((item) => item.freeze_scope === "global" || itemBelongsToLane(item, workspaceKey, active));
   automation.recovery_items = (automation.recovery_items || []).filter((item) => item.freeze_scope === "global" || itemBelongsToLane(item, workspaceKey, active));
+  automation.stopped_executions = (automation.stopped_executions || []).filter((item) => String(item.local_project_id) === workspaceKey);
   automation.recent_completions = (automation.recent_completions || []).filter((item) => String(item.local_project_id || "") === workspaceKey || remoteIds.has(String(item.project_id || "")));
   filterLaneProjection(projected, workspaceKey, remoteIds);
   return projected;
@@ -550,6 +554,7 @@ function mergeLaneStore(store, before, after, workspaceKey) {
   };
   automation.attention_items = mergeProjectedCollection(automation.attention_items, beforeAutomation.attention_items, nextAutomation.attention_items.map(laneItem), automationItemIdentity);
   automation.recovery_items = mergeProjectedCollection(automation.recovery_items, beforeAutomation.recovery_items, nextAutomation.recovery_items.map(laneItem), automationItemIdentity);
+  automation.stopped_executions = mergeProjectedCollection(automation.stopped_executions, beforeAutomation.stopped_executions, nextAutomation.stopped_executions || [], (item) => item.id);
   automation.recent_completions = mergeProjectedCollection(automation.recent_completions, beforeAutomation.recent_completions, nextAutomation.recent_completions, (item) => `completion:${item.run_id || ""}:${item.task_id || ""}:${item.completed_at || ""}`);
   if (Object.hasOwn(automation, "active_task")) {
     automation.active_task = Object.values(automation.active_executions).find((item) => item.execution_id === automation.selected_execution_id) || null;
@@ -568,8 +573,10 @@ function automationItemIdentity(item = {}) {
 }
 
 function deriveSupervisorHealth(baseHealth, automation, executions) {
-  if ((automation.recovery_items || []).some((item) => item.freeze_scope === "global")) return { state: "recovery", label: "需要人工介入 · 全局恢复", tone: "danger" };
+  if ((automation.recovery_items || []).some((item) => item.freeze_scope === "global")) return { state: "recovery", label: "执行异常 · 全局恢复", tone: "danger" };
   if (executions.some((item) => item.phase === "awaiting_human")) return { state: "running_attention", label: "并行执行 · 部分需人工介入", tone: "warning" };
+  if (executions.some((item) => item.phase === "recovery")) return { state: "recovery", label: "执行异常", tone: "danger" };
+  if (executions.some((item) => item.phase === "waiting_external")) return { state: "waiting_external", label: "等待外部结果", tone: "warning" };
   if (executions.length > 0) return { state: "running", label: `自动执行中 ${executions.length}/${automation.concurrency_limit || 3}`, tone: "accent" };
   return baseHealth;
 }
@@ -706,6 +713,7 @@ function createLaneAutomationCoordinator({
         ...item,
         actions: recoveryActionsForItem(item, automation.active_task)
       })),
+      stopped_executions: automation.stopped_executions || [],
       recent_completions: automation.recent_completions.map((item) => {
         const run = runs.find((candidate) => candidate.id === item.run_id) || null;
         return {
@@ -897,6 +905,7 @@ function createLaneAutomationCoordinator({
         taskId: active.task_id,
         task: buildInterventionTask(text),
         runtimeContext: {
+          ...continuationContext(active, store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id))),
           kind: active.execution_kind === "acceptance_feedback" ? "acceptance_feedback_intervention" : "human_intervention",
           feedback_id: active.feedback_id || "",
           source_run_id: run?.id || active.run_id || "",
@@ -1048,7 +1057,7 @@ function createLaneAutomationCoordinator({
     const store = await readStore();
     const active = store.automation.active_task;
     if (!active) throw new Error("No active task to hand off to Codex CLI.");
-    if (["closeout_running", "completing", "awaiting_human", "external_wait"].includes(active.phase)) {
+    if (["closeout_running", "completing", "awaiting_human", "waiting_external", "external_wait"].includes(active.phase)) {
       throw new Error(`The active task cannot switch to Codex CLI while phase=${active.phase}.`);
     }
     if (active.phase === "cli_handoff") return reopenCodexCli();
@@ -1126,7 +1135,7 @@ function createLaneAutomationCoordinator({
     const store = await readStore();
     const active = store.automation.active_task;
     const attention = store.automation.attention_items.find((item) => String(item.task_id) === String(active?.task_id));
-    if (!active || active.phase !== "awaiting_human" || (active.intervention_kind !== "external_dependency" && attention?.kind !== "external_dependency")) {
+    if (!active || !["awaiting_human", "waiting_external"].includes(active.phase) || (active.intervention_kind !== "external_dependency" && attention?.kind !== "external_dependency")) {
       throw new Error("The active task is not awaiting confirmation for an external dependency.");
     }
     await patchAutomation((automation) => {
@@ -1171,8 +1180,11 @@ function createLaneAutomationCoordinator({
       throw new Error("Codex CLI handoff requires an authoritative task-to-Case binding.");
     }
     const caseId = caseBinding.case_id;
+    const bindingFile = sourceRun?.scene_skill_binding_file || sourceRun?.run?.scene_skill_binding_file;
+    const sceneSkillBinding = bindingFile ? await validateSceneSkillBinding(JSON.parse(await readFile(bindingFile, 'utf8'))) : null;
     const prompt = buildCodexCliHandoffPrompt({
       caseId,
+      sceneSkillBinding,
       taskTitle: taskDisplayTitle(task.content, task.title || current.task_title || current.task_id),
       taskIntent: buildAutomationTask(task)
     });
@@ -1276,6 +1288,7 @@ function createLaneAutomationCoordinator({
           task: text,
           threadId: active.thread_id,
           runtimeContext: {
+            ...continuationContext(active, store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id))),
             kind: "recovery_feedback",
             recovery_id: recovery.id,
             recovery_type: recovery.type,
@@ -1292,7 +1305,8 @@ function createLaneAutomationCoordinator({
         await runManager.addMessage(project.id, {
           session_id: session.id,
           role: "user",
-          kind: "recovery_feedback",
+          ...continuationContext(active, store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id))),
+            kind: "recovery_feedback",
           content: text,
           run_id: nextRun.id,
           task_id: active.task_id
@@ -1443,6 +1457,7 @@ function createLaneAutomationCoordinator({
           throw error;
         }
         await patchAutomation((next) => {
+          next.stopped_executions = (next.stopped_executions || []).filter((item) => String(item.task_id) !== String(claimed.id) || String(item.project_id) !== String(claimed.project_id));
           next.active_task = {
             task_id: claimed.id,
             project_id: claimed.project_id,
@@ -1639,8 +1654,8 @@ function createLaneAutomationCoordinator({
             ? { closeout_only: true, case_id: caseBinding.case_id, kind: "acceptance_feedback", feedback_id: active.feedback_id }
             : { closeout_only: true, case_id: caseBinding.case_id }
           : active.execution_kind === "acceptance_feedback"
-            ? acceptanceFeedbackRuntimeContext(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id))
-            : null,
+            ? { ...continuationContext(active, store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id))), ...acceptanceFeedbackRuntimeContext(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id)) }
+            : continuationContext(active, task),
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
@@ -1730,29 +1745,10 @@ function createLaneAutomationCoordinator({
     }
     const runtimeResult = event.result?.runtime_result || null;
     const handoff = selectEffectiveLoopHandoff({ runtimeResult, activity: event.activity });
-    const ledgerRequired = runtimeResult?.ledger_stage?.writeback_required === true;
-    const ledgerWritten = event.activity?.ledger_write_result?.parsed?.written === true;
-    const ledgerFailure = ledgerFailureReason({ result: event.result, activity: event.activity });
-    const runtimeFailure = String(event.activity?.error || event.result?.next_action || "").trim();
-    if (ledgerRequired && !ledgerWritten) {
-      await addRecovery({
-        type: "runtime_incomplete",
-        task: active,
-        message: ledgerFailure || runtimeFailure || "Runtime stopped because the required ledger writeback was not accepted.",
-        actions: ["retry_start", "mark_blocked"]
-      });
-      return;
-    }
-    if (handoff.next_responsibility === "human" || handoff.human_decision_required === true) {
-      await setAwaitingHuman({ active, runId: event.runId, handoff });
-      return;
-    }
-    if (handoff.next_responsibility === "external" || handoff.status === "external_wait") {
-      await setAwaitingExternalIntervention({ active, runId: event.runId, handoff });
-      return;
-    }
-    const caseComplete = handoff.next_responsibility === "none" || handoff.status === "complete";
-    if (event.status === "completed" && caseComplete && (!ledgerRequired || ledgerWritten)) {
+    const disposition = executionOutcome({ result: event.result, activity: event.activity, status: event.status });
+    if (await applyExecutionDisposition(active, event.runId, disposition, handoff)) return;
+    const caseComplete = disposition.state === "completed";
+    if (event.status === "completed" && caseComplete) {
       if (caseBinding.status !== "bound") {
         await addRecovery({
           type: "case_binding_missing",
@@ -1776,11 +1772,9 @@ function createLaneAutomationCoordinator({
       return;
     }
     await addRecovery({
-      type: "runtime_incomplete",
-      task: active,
-      message: event.status === "completed"
-        ? ledgerFailure || handoff.responsibility_reason || "Runtime stopped before the task reached a complete handoff."
-        : ledgerFailure || runtimeFailure || `Runtime finished with status ${event.status}.`,
+      type: "runtime_incomplete", task: active,
+      message: disposition.reason || `Runtime finished with status ${event.status}.`,
+      responsibility: disposition.responsibility,
       actions: ["retry_start", "mark_blocked"]
     });
   }
@@ -2031,6 +2025,10 @@ function createLaneAutomationCoordinator({
     const caseBinding = await resolveTaskCaseBinding(active, latest);
     if (caseBinding.status === "conflict") return null;
 
+    const persistedResult = await runManager.readRunResult?.(latest.id).catch(() => null) || latest.result;
+    const disposition = executionOutcome({ result: persistedResult, activity: latest.activity, status: latest.status });
+    const persistedHandoff = selectEffectiveLoopHandoff({ runtimeResult: persistedResult?.runtime_result, activity: latest.activity });
+    if (await applyExecutionDisposition(active, latest.id, disposition, persistedHandoff)) return disposition.state;
     if (latest.status !== "completed") return null;
     if (["closeout_starting", "closeout_running"].includes(active.phase)) {
       if (caseBinding.status !== "bound") {
@@ -2056,35 +2054,15 @@ function createLaneAutomationCoordinator({
 
     const activity = latest.activity || {};
     const handoff = selectEffectiveLoopHandoff({ activity });
-    if (handoff.next_responsibility === "human" || handoff.human_decision_required === true) {
-      await setAwaitingHuman({ active, runId: latest.id, handoff });
-      return null;
-    }
-    if (handoff.next_responsibility === "external" || handoff.status === "external_wait") {
-      await setAwaitingExternalIntervention({ active, runId: latest.id, handoff });
-      return "human";
-    }
-    const caseComplete = handoff.next_responsibility === "none"
-      || handoff.status === "done"
-      || handoff.status === "complete";
-    const ledgerRequired = activity.ledger_stage?.writeback_required === true;
-    const ledgerWritten = activity.ledger_write_result?.parsed?.written === true;
-    if (ledgerRequired && !ledgerWritten) {
-      const recoveryExists = store.automation.recovery_items.some((item) => (
-        item.type === "runtime_incomplete"
-        && String(item.task_id) === String(active.task_id)
-        && String(item.run_id) === String(latest.id)
-      ));
-      if (!recoveryExists) {
-        await addRecovery({
-          type: "runtime_incomplete",
-          task: active,
-          message: ledgerFailureReason({ result: latest.result, activity })
-            || handoff.responsibility_reason
-            || "Runtime stopped because the required ledger writeback was not accepted.",
-          actions: ["retry_start", "mark_blocked"]
-        });
-      }
+    const caseComplete = disposition.state === "completed";
+    if (disposition.state === "failed" && (persistedResult || activity.ledger_stage)) {
+      const recoveryExists = store.automation.recovery_items.some((item) => String(item.task_id) === String(active.task_id));
+      if (!recoveryExists) await addRecovery({
+        type: "runtime_incomplete", task: active,
+        message: disposition.reason || "Runtime stopped without an accepted result.",
+        responsibility: disposition.responsibility,
+        actions: ["retry_start", "mark_blocked"]
+      });
       return null;
     }
     if (!caseComplete) return null;
@@ -2286,6 +2264,34 @@ function createLaneAutomationCoordinator({
     return binding;
   }
 
+  async function applyExecutionDisposition(active, runId, disposition, handoff) {
+    if (disposition.state === "needs_human") {
+      await setAwaitingHuman({ active, runId, handoff });
+      return true;
+    }
+    if (disposition.state === "waiting_external") {
+      await setAwaitingExternalIntervention({ active, runId, handoff });
+      return true;
+    }
+    if (disposition.state !== "stopped") return false;
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id || automation.active_task?.run_id !== runId) return;
+      automation.stopped_executions = upsertById(automation.stopped_executions || [], {
+        ...automation.active_task, id: active.execution_id || runId, run_id: runId,
+        phase: "stopped", stopped_at: now(), execution_outcome: disposition
+      });
+      automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
+      automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
+      if (active.execution_kind === "acceptance_feedback") {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
+        if (item) { item.status = "stopped"; item.progress = disposition.reason; item.updated_at = now(); }
+      }
+      automation.active_task = null;
+    });
+    emit("automation.changed", { reason: "execution-stopped", taskId: active.task_id });
+    return true;
+  }
+
   async function setAwaitingHuman({ active, runId, handoff }) {
     await patchAutomation((automation) => {
       if (automation.active_task?.task_id !== active.task_id) return;
@@ -2329,7 +2335,7 @@ function createLaneAutomationCoordinator({
     await patchAutomation((automation) => {
       if (automation.active_task?.task_id !== active.task_id) return;
       automation.active_task.run_id = runId;
-      automation.active_task.phase = "awaiting_human";
+      automation.active_task.phase = "waiting_external";
       automation.active_task.intervention_kind = "external_dependency";
       automation.active_task.intervention_reason = reason;
       automation.active_task.intervention_resume_condition = resumeCondition;
@@ -2342,6 +2348,7 @@ function createLaneAutomationCoordinator({
         run_id: runId,
         feedback_id: active.feedback_id || "",
         kind: "external_dependency",
+        responsibility: "external",
         reason,
         question: resumeCondition,
         created_at: now()
@@ -2349,7 +2356,7 @@ function createLaneAutomationCoordinator({
       if (active.execution_kind === "acceptance_feedback") {
         const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
         if (item) {
-          item.status = "awaiting_human";
+          item.status = "external_wait";
           item.progress = reason;
           item.blocking_reason = reason;
           item.intervention_kind = "external_dependency";
@@ -2358,7 +2365,7 @@ function createLaneAutomationCoordinator({
         }
       }
     });
-    emit("automation.changed", { reason: "awaiting-human-external-dependency", taskId: active.task_id });
+    emit("automation.changed", { reason: "waiting-external", taskId: active.task_id });
   }
 
   async function markCloseoutCompleted(active, runId, result) {
@@ -2386,7 +2393,7 @@ function createLaneAutomationCoordinator({
     });
   }
 
-  async function addRecovery({ type, task, message, actions, freezeScope = "lane", replaceRecoveryIds = [] }) {
+  async function addRecovery({ type, task, message, actions, freezeScope = "lane", replaceRecoveryIds = [], responsibility = "runtime" }) {
     await patchAutomation((automation) => {
       const taskId = task?.task_id || task?.id || "unknown";
       const active = automation.active_task;
@@ -2411,7 +2418,7 @@ function createLaneAutomationCoordinator({
         feedback_id: active?.feedback_id || "",
         message,
         freeze_scope: freezeScope,
-        responsibility: "operator",
+        responsibility,
         actions: availableActions,
         created_at: now()
       });
@@ -2428,7 +2435,7 @@ function createLaneAutomationCoordinator({
   async function reconcileRuntimePresence() {
     const store = await readStore();
     const active = store.automation.active_task;
-    if (!active || ["starting", "continuing", "switching_to_cli", "cli_handoff", "awaiting_human", "remote_completion_pending", "completing", "recovery"].includes(active.phase)) return;
+    if (!active || ["starting", "continuing", "switching_to_cli", "cli_handoff", "awaiting_human", "waiting_external", "remote_completion_pending", "completing", "recovery"].includes(active.phase)) return;
     if (active.run_id && runManager.isRunActive?.(active.run_id)) return;
     if (active.phase === "closeout_running") {
       await addRecovery({
@@ -2761,8 +2768,9 @@ function enrichTask(task, { automation, project, localProject, queue, pendingCan
 }
 
 function deriveHealth(automation, queue, blockedPendingTasks = [], acceptanceFeedbackQueue = []) {
-  if (automation.recovery_items.length > 0) return { state: "recovery", label: "需要人工介入", tone: "danger" };
-  if (automation.attention_items.length > 0) return { state: "attention", label: "需要人工介入", tone: "warning" };
+  if (automation.recovery_items.length > 0) return { state: "recovery", label: "执行异常", tone: "danger" };
+  if (automation.attention_items.some((item) => item.kind !== "external_dependency")) return { state: "attention", label: "需要人工介入", tone: "warning" };
+  if (automation.attention_items.length > 0) return { state: "waiting_external", label: "等待外部结果", tone: "warning" };
   if (automation.snapshot.source_status === "logged_out") return { state: "logged_out", label: "Workshop 未登录", tone: "neutral" };
   if (automation.snapshot.source_status === "unauthenticated") return { state: "unauthenticated", label: "认证已失效", tone: "danger" };
   if (automation.snapshot.source_status !== "healthy") return { state: automation.snapshot.source_status, label: "任务源异常", tone: "warning" };
@@ -2840,6 +2848,7 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
   const candidates = automation.snapshot.tasks.filter((task) => {
     const projectId = String(task.project_id);
     return task.state === "in_progress"
+      && !(automation.stopped_executions || []).some((item) => String(item.task_id) === String(task.id) && String(item.project_id) === String(task.project_id))
       && Boolean(automation.project_bindings[projectId])
       && automation.project_participation[projectId] === true
       && !taskProjectionUnavailable(automation.snapshot)
@@ -3112,22 +3121,6 @@ function isTaskCloseoutResult(value) {
     && typeof value.error === "string";
 }
 
-function ledgerFailureReason({ result, activity } = {}) {
-  const ledgers = [
-    activity?.ledger_write_result?.parsed,
-    result?.ledger_write_result
-  ];
-  for (const ledger of ledgers) {
-    const reason = String(ledger?.rejection?.reason || "").trim();
-    if (reason) return reason;
-    const gateReasons = ledger?.gate?.reasons;
-    if (Array.isArray(gateReasons) && gateReasons.some(Boolean)) {
-      return gateReasons.filter(Boolean).join("\n");
-    }
-  }
-  return "";
-}
-
 export function extractAuthoritativeCaseBindingFromRun(run) {
   const ledgers = [
     ...((run?.activity?.ledger_write_receipts || []).map((receipt, index) => ({
@@ -3245,4 +3238,14 @@ function median(values) {
   if (sorted.length === 0) return 0;
   const middle = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+}
+
+export function continuationContext(active, task = null) {
+  const binding = persistedCaseBinding(active);
+  return {
+    task_id: String(active?.task_id || ''), original_task: task?.content || task?.title || active?.task_title || '',
+    case_id: binding.status === 'bound' ? binding.case_id : '',
+    case_binding: binding,
+    execution_id: active?.execution_id || ''
+  };
 }

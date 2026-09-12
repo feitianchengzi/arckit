@@ -5,12 +5,12 @@ import test from "node:test";
 
 import { runAgenticLoop } from "../src/agent-orchestrator.mjs";
 import { compilePrompt } from "../src/prompt-compiler.mjs";
-import { createProjectStateRecord } from "../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs";
+import { createProjectStateRecord } from "../../../entry/skills/arckit-state-driven-loop/scripts/project-state.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDir, "../../..");
 
-test("default execution accepts candidate and current-turn fresh gaps from one coherent using-arckit Agent", async () => {
+test("default execution accepts candidate and current-turn fresh gaps from one coherent arckit-state-driven-loop Agent", async () => {
   const caseId = "CASE-20260810-001";
   const gap = {
     id: "GAP-IMPLEMENT",
@@ -97,6 +97,7 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
     round,
     compiledPrompt: compilePrompt(snapshot, round, { task: "Implement the bounded change." }),
     options: {
+      runtimeContext: { case_id: caseId, original_task: "Original task", case_binding: { source: "runtime_ledger", run_id: "RUN-accepted" } },
       task: "Implement the bounded change.",
       originalTask: "Implement the bounded change.",
       taskId: "TASK-1",
@@ -112,9 +113,12 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
   assert.equal(calls[0].options.resultKind, "agent-loop-result");
   assert.equal(calls[0].options.outputSchema.properties.schema_version.const, "arckit-agent-loop-result/v2");
   assert.equal("skillInputs" in calls[0].options, false);
-  assert.ok(calls[0].prompt.startsWith("$using-arckit\n"));
-  assert.match(calls[0].prompt, /"execute_in_current_turn": true/);
+  assert.ok(calls[0].prompt.startsWith("$arckit-state-driven-loop\n"));
+  assert.match(calls[0].prompt, /"workflow_authority": "\$arckit-state-driven-loop"/);
+  assert.doesNotMatch(calls[0].prompt, /"one_gap"|"typed_refs"|"future_gap_preplanning"/);
   const invocation = JSON.parse(calls[0].prompt.slice(calls[0].prompt.indexOf("\n\n") + 2));
+  assert.equal(invocation.task_context.case_id, caseId);
+  assert.equal(invocation.task_context.case_binding.run_id, "RUN-accepted");
   assert.equal(invocation.canonical_context.ledger_snapshot.snapshot_token, "fixture-global-snapshot");
   assert.equal(invocation.canonical_context.ledger_snapshot.selection_tokens[caseId], "fixture-selection-token");
   assert.equal(invocation.execution_authorization.trusted_ledger_snapshot.snapshot_token, "fixture-global-snapshot");

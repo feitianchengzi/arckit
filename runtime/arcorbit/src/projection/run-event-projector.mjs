@@ -66,6 +66,12 @@ function applyRunEvent(run, { parsed }) {
   activity.last_event_at = now;
 
   switch (event.type) {
+    case "runtime.lifecycle.span.completed":
+      // Only the failed session is terminal; inner spans may be retried successfully.
+      if (event.name === "runtime.session" && event.status === "error" && typeof event.error?.message === "string") {
+        activity.error = event.error.message;
+      }
+      break;
     case "runtime.session_round.started":
       activity.round_index = Number(event.round_index || activity.round_index || 0);
       updateGapRound(activity, event, { status: "running", started_at: now });
@@ -489,7 +495,7 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
   activity.status = status;
   activity.phase = status;
   activity.phase_label = status === "completed" ? "Completed" : status === "aborted" ? "Aborted" : "Failed";
-  activity.current_step = summarizeRuntimeResult(status, parsedResult, errorMessage);
+  activity.current_step = summarizeRuntimeResult(status, parsedResult, errorMessage || (status === "failed" ? activity.error : ""));
   activity.error = errorMessage || activity.error;
   activity.exit_code = exitCode;
   activity.finished_at = new Date().toISOString();

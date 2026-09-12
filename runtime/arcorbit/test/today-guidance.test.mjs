@@ -218,7 +218,9 @@ test("Renderer reuses owned mutations, fresh-reads after success, and preserves 
   assert.match(source, /projectCurrentUserExecutorId\(values\.project_id\)/);
   assert.doesNotMatch(source, /executor_id: state\.platform\.user\.id/);
   assert.doesNotMatch(source, /currentUserId: state\.platform\.user/);
-  assert.doesNotMatch(source, /String\(state\.platform\.user\?\.id/);
+  // Executor identity must remain project-scoped; account-bound governance may use platform.user.
+  const executorIdentity = source.slice(source.indexOf("function projectCurrentUserExecutorId("), source.indexOf("function projectCurrentUserExecutorId(") + 400);
+  assert.doesNotMatch(executorIdentity, /state\.platform\.user/);
   assert.match(source, /platformField\("state", "状态", \{ type: "select", value: "pending_review"/);
   assert.match(source, /taskProjectFields\(defaultProjectId, \{ includeExecutorAutomationHelp: true, taskState: "pending_review" \}\)/);
   assert.match(source, /bindTaskFormProjectScope\(defaultProjectId, \{ includeExecutorAutomationHelp: true \}\)/);

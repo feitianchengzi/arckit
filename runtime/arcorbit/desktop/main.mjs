@@ -18,7 +18,8 @@ import {
 import { createCodexOwnerReceiptStore } from "../src/codex-owner-receipt-store.mjs";
 import { createInteractiveCodexCliLauncher } from "../src/interactive-cli-launcher.mjs";
 import { createPlatformCoordinator } from "../src/platform-coordinator.mjs";
-import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
+import { createSceneSkillProvisioningManager as createSkillProvisioningManager } from "../src/scene-skill-provisioning.mjs";
+import { createSceneSkillManager } from "../src/scene-skill-manager.mjs";
 import { createWorkshopTaskSource } from "../src/task-source-adapter.mjs";
 import { canonicalArcOrbitUserDataPath } from "../src/desktop-user-data.mjs";
 import { createElectronUtilityRuntimeHost } from "../src/electron-utility-runtime-host.mjs";
@@ -40,6 +41,15 @@ const { settleFeedbackV2Ipc } = feedbackV2Ipc;
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
+// Headless read-only transport, before any Desktop state initialization.
+// Packaged builds deliberately disable Electron RunAsNode.
+if (process.argv.includes('--arcforge-catalog')) {
+  const query = join(app.isPackaged ? process.resourcesPath : join(runtimeRoot,'dist-package/resources'), 'provisioning/arcforge-provider/dist/provider/catalog-query.js');
+  await import(pathToFileURL(query).href);
+  await new Promise(resolve => process.stdout.write('', resolve));
+  app.exit(process.exitCode || 0);
+  await new Promise(() => {});
+}
 const rendererLoadSmoke = process.argv.includes("--renderer-load-smoke");
 const rendererSmokeUserData = String(process.env.ARCORBIT_RENDERER_SMOKE_USER_DATA || "").trim();
 
@@ -59,6 +69,7 @@ let releaseCoordinator;
 let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
+let sceneSkillManager;
 let codexSetupManager;
 let productFeedbackService;
 let imageViewer;
@@ -83,6 +94,7 @@ app.whenReady().then(async () => {
     runtimeCwd: app.isPackaged ? process.resourcesPath : runtimeRoot,
     dataDir: join(app.getPath("userData"), "runtime"),
     runtimeHost,
+    resolveSceneSkills: (scene, projectRoot) => sceneSkillManager.resolveScene(scene, projectRoot),
     getCodexExecutable: () => codexExecutableResolver.getResolved()
   });
   workshopService = createWorkshopTaskSource({
@@ -116,8 +128,15 @@ app.whenReady().then(async () => {
   skillProvisioningManager = createSkillProvisioningManager({
     resourcesRoot,
     dataRoot: app.getPath("userData"),
+    sourceRoot: app.isPackaged ? '' : resolve(runtimeRoot, '../..'),
+    catalogCommand: {executable: process.execPath, args: [...(app.isPackaged ? [] : [fileURLToPath(import.meta.url)]), '--arcforge-catalog']},
     codexProbe: async () => codexProbeFromSetupSnapshot(codexSetupManager.getSnapshot())
   });
+  sceneSkillManager = createSceneSkillManager({
+    dataRoot: app.getPath('userData'), catalog: skillProvisioningManager.catalog,
+    getProjectRoots: async () => (await runManager.readDesktopStore()).projects.map(project => project.path)
+  });
+  sceneSkillManager.onEvent(snapshot => { if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send('arckit:engineering-event', snapshot); });
   const codexNetworkSession = session.fromPartition("persist:arcorbit-codex-setup");
   let codexProxyAuthority = "";
   const getCodexNetworkContext = async () => {
@@ -148,6 +167,7 @@ app.whenReady().then(async () => {
   });
   chatCoordinator = createChatCoordinator({
     runManager,
+    getTurnContext: async ({ project }) => ({ options: { sceneSkillBinding: await sceneSkillManager.resolveScene('chat', project.path) } }),
     getCodexExecutable: () => codexExecutableResolver.getResolved(),
     setupReadinessPreflight: async (projectRoot) => {
       await codexSetupManager.assertReady();
@@ -443,6 +463,13 @@ function combinedSetupReadiness(
 }
 
 function registerIpc() {
+  ipcMain.handle('arckit:engineering-snapshot', event => { assertMainRenderer(event); return sceneSkillManager.snapshot(); });
+  ipcMain.handle('arckit:engineering-update', (event, input) => { assertMainRenderer(event); return sceneSkillManager.update(input); });
+  ipcMain.handle('arckit:engineering-import', async event => {
+    assertMainRenderer(event);
+    const result = await dialog.showOpenDialog(mainWindow, { title: '选择包含 SKILL.md 的技能文件夹', properties: ['openDirectory'] });
+    return result.canceled ? null : sceneSkillManager.importLocal(result.filePaths[0]);
+  });
   ipcMain.handle("arckit:release-snapshot", async event => { assertMainRenderer(event); return releaseCoordinator.snapshot(); });
   ipcMain.handle("arckit:release-detail", async (event, id) => { assertMainRenderer(event); return releaseCoordinator.detail(String(id)); });
   ipcMain.handle("arckit:release-command", async (event, action, input = {}) => { assertMainRenderer(event); return releaseCoordinator.command(action, input); });

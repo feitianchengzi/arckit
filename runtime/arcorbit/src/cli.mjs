@@ -1,6 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { writeFileSync } from "node:fs";
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { validateSceneSkillBinding } from './scene-skill-manager.mjs';
 import { createStateStore } from "./state-store.mjs";
 import { probeCodexAppServer } from "../adapters/codex-app-server-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
@@ -113,6 +114,7 @@ export async function main(argv) {
 }
 
 export async function run(options) {
+  if (options.sceneSkillBindingFile) options.sceneSkillBinding = await validateSceneSkillBinding(JSON.parse(await readFile(options.sceneSkillBindingFile, 'utf8')));
   const projectRoot = resolve(options.project);
   await ensureArckitProject({
     projectRoot,
@@ -190,6 +192,8 @@ function parseRunOptions(args) {
       options.runtimeRecordRef = requiredValue(args, ++index, arg);
     } else if (arg === "--runtime-context") {
       options.runtimeContext = parseJsonObject(requiredValue(args, ++index, arg), arg);
+    } else if (arg === '--scene-skill-binding-file') {
+      options.sceneSkillBindingFile = resolve(requiredValue(args, ++index, arg));
     } else if (arg === "--max-no-progress-rounds") {
       options.maxNoProgressRounds = Number(requiredValue(args, ++index, arg));
       if (!Number.isInteger(options.maxNoProgressRounds) || options.maxNoProgressRounds < 1) {

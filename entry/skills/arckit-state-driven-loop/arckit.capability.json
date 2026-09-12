@@ -1,0 +1,39 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-state-driven-loop",
+  "invocation": {
+    "type": "agent_skill",
+    "skill_trigger": "$arckit-state-driven-loop",
+    "phases": [
+      "agent_loop",
+      "task_closeout"
+    ]
+  },
+  "protocol_revision": "state-driven-loop/v1",
+  "kind": "state_driven_loop",
+  "binding_targets": [
+    "controller",
+    "runtime"
+  ],
+  "canonical_protocol": {
+    "project": "project-state-record/v5",
+    "case": "development-case-record/v5",
+    "iteration": "iteration-state-record/v3",
+    "transition": "arckit-case-transition/v8",
+    "snapshot": "arckit-ledger-snapshot/v1",
+    "round_closeout": "arckit-round-closeout/v2",
+    "compatibility": "arckit-ledger-compatibility/v1",
+    "reconciliation": "arckit-protocol-reconciliation/v1"
+  },
+  "runtime_entrypoints": {
+    "project_state": "scripts/project-state.mjs",
+    "project_iteration": "scripts/project-iteration.mjs",
+    "development_case": "scripts/development-case.mjs",
+    "protocol_compatibility": "scripts/protocol-compatibility.mjs",
+    "loop_snapshot": "scripts/loop-snapshot.mjs",
+    "case_control": "scripts/runtime-case-control.mjs",
+    "case_transition": "scripts/case-transition.mjs",
+    "writeback": "scripts/runtime-writeback.mjs"
+  },
+  "summary": "通过单 Gap Loop 推进 Project/Case；Agent 负责语义判断，包内可信 Ledger 负责确定性验收和原子写入。"
+}

@@ -4,9 +4,10 @@
 
 - arcorbit/ ArcOrbit：Runtime Kernel、workspace lane 并行与项目内串行、持久单 thread、交互式 CLI 接力、Gate 与自动账本回写。✅
   - solution.md ArcOrbit 技术方案：定义 Desktop State Kernel、分层状态所有权、受限窗口 IPC、认证、Work-owned Task Source、workspace 仲裁与 trusted ledger。✅ (470行)
-  - installer-supply-chain.md ArcOrbit 安装包供应链：定义 Codex inventory、owner adapters、安装建议、来源感知更新、代理、官方认证与供应链回滚。✅ (490行)
+  - scene-skills-solution.md 场景技能存储、绑定解析、Codex 接入与旧项目迁移。✅
+  - installer-supply-chain.md ArcOrbit 安装包供应链：定义 Codex inventory、owner adapters、安装建议、来源感知更新、代理、官方认证与供应链回滚。✅ (447行)
   - state-condition-ledger-solution.md Software Definition Ledger：定义 Project/Case 边界、stable candidate identity、fresh-fact invariant assessment、Transition v8 与 Closeout v2。✅ (263行)
-  - desktop-execution-solution.md Desktop Codex 会话与执行方案：定义 Chat 内容宽度隔离、版本化状态内核、分层持久化、workspace lane 并行与恢复，定义 Model / Level 清单、持久配置与执行生效。✅ (416行)
+  - desktop-execution-solution.md Desktop Codex 会话与执行方案：定义 Chat 内容宽度隔离、版本化状态内核、分层持久化、workspace lane 并行与恢复，定义 Model / Level 清单、持久配置与执行生效。✅ (423行)
   - state-kernel-acceptance.md Desktop State Kernel 架构验收：记录 50 MiB Store、三 lane 三十分钟等价流、single-flight、迁移与故障恢复证据。✅ (50行)
   - platform-composition-solution.md 平台组合方案：Work 投影、Feedback 协作、受限 IPC 与组织成员直接添加既有接口与客户端限制契约。✅ (438行)
   - realtime-synchronization-solution.md 可靠实时同步：定义统一 Project Catalog、覆盖安装 rehydration、Work-owned 对账、Automation 外部变化消费与 Gate 隔离。✅ (175行)

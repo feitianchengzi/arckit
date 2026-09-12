@@ -243,6 +243,12 @@ export function createChatCoordinator({
       const env = prependPath(buildRuntimeEnv({ ...process.env }, settings), executable.pathEntries);
       const codexSettings = normalizeCodexSettings(settings.codex);
       const context = await getTurnContext({ project, sessionId, text });
+      const skillFingerprint = context.options?.sceneSkillBinding?.fingerprint || '';
+      if (owner.skillFingerprint && owner.skillFingerprint !== skillFingerprint) {
+        await owner.adapter.close();
+        owner.adapter = createAdapter();
+      }
+      owner.skillFingerprint = skillFingerprint;
       if (context.options?.commandEnvironment) {
         const signature=createHash('sha256').update(JSON.stringify([executable.command,Object.entries(context.options.commandEnvironment).sort(([a],[b])=>a.localeCompare(b))])).digest('hex');
         if(owner.commandEnvironmentSignature && owner.commandEnvironmentSignature!==signature){

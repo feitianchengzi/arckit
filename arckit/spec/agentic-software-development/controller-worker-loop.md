@@ -16,11 +16,11 @@ Loop 是一次可验证的 Case 状态推进，不等于 Agent 内部每次工�
 | Codex Agent | 选择 Case/gap；原生选择 skills/tools；调查、实现、验证、自我审查；形成语义 claim | 不直接写 ledger；不静默代替人类决策 |
 | Desktop Runtime | readiness、任务领取、授权投影、持久 thread、fresh-state bridge、上下文压缩、结构门禁、trusted ledger、自动续轮、恢复与 commit | 不预选 gap、固定 skill/role/path；不语义复审 Agent 工作 |
 
-`using-arckit` 是当前 Agent 的对话控制协议，不是另一个必须先规划、后交给当前 Agent 执行的角色。`arckit-development-ledger` 是唯一确定性状态写回能力。
+`arckit-state-driven-loop` 是当前 Agent 的对话控制协议，不是另一个必须先规划、后交给当前 Agent 执行的角色。该包内 Ledger 脚本提供确定性状态写回接口。
 
 ## 人类直接在 Codex 中工作
 
-人类在一个持续对话中调用 `$using-arckit`。当前 Agent：
+人类在一个持续对话中调用 `$arckit-state-driven-loop`。当前 Agent：
 
 1. 通过 ledger manifest 声明的 trusted snapshot entrypoint 读取 Project State、全部 active Cases、iteration、candidate catalog、revision 与 snapshot token；不能把 writeback candidate 当作 fresh state。
 2. 判断用户输入是新事项、继续、补充、纠错、目标变化、暂停或状态查询。
@@ -42,7 +42,7 @@ Loop 是一次可验证的 Case 状态推进，不等于 Agent 内部每次工�
 local readiness
   -> remote claim
   -> fresh Project/Case read
-  -> one $using-arckit Agent turn
+  -> one $arckit-state-driven-loop Agent turn
   -> structural/revision/authorization gate
   -> trusted ledger writeback
   -> user-visible round_closeout
@@ -50,7 +50,7 @@ local readiness
   -> next turn in the same task thread
 ```
 
-Runtime invocation 只提供自然的 `$using-arckit` 触发、真实用户意图、当前增量、由 canonical records 确定性派生的 bounded facts、revision 与执行授权。Codex output schema 作为机器参数约束返回形状。Runtime 不显式注入一份额外 skill input，不拼接 skill 正文、固定 workflow、Worker role、skill 白名单或预测路径。
+Runtime invocation 只提供自然的 `$arckit-state-driven-loop` 触发、真实用户意图、当前增量、由 canonical records 确定性派生的 bounded facts、revision 与执行授权。Codex output schema 作为机器参数约束返回形状。Runtime 不显式注入一份额外 skill input，不拼接 skill 正文、固定 workflow、Worker role、skill 白名单或预测路径。
 
 一个远端待办从领取、逐 gap 推进、验证、修复到 Git commit 始终绑定一个持久 Codex thread。Runtime 在第一个 turn 前保存 Codex 返回的 thread id；进程重启后通过该 id 恢复对话并继续追加 turn。fresh canonical facts 与当前授权覆盖冲突的历史内容，ledger 与持久 thread 分别提供事实恢复和语义连续性。
 

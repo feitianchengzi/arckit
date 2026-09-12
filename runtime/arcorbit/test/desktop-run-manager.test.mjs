@@ -140,7 +140,7 @@ test("readiness preflight validates repository capabilities without inspecting C
       codexHome: "/runtime-must-not-read-codex-home"
     });
     assert.equal(result.ready, true);
-    assert.equal(result.controller_trigger, "$using-arckit");
+    assert.equal(result.controller_trigger, "$arckit-state-driven-loop");
     assert.equal("installed_skills" in result, false);
     assert.deepEqual(Object.keys(result.trusted_entrypoints).sort(), ["case_control", "loop_snapshot", "protocol_compatibility", "writeback"]);
   } finally {
@@ -222,9 +222,11 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
   await writeStore(dataDir, dataDir);
   const children = [];
   const calls = [];
+  let skillRevision=2;
   const manager = createDesktopRunManager({
     runtimeRoot: dataDir,
     dataDir,
+    resolveSceneSkills: async (scene, projectRoot) => ({ scene, projectRoot, revision: skillRevision }),
     getCodexExecutable: () => ({ command: "/fixture/nvm/bin/codex", pathEntries: ["/fixture/nvm/bin"] }),
     spawnProcess(command, args, options) {
       calls.push({ command, args, options });
@@ -234,7 +236,10 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
   });
 
   try {
-    await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-1", task: "Use Codex", adapter: "codex-app-server" });
+    const firstRun = await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-1", task: "Use Codex", adapter: "codex-app-server" });
+    assert.equal(JSON.parse(await readFile(firstRun.scene_skill_binding_file,'utf8')).revision,2);
+    assert.equal(calls[0].args[calls[0].args.indexOf('--scene-skill-binding-file')+1],firstRun.scene_skill_binding_file);
+    skillRevision=3;
     assert.deepEqual((await manager.getSettings()).codex, { model: "gpt-6-astra", reasoning_effort: "high" });
     assert.equal(calls[0].args[calls[0].args.indexOf("--model") + 1], "gpt-6-astra");
     assert.equal(calls[0].args[calls[0].args.indexOf("--reasoning-effort") + 1], "high");
@@ -245,6 +250,8 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
     const reloaded = createDesktopRunManager({ runtimeRoot: dataDir, dataDir });
     assert.deepEqual((await reloaded.getSettings()).codex, { model: "custom-model", reasoning_effort: "ultra" });
     await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-2", task: "Next" });
+    assert.equal(JSON.parse(await readFile(firstRun.scene_skill_binding_file,'utf8')).revision,2);
+    assert.equal(JSON.parse(await readFile(calls[1].args[calls[1].args.indexOf('--scene-skill-binding-file')+1],'utf8')).revision,3);
     assert.equal(calls[1].args[calls[1].args.indexOf("--model") + 1], "custom-model");
     assert.equal(calls[1].args[calls[1].args.indexOf("--reasoning-effort") + 1], "ultra");
     assert.equal(calls[0].args[calls[0].args.indexOf("--model") + 1], "gpt-6-astra");

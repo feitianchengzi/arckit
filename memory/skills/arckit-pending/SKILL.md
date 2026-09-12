@@ -1,6 +1,6 @@
 ---
 name: arckit-pending
-description: 仅当用户显式要求使用 arckit-pending，或手动把未决讨论、开放问题、假设、风险和候选方向记录、查询、更新、归档到 arckit/pending/ 时使用。它不由 Runtime、using-arckit 或其他 skill 自动调用，也不替代 active Case 中推进当前工作的 gaps、open_questions 和 pending_handoffs。
+description: 仅当用户显式要求使用 arckit-pending，或手动把未决讨论、开放问题、假设、风险和候选方向记录、查询、更新、归档到 arckit/pending/ 时使用。它不由 Runtime、arckit-state-driven-loop 或其他 skill 自动调用，也不替代 active Case 中推进当前工作的 gaps、open_questions 和 pending_handoffs。
 ---
 
 # ArcKit Pending

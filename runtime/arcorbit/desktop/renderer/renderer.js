@@ -1,4 +1,5 @@
 import { openMemberAddSheet } from "./project-member-add.mjs";
+import { createEngineeringSurface } from './engineering-surface.mjs';
 import { createReleaseSurface } from "./release-surface.mjs";
 import { createProductSurface } from "./product-surface.mjs";
 import { createConversationComposer } from "./conversation-composer.mjs";
@@ -306,6 +307,7 @@ const releaseSurface = createReleaseSurface({
   api, normalizeChatSnapshot, formatTime, performAction: runAction,
   navigateSetup: () => showPage("command")
 });
+const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
   jumpButton: els.jumpToLatestButton,
@@ -467,7 +469,8 @@ function wireEvents() {
     state.setupBusy = true;
     renderSetup();
     try {
-      state.setup = await api.applySetupPlan({ planDigest: state.setup?.plan?.digest });
+      state.setup = await api.applySetupPlan({ planDigest: state.setup?.plan?.digest, confirmed: els.setupReviewed.checked });
+      els.setupReviewed.checked = false;
     } finally {
       state.setupBusy = false;
       renderSetup();
@@ -864,22 +867,24 @@ function renderSetup() {
   }
   const labels = {
     checking: ["正在检查 Arckit 能力", "逐项验证安装包资源和本机目标。"],
-    applying: ["正在准备完整能力", "写入由 ArcForge provider 事务化执行，请保持应用打开。"],
-    ready: ["Arckit 已准备完成", "关键资源、skills drift 与 Codex discoverability 均已通过。"],
+    applying: ["正在准备完整能力", "正在准备技能来源，请保持应用打开。"],
+    ready: ["Arckit 已准备完成", state.setup.catalog ? "内置技能目录已校验，项目旧副本已检查。场景技能可在 Engineering 中配置。" : "关键资源、skills drift 与 Codex discoverability 均已通过。"],
     "codex-action-required": ["需要恢复 Codex 环境", "完成安装或显式登录后会自动重新验证，无需重启 ArcOrbit。"],
-    "needs-install": ["需要安装 Arckit skills", "查看 fresh plan 的目标后确认安装。"],
+    "needs-install": ["请确认技能安装或更新", "检查没有安装或更新文件。请查看来源、目标与变更清单，on-demand 技能也需要确认安装。"],
     drifted: ["发现 managed-stale 路径", "清理需要独立确认，普通安装不会隐式删除。"],
     conflict: ["需要选择冲突恢复方式", "每个阻塞目标都显示其所有权依据与当前可执行的恢复动作。"],
     blocked: ["Setup Readiness 被阻塞", setup.error?.message || "修复后重新检查。"]
   };
-  const [title, lead] = labels[setup.status] || labels.blocked;
+  const [title, lead] = setup.catalog && setup.migration?.pending?.length && setup.status === "ready"
+    ? ["请确认旧技能清理清单", "检查不会删除文件。查看下方完整路径后确认删除，也可以暂不清理继续使用。"]
+    : labels[setup.status] || labels.blocked;
   els.setupTitle.textContent = title;
   els.setupLead.textContent = lead;
   els.setupStatusPill.textContent = setup.status.toUpperCase();
   els.setupStatusPill.className = `health-badge ${ready ? "success" : ["blocked", "conflict"].includes(setup.status) ? "danger" : "warning"}`;
   els.setupChecks.innerHTML = (setup.checks || []).map((item) => `<div class="setup-check ${escapeHtml(item.status)}"><span>${item.status === "passed" ? "✓" : item.status === "failed" ? "!" : "…"}</span><div><strong>${escapeHtml(setupCheckLabel(item.id))}</strong><small>${escapeHtml(item.summary)}</small></div></div>`).join("") || `<div class="setup-check pending"><span>…</span><div><strong>准备检查</strong><small>等待 main process 返回状态</small></div></div>`;
   renderCodexSetup();
-  els.setupDistribution.innerHTML = setup.distribution ? [
+  els.setupDistribution.innerHTML = setup.catalog ? `<div class="fact-row"><small>内置技能版本</small><strong>${escapeHtml(shortDigest(setup.catalog.version))}</strong></div><div class="fact-row"><small>可配置技能</small><strong>${Number(setup.catalog.count)}</strong></div>` : setup.distribution ? [
     ["Runtime", setup.distribution.runtime_version], ["Release intent", setup.distribution.release_tag],
     ["ArcForge provider", setup.distribution.provider_version], ["Payload", shortDigest(setup.distribution.payload_digest)]
   ].map(([label, value]) => `<div class="fact-row"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("") : `<p class="muted-copy">尚未读取 distribution lock。</p>`;
@@ -1054,6 +1059,17 @@ function renderSetupPlan() {
   els.setupPlanSummary.classList.toggle("hidden", !plan);
   els.setupPlanDetails.classList.toggle("hidden", !plan);
   els.setupReviewRegion.classList.toggle("hidden", !state.setup?.can_apply || !plan);
+  if (state.setup?.catalog) {
+    const { catalog, migration, installation } = state.setup;
+    els.setupPlanSummaryBody.innerHTML = `<div class="setup-plan-summary-row"><strong>内置技能存储</strong><code>${escapeHtml(catalog.path)}</code></div><div class="setup-plan-summary-row"><strong>场景配置</strong><span>Chat / Automation 独立配置，共 ${catalog.count} 个内置技能；项目不再安装技能副本。</span></div>`;
+    const pending = migration?.pending?.length || 0;
+    const installing = state.setup.plan?.operation === 'install';
+    const installationHtml = installation ? `<section><h3>安装与更新清单（含 on-demand）</h3>${installation.items.map(item => `<p><strong>${escapeHtml(item.skill)} · ${({install:'待安装',update:'待更新','replace-source':'待确认切换来源并替换',same:'无需变更',adopt:'待登记',conflict:'冲突'})[item.status] || escapeHtml(item.status)}</strong>${item.sourceSelection ? `<br>原来源：<code>${escapeHtml(item.sourceSelection.currentSourcePath || '未记录路径')}</code><br>来源标识：<code>${escapeHtml(item.sourceSelection.currentSourceKey)}</code> → <code>${escapeHtml(item.sourceSelection.incomingSourceKey)}</code><br>来源内容冲突，无法自动选择；确认安装将选择上述新来源，替换用户 catalog 中的共享副本，其他使用此技能的场景也会受到影响。` : ''}<br>类型：${escapeHtml(item.mode)}<br>来源：<code>${escapeHtml(item.sourcePath)}</code><br>目标：<code>${escapeHtml(item.path)}</code><br>内容版本：${escapeHtml(item.currentDigest?.slice(0,12) || '未安装')} → ${escapeHtml(item.incomingDigest?.slice(0,12) || '')}</p>`).join('')}${(installation.assets || []).map(item => `<p><strong>共享资源 ${escapeHtml(item.name)} · ${escapeHtml(item.status)}</strong><br>目标：<code>${escapeHtml(item.path)}</code></p>`).join('')}</section>` : '';
+    els.setupPlanDetails.open = installing || pending > 0 || Boolean(migration?.removed?.length);
+    els.setupPlanDetails.querySelector('summary').textContent = '技能变更完整清单';
+    els.setupPlan.innerHTML = `${state.setup.last_action === 'install' ? '<p>安装与更新已完成并验证。旧目录尚未清理。</p>' : ''}${installationHtml}${installing ? '<p>本次仅确认安装与更新。旧副本清理需要安装验证完成后单独确认。</p>' : ''}<p>待确认删除 ${pending} 项，已清理 ${migration?.removed?.length || 0} 项，保留 ${migration?.preserved?.length || 0} 项。只有点击确认删除才会移除文件；删除不创建备份。</p>${['pending', 'removed', 'preserved', 'errors'].map(kind => `<details${kind === 'pending' ? ' open' : ''}><summary>${({pending:'待确认删除（完整路径）',removed:'已清理',preserved:'已保留',errors:'失败'})[kind]}</summary>${(migration?.[kind] || []).map(item => `<p><code>${escapeHtml(item.path)}</code><br>${escapeHtml(item.reason || item.message)}</p>`).join('') || '<p>无</p>'}</details>`).join('')}`;
+    return;
+  }
   if (!plan) {
     els.setupPlanSummaryBody.innerHTML = "";
     els.setupPlan.innerHTML = "";
@@ -1110,9 +1126,9 @@ function renderSetupActions() {
   const setup = state.setup || {};
   const applying = state.setupBusy || ["checking", "applying"].includes(setup.status);
   els.setupRetryButton.disabled = applying;
-  els.setupRetryButton.classList.toggle("hidden", setup.status === "ready");
+  els.setupRetryButton.classList.toggle("hidden", setup.status === "ready" && !setup.migration?.pending?.length && !setup.error);
   els.setupApplyButton.classList.toggle("hidden", !setup.can_apply);
-  els.setupApplyButton.textContent = setup.source_upgrade?.can_proceed ? "修复缺失并迁移" : "安装并继续";
+  els.setupApplyButton.textContent = setup.catalog ? setup.plan?.operation === "install" ? "确认安装与更新" : `确认删除清单中的 ${setup.migration?.pending?.length || 0} 项` : setup.source_upgrade?.can_proceed ? "修复缺失并迁移" : "安装并继续";
   els.setupApplyButton.disabled = applying || !els.setupReviewed.checked;
   els.setupReviewed.disabled = applying;
   const reviewed = els.setupReviewed.checked;
@@ -1121,6 +1137,11 @@ function renderSetupActions() {
     : reviewed
       ? "已确认当前写入边界；可以安装并继续。"
       : "请先确认上方写入目标与变更摘要；无需展开完整安装明细。";
+  els.setupReviewLabel.querySelector('span').textContent = setup.catalog ? setup.plan?.operation === "install" ? "我已查看来源和目标，同意本次安装与更新" : "我已查看完整清单，同意删除且不创建备份" : "我已查看写入目标与变更摘要";
+  if (setup.catalog && setup.plan?.operation === "install") els.setupReviewHint.textContent = "确认只执行安装与更新，不会同时清理旧项目目录。";
+  else if (setup.catalog) els.setupReviewHint.textContent = state.setupReviewPlanChanged
+    ? "清理清单已变化，请重新查看并确认。"
+    : reviewed ? "点击确认删除后才会执行；执行前会重新核对清单。" : "请先查看左侧完整路径，再勾选确认；也可以暂不清理。";
   els.setupReviewHint.classList.toggle("is-confirmed", reviewed);
   els.setupRecoverButton.classList.toggle("hidden", !setup.can_recover);
   els.setupRecoverButton.textContent = setup.source_upgrade?.can_backup_and_restore
@@ -1137,6 +1158,7 @@ function renderSetupActions() {
   els.setupRecoveryGuideButton.disabled = applying;
   els.setupContinueButton.classList.toggle("hidden", setup.status !== "ready");
   els.setupContinueButton.disabled = applying;
+  els.setupContinueButton.textContent = setup.migration?.pending?.length ? "暂不清理，继续使用" : "继续使用 ArcOrbit";
   els.setupExitButton.textContent = setup.source_upgrade && !setup.source_upgrade.can_proceed ? "保留当前内容并退出" : "退出应用";
   els.setupExitButton.disabled = setup.status === "applying";
 }
@@ -1165,7 +1187,7 @@ function upgradeDispositionLabel(value) {
   })[value] || value;
 }
 
-function setupCheckLabel(id) { return ({resources:"受信安装资源",provider:"ArcForge provider",skills:"Arckit skills",codex:"Codex discoverability"})[id] || id; }
+function setupCheckLabel(id) { return ({source:"内置技能目录",migration:"旧项目技能清理",resources:"受信安装资源",provider:"ArcForge provider",skills:"Arckit skills",codex:"Codex discoverability"})[id] || id; }
 function shortDigest(value) { return value ? `${value.slice(0, 10)}…${value.slice(-8)}` : "--"; }
 
 async function refreshSnapshot({ quiet = false, surface = "all", afterMutation = false } = {}) {
@@ -1686,6 +1708,7 @@ function renderWorkSurface() {
 }
 
 function renderPageVisibility() {
+  engineeringSurface.show(state.page === 'engineering', state.page === 'chat');
   releaseSurface.show({active:state.page === "release", projectId:state.selectedProjectId, workset:state.platform.active_workset});
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
   const navigationPage = state.page === "product-detail" ? "product" : state.page === "idea-add" ? "idea" : state.page === "tasks" ? "work" : ["workbench", "recovery"].includes(state.page) ? "command" : state.page;
@@ -1711,7 +1734,7 @@ function renderCommandBar() {
   const project = currentProject();
   const organizationScope = currentOrganizationScope();
   const organizationCapabilityPage = ["organization", "engineering"].includes(state.page);
-  els.scopeTitle.textContent = organizationCapabilityPage
+  els.scopeTitle.textContent = state.page === 'engineering' ? '本机全局配置' : organizationCapabilityPage
     ? organizationScope?.name || "个人项目"
     : project?.name || state.platform.active_workset?.name || "项目集全部";
   els.pageTitle.textContent = {
@@ -4233,7 +4256,7 @@ function renderAttention(blockedPendingTasks = []) {
     return;
   }
   const externalDependency = attention.kind === "external_dependency";
-  els.attentionHost.innerHTML = `<div class="attention-strip"><span>?</span><div class="attention-copy"><strong>${externalDependency ? "需要人工介入 · 外部依赖" : escapeHtml(attention.reason || "Runtime 需要人工判断")}</strong><p>${escapeHtml(externalDependency ? `${attention.reason || "存在 Automation 无法自行完成的外部依赖。"} 恢复条件：${attention.question || "请协调依赖完成后确认。"}` : attention.question || "查看请求并提供处理结果。")}</p></div><button id="openAttentionButton" class="primary-button" type="button">${externalDependency ? "已处理，重新检查" : "处理"}</button></div>`;
+  els.attentionHost.innerHTML = `<div class="attention-strip"><span>?</span><div class="attention-copy"><strong>${externalDependency ? "等待外部结果" : escapeHtml(attention.reason || "Runtime 需要人工判断")}</strong><p>${escapeHtml(externalDependency ? `${attention.reason || "存在 Automation 无法自行完成的外部依赖。"} 恢复条件：${attention.question || "请协调依赖完成后确认。"}` : attention.question || "查看请求并提供处理结果。")}</p></div><button id="openAttentionButton" class="primary-button" type="button">${externalDependency ? "已处理，重新检查" : "处理"}</button></div>`;
   document.getElementById("openAttentionButton").addEventListener("click", () => {
     if (!externalDependency) {
       openWorkbench("intervention");
@@ -4251,7 +4274,10 @@ function renderCurrentRun(blockedPendingTasks = []) {
   const active = state.snapshot.active_task;
   const run = state.snapshot.active_run;
   if (!activeExecutionMatchesSelectedProject(active)) {
-    els.currentRunPanel.innerHTML = `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.some(scopedTaskFilter) ? "自动化将从下一队列领取一项任务。" : blockedPendingTasks.length ? "存在待处理任务，但项目尚未满足自动执行条件。" : "同步后继续监听待处理任务。"}</p></div></div>`;
+    const stopped = [...(state.snapshot.stopped_executions || [])].reverse().find(scopedTaskFilter);
+    els.currentRunPanel.innerHTML = stopped
+      ? `<div class="run-empty"><div><strong>执行已停止</strong><p>${escapeHtml(taskDisplayTitle(stopped.task_title, stopped.task_id))}</p><p>${escapeHtml(stopped.execution_outcome?.reason || "已保留未完成事项。")}</p><small>待办状态保持不变；重新设为待处理可再次进入队列。</small></div></div>`
+      : `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.some(scopedTaskFilter) ? "自动化将从下一队列领取一项任务。" : blockedPendingTasks.length ? "存在待处理任务，但项目尚未满足自动执行条件。" : "同步后继续监听待处理任务。"}</p></div></div>`;
     els.currentRunActions.innerHTML = "";
     return;
   }
@@ -4260,9 +4286,9 @@ function renderCurrentRun(blockedPendingTasks = []) {
   const executionSelector = executions.length > 1
     ? `<div class="execution-lane-list" aria-label="活动项目执行">${executions.map((execution) => `<button class="execution-lane ${execution.execution_id === state.snapshot.selected_execution_id ? "is-active" : ""}" data-automation-execution="${escapeHtml(execution.execution_id)}" type="button"><span><strong>${escapeHtml(projectName(execution.project_id))}</strong><small>${escapeHtml(taskDisplayTitle(execution.task_title, execution.task_id))}</small></span><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(execution.phase))}</span></button>`).join("")}</div>`
     : "";
-  const externalDependency = active.phase === "awaiting_human" && active.intervention_kind === "external_dependency";
+  const externalDependency = ["waiting_external", "awaiting_human"].includes(active.phase) && active.intervention_kind === "external_dependency";
   const externalDependencyNotice = externalDependency
-    ? `<div class="empty-state"><strong>需要人工介入 · 外部依赖</strong><br>${escapeHtml(active.intervention_reason || "存在 Automation 无法自行完成的外部依赖。")}${active.intervention_resume_condition ? `<br><small>恢复条件：${escapeHtml(active.intervention_resume_condition)}</small>` : ""}</div>`
+    ? `<div class="empty-state"><strong>等待外部结果</strong><br>${escapeHtml(active.intervention_reason || "存在 Automation 无法自行完成的外部依赖。")}${active.intervention_resume_condition ? `<br><small>恢复条件：${escapeHtml(active.intervention_resume_condition)}</small>` : ""}</div>`
     : "";
   els.currentRunPanel.innerHTML = `${executionSelector}<div class="run-heading"><div><h3>${escapeHtml(taskDisplayTitle(active.task_title, active.task_id))}</h3><p>${escapeHtml(projectName(active.project_id))} · ${escapeHtml(active.workspace_key || active.local_project_id || "未绑定工作区")} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>${externalDependencyNotice}`;
   els.currentRunPanel.querySelectorAll("[data-automation-execution]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
@@ -5290,6 +5316,8 @@ function automationPhaseLabel(phase) {
     switching_to_cli: "正在切换到 CLI",
     cli_handoff: "Codex CLI 接管",
     awaiting_human: "需要人工介入",
+    waiting_external: "等待外部结果",
+    stopped: "执行已停止",
     closeout_starting: "准备同线程收尾",
     closeout_running: "同线程 Git 收尾",
     remote_completion_pending: "Case 已完成，等待远端收尾",

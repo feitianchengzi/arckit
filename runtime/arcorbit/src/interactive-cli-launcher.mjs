@@ -1,18 +1,23 @@
 import { spawn } from "node:child_process";
 import { taskDisplayTitle } from "./task-display-title.mjs";
 
-export function buildCodexCliHandoffPrompt({ caseId = "", taskTitle = "", taskIntent = "" } = {}) {
+export function buildCodexCliHandoffPrompt({ caseId = "", taskTitle = "", taskIntent = "", sceneSkillBinding = null } = {}) {
   if (!/^CASE-\d{8}-\d{3}$/.test(String(caseId))) {
     throw new Error("Codex CLI handoff requires an authoritative Case id.");
   }
   return [
-    "$using-arckit",
+    "$arckit-state-driven-loop",
     "",
     "你正在从 ArcOrbit 接管一个进行中的待办。",
     `当前已绑定 Case：${caseId}。先读取该 Case 的 fresh canonical state，再继续推进。`,
     taskTitle ? `待办：${taskDisplayTitle(taskTitle)}` : "",
     "自动执行 state-driven loop 直到 Case 完成，仅在确实需要人工介入时暂停。",
-    "继续使用当前对话上下文，并以 fresh Project/Case State 和稳定事实源覆盖冲突的旧事实。"
+    "继续使用当前对话上下文，并以 fresh Project/Case State 和稳定事实源覆盖冲突的旧事实。",
+    ...(sceneSkillBinding ? [
+      "",
+      "ArcOrbit 此次运行的技能来源如下。终端接管时按这些绝对路径读取 SKILL.md，先加载 arckit-state-driven-loop；其他技能依据当前 Gap 按需加载。不要依赖已迁移的项目 .codex/skills 副本。",
+      ...sceneSkillBinding.skills.map(skill => `- ${skill.name}: ${skill.skillPath}`)
+    ] : [])
   ].filter((line, index, lines) => line || (index > 0 && lines[index - 1])).join("\n");
 }
 
