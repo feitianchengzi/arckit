@@ -5,10 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { copyDistributionTree } from "./distribution-files.mjs";
 import { execLocalTar } from "./local-tar.mjs";
 
 const execFileAsync = promisify(execFile);
-const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1", "stable-catalog/v1", "project-skill-migration/v1"];
+const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1", "stable-catalog/v1", "project-skill-migration/v1", "catalog-retirement/v1"];
 const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(runtimeRoot, "..", "..");
 const options = parseArgs(process.argv.slice(2));
@@ -45,7 +46,7 @@ try {
   await execLocalTar(stagedProviderArchive, ["-xzf"]);
   const extractedPackage = path.join(extractRoot, "package");
   await assertNoLinks(extractedPackage);
-  await cp(extractedPackage, providerRoot, { recursive: true });
+  await copyDistributionTree(extractedPackage, providerRoot);
 } finally {
   await rm(extractRoot, { recursive: true, force: true });
 }
@@ -56,7 +57,7 @@ assertProviderCapabilities(providerManifest, "embedded");
 
 const { skillPaths, sharedAssetPaths } = await discoverPayloadPaths();
 for (const relativePath of [...skillPaths, ...sharedAssetPaths]) {
-  await cp(path.join(repositoryRoot, relativePath), path.join(payloadRoot, relativePath), { recursive: true });
+  await copyDistributionTree(path.join(repositoryRoot, relativePath), path.join(payloadRoot, relativePath));
 }
 await cp(path.join(repositoryRoot, "arcforge.skill-project.json"), path.join(payloadRoot, "arcforge.skill-project.json"));
 await writeFile(path.join(payloadRoot, "arcforge.config.json"), `${JSON.stringify({
@@ -78,7 +79,7 @@ const payloadManifest = {
 await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(payloadManifest, null, 2)}\n`);
 
 for (const skillName of ["using-arckit", "arckit-development-ledger"]) {
-  await cp(path.join(repositoryRoot, "entry", "skills", skillName), path.join(trustedRoot, skillName), { recursive: true });
+  await copyDistributionTree(path.join(repositoryRoot, "entry", "skills", skillName), path.join(trustedRoot, skillName));
 }
 const trustedFiles = await fileManifest(trustedRoot);
 const lock = {

@@ -33,6 +33,7 @@ try {
   try { await access(planned.catalog.path); throw new Error('Check installed the catalog without confirmation.'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const installed = await manager.apply({ planDigest: planned.plan.digest, confirmed: true });
   await access(oldSkill);
+  if (installed.error || installed.status !== 'ready') throw new Error(`Catalog installation failed: ${JSON.stringify({status:installed.status,error:installed.error})}`);
   if (installed.plan.operation !== 'cleanup' || installed.migration.removed.length) throw new Error('Installation implicitly cleaned old skills.');
   const applied = await manager.apply({ planDigest: installed.plan.digest, confirmed: true });
   if (applied.status !== 'ready' || applied.can_apply) throw new Error(`Catalog setup failed: ${applied.error?.message || applied.status}`);

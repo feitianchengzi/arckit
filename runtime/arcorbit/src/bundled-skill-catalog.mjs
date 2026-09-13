@@ -5,7 +5,7 @@ import os from 'node:os';
 import { CORE_SKILLS } from './core-skill-identity.mjs';
 import { digest, directories, readJson, readSkill, treeManifest, within } from './skill-files.mjs';
 
-const REQUIRED_CAPABILITIES = ['stable-catalog/v1', 'project-skill-migration/v1'];
+const REQUIRED_CAPABILITIES = ['stable-catalog/v1', 'project-skill-migration/v1', 'catalog-retirement/v1'];
 
 // ArcOrbit validates its distribution and adapts ArcForge-owned installations to scene bindings.
 export function createBundledSkillCatalog(options) {

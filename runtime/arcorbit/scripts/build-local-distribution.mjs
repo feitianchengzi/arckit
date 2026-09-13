@@ -158,6 +158,11 @@ export async function runLocalBuild(options = {}) {
   let runtimeArtifacts = [];
   if (!plan.resourcesOnly) {
     await run(npm, ["run", plan.host.packageScript], runtimeRoot);
+    const packagedExecutable = packagedRendererSmokeExecutable(plan.runtime.releaseRoot, plan.host.platform);
+    const packagedResources = plan.host.platform === "mac"
+      ? path.resolve(path.dirname(packagedExecutable), "..", "Resources")
+      : path.join(path.dirname(packagedExecutable), "resources");
+    await run(process.execPath, ["scripts/smoke-distribution.mjs", "--resources-root", packagedResources], runtimeRoot);
     await runPackagedRendererSmoke(plan);
     runtimeArtifacts = (await readdir(plan.runtime.releaseRoot, { withFileTypes: true }))
       .filter((entry) => entry.isFile() && isCurrentLocalArtifact(entry.name, plan))

@@ -160,7 +160,7 @@ With `arckit` and `arcforge` checked out as sibling directories and dependencies
 npm --prefix runtime/arcorbit run package:local
 ```
 
-The command validates both repositories, builds `../arcforge`'s embedded provider, binds its local-only version, manifest and SHA-256 into Runtime resources, smoke-tests the packaged provisioning payload, and builds the current host's unsigned installer. Supported hosts are macOS arm64/x64, Windows x64 and Linux x64. Provider artifacts are written to `../arcforge/release/provider-release`; Runtime resources and installers are written to `runtime/arcorbit/dist-package` and `runtime/arcorbit/release`.
+The command validates both repositories, builds `../arcforge`'s embedded provider, binds its local-only version, manifest and SHA-256 into Runtime resources, smoke-tests the provisioning payload, builds the current host's unsigned installer, and repeats provisioning verification against the final unpacked application's resources. Host metadata is excluded before resource manifests are generated; missing declared files still fail verification. Supported hosts are macOS arm64/x64, Windows x64 and Linux x64. Provider artifacts are written to `../arcforge/release/provider-release`; Runtime resources and installers are written to `runtime/arcorbit/dist-package` and `runtime/arcorbit/release`.
 
 For a faster development loop that prepares and verifies `dist-package/resources` without invoking Electron Builder:
 
@@ -214,7 +214,7 @@ Release 使用顶部已有产品集和项目范围。项目已关联本地目录
 
 ### ArcForge 内置技能管理
 
-内置技能由随包 ArcForge Embedded Provider 管理。开发态需先准备包含 `stable-catalog/v1` 与 `project-skill-migration/v1` 的资源；没有兼容 Provider 时环境检查失败，不回退到独立 catalog 或直接删除。Provider 沿用 ArcForge catalog v2 与 projects/appliedSources 安装关系；统一索引位于 stateRoot/catalog/index.json，技能文件位于 catalog/<skillName>/，迁移明细位于 migrations/。首次安装和更新（含 on-demand）均须先展示计划并确认，清理单独确认。
+内置技能由随包 ArcForge Embedded Provider 管理。开发态需先准备包含 `stable-catalog/v1`、`project-skill-migration/v1` 与 `catalog-retirement/v1` 的资源；没有兼容 Provider 时环境检查失败，不回退到独立 catalog 或直接删除。Provider 沿用 ArcForge catalog v2 与 projects/appliedSources 安装关系；统一索引位于 stateRoot/catalog/index.json，技能文件位于 catalog/<skillName>/，迁移明细位于 migrations/。首次安装和更新（含 on-demand）均须先展示计划并确认，清理单独确认。Provider 根据历史安装证据与来源缺失检测稳定 catalog 中的退役技能，核验完整内容和其他来源/消费者引用；清理同时维护 catalog 索引和安装关系。Runtime 不按技能名称自行推断或删除退役项。
 
 运行场景集成测试时，可通过 `ARCFORGE_TEST_PROVIDER=/absolute/path/to/arcforge/dist/provider/index.js` 显式指定已编译 Provider；默认使用本地分发资源中的 Provider。`package:local` 在资源组装前将已编译 Provider 显式传给测试。测试只操作临时目录。
 

@@ -277,3 +277,22 @@ test('legacy source identities without SemVer require reviewed source replacemen
  assert.match(await readFile(target,'utf8'),/Another upstream change/);
  await rm(f.root,{recursive:true,force:true});
 });
+
+test('environment checks surface stable catalog retirement and require separate cleanup consent',async()=>{
+ const f=await fixture();
+ try {
+  await rm(path.join(f.source,'entry/skills/manual-skill'),{recursive:true});
+  await writeFile(path.join(f.source,'arcforge.skill-project.json'),JSON.stringify({version:1,sourceDir:'.',availability:{defaultMode:'user-ambient',skills:[]}}));
+  const setup=createSceneSkillProvisioningManager({...f.options,codexProbe:async()=>({available:true})});
+  const checked=await setup.check({projectRoot:f.project});
+  const old=path.join(f.home,'.arcforge/catalog/manual-skill');
+  assert.equal(checked.status,'ready',JSON.stringify(checked.error));
+  assert.ok(checked.migration.pending.some(x=>x.path===old));
+  assert.equal(checked.plan.operation,'cleanup');await access(old);
+  await assert.rejects(setup.apply({planDigest:checked.plan.digest}),/确认/);
+  const cleaned=await setup.apply({planDigest:checked.plan.digest,confirmed:true});
+  assert.equal(cleaned.status,'ready');assert.deepEqual(cleaned.migration.errors,[]);
+  assert.ok(cleaned.migration.removed.some(x=>x.path===old));
+  await assert.rejects(access(old));
+ } finally {await rm(f.root,{recursive:true,force:true});}
+});
