@@ -5,17 +5,17 @@
 ## Workflow Patterns
 
 - `release/v*` branch push：验证 release 线。
-- `tf/v*` tag push：生成内部 TestFlight 包。
-- `beta/v*` tag push：生成外部 TestFlight 或公测包。
-- `appstore/v*` tag push：生成 App Store 候选包。
+- tag 使用通用版本命名，例如 `v1.2.3-beta.1`、`v1.2.3-rc.1`、`v1.2.3`，不另设 Apple 专用前缀。
+- 监听 `v*`（或项目既有命名空间）时，应区分预发布与正式版本；具体匹配方式以 Xcode Cloud workflow 配置为准。
+- 内部 TestFlight、外部 TestFlight 或 App Store 候选包由项目 workflow 的分发配置决定，不直接从 tag 阶段推断；已有监听规则不自动迁移。
 
 agent 在本 skill 中只做 Git 层动作：推荐分支/tag，确认后创建并 push 到远端。push 后停止，不追踪 Xcode Cloud 的构建、上传、处理、测试组或审核状态。
 
 ## Apple Defaults
 
-- 同时表达 Apple 平台发布和 TestFlight 分发意图时，默认推荐内部 TestFlight。
-- 没有可见版本时，推荐 `v1.0.0`。
-- 没有可见 build 序号时，内部 TestFlight 推荐 `b1`，外部 TestFlight 推荐 `rc1`。
+- 同时表达 Apple 平台发布和 TestFlight 分发意图时，默认推荐内部 TestFlight；此处只决定分发建议，不决定 tag 的版本阶段。
+- 版本及预发布序号按通用 Tag Policy 确定，不设置 Apple 专用初始版本或 tag 序号。
+- 平台 build number 与 tag 的预发布序号分别管理，不将内部/外部测试映射为 `bN`/`rcN`。
 
 ## Failure Evidence
 
@@ -29,7 +29,7 @@ agent 在本 skill 中只做 Git 层动作：推荐分支/tag，确认后创建�
 
 需要用户粘贴给 agent 的最小信息：
 
-- 触发 tag 或 branch，例如 `tf/vx.x.x-bN`。
+- 触发 tag 或 branch，例如 `v1.2.3-beta.1`。
 - commit hash。
 - Xcode Cloud workflow 名称和失败时间。
 - Build 历史里的失败标题。
