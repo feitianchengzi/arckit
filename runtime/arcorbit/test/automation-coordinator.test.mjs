@@ -1955,6 +1955,7 @@ test("execution-targeted controls and recovery remain isolated to the selected w
   const controls = [];
   const coordinator = createAutomationCoordinator({
     runManager: fakeRunManager(store, [], {
+      isRunActive() { return true; },
       async controlRun(runId, input) { controls.push({ runId, input }); }
     })
   });
@@ -2221,4 +2222,121 @@ test('live completion consumes the result receipt when the activity tail is miss
   assert.equal(store.automation.active_task.closeout_status, 'completed');
   assert.equal(store.automation.active_task.case_id, 'CASE-20260809-001');
   coordinator.dispose();
+});
+
+function stoppedFeedbackStore() {
+  const store = recoveryStore();
+  const old = { ...store.automation.active_task, execution_id: 'EXEC-ORIGINAL', id: 'EXEC-ORIGINAL',
+    execution_kind: 'acceptance_feedback', feedback_id: 'AF-ORIGINAL', phase: 'stopped',
+    execution_checkpoint: { schema_version: 'arcorbit-execution-checkpoint/v1', phase: 'loop',
+      case_id: '', case_chain: [], pending_continuation: null, trusted_ledger_changed_files: [], closeout_result: null } };
+  store.automation.active_task = null;
+  store.automation.stopped_executions = [old];
+  store.automation.snapshot.tasks[0].state = 'completed';
+  store.automation.acceptance_feedback_items = [{ feedback_id: 'AF-ORIGINAL', source_task_id: 't',
+    source_project_id: 'p', local_project_id: 'local', session_id: 'SESSION-T', thread_id: 'THREAD-PERSISTED',
+    original_feedback: 'Improve the original visual issue', status: 'stopped', current_run_id: 'RUN-OLD' }];
+  return store;
+}
+
+test('historical feedback resumes its original execution and checkpoint without creating feedback', async () => {
+  const store = stoppedFeedbackStore();
+  const checkpoint = structuredClone(store.automation.stopped_executions[0].execution_checkpoint);
+  const starts = [], authorizations = [], messages = [];
+  const manager = fakeRunManager(store, starts, {
+    async authorizeRunRecovery(...args) { authorizations.push(args); },
+    async addMessage(_project, message) { messages.push(message); }
+  });
+  const coordinator = unconfiguredCoordinator(manager);
+  try {
+    assert.equal((await coordinator.getSnapshot()).execution_history[0].status, 'stopped');
+    await coordinator.manageExecution({ history_id: 'AF-ORIGINAL', action: 'resume', message: '继续执行' });
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].threadId, 'THREAD-PERSISTED');
+    assert.equal(starts[0].runtimeContext.execution_id, 'EXEC-ORIGINAL');
+    assert.deepEqual(starts[0].runtimeContext.execution_checkpoint, checkpoint);
+    assert.equal(starts[0].task, '继续执行');
+    assert.equal(store.automation.acceptance_feedback_items.length, 1);
+    assert.equal(store.automation.snapshot.tasks[0].state, 'completed');
+    assert.equal(store.automation.stopped_executions.length, 0);
+    assert.deepEqual(authorizations, [['RUN-OLD', { projectId: 'local', taskId: 't', executionId: 'EXEC-ORIGINAL' }]]);
+    assert.equal(messages[0].feedback_id, 'AF-ORIGINAL');
+  } finally { coordinator.dispose(); }
+});
+
+test('cancel mistaken feedback with no Run, then restore the original; archive survives normalization', async () => {
+  const store = stoppedFeedbackStore();
+  const original = store.automation.acceptance_feedback_items[0];
+  store.automation.acceptance_feedback_items.push({ ...original, feedback_id: 'AF-MISTAKE', status: 'blocked',
+    original_feedback: '继续', current_run_id: '' });
+  store.automation.active_task = { ...store.automation.stopped_executions[0], execution_id: 'EXEC-MISTAKE',
+    feedback_id: 'AF-MISTAKE', phase: 'recovery', run_id: '' };
+  store.automation.recovery_items = [{ id: 'REC-MISTAKE', task_id: 't', project_id: 'p',
+    feedback_id: 'AF-MISTAKE', actions: ['retry_start'], freeze_scope: 'lane' }];
+  const starts = [];
+  const coordinator = unconfiguredCoordinator(fakeRunManager(store, starts));
+  try {
+    await assert.rejects(coordinator.manageExecution({ history_id: 'AF-ORIGINAL', action: 'resume' }), /另一项活动执行/);
+    await coordinator.manageExecution({ history_id: 'AF-MISTAKE', action: 'cancel' });
+    assert.equal(store.automation.active_task, null);
+    assert.equal(store.automation.recovery_items.length, 0);
+    assert.equal(original.status, 'stopped');
+    await coordinator.manageExecution({ history_id: 'AF-MISTAKE', action: 'archive' });
+    const normalized = normalizeStore(store);
+    assert.ok(normalized.automation.acceptance_feedback_items.find(item => item.feedback_id === 'AF-MISTAKE').archived_at);
+    await coordinator.manageExecution({ history_id: 'AF-ORIGINAL', action: 'resume' });
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].task, original.original_feedback);
+  } finally { coordinator.dispose(); }
+});
+
+test('failed start without Run ID authorizes recovery by persistent task identity', async () => {
+  const store = recoveryStore({ run_id: '' });
+  const calls = [], starts = [];
+  const coordinator = unconfiguredCoordinator(fakeRunManager(store, starts, {
+    async authorizeRunRecovery(...args) { calls.push(args); }
+  }));
+  try {
+    const history = (await coordinator.getSnapshot()).execution_history[0];
+    await coordinator.manageExecution({ history_id: history.history_id, action: 'resume' });
+    assert.deepEqual(calls, [['', { projectId: 'local', taskId: 't', executionId: history.execution_id }]]);
+    assert.equal(starts.length, 1);
+  } finally { coordinator.dispose(); }
+});
+
+test('running execution cannot be cancelled or archived and receives continuation as steering', async () => {
+  const store = recoveryStore({ phase: 'running' });
+  const starts = [], controls = [];
+  const coordinator = unconfiguredCoordinator(fakeRunManager(store, starts, {
+    isRunActive() { return true; },
+    async listRuns() { return [{ id: 'RUN-OLD', status: 'running' }]; },
+    async controlRun(...args) { controls.push(args); }
+  }));
+  try {
+    const target = (await coordinator.getSnapshot()).execution_history[0];
+    await assert.rejects(coordinator.manageExecution({ history_id: target.history_id, action: 'cancel' }), /先停止/);
+    await assert.rejects(coordinator.manageExecution({ history_id: target.history_id, action: 'archive' }), /先停止/);
+    await coordinator.manageExecution({ history_id: target.history_id, action: 'resume', message: '继续' });
+    assert.deepEqual(controls, [['RUN-OLD', { type: 'steer', message: '继续' }]]);
+    assert.equal(starts.length, 0);
+  } finally { coordinator.dispose(); }
+});
+
+test('application shutdown keeps recoverable association instead of hiding feedback as stopped', async () => {
+  const store = stoppedFeedbackStore();
+  store.automation.active_task = { ...store.automation.stopped_executions[0], phase: 'running' };
+  store.automation.stopped_executions = [];
+  store.automation.acceptance_feedback_items[0].status = 'running';
+  const starts = [];
+  const manager = fakeRunManager(store, starts, { async getProjectCaseState() { return null; } });
+  const coordinator = unconfiguredCoordinator(manager);
+  try {
+    await manager.emitEvent({ type: 'run.finished', runId: 'RUN-OLD', status: 'aborted',
+      result: { execution_control: { interrupted: true }, stop_reason: 'desktop_shutdown' } });
+    assert.equal(store.automation.stopped_executions.length, 0);
+    assert.equal(store.automation.acceptance_feedback_items[0].status, 'blocked');
+    assert.ok((await coordinator.getSnapshot()).execution_history.find(item => item.feedback_id === 'AF-ORIGINAL'));
+    await coordinator.manageExecution({ history_id: 'AF-ORIGINAL', action: 'resume' });
+    assert.equal(starts[0].threadId, 'THREAD-PERSISTED');
+  } finally { coordinator.dispose(); }
 });

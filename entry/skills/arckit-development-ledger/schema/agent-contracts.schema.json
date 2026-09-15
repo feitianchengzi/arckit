@@ -252,7 +252,8 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "One independently resolvable question or uncertainty, selected for its current importance to the authorized task. Do not bundle independent product, interaction, visual or technical decisions under the final task outcome."
     },
     "semantic_claim": {
       "type": "object",
@@ -414,7 +415,8 @@
           "minItems": 1
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "An evidence-backed observation or conclusion. Accepting it does not resolve every new deficit it reveals."
     },
     "semantic_fact_supersession": {
       "type": "object",
@@ -731,7 +733,8 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Record conclusions established by the selected Gap and actual unresolved impacts. Updating several targets for one conclusion is allowed; settling independent decisions is separate work."
     },
     "semantic_decision_change": {
       "type": "object",
@@ -1023,7 +1026,8 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Assess every invariant without requiring all to be upheld in this round. Related unresolved obligations remain threatened or undetermined with open Gap references; assessment does not select additional work."
     },
     "semantic_invariant_judgment": {
       "$ref": "#/$defs/invariant_judgment"

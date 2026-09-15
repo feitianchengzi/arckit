@@ -276,7 +276,7 @@ class FakeClient {
       const turn = { id: `TURN-${++this.turnCount}` };
       queueMicrotask(() => {
         this.emit("turn/started", { threadId: params.threadId, turn });
-        this.emit("item/completed", { item: { type: "agentMessage", text: "completed" } });
+        this.emit("item/completed", { item: { type: "agentMessage", text: JSON.stringify({ schema_version: "arckit-agent-loop-result/v2", action: "handoff", summary: "Fixture complete", case_control: null, case_command: null, changed_files: [], artifact_impacts: [], risks: [], unknowns: [], task_progress: { advanced: false, reason: "Fixture", evidence: [], remaining: [] }, handoff: { next_responsibility: "none", reason: "Fixture complete", next_prompt: "", human_decision_required: false } }) } });
         this.emit("turn/completed", { threadId: params.threadId, turn });
       });
       return { turn };
@@ -318,7 +318,7 @@ class DuplicateCommandClient extends FakeClient {
       this.emit("item/completed", { item: { id: "CMD-1", type: "commandExecution", command: base.command } });
       this.commandDecisions.push(await approve({ method: "item/commandExecution/requestApproval", params: { ...base, command: "cmake --build build --target tests -j2", itemId: "CMD-3", startedAtMs: 300 } }));
       this.emit("item/completed", { item: { id: "CMD-3", type: "commandExecution", command: base.command } });
-      this.emit("item/completed", { item: { type: "agentMessage", text: "completed" } });
+      this.emit("item/completed", { item: { type: "agentMessage", text: JSON.stringify({ schema_version: "arckit-agent-loop-result/v2", action: "handoff", summary: "Fixture complete", case_control: null, case_command: null, changed_files: [], artifact_impacts: [], risks: [], unknowns: [], task_progress: { advanced: false, reason: "Fixture", evidence: [], remaining: [] }, handoff: { next_responsibility: "none", reason: "Fixture complete", next_prompt: "", human_decision_required: false } }) } });
       this.emit("turn/completed", { threadId: params.threadId, turn });
     });
     return { turn };
@@ -348,7 +348,7 @@ class PermissionClient extends FakeClient {
           }
         }
       });
-      this.emit("item/completed", { item: { type: "agentMessage", text: "completed" } });
+      this.emit("item/completed", { item: { type: "agentMessage", text: JSON.stringify({ schema_version: "arckit-agent-loop-result/v2", action: "handoff", summary: "Fixture complete", case_control: null, case_command: null, changed_files: [], artifact_impacts: [], risks: [], unknowns: [], task_progress: { advanced: false, reason: "Fixture", evidence: [], remaining: [] }, handoff: { next_responsibility: "none", reason: "Fixture complete", next_prompt: "", human_decision_required: false } }) } });
       this.emit("turn/completed", { threadId: params.threadId, turn });
     });
     return { turn };
@@ -501,5 +501,27 @@ test('Automation keeps entry skills discoverable without invoking them during sa
     assert.deepEqual(turns[1].params.input, [{ type: 'text', text: 'Commit the accepted task work.' }]);
     assert.deepEqual(client.requests.find(item => item.method === 'skills/extraRoots/set').params.extraRoots, skills.map(skill => skill.path));
     assert.ok(client.requests.find(item => item.method === 'thread/start').params.config['skills.config'].every(skill => skill.enabled));
+  } finally { adapter.close(); }
+});
+
+
+test('interrupted Automation output is terminal, never a fabricated retry', async () => {
+  const client = new InterruptClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  const run = collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'work', options: { resultKind: 'agent-loop-result' } }));
+  const rejected = assert.rejects(run, error => error.code === 'ARCORBIT_EXECUTION_STOPPED');
+  await client.turnStarted;
+  await adapter.interrupt();
+  await rejected;
+  adapter.close();
+});
+
+test('malformed Automation output reports a transport error without Agent continuation', async () => {
+  const client = new FakeClient();
+  const emit = client.emit.bind(client);
+  client.emit = (method, params) => emit(method, params.item?.type === 'agentMessage' ? { ...params, item: { ...params.item, text: 'not JSON' } } : params);
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  try {
+    await assert.rejects(collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'work', options: { resultKind: 'agent-loop-result' } })), error => error.code === 'INVALID_AGENT_RESULT');
   } finally { adapter.close(); }
 });

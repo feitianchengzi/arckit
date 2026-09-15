@@ -1,3 +1,5 @@
+import { executionOutcome } from "../automation/execution-outcome.mjs";
+
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "aborted", "interrupted", "cancelled"]);
 
 export function summarizeAutomationExecution(runs = [], { now = Date.now() } = {}) {
@@ -13,6 +15,9 @@ export function summarizeAutomationExecution(runs = [], { now = Date.now() } = {
     finished_at: finishedAt,
     duration_ms: startMs > 0 && endMs >= startMs ? endMs - startMs : 0,
     active,
+    outcome: active ? 'running' : orderedRuns.length ? (orderedRuns.at(-1).activity?.execution_outcome || executionOutcome(orderedRuns.at(-1))).state : 'not_started',
+    distinct_gap_count: new Set(gapRounds.filter(round => round.selected_gap_id).map(round => `${round.case_id}:${round.selected_gap_id}`)).size,
+    execution_progress: orderedRuns.at(-1)?.activity?.execution_progress || null,
     run_count: orderedRuns.length,
     gap_round_count: gapRounds.length,
     gap_rounds: gapRounds,
@@ -57,6 +62,8 @@ function normalizeRound(run, round, projectionSource) {
     started_at: String(round.started_at || ""),
     finished_at: String(round.finished_at || ""),
     project_revision: round.project_revision ?? null,
+    task_progress: round.task_progress || null,
+    continuation: round.continuation || null,
     projection_source: projectionSource,
   };
 }

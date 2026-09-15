@@ -210,6 +210,27 @@ test("a restarted run loads the persisted task thread binding before spawning Ru
     const index = calls[0].args.indexOf("--thread-id");
     assert.equal(calls[0].args[index + 1], "THREAD-PERSISTED");
     assert.equal((await manager.getTaskThreadBinding("PROJECT-1", "TASK-1")).threadId, "THREAD-PERSISTED");
+    await assert.rejects(manager.authorizeRunRecovery(run.id), /active execution/);
+    await manager.controlRun(run.id, { type: 'interrupt' });
+    assert.equal(JSON.parse(await readFile(run.result_file, 'utf8')).stop_reason, 'stopped');
+    const restartedManager = createDesktopRunManager({
+      runtimeRoot: dataDir, dataDir,
+      spawnProcess(command, args) { calls.push({ command, args }); return fakeChild(children); },
+      ensureProject: async () => ({ initialized: false, repaired: false })
+    });
+    await assert.rejects(restartedManager.startRun({ projectId: 'PROJECT-1', taskId: 'TASK-1', task: 'Resume', dryRun: true }), /stopped by operator/);
+    assert.equal(calls.length, 1);
+    await restartedManager.authorizeRunRecovery("", { projectId: "PROJECT-1", taskId: "TASK-1" });
+    const resumed = await restartedManager.startRun({ projectId: 'PROJECT-1', taskId: 'TASK-1', task: 'Resume', dryRun: true });
+    assert.equal(resumed.thread_id, 'THREAD-PERSISTED');
+    await restartedManager.abortActiveRuns();
+    const interrupted = JSON.parse(await readFile(resumed.result_file, 'utf8'));
+    assert.equal(interrupted.stop_reason, 'desktop_shutdown');
+    assert.equal(interrupted.execution_control.stop_requested, undefined);
+    await assert.rejects(readFile(`${resumed.execution_control_file}.stop`), { code: 'ENOENT' });
+    const afterShutdown = await restartedManager.startRun({ projectId: 'PROJECT-1', taskId: 'TASK-1', task: 'Resume', dryRun: true });
+    assert.equal(afterShutdown.thread_id, 'THREAD-PERSISTED');
+    await restartedManager.abortActiveRuns();
   } finally {
     await manager.abortActiveRuns({ graceMs: 0 });
     destroyChildren(children);
@@ -325,7 +346,7 @@ test("desktop run manager delegates packaged execution to the utility-process ho
         return fakeChild(children);
       },
       sendControl() {},
-      terminate() {}
+      terminate(child) { child.kill(); }
     },
     ensureProject: async (options) => {
       projectChecks.push(options);
@@ -368,7 +389,7 @@ test("desktop run manager refuses to remove a project with an active state-drive
     });
     const contextIndex = calls[0].args.indexOf("--runtime-context");
     assert.deepEqual(JSON.parse(calls[0].args[contextIndex + 1]), { closeout_only: true, case_id: "CASE-20260809-001" });
-    assert.equal(calls[0].args[calls[0].args.indexOf("--max-no-progress-rounds") + 1], "1");
+    assert.equal(calls[0].args.includes("--max-no-progress-rounds"), false);
     assert.equal(calls[0].args[calls[0].args.indexOf("--max-agent-repair-attempts") + 1], "0");
     await assert.rejects(manager.removeProject("PROJECT-1"), /Stop the active run/);
   } finally {
@@ -513,7 +534,8 @@ function fakeChild(children) {
   child.stdin = new PassThrough();
   child.stdout = new PassThrough();
   child.stderr = new PassThrough();
-  child.exitCode = 0;
+  child.exitCode = null;
+  child.kill = () => { child.exitCode = 0; queueMicrotask(() => child.emit("close", 0)); };
   child.signalCode = null;
   children.push(child);
   return child;
@@ -542,3 +564,29 @@ function destroyChildren(children) {
     child.stderr.destroy();
   }
 }
+
+test('stopping one acceptance execution does not poison another execution of the same todo', async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'arcorbit-stop-identity-'));
+  await writeStore(dataDir, dataDir);
+  const children = [];
+  const manager = createDesktopRunManager({ runtimeRoot: dataDir, dataDir,
+    spawnProcess() { return fakeChild(children); },
+    ensureProject: async () => ({ initialized: false, repaired: false }) });
+  try {
+    const first = await manager.startRun({ projectId: 'PROJECT-1', taskId: 'TASK-1', task: 'First issue', dryRun: true,
+      runtimeContext: { execution_id: 'EXEC-FIRST', execution_product: 'automation' } });
+    await manager.controlRun(first.id, { type: 'interrupt' });
+    const second = await manager.startRun({ projectId: 'PROJECT-1', taskId: 'TASK-1', task: 'Second issue', dryRun: true,
+      runtimeContext: { execution_id: 'EXEC-SECOND', execution_product: 'automation' } });
+    assert.notEqual(first.execution_control_file, second.execution_control_file);
+    assert.ok(await readFile(`${first.execution_control_file}.stop`));
+    await assert.rejects(manager.authorizeRunRecovery(first.id, {
+      projectId: 'PROJECT-1', taskId: 'TASK-1', executionId: 'EXEC-FIRST'
+    }), /still active/);
+    await manager.abortActiveRuns();
+  } finally {
+    await manager.abortActiveRuns();
+    destroyChildren(children);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});

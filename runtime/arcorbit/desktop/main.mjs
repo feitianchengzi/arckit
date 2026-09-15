@@ -649,6 +649,7 @@ function registerIpc() {
   ipcMain.handle("arckit:automation-reopen-cli", async (_event, input) => automationCoordinator.reopenCodexCli(input));
   ipcMain.handle("arckit:automation-resume-runtime", async (_event, input) => automationCoordinator.resumeRuntimeFromCodexCli(input));
   ipcMain.handle("arckit:automation-confirm-external-dependency", async (_event, input) => automationCoordinator.confirmExternalDependency(input));
+  ipcMain.handle("arckit:automation-execution-manage", async (_event, input) => automationCoordinator.manageExecution(input));
   ipcMain.handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
   ipcMain.handle("arckit:platform-snapshot", async (_event, input) => platformCoordinator.getSnapshot(input));
   ipcMain.handle("arckit:platform-work-query", async (_event, input) => platformCoordinator.queryWork(input));

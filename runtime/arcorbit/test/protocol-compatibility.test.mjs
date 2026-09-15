@@ -57,14 +57,10 @@ test('Runtime exposes an incompatible canonical state as a protocol recovery rou
       options: { task: 'Continue the original task.', originalTask: 'Continue the original task.', lifecycleRoundIndex: 1 },
       controllerCapabilities: [controllerCapability],
     });
-    const invocation = JSON.parse(prompt.slice(prompt.indexOf('{')));
-    assert.equal(invocation.canonical_context.state_availability, 'unavailable');
-    assert.equal(invocation.canonical_context.protocol_compatibility.snapshot_token, snapshot.compatibility.snapshot_token);
-    assert.equal(invocation.loop_contract.protocol_recovery, true);
-    assert.equal(invocation.loop_contract.ordinary_case_progress_forbidden, true);
-    assert.deepEqual(invocation.loop_contract.valid_actions, ['handoff']);
-    assert.equal(invocation.execution_authorization.trusted_protocol_recovery.authorized, true);
-    assert.match(invocation.execution_authorization.trusted_protocol_recovery.entrypoint, /protocol-compatibility\.mjs$/);
+    assert.match(prompt, /Canonical state is incompatible: only protocol recovery and handoff/);
+    assert.equal(loopFrame.protocol_recovery.authorized, true);
+    assert.match(loopFrame.protocol_recovery.entrypoint, /protocol-compatibility\.mjs$/);
+    assert.doesNotMatch(prompt, /canonical_context/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -405,9 +405,8 @@ function validateClaimForSelectedGap(claim, selectedGap, record, issues) {
     } else if (handoffId) {
       issue(claim.resolve_selected_gap === null, 'case_command.claim.resolve_selected_gap', 'must be null because a handoff candidate is completed through completed_handoffs', issues);
       issue(claim.completed_handoffs.includes(handoffId), 'case_command.claim.completed_handoffs', `must include selected handoff ${handoffId}`, issues);
-    } else {
-      issue(resolution(claim.resolve_selected_gap), 'case_command.claim.resolve_selected_gap', 'is required for the selected ordinary Case Gap', issues);
     }
+    // An ordinary Gap can retain partial evidence without claiming acceptance.
     validateCaseControlRefs(claim, selectedGap, record, issues);
     return;
   }

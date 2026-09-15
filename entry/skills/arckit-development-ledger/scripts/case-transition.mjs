@@ -276,7 +276,7 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   if (isReview && contentMutation) throw new Error('Completion review cannot be committed with a content mutation');
   if (reviewBudgetExtension && !isReview) throw new Error('Review budget extension requires the current human completion-review decision');
   if (reviewBudgetExtension && delta.completion_review_result) throw new Error('Review budget extension and completion review result must be committed in separate rounds');
-  if (!isReview && !questionId && !handoffId && delta.resolved_gap?.id !== candidate.id) throw new Error('A normal transition must resolve its selected dynamic gap');
+  if (!isReview && !questionId && !handoffId && delta.resolved_gap && delta.resolved_gap.id !== candidate.id) throw new Error('A normal transition may only resolve its selected dynamic gap');
   if (questionId && !delta.resolved_open_questions.includes(questionId)) throw new Error('Selected question must be resolved');
   if (handoffId && !delta.completed_handoffs.includes(handoffId)) throw new Error('Selected handoff must be completed');
 
@@ -340,7 +340,7 @@ function selectTransitionGap(record, transition) {
   }
   const selected = transition.selected_gap;
   if (record.gaps.some((gap) => gap.id === selected.id)) throw new Error(`Fresh dynamic gap already exists: ${selected.id}`);
-  if (selected.responsibility !== 'agent') throw new Error('A fresh dynamic gap must be Agent-owned and completed in the current turn');
+  if (selected.responsibility !== 'agent') throw new Error('A fresh dynamic gap must be Agent-owned');
   if ([':completion-review:', ':open-question:', ':handoff:', ':review-finding:'].some((marker) => selected.id.includes(marker))) throw new Error(`Fresh dynamic gap uses a reserved id: ${selected.id}`);
   const closed = new Set(record.gaps.filter((gap) => ['resolved', 'cancelled'].includes(gap.status)).map((gap) => gap.id));
   if (selected.blocked_by.some((id) => !closed.has(id))) throw new Error(`Fresh dynamic gap is not ready: ${selected.id}`);

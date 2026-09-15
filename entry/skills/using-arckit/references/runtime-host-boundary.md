@@ -14,6 +14,8 @@ Host 的 `task_context` 提供当前可信 Case 绑定和执行恢复信息，�
 
 ## 停止与完成
 
+Host 提供的 `execution_progress` 是各轮执行事实和 Agent 声明的历史，按 round-boundary-contract 中的进展方法复核；Host 不决定本轮是否推动了原任务。`task_progress` 表达进展判断，`handoff` 表达下一责任；二者不能互相代替。Host 的协议修复失败或旧版进展阈值停止记录不等于需要用户作业务决定。
+
 用户要求结束本次执行时，可以返回 `handoff`、`next_responsibility: none`，说明已有成果与未完成义务。它不宣称 Case 完成，不要求新建或关闭 Case 来满足结束条件。Case 完成只能来自可信 Ledger 的接受；Host 是否要求额外交付由其显式执行策略决定。human 仅表示确实需要人的决定；external wait 需要具体外部条件；技术故障如实报告。
 
 ## 完成后的新发现

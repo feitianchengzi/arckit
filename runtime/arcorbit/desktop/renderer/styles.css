@@ -1388,3 +1388,10 @@ summary { display: flex; align-items: center; }
     transition-duration: .01ms !important;
   }
 }
+
+.execution-history-archive-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: var(--control-default); padding: 0 8px; cursor: pointer; flex-shrink: 0; }
+.execution-history-item { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border, #ddd); }
+.execution-history-item > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.execution-history-item p { margin: 6px 0 0; font-size: 12px; opacity: .75; }
+.execution-history-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+@media (max-width: 900px) { .execution-history-item { align-items: flex-start; flex-direction: column; } }

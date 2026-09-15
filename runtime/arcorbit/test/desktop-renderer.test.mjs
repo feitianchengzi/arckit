@@ -1857,13 +1857,13 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(html, /AUTOMATION RECOVERY CENTER/);
   assert.match(html, /data-page-view="recovery"/);
   assert.match(source, /openWorkbench\("intervention"\)/);
-  assert.match(source, /state\.workbenchMode !== "intervention"/);
+  assert.match(source, /els\.interventionComposer\.classList\.toggle\("hidden", !canSend\)/);
   assert.match(html, /id="interveneCurrentButton"/);
   assert.match(source, /state\.interventionSubmitting = true/);
-  assert.match(source, /api\.submitIntervention/);
+  assert.match(source, /api\.manageAutomationExecution/);
   assert.match(source, /api\.resolveAutomationRecovery/);
   assert.match(source, /api\.updateAutomationTaskState/);
-  assert.match(source, /state\.workbenchRun \|\| state\.snapshot\.active_run/);
+  assert.match(source, /state\.workbenchRun \|\| active\?\.active_run/);
   assert.match(source, /state\.workbenchCompletion\?\.local_project_id/);
   assert.match(source, /api\.listMessages\(localProjectId, run\.session_id\)/);
   assert.match(source, /message\.task_id/);

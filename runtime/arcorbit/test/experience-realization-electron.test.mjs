@@ -17,7 +17,7 @@ const result = JSON.parse(stdout.trim());
 assert.equal(result.pages.length, 10);
 assert.equal(result.visible_text_below_11, 0);
 assert.equal(result.standard_control_violations, 0);
-assert.equal(result.checkbox_target_violations, 0);
+assert.equal(result.checkbox_target_violations, 0, JSON.stringify(result.checkbox_violation_details));
 assert.equal(result.selectable_row_violations, 0);
 assert.equal(result.keyboard_selection_changed, true);
 assert.equal(result.work_display_title.includes("\n"), false);

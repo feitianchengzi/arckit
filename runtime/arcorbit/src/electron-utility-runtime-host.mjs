@@ -1,3 +1,4 @@
+import { terminateProcessTree } from "./process-tree.mjs";
 import { EventEmitter } from "node:events";
 
 const CONTROL_SCHEMA = "arcorbit-runtime-control/v1";
@@ -21,8 +22,8 @@ export function createElectronUtilityRuntimeHost(utilityProcess) {
     sendControl(child, control) {
       child.postMessage({ schema_version: CONTROL_SCHEMA, ...control });
     },
-    terminate(child) {
-      child.kill();
+    terminate(child, signal = "SIGKILL") {
+      terminateProcessTree(child, signal);
     }
   };
 }

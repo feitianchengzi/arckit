@@ -56,6 +56,7 @@
   "additionalProperties": false,
   "$defs": {
     "decision_area": {
+      "description": "A dimension for recovering and recording software decisions, not a mandatory execution stage. Independent decisions are selected dynamically rather than settled together for catalog completeness.",
       "type": "object",
       "required": ["id", "question", "decision_expectation", "evidence_expectation", "decision", "gap_refs"],
       "properties": {
@@ -83,6 +84,7 @@
       "additionalProperties": false
     },
     "software_invariant": {
+      "description": "A durable correctness responsibility, not a work item or a requirement to resolve every affected domain in each Loop. Assess applicability and evidence; retain unresolved obligations as open Gaps.",
       "type": "object",
       "required": ["id", "applies_when", "must_hold", "evidence_expectation", "priority"],
       "properties": {

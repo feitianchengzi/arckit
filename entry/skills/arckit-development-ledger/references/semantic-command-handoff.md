@@ -11,6 +11,10 @@
 
 ## Selected Gap 主张
 
+选择说明使用既有 goal、reason、priority basis 和 evidence requirements 表达当前最关键的独立问题、优先解决的价值与完成标准。事实、Project decision 变化和 impacts 必须来自当前缺口已经建立的结论；不能通过一个宽泛 selected Gap 同时提交多个独立产品、交互或技术决定。完整 invariant assessment 可以保留其他相关缺口未解决，不要求本轮全部 upheld。
+
+
+- 普通 Case Gap 未验收完成时允许 `round_outcome: partial`、`claim.resolve_selected_gap: null`，提交已有事实和证据并保留同一 Gap；不得为通过校验虚报完成或新增替代 Gap。
 - 普通 Case Gap 的完成使用 `claim.resolve_selected_gap`；Completion Review candidate 是 Ledger 派生的审查门禁，不是可由该字段关闭的普通 Gap。
 - 选择 Completion Review candidate 时，`resolve_selected_gap` 必须为 `null`，Case 内容变更数组必须为空；只用 `completion_review_result` 提交 clean/findings/needs_human，或只用 `review_budget_extension` 提交 human 授权，两者不能同轮出现。
 - Review finding 由 `completion_review_result.findings` 声明并由 Ledger 派生后续普通修复 Gap。修复和事实变化在 fresh-read 后选择该普通 Gap 的下一轮提交，不能与 Review 合并。

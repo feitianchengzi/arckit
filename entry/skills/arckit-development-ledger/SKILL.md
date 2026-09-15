@@ -26,7 +26,7 @@ Ledger manifest 的 `agent_contracts` 是 Host 组装语义载荷 schema 和定�
 ## Project State 边界
 
 - `software_definition.decision_areas` 是协议明确列出的软件能力决策清单，不由 Agent 临时生发，也不是执行 checklist。每项保存问题、决策要求、证据要求、当前 decision 与实际 gap refs。
-- `software_invariants` 是 Case Loop 的跨项目抽象判断指导，不是固定工作类型或 Gap 清单。Agent 每轮从 fresh Case facts 判断全部 invariants：事实建立、改变、否定、暴露缺失、使既有内容过时、产生歧义或冲突都可能触发相关判断，不能只看本轮计划修改什么。产品、交互、视觉和技术四条维护不同类型的权威长期预期或决策；realization 与 risk 分别要求现实兑现和风险依据，三类证据不能互相替代。Ledger 只校验 catalog 覆盖、引用和处置结构。六条核心不变量不可删除、任意改写或退役；协议升级只允许精确同步 canonical core 定义。项目仅可增加真正跨 Case 长期成立的非核心不变量。
+- `software_invariants` 保存项目当前的不变量定义。Agent 从当前 Project State 读取集合及每项适用条件、约束和证据要求，不在工作方法中复制模板内容或按预设分类解释。完整 assessment 只要求识别义务，不要求本轮全部成立；相关但未解决的缺口可以保持 threatened/undetermined 并关联开放 Gap。模板定义的核心项仍由初始化写入并受精确校验保护，不允许项目任意修改、删除或退役；引导层通过状态读取使用定义，不改变模板的维护权限。
 - `advancement` 只保存当前 Iteration、未完成 Cases、真实 Project gaps 和下一事项的选择上下文；不保存固定工作流或历史 Case 注册表。
 - 技术栈、端、登录、反馈、授权、模块等具体结论写入对应 decision 的 statement/evidence；Case 局部发现写 facts/evidence。不要把项目事实伪装成新不变量。
 - open 决策不自动生成 gap；只有当前事项确实需要解决它时才建立 Project/Case gap。`stale` 决策必须有 gap 承接。
@@ -36,18 +36,18 @@ Ledger manifest 的 `agent_contracts` 是 Host 组装语义载荷 schema 和定�
 ## Case 状态与审计
 
 - Fact 有稳定 id、递增 revision、accepted/superseded、statement、basis 和持久 evidence。
-- Impact 只记录当前事实或被接受 transition 实际影响的 Project decision/invariant target，不在 Case 创建时预测 scope。软件决策 impact 必须绑定当前 decision revision；核心 invariant revision 为 `null`。Invariant applicability 本身不要求创建 impact。
+- Impact 只记录当前事实或被接受 transition 实际影响的 Project decision/invariant target，不在 Case 创建时预测 scope。软件决策 impact 必须绑定当前 decision revision；invariant revision 为 `null`（由 Project revision 绑定）。Invariant applicability 本身不要求创建 impact。
 - `upheld` 需要证据；`threatened/undetermined` 至少绑定一个 open gap。
-- Gap 只包含结果型目标、原因、来源/依赖、开放 priority basis、responsibility、evidence requirement 和 resolution，不含 facet、skill、工件类别或未来执行步骤。
+- Gap 表示当前值得独立解决的一个问题或不确定性，只包含结果型目标、原因、来源/依赖、开放 priority basis、responsibility、evidence requirement 和 resolution，不含 facet、skill、工件类别或未来执行步骤。
 - 审计从已持久化的 ready gaps 动态派生候选项；数组顺序不代表优先级。普通 gaps、问题、handoff 和未闭合 impacts 清零后，派生唯一 completion review candidate，但 Agent 仍可在 fresh state 中提出更重要的普通 Gap。
 - Review 只检查 implementation correctness、problem resolution、verification credibility、regression risk 和 minimality；规则见 [references/completion-review.md](references/completion-review.md)。
 
 ## Transition 与原子写回
 
-- 每轮必须提交绑定 selected Case selection token 的 `gap_selection`，并逐项说明该 Case scope 内 persisted candidates 的 selected/deferred/excluded 结果；`fresh` candidates 只记录 Agent 本轮实际发现的工作。`candidate` 以 `selected_ref`、Gap id、Case revision、selection token 和当前 ready 状态确认身份与 freshness；Agent 可以用自己的语言表达 `goal/reason`，Ledger 重新解析并持久化当前 canonical candidate，不以描述逐字相等作为身份门禁。`fresh` 原子创建并关闭一个此前未持久化、Agent-owned、无未闭合依赖且本轮已完成的普通 Gap。
-- 每轮只接受 selected Gap 的一个验收主张；新事实可以新增或重开后续 Gap，但不得在同一 Round 执行这些后续结果。
+- 每轮必须提交绑定 selected Case selection token 的 `gap_selection`，并逐项说明该 Case scope 内 persisted candidates 的 selected/deferred/excluded 结果；`fresh` candidates 只记录 Agent 本轮实际发现的工作。`candidate` 以 `selected_ref`、Gap id、Case revision、selection token 和当前 ready 状态确认身份与 freshness；Agent 可以用自己的语言表达 `goal/reason`，Ledger 重新解析并持久化当前 canonical candidate，不以描述逐字相等作为身份门禁。`fresh` 原子创建并推进一个此前未持久化、Agent-owned、无未闭合依赖的普通 Gap；验收未完成时可以保留开放状态。
+- 每轮只接受 selected Gap 的一个问题结论或部分进展；新事实可以支持当前缺口，也可以新增或重开其他候选，但不顺带解决独立缺口。一个结论可以影响多个 Project targets，多个独立结论不因 targets 属于同一任务而合并。
 - `invariant_assessment` 对 observed Project revision 的全部 invariants 恰好判断一次。`not_relevant` 需要理由，`upheld` 需要持久证据，`threatened/undetermined` 需要 accepted facts 和写回后仍 open 的 Case gaps。Ledger 不判断语义相关性或路由 artifact/skill。
-- `project_state_delta` 可在任何被接受的 Gap transition 中更新软件定义决策、不变量、Project gaps 或 selection context，不必等待 Case resolved。
+- `project_state_delta` 可在任何被接受的 Gap transition 中更新软件定义决策、不变量、Project gaps 或 selection context，不必等待 Case resolved；只写入当前缺口已经建立的结论，不为补齐 decision areas 或 invariant catalog 顺带作出独立决定。
 - Semantic Command Materializer 只按显式 typed refs/local handles 分配 canonical id、读取并递增 revision、重建 selected Gap、展开 Project Gap 的反向 decision index，并编译内部 v8；不得从 statement/reason/evidence 猜 target、effect、disposition、responsibility 或下一 Gap。Direct v8 的 Project decision 更新仍检查 observed revision；Case impacts 必须引用提交后的当前 revision。
 - 内容变化提升 `content_revision` 并使旧 clean Review 失效；clean Review 与内容变化分轮提交。Completion Review 是唯一显式语义自查；普通 Gap 的 evidence requirements 与 ledger validation 只是完成证据和确定性协议校验。
 - 正式 apply 在 Project lock 内 fresh-read，并原子写入 Case、Project、Iteration、投影与索引；任一步失败全部回滚。

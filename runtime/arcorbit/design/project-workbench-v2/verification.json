@@ -1,0 +1,70 @@
+{
+  "ok": true,
+  "checks": [
+    "global status popup, idle/settings, queue and cross-project navigation",
+    "status popover closes independently, fits mobile widths and updates on render",
+    "create action only in list footer",
+    "no fixed plans for new work or analysis; optional task-specific plan",
+    "plan change applies at execution boundary and does not complete task",
+    "optional plan can be cleared while keeping execution paused",
+    "expanded plan survives rerender",
+    "detail categories and compact properties",
+    "materials and context membership",
+    "comments to Agent draft and adopted agreements",
+    "message source navigation",
+    "shared criteria and acceptance guard",
+    "stage outputs and document previews",
+    "child work and filtered events",
+    "legacy version files unchanged",
+    "separate local storage",
+    "project / center / right list geometry",
+    "message popup constrained to center; task list remains available",
+    "compact header without surface tabs; messages opt-in",
+    "analysis → Auto retains identity",
+    "queue and running intervention",
+    "pause and explicit resume",
+    "new conversation creates one self-assigned work",
+    "per-task drafts survive tick and reload",
+    "search and state filters",
+    "acceptance issues",
+    "decision and edit",
+    "no demonstration wording in product UI",
+    "narrow layouts and list drawer",
+    "message and detail reading positions retained; Escape closes popup"
+  ],
+  "geometry": [
+    {
+      "width": 1500,
+      "scroll": 1500,
+      "center": 975,
+      "messages": 949
+    },
+    {
+      "width": 1280,
+      "scroll": 1280,
+      "center": 755,
+      "messages": 729
+    },
+    {
+      "width": 1024,
+      "scroll": 1024,
+      "center": 559,
+      "messages": 533
+    },
+    {
+      "width": 760,
+      "scroll": 760,
+      "center": 694,
+      "messages": 676
+    },
+    {
+      "width": 390,
+      "scroll": 390,
+      "center": 390,
+      "messages": 372
+    }
+  ],
+  "errors": [],
+  "externalRequests": [],
+  "scope": "Local interactive prototype only. All execution and responses are simulated; no product backend or real Agent."
+}

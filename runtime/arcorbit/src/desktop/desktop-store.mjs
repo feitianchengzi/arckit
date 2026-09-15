@@ -862,6 +862,8 @@ export function normalizeAcceptanceFeedbackItem(value) {
     intervention_kind: String(value.intervention_kind || (value.status === "external_wait" ? "external_dependency" : "")),
     created_at: String(value.created_at || ""),
     updated_at: String(value.updated_at || value.created_at || ""),
+    archived_at: String(value.archived_at || ""),
+    cancelled_at: String(value.cancelled_at || ""),
     resolved_at: String(value.resolved_at || "")
   };
 }

@@ -75,15 +75,7 @@ export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame
           : ["registered Case ref", "fresh Case revision", "derived candidate_gaps"],
         stop_condition: (round.stop_conditions || []).join(" ")
       },
-      human_gate: { required: false, reason: "", decision_needed: "" },
-      progress_guard: {
-        expected_state_change: controllerPlan.continuation_intent.state_transition,
-        actual_state_change: reusesClosedCase
-          ? "Agent produced an authorized closed Case reuse claim pending deterministic validation."
-          : "Agent produced an authorized Case control handoff pending deterministic ledger application.",
-        no_progress_limit: 2,
-        max_auto_rounds: Number.isInteger(round.max_auto_rounds) ? round.max_auto_rounds : 8
-      }
+      human_gate: { required: false, reason: "", decision_needed: "" }
     }
   };
 }

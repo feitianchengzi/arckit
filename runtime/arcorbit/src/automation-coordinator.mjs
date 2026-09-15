@@ -1,10 +1,11 @@
+import { buildExecutionHistory } from './automation/execution-history.mjs';
 import { automationDeliveryPolicy } from './automation/delivery-policy.mjs';
 import { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
 export { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
 import { checkpointFromRun, isExecutionCheckpoint } from './automation/execution-checkpoint.mjs';
 import { executionOutcome, executionHandoff } from './automation/execution-outcome.mjs';
 import { EventEmitter } from "node:events";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { validateSceneSkillBinding } from "./scene-skill-manager.mjs";
 import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
@@ -34,6 +35,8 @@ export function createAutomationCoordinator(options) {
   let syncPromise = null;
   let dispatchPromise = null;
   let disposed = false;
+  let managementQueue = Promise.resolve();
+  let managementPending = 0;
   const unsubscribeRunManager = runManager.onEvent((event) => {
     ensureKnownLanes()
       .then(() => Promise.all([...laneCoordinators.values()].map((coordinator) => coordinator.handleRunEvent(event))))
@@ -134,6 +137,7 @@ export function createAutomationCoordinator(options) {
     const selected = executions.find((item) => item.execution_id === selectedExecutionId) || null;
     return {
       ...base,
+      execution_history: buildExecutionHistory(automation),
       active_executions: executions,
       active_execution: selected,
       active_task: selected,
@@ -174,6 +178,7 @@ export function createAutomationCoordinator(options) {
   }
 
   async function maybeStartNext() {
+    if (managementPending) return null;
     if (dispatchPromise) return dispatchPromise;
     dispatchPromise = (async () => {
       const { automation } = await ensureKnownLanes();
@@ -332,6 +337,27 @@ export function createAutomationCoordinator(options) {
     return result;
   }
 
+  async function manageExecution(input = {}) {
+    managementPending += 1;
+    const operation = managementQueue.then(async () => {
+      if (dispatchPromise) await dispatchPromise;
+      const { automation } = await ensureKnownLanes();
+      const target = buildExecutionHistory(automation).find(item => item.history_id === input.history_id);
+      if (!target) throw new Error("未找到历史执行，请刷新后重试。");
+      if (input.action === "resume" && !target.active
+        && Object.keys(automation.active_executions).length >= (automation.concurrency_limit || 3)) {
+        throw new Error("并行执行数量已达上限，请先停止一项执行或等待完成。");
+      }
+      const lane = ensureLane(target.local_project_id);
+      if (!lane) throw new Error("历史执行缺少本地项目绑定。");
+      await lane.manageExecution(input);
+      return getSnapshot();
+    });
+    managementQueue = operation.catch(() => {});
+    try { return await operation; }
+    finally { managementPending -= 1; }
+  }
+
   async function updateTaskState(input) {
     const store = sharedWorkSync.attachLocalProjection(await runManager.readDesktopStore());
     const task = store.automation.snapshot?.tasks?.find((item) => String(item.id) === String(input?.taskId || input?.task_id));
@@ -367,6 +393,7 @@ export function createAutomationCoordinator(options) {
     setProjectParticipation,
     updateTaskState,
     submitAcceptanceFeedback,
+    manageExecution,
     selectExecution,
     submitIntervention(input = {}) { return routeByExecution("submitIntervention", input.execution_id, input); },
     stopCurrent(input = "") { return routeByExecution("stopCurrent", typeof input === "object" ? input.execution_id : input); },
@@ -446,7 +473,7 @@ function decorateExecution(execution, workspaceKey) {
   const key = String(workspaceKey || executionWorkspaceKey(execution));
   return {
     ...execution,
-    execution_id: String(execution?.execution_id || `EXEC-${randomUUID()}`),
+    execution_id: String(execution?.execution_id || `EXEC-${createHash("sha256").update(JSON.stringify([key, execution.task_id, execution.feedback_id || "", execution.claimed_at || execution.run_id || ""])).digest("hex").slice(0, 24)}`),
     workspace_key: key,
     local_project_id: String(execution?.local_project_id || key)
   };
@@ -717,6 +744,7 @@ function createLaneAutomationCoordinator({
         ...item,
         actions: recoveryActionsForItem(item, automation.active_task)
       })),
+      execution_history: buildExecutionHistory(automation),
       stopped_executions: automation.stopped_executions || [],
       recent_completions: automation.recent_completions.map((item) => {
         const run = runs.find((candidate) => candidate.id === item.run_id) || null;
@@ -924,7 +952,6 @@ function createLaneAutomationCoordinator({
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
-        maxNoProgressRounds: 8
       });
       await patchAutomation((automation) => {
         automation.active_task.phase = "running";
@@ -1042,13 +1069,121 @@ function createLaneAutomationCoordinator({
       || (await readStore()).automation.acceptance_feedback_items.find((item) => item.feedback_id === feedbackId);
   }
 
+  async function manageExecution({ history_id: historyId, action, message = "" }) {
+    if (!["resume", "cancel", "archive", "unarchive"].includes(action)) throw new Error("未知执行操作。");
+    let store = await readStore();
+    const automation = store.automation;
+    const history = buildExecutionHistory(automation).find(item => item.history_id === historyId);
+    if (!history) throw new Error("未找到历史执行。");
+    const feedback = automation.acceptance_feedback_items.find(item => item.feedback_id === history.feedback_id);
+    const matches = item => Boolean(item && (history.feedback_id
+      ? item.feedback_id === history.feedback_id : (item.execution_id || item.id || item.run_id) === historyId));
+    const current = automation.active_task;
+    const saved = (automation.stopped_executions || []).find(matches);
+    const target = matches(current) ? current : saved;
+    const running = matches(current) && current.run_id && runManager.isRunActive?.(current.run_id);
+    if (action === "archive" || action === "unarchive") {
+      if (action === "archive" && (matches(current) || !["stopped", "cancelled", "resolved"].includes(history.status))) {
+        throw new Error("请先停止或取消执行，再归档。");
+      }
+      await patchAutomation(next => {
+        const item = feedback ? next.acceptance_feedback_items.find(item => item.feedback_id === history.feedback_id)
+          : (next.stopped_executions || []).find(matches);
+        if (!item) throw new Error("历史执行已变化，请刷新。");
+        item.archived_at = action === "archive" ? now() : "";
+      });
+    } else if (action === "cancel") {
+      if (running) throw new Error("请先停止正在运行的执行，再取消。");
+      if (history.status === "resolved") throw new Error("已解决的问题可直接归档。");
+      await patchAutomation(next => {
+        if (feedback) {
+          const item = next.acceptance_feedback_items.find(item => item.feedback_id === history.feedback_id);
+          item.status = "cancelled";
+          item.progress = "已由用户取消";
+          item.cancelled_at = item.updated_at = now();
+        }
+        if (target) next.stopped_executions = upsertById(next.stopped_executions || [], {
+          ...target, id: target.execution_id || target.id || historyId, phase: "cancelled", cancelled_at: now()
+        });
+        if (matches(next.active_task)) next.active_task = null;
+        const belongs = item => history.feedback_id ? item.feedback_id === history.feedback_id
+          : !item.feedback_id && String(item.task_id) === String(history.task_id);
+        next.recovery_items = next.recovery_items.filter(item => !belongs(item));
+        next.attention_items = next.attention_items.filter(item => !belongs(item));
+      });
+    } else {
+      if (running) {
+        if (!String(message).trim()) return getSnapshot();
+        return submitIntervention({ taskId: current.task_id, message });
+      }
+      if (current && !matches(current)) throw new Error("此工作区还有另一项活动执行，请先停止或取消它。");
+      if (matches(current) && ["cli_handoff", "switching_to_cli"].includes(current.phase)) {
+        throw new Error("请先结束 CLI 接管并交还 Automation。");
+      }
+      if (history.status === "resolved") throw new Error("此问题已解决；发现新问题请使用“提出验收问题”。");
+      const task = automation.snapshot.tasks.find(item => String(item.id) === String(history.task_id));
+      const project = store.projects.find(item => String(item.id) === String(history.local_project_id));
+      if (!project || !task) throw new Error("缺少来源待办或本地项目，请同步并修复绑定后重试。");
+      if (feedback ? task.state !== "completed" : !["in_progress", "blocked"].includes(task.state)) {
+        throw new Error(feedback ? "来源待办须处于已完成状态。" : "来源待办须处于进行中或已阻塞状态。");
+      }
+      const sourceRunId = target?.run_id || feedback?.current_run_id || "";
+      const sourceRun = sourceRunId ? await getRunDetail(runManager, [], sourceRunId, { projectId: project.id }) : null;
+      const restored = { ...(target || feedbackActiveExecution(feedback, project)),
+        execution_id: target?.execution_id || `EXEC-${randomUUID()}`, phase: "starting", archived_at: ""
+      };
+      restored.thread_id ||= sourceRun?.thread_id || sourceRun?.activity?.thread_id || feedback?.thread_id || "";
+      restored.session_id ||= sourceRun?.session_id || feedback?.session_id || "";
+      if (!restored.thread_id && typeof runManager.getTaskThreadBinding === "function") {
+        const binding = await runManager.getTaskThreadBinding(project.id, history.task_id);
+        restored.thread_id = binding?.threadId || "";
+      }
+      if (!isExecutionCheckpoint(restored.execution_checkpoint)) restored.execution_checkpoint = checkpointFromRun(sourceRun || {});
+      const binding = extractAuthoritativeCaseBindingFromRun(sourceRun || {});
+      if (!restored.case_id && binding.status === "bound") {
+        Object.assign(restored, { case_id: binding.case_id, case_binding_source: AUTHORITATIVE_CASE_BINDING_SOURCE,
+          case_binding_run_id: sourceRunId, case_status: "active" });
+      }
+      if (!restored.thread_id && sourceRunId) throw new Error("找不到原 Agent 对话，已保留历史记录；请先修复对话关联。");
+      await runManager.authorizeRunRecovery?.(sourceRunId, { projectId: project.id, taskId: history.task_id, executionId: restored.execution_id });
+      if (!feedback && task.state === "blocked") {
+        await workSync.updateTaskState({ taskId: task.id, state: "in_progress", expectedState: "blocked" });
+      }
+      if (String(message).trim()) await runManager.addMessage(project.id, {
+        session_id: restored.session_id, task_id: history.task_id, feedback_id: history.feedback_id || "",
+        role: "user", kind: "intervention", content: String(message).trim()
+      });
+      await patchAutomation(next => {
+        next.active_task = restored;
+        next.stopped_executions = (next.stopped_executions || []).filter(item => !matches(item));
+        const belongs = item => history.feedback_id ? item.feedback_id === history.feedback_id
+          : !item.feedback_id && String(item.task_id) === String(history.task_id);
+        next.recovery_items = next.recovery_items.filter(item => !belongs(item));
+        next.attention_items = next.attention_items.filter(item => !belongs(item));
+        if (feedback) {
+          const item = next.acceptance_feedback_items.find(item => item.feedback_id === history.feedback_id);
+          item.status = "running"; item.archived_at = ""; item.blocking_reason = "";
+          item.progress = "正在恢复原执行"; item.updated_at = now();
+        }
+      });
+      await startRuntimeForActiveTask({ taskOverride: String(message).trim() });
+    }
+    emit("automation.changed", { reason: `execution-${action}`, historyId });
+    return getSnapshot();
+  }
+
   async function stopCurrent() {
     const store = await readStore();
     const active = store.automation.active_task;
-    if (!active?.run_id) {
-      throw new Error("No active Runtime to stop.");
+    if (!active) throw new Error("No active execution to stop.");
+    if (!active.run_id || !runManager.isRunActive?.(active.run_id)) {
+      await applyExecutionDisposition(active, active.run_id, {
+        state: "stopped", responsibility: "none", reason: "用户停止了执行，未完成事项已保留。"
+      }, {});
+      return getSnapshot();
     }
     await runManager.controlRun(active.run_id, { type: "interrupt" });
+    if (!(await readStore()).automation.active_task) return getSnapshot();
     await addRecovery({
       type: "safe_stop_requested",
       task: active,
@@ -1232,6 +1367,9 @@ function createLaneAutomationCoordinator({
       return sync();
     }
     if (action === "retry_start") {
+      await runManager.authorizeRunRecovery?.(recovery.run_id || store.automation.active_task?.run_id, {
+        projectId: store.automation.active_task?.local_project_id, taskId: store.automation.active_task?.task_id, executionId: store.automation.active_task?.execution_id
+      });
       await patchAutomation((automation) => {
         if (automation.active_task) {
           automation.active_task.phase = "starting";
@@ -1282,6 +1420,7 @@ function createLaneAutomationCoordinator({
       if (!project || !task) throw new Error("The recovery task or its local project binding is missing.");
       const session = await ensureTaskSession(active, task);
       const sourceRun = await getRunDetail(runManager, [], recovery.run_id || active.run_id, { projectId: active.local_project_id });
+      await runManager.authorizeRunRecovery?.(recovery.run_id || active.run_id);
       await patchAutomation((automation) => {
         if (automation.active_task?.task_id === active.task_id) automation.active_task.phase = "starting";
       });
@@ -1304,7 +1443,6 @@ function createLaneAutomationCoordinator({
           adapter: "codex-app-server",
           approvalPolicy: "on-request",
           continuationPolicy: "automatic",
-          maxNoProgressRounds: 8,
           ...lifecycleRunInput(lifecycleContextFromActive(active))
         });
         await runManager.addMessage(project.id, {
@@ -1341,6 +1479,7 @@ function createLaneAutomationCoordinator({
       return getSnapshot();
     }
     if (action === "retry_closeout") {
+      await runManager.authorizeRunRecovery?.(recovery.run_id || store.automation.active_task?.run_id);
       await removeRecovery(recoveryId);
       await startSameThreadCloseout();
       return getSnapshot();
@@ -1652,9 +1791,9 @@ function createLaneAutomationCoordinator({
         projectId: project.id,
         sessionId: session.id,
         taskId: active.task_id,
-        task: active.execution_kind === "acceptance_feedback"
+        task: taskOverride || (active.execution_kind === "acceptance_feedback"
           ? buildAcceptanceFeedbackTask(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id))
-          : taskOverride || buildAutomationTask(task),
+          : buildAutomationTask(task)),
         threadId: active.thread_id || "",
         runtimeContext: checkpoint ? {
           ...continuationContext(active, task), closeout_only: closeoutOnly,
@@ -1669,7 +1808,6 @@ function createLaneAutomationCoordinator({
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
-        maxNoProgressRounds: 8,
         ...lifecycleRunInput(lifecycleContext)
       });
       await patchAutomation((automation) => {
@@ -2592,6 +2730,7 @@ function createLaneAutomationCoordinator({
     updateTaskState,
     submitIntervention,
     submitAcceptanceFeedback,
+    manageExecution,
     stopCurrent,
     handoffToCodexCli,
     reopenCodexCli,
@@ -2676,12 +2815,12 @@ export function selectNextExecution(todoQueue = [], feedbackQueue = []) {
 }
 
 function countAcceptanceFeedback(items = [], projectId = "all") {
-  const counts = Object.fromEntries(["queued", "running", "awaiting_human", "blocked", "resolved", "cancelled"].map((status) => [status, 0]));
+  const counts = Object.fromEntries(["queued", "running", "awaiting_human", "blocked", "external_wait", "stopped", "resolved", "cancelled"].map((status) => [status, 0]));
   for (const item of items) {
     if (projectId !== "all" && String(item.source_project_id) !== String(projectId)) continue;
     if (item.status in counts) counts[item.status] += 1;
   }
-  counts.open = counts.queued + counts.running + counts.awaiting_human + counts.blocked;
+  counts.open = counts.queued + counts.running + counts.awaiting_human + counts.blocked + counts.external_wait + counts.stopped;
   return counts;
 }
 

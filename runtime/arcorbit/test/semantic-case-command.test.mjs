@@ -110,10 +110,6 @@ test('Semantic preflight rejects contract contradictions before canonical apply'
       mutate(command) { command.selection.considered.push({ ...structuredClone(command.selection.considered[0]), disposition: 'deferred' }); },
     },
     {
-      name: 'ordinary gap without resolution', path: 'case_command.claim.resolve_selected_gap',
-      mutate(command) { command.claim.resolve_selected_gap = null; },
-    },
-    {
       name: 'selected fresh gap assigned away from the Agent', path: 'case_command.fresh_gap.responsibility',
       mutate(command) {
         command.selection.considered[0].disposition = 'deferred';
@@ -200,17 +196,20 @@ test('Semantic preflight rejects contract contradictions before canonical apply'
     );
   }
 
-  const rejected = semanticCommand(snapshot, active.record);
-  rejected.claim.resolve_selected_gap = null;
+  const partial = semanticCommand(snapshot, active.record);
+  partial.round_outcome = 'partial';
+  partial.claim.resolve_selected_gap = null;
+  const selectedId = active.record.gaps.find(gap => gap.status === 'open').id;
   const result = await applyRuntimeLedgerWriteback({
-    projectRoot,
-    runtimeResult: { case_command: rejected },
-    snapshot,
+    projectRoot, runtimeResult: { case_command: partial }, snapshot,
     gate: { allowed: true, reasons: [] },
   });
-  assert.equal(result.rejection.kind, 'claim_invalid');
-  assert.equal(result.rejection.responsibility, 'agent');
-  assert.equal(result.rejection.recovery_action, 'repair_rejected_claim');
+  assert.equal(result.written, true, JSON.stringify(result.rejection));
+  const fresh = readLedgerSnapshot(projectRoot, { afterCommitToken: result.post_commit_snapshot_token });
+  const record = fresh.canonical.active_cases.find(item => item.record.id === active.record.id).record;
+  assert.equal(record.gaps.find(gap => gap.id === selectedId).status, 'open');
+  assert.equal(record.gaps.find(gap => gap.id === selectedId).resolution, null);
+  assert.ok(record.facts.length > active.record.facts.length);
 });
 
 test('Ledger rejection taxonomy assigns repair only to claim_invalid', () => {

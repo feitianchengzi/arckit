@@ -1,0 +1,148 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "view": "list",
+      "passed": [
+        "messages hidden by default",
+        "direct Auto keeps owner and thread",
+        "analysis → Auto same work identity",
+        "workspace queue",
+        "running addition applied at execution boundary",
+        "pause → discuss → explicit resume",
+        "new conversation creates one self-assigned task",
+        "failed create retries without duplicates",
+        "per-work drafts and reload",
+        "human decision → continue",
+        "independent acceptance issue",
+        "offline preserves draft",
+        "stop ≠ complete; resume same work"
+      ]
+    },
+    {
+      "view": "focus",
+      "passed": [
+        "messages hidden by default",
+        "direct Auto keeps owner and thread",
+        "analysis → Auto same work identity",
+        "workspace queue",
+        "running addition applied at execution boundary",
+        "pause → discuss → explicit resume",
+        "new conversation creates one self-assigned task",
+        "failed create retries without duplicates",
+        "per-work drafts and reload",
+        "human decision → continue",
+        "independent acceptance issue",
+        "offline preserves draft",
+        "stop ≠ complete; resume same work"
+      ]
+    },
+    {
+      "view": "attention",
+      "passed": [
+        "messages hidden by default",
+        "direct Auto keeps owner and thread",
+        "analysis → Auto same work identity",
+        "workspace queue",
+        "running addition applied at execution boundary",
+        "pause → discuss → explicit resume",
+        "new conversation creates one self-assigned task",
+        "failed create retries without duplicates",
+        "per-work drafts and reload",
+        "human decision → continue",
+        "independent acceptance issue",
+        "offline preserves draft",
+        "stop ≠ complete; resume same work"
+      ]
+    }
+  ],
+  "geometry": [
+    {
+      "view": "list",
+      "width": 1500,
+      "scroll": 1500,
+      "mainWidth": 1290,
+      "dialog": false
+    },
+    {
+      "view": "list",
+      "width": 1024,
+      "scroll": 1024,
+      "mainWidth": 848,
+      "dialog": false
+    },
+    {
+      "view": "list",
+      "width": 760,
+      "scroll": 760,
+      "mainWidth": 694,
+      "dialog": false
+    },
+    {
+      "view": "list",
+      "width": 390,
+      "scroll": 390,
+      "mainWidth": 390,
+      "dialog": false
+    },
+    {
+      "view": "focus",
+      "width": 1500,
+      "scroll": 1500,
+      "mainWidth": 1290,
+      "dialog": false
+    },
+    {
+      "view": "focus",
+      "width": 1024,
+      "scroll": 1024,
+      "mainWidth": 848,
+      "dialog": false
+    },
+    {
+      "view": "focus",
+      "width": 760,
+      "scroll": 760,
+      "mainWidth": 694,
+      "dialog": false
+    },
+    {
+      "view": "focus",
+      "width": 390,
+      "scroll": 390,
+      "mainWidth": 390,
+      "dialog": false
+    },
+    {
+      "view": "attention",
+      "width": 1500,
+      "scroll": 1500,
+      "mainWidth": 1290,
+      "dialog": false
+    },
+    {
+      "view": "attention",
+      "width": 1024,
+      "scroll": 1024,
+      "mainWidth": 848,
+      "dialog": false
+    },
+    {
+      "view": "attention",
+      "width": 760,
+      "scroll": 760,
+      "mainWidth": 694,
+      "dialog": false
+    },
+    {
+      "view": "attention",
+      "width": 390,
+      "scroll": 390,
+      "mainWidth": 390,
+      "dialog": false
+    }
+  ],
+  "errors": [],
+  "externalRequests": [],
+  "scope": "Browser simulation only. No backend, Codex, Runtime, microphone or production changes."
+}
