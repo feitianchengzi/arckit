@@ -59,3 +59,6 @@ echo "  2. 根据视觉策略调整 design-tokens.yaml 与 component-catalog.yam
 echo "  3. 运行预览服务器打开 style-preview.html 审查视觉投影："
 echo "     cd $VISUAL_DIR/_library && python3 preview-server.py"
 echo "     （服务器自动选择可用端口并打开浏览器）"
+
+echo "  4. 核对适用 interaction 原型与映射并交接同步；模板值不是已确认视觉事实。"
+echo "  探索候选在 _explorations/ 独立维护，不用候选覆盖正式规范。"

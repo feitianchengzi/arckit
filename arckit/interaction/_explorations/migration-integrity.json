@@ -1,0 +1,17 @@
+{
+  "original_files": 85,
+  "missing": [],
+  "byte_identical": 77,
+  "relocation_maintenance": [
+    "arckit/interaction/_explorations/product-continuity-concept/options/original/backend-fit.md",
+    "arckit/interaction/_explorations/product-continuity-concept/options/original/README.md",
+    "arckit/interaction/_explorations/project-workbench-v2/options/original/verify.cjs",
+    "arckit/interaction/_explorations/project-workbench-v2/options/original/README.md",
+    "arckit/interaction/_explorations/release-workbench/options/original/verify.mjs",
+    "arckit/interaction/_explorations/release-workbench/options/original/README.md",
+    "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "arckit/interaction/_explorations/unified-work-exploration/options/original/README.md"
+  ],
+  "runtime_design_removed": true,
+  "markdown_links": "passed"
+}

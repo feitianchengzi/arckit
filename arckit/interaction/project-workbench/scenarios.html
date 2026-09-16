@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>事情台 · 本地场景验证</title>
+  <link rel="stylesheet" href="../../visual/_library/generated-tokens.css">
+  <style>
+    body { margin:0; font:14px/22px var(--typography-family-interface); color:var(--semantic-text); }
+    header { padding:12px; background:var(--semantic-sidebar); }
+    button, select { min-height:36px; color:var(--semantic-text); background:var(--semantic-canvas); border:1px solid var(--semantic-control-border); border-radius:6px; }
+    iframe { width:100%; height:calc(100dvh - 160px); border:0; }
+    :focus-visible { outline:2px solid var(--semantic-focus); outline-offset:2px; }
+  </style>
+  <script src="scenario-controls.js" defer></script>
+</head>
+<body>
+  <header>
+    <strong>本地场景工具</strong>
+    <p>所有操作使用样本。失败场景先注入再提交；冲突先打开编辑表单，再注入。恢复连接保留当前草稿。</p>
+    <label>场景 <select id="scenario">
+      <option value="offline">离线</option><option value="failure">下一次提交失败</option>
+      <option value="permission">无写权限</option><option value="conflict">远端版本变化</option>
+      <option value="recover">恢复连接与权限</option><option value="empty">筛选为空</option>
+      <option value="failed">执行失败</option><option value="stopped">执行停止</option>
+      <option value="external">外部等待</option><option value="paused">执行暂停</option>
+      <option value="loading">加载中</option><option value="reset">重置样本</option>
+    </select></label>
+    <button id="apply">应用场景</button> <a href="default.html">打开正式原型</a>
+  </header>
+  <iframe title="项目事情台场景" src="default.html?autoplay=off&amp;scenarioTools=on"></iframe>
+</body>
+</html>

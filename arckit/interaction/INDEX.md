@@ -15,7 +15,7 @@
   - interaction.md 登录交互：七天会话续期、启动路由、验证码反馈与失败恢复。✅ (134行)
 - setup-readiness/ 环境准备页面：冷启动与新关联检查、无副作用项目查看、Codex installation inventory/安装建议/owner-specific 更新、无默认值显式认证、私有技能目录、旧项目 Arckit 自动清理与阻塞恢复。✅
   - default.html 环境准备线框：检查触发边界、Codex 缺失/安装/认证选择/登录复核、可见项目写入摘要、managed-stale 清理、执行、完成、升级迁移和失败恢复。✅ (177行)
-  - interaction.md 环境准备交互：冷启动/新关联/主动重试、纯查看不检查、Codex inventory/安装建议/更新状态、两级无默认认证、用户级 managed 迁移、备份恢复与异常恢复。✅ (243行)
+  - interaction.md 环境准备交互：冷启动/新关联/主动重试、纯查看不检查、Codex inventory/安装建议/更新状态、两级无默认认证、用户级 managed 迁移、备份恢复与异常恢复。✅ (49行)
 - platform-workspace/ 多产品平台应用壳：以四组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、会话新鲜度与同记录恢复的主工作台式 Feedback 和 Organization 行为。✅
   - default.html 平台应用壳线框：四组导航、全局产品范围、Feedback 单行控制轨、会话未读与刷新、窄窗口收敛、剩余高度双栏、已忽略恢复和转待办恢复状态。✅ (177行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系、直接添加入口、项目邀请及任意成员本地绑定与管理员授权分界。✅ (14行)
@@ -68,9 +68,29 @@
   - default.html Idea 列表状态与恢复。✅ (62行)
   - interaction.md Idea 列表状态与恢复。✅ (23行)
 - idea-add/ 添加 Idea：从空白或材料建立可恢复 Idea，在可编辑资料区与对话区协作完成接入。✅
-  - default.html 添加 Idea状态与恢复。✅ (159行)
-  - interaction.md 添加 Idea状态与恢复。✅ (36行)
+  - default.html 添加 Idea状态与恢复。✅ (160行)
+  - interaction.md 添加 Idea状态与恢复。✅ (42行)
 
-- project-workbench/ 项目事情台：项目导航、场景详情、中央消息与旧页面二级菜单。✅
-  - interaction.md 项目事情台交互策略与连续性。✅ (53行)
-  - default.html 主路径、执行、恢复与窄窗口状态投影。✅ (10行)
+- project-workbench/ 项目事情台正式设计：项目导航、场景详情、中央消息、成果验收与旧页面入口。✅
+  - interaction.md 交互策略、主路径、异常恢复、视觉来源与模拟边界。✅ (94行)
+  - default.html 应用 light 主题的完整可操作正式原型。✅ (26行)
+  - README.md 打开方式、样本边界与验证命令。✅ (51行)
+  - scenarios.html 独立异常场景工具与重置入口。✅ (33行)
+  - model.js 独立存储、事情身份与本地业务样本。✅ (79行)
+  - work-progress.js 按事情推进的观察记录与可变安排。✅ (56行)
+  - detail-content.js 共用标准、资料、成果与详情投影。✅ (68行)
+  - views.js 三栏、消息和运行概况组件。✅ (43行)
+  - app.js 主操作、表单、焦点、草稿与阅读连续性。✅ (148行)
+  - navigation.js 全部页面及窄窗旧页面入口。✅ (48行)
+  - scenarios.js 本地异常注入，与正式存储隔离。✅ (34行)
+  - scenario-controls.js 场景工具到原型的受限本地消息。✅ (5行)
+  - styles.css 基础布局，全部颜色引用视觉角色。✅ (496行)
+  - desk.css 事情台布局、弹层与响应式规则。✅ (338行)
+  - detail-content.css 详情内容和状态组织。✅ (154行)
+  - visual.css 正式 Token 与组件规则应用。✅ (85行)
+  - verify.cjs 主路径和响应式浏览器验证。✅ (69行)
+  - verify-states.cjs 异常、键盘、标题与旧页面验证。✅ (84行)
+  - verification.json 主路径实际验证结果。✅ (70行)
+  - verification-states.json 异常与恢复实际验证结果。✅ (17行)
+
+- _explorations/INDEX.md 探索索引：迁入四组原稿，V2 采纳记录与完整迁移映射；其余候选保持独立。 (21行)

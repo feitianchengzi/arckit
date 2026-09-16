@@ -1,0 +1,85 @@
+/* Shared visual source: ../../visual/_library/generated-tokens.css, light theme.
+   Layout remains page-owned; no parallel color/token values. */
+body { line-height: var(--typography-body-line-height); }
+.project-desk .sidebar { background: var(--semantic-sidebar); }
+.project-desk .workspace, .project-desk .topbar { background: var(--semantic-canvas); }
+.project-desk .topbar { height: var(--layout-workbench-topbar-height); }
+.project-desk .task-browser { background: var(--colors-ink-50); }
+.project-desk .task-row { min-height: var(--layout-row-height); border-radius: var(--corner-radius-small); }
+.project-desk .task-row.active, .project-desk .nav-item.selected {
+  background: var(--semantic-nav-selected); color: var(--semantic-nav-selected-text);
+  border-color: transparent; box-shadow: inset 2px 0 var(--colors-accent-base);
+}
+.project-desk .nav-item { min-height: var(--layout-control-height); font-size: var(--typography-label-size); }
+.project-desk .task-row .row-name { font-size: var(--typography-body-size); }
+.project-desk .status, .project-desk .state-label { font-size: var(--typography-label-size); line-height: var(--typography-label-line-height); }
+.project-desk .work-header h2 { font-size: var(--typography-title-size); line-height: var(--typography-title-line-height); }
+.project-desk .work-scroll { font-size: var(--typography-body-size); }
+.project-desk .work-scroll p, .project-desk .goal-block p { font-size: var(--typography-body-size); line-height: var(--typography-body-line-height); }
+.project-desk .block-heading h3 { font-size: var(--typography-heading-size); }
+.project-desk .detail-tabs button, .project-desk .work-actions button,
+.project-desk .composer-context button, .project-desk .composer-foot button,
+.project-desk .text-button { font-size: var(--typography-label-size); min-height: var(--layout-control-height); }
+.project-desk .query-bar input { font-size: var(--typography-body-size); min-height: 0; }
+.project-desk .search-field { height: var(--layout-workbench-search-height); border-color: var(--semantic-control-border); }
+.project-desk .icon-button { min-height: var(--layout-compact-control-height); min-width: var(--layout-compact-control-height); }
+.project-desk .send-button { min-height: var(--layout-control-height); min-width: var(--layout-control-height); }
+button, input, select, textarea { border-radius: var(--corner-radius-small); }
+input:not([type=checkbox]), select, textarea { border-color: var(--semantic-control-border); }
+button.primary, .send-button { background: var(--colors-accent-base); color: var(--colors-accent-on); border-color: transparent; }
+button.primary:hover, .send-button:hover { background: var(--colors-accent-hover); color: var(--colors-accent-on); }
+button.primary:active, .send-button:active { background: var(--colors-accent-pressed); color: var(--colors-accent-on); }
+button.destructive { background: var(--colors-danger-base); border-color: var(--colors-danger-base); color: var(--colors-paper); }
+button:disabled, textarea:disabled { opacity: 1; background: var(--semantic-disabled-bg); color: var(--semantic-disabled-text); cursor: not-allowed; }
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--focus-width) solid var(--semantic-focus); outline-offset: var(--focus-offset);
+}
+.project-desk .composer { border-color: var(--semantic-control-border); border-radius: var(--corner-radius-large); box-shadow: none; overflow: visible; }
+.project-desk .composer textarea, .message-center .message > p { font-size: var(--typography-conversation-size); line-height: var(--typography-conversation-line-height); }
+.message-center .message { max-width: var(--layout-readable-width); }
+.message-center .message.user { background: var(--colors-accent-faint); }
+.message-center .message-label, .project-desk .composer-foot, .section-caption { font-size: var(--typography-caption-size); line-height: var(--typography-caption-line-height); }
+.project-desk .message-scrim { background: var(--semantic-scrim); backdrop-filter: none; }
+.project-desk .message-popover { background: var(--semantic-elevated); box-shadow: none; }
+.runtime-popover, dialog { box-shadow: var(--shadows-small); border-radius: var(--corner-radius-medium); }
+.form-error { color: var(--colors-danger-base); }
+.status-auto, .status-discussion, .status-progress { color: var(--colors-accent-strong); }
+.status-done, .status-completed { color: var(--colors-success-base); }
+.status-accepted { color: var(--colors-accepted-base); }
+.status-decision, .status-paused, .status-external, .status-blocked { color: var(--colors-warning-strong); }
+.status-failed, .status-cancelled { color: var(--colors-danger-base); }
+.project-desk .task-symbol.complete { color: var(--colors-accepted-base); }
+#toast { background: var(--semantic-text); color: var(--colors-paper); }
+.legacy-pages { position: relative; margin-top: var(--spacing-4); }
+.legacy-pages > button { width: 100%; justify-content: flex-start; }
+.legacy-menu { position: absolute; left: 0; bottom: 100%; width: 220px; max-height: 60dvh; overflow: auto; padding: var(--spacing-3); background: var(--semantic-elevated); border: 1px solid var(--semantic-divider); border-radius: var(--corner-radius-medium); box-shadow: var(--shadows-small); z-index: var(--layer-popover); }
+.legacy-menu a { display: block; padding: var(--spacing-3) var(--spacing-4); font-size: var(--typography-label-size); color: var(--semantic-text); border-radius: var(--corner-radius-small); }
+.legacy-menu a:hover { background: var(--colors-ink-100); }
+.legacy-menu[hidden] { display: none; }
+.compact-pages { display: none; }
+@media(max-width:1000px) {
+  .compact-pages { display: block; }
+  .compact-pages .legacy-menu { position: fixed; left: var(--spacing-5); top: 60px; bottom: auto; max-width: calc(100vw - 32px); }
+}
+@media(max-width:760px) {
+  .project-desk .work-header h2 { font-size: var(--typography-title-size); }
+  .project-desk .detail-tabs { gap: var(--spacing-2); }
+  .project-desk .detail-tabs button { padding-left: var(--spacing-3); padding-right: var(--spacing-3); }
+  .project-desk .composer-foot { display: flex; flex-wrap: wrap; }
+}
+@media(prefers-reduced-motion:reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+.status-ready { color: var(--colors-warning-strong); }
+.project-desk .list-controls select, .project-desk .runtime-trigger { font-size: var(--typography-label-size); }
+.project-desk .list-controls select { min-height: var(--layout-control-height); }
+.project-desk .task-browser .search-field input { font-size: var(--typography-body-size); }
+.project-desk .task-row > .status { font-size: var(--typography-label-size); }
+
+.project-desk .brand-mark, .project-desk .agent-avatar { background: var(--colors-accent-base); color: var(--colors-accent-on); }
+
+/* Neutral text keeps the apricot accent concentrated on primary actions and selection. */
+.project-desk .text-button, .project-desk .text-button:hover,
+.project-desk a, .project-desk a:hover,
+.project-desk .detail-tabs button.active,
+.project-desk .surface-tabs button.active { color: var(--semantic-text); }
+.project-desk .runtime-dot.running { background: var(--colors-accent-strong); }

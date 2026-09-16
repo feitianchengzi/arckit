@@ -424,6 +424,9 @@ async function boot() {
 
 function wireEvents() {
   const legacyButton=document.getElementById('legacyPagesButton'),legacyMenu=document.getElementById('legacyPagesMenu');
+  els.workbenchSettingsButton.addEventListener('click',()=>els.settingsButton.click());
+  els.workbenchSyncSettings.addEventListener('click',()=>runAction(async()=>{await api.projectWorkbenchCommand('sync',{});await projectWorkbenchSurface.refresh();showToast('项目与事情已同步');}));
+  els.workbenchFeedbackSettings.addEventListener('click',()=>{els.closeSettingsButton.click();els.productFeedbackButton.click();});
   legacyButton.addEventListener('click',()=>{legacyMenu.hidden=!legacyMenu.hidden;legacyButton.setAttribute('aria-expanded',String(!legacyMenu.hidden));if(!legacyMenu.hidden)legacyMenu.querySelector('button')?.focus();});
   document.addEventListener('click',event=>{if(!event.target.closest('#legacyPagesButton,#legacyPagesMenu')){legacyMenu.hidden=true;legacyButton.setAttribute('aria-expanded','false');}});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!legacyMenu.hidden){legacyMenu.hidden=true;legacyButton.setAttribute('aria-expanded','false');legacyButton.focus();}});

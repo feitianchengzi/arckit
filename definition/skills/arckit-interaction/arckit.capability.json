@@ -2,9 +2,13 @@
   "schema_version": "arckit-capability/v1",
   "id": "arckit-interaction",
   "kind": "result_fact_source",
-  "runtime_role": ["fact_source_maintenance"],
-  "binding_targets": ["agent"],
-  "summary": "Maintains stable page-level interaction behavior, states, transitions, error handling, and wireframe artifacts.",
+  "runtime_role": [
+    "fact_source_maintenance"
+  ],
+  "binding_targets": [
+    "agent"
+  ],
+  "summary": "Maintains interaction expectation strategies, interactive prototypes and documentation, with isolated candidate exploration and adoption.",
   "input_facts": [
     "relevant_product_facts",
     "relevant_interaction_facts",
@@ -15,7 +19,8 @@
     "interaction_update",
     "interaction_audit",
     "interaction_acceptance_criteria",
-    "fact_result"
+    "fact_result",
+    "exploration_result"
   ],
   "allowed_write_targets": [
     "arckit/interaction/**"
@@ -27,6 +32,6 @@
   ],
   "runtime_notes": [
     "The Agent invokes managed-case mode only when the current dynamic gap needs interaction facts; the skill returns an evidence-backed fact_result and standalone mode remains available.",
-    "Use only for stable interaction expectation facts; keep unresolved exploration in the active Case and never claim Case resolution."
+    "Candidate artifacts stay in the domain _explorations directory; return unresolved choices without asserting stable fact updates or writing Case State. Existing user decisions authorize adoption; never infer approval from implementation."
   ]
 }

@@ -82,7 +82,7 @@ app.whenReady().then(async () => {
       const before = targetRow?.getAttribute("aria-selected");
       targetRow?.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
       const keyboardSelectionChanged = Boolean(targetRow && before !== "true" && targetRow.getAttribute("aria-selected") === "true");
-      const navigation = [...document.querySelectorAll(".primary-nav .nav-item")];
+      const navigation = [...document.querySelectorAll(".sidebar .nav-item")];
       const tableCell = document.querySelector(".platform-work-table td");
       const tableFontPx = Number.parseFloat(getComputedStyle(tableCell).fontSize);
       document.querySelector('[data-page="chat"]').click();

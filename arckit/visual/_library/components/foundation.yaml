@@ -1,0 +1,79 @@
+metadata:
+  tokens: ../design-tokens.yaml
+  last_updated: "2026-09-16"
+  state_contract: ../state-contract.md
+components:
+  AppShell:
+    role: 建立浅色事情台与兼容控制台外壳；业务内容的优先级保持一致
+    variants:
+      project_workbench: { sidebar: "{semantic.sidebar}", workspace: "{semantic.canvas}", topbar: "{layout.workbench_topbar_height}", legacy_commandbar: hidden }
+      command_center: { sidebar: "{semantic.sidebar}", workspace: "{colors.ink.75}" }
+      workbench: { sidebar: "{semantic.sidebar}", workspace: "{colors.paper}" }
+      window_chrome_macos: { surface: "{semantic.chrome}", controls: native_traffic_lights, green_action: system_full_screen, hover_panel: system_window_layout, drag_region: remaining_titlebar }
+      window_chrome_windows_linux: { surface: "{semantic.chrome}", controls: [minimize, maximize, restore, close], placement: right, drag_region: remaining_titlebar }
+    sizes:
+      desktop: { sidebar: "{layout.sidebar_width}", titlebar: "{layout.titlebar_height}", commandbar: "{layout.commandbar_height}" }
+    states: [loading, ready, degraded, maximized, full_screen]
+    token_refs: [colors.ink.900, colors.ink.75, layout.sidebar_width, layout.titlebar_height, layout.commandbar_height]
+    accessibility:
+      requirement: macOS 保留系统原生 traffic lights 和系统布局面板；Windows/Linux 右侧窗口控件各有 46×40px 操作容器及与当前动作一致的名称和提示；控件不参与拖动，最大化状态变化同步投影为还原动作
+
+  NavigationRow:
+    role: 表达项目范围、任务状态和本地 Runtime 入口
+    variants:
+      default: { foreground: "{semantic.nav_text}", background: transparent }
+      selected: { foreground: "{semantic.nav_selected_text}", background: "{semantic.nav_selected}", indicator: "{colors.accent.base}" }
+      attention: { foreground: "{colors.warning.strong}", badge: "{colors.warning.base}" }
+      status_filter: { foreground: "{colors.ink.600}", background: "{colors.ink.50}", badge: "{colors.accent.soft}", badge_position: overlay_top_right }
+    sizes:
+      compact: { height: "{layout.control_height}", padding_x: "{spacing.4}", typography: "{typography.label}" }
+    states: [default, hover, selected, disabled, attention]
+    token_refs: [colors.accent.hover, colors.warning.base, typography.label, corner_radius.small]
+    accessibility:
+      requirement: 当前项同时使用文字、选中表面和指示条；状态数量以不占标题布局空间的右上角角标呈现且包含在可访问名称中；每项可聚焦并以 Enter 或 Space 激活
+
+  Icon:
+    role: 以统一轮廓矢量图形表达操作、对象和状态，不使用字符或 Emoji 替代生产图标
+    variants:
+      action: { foreground: "{colors.ink.600}", canvas: 16 }
+      navigation: { foreground: currentColor, canvas: 18 }
+      semantic: { foreground: currentColor, canvas: 16 }
+    sizes:
+      compact: { canvas: 16, container: "{layout.compact_control_height}" }
+      standard: { canvas: 18, container: "{layout.control_height}" }
+    states: [default, hover, active, focus, disabled]
+    token_refs: [colors.ink.600, layout.compact_control_height, layout.control_height]
+    accessibility:
+      requirement: 装饰图标对辅助技术隐藏；独立图标操作提供可访问名称和悬停提示
+
+  Button:
+    role: 表达主操作、次操作、低风险导航和破坏操作
+    variants:
+      primary: { foreground: "{colors.accent.on}", background: "{colors.accent.base}", border: transparent }
+      secondary: { foreground: "{colors.ink.700}", background: "{colors.paper}", border: "{semantic.control_border}" }
+      ghost: { foreground: "{semantic.text}", background: transparent, border: transparent }
+      destructive: { foreground: "{colors.paper}", background: "{colors.danger.base}", border: "{colors.danger.base}" }
+    sizes:
+      compact: { height: "{layout.control_height}", padding_x: "{spacing.4}", typography: "{typography.label}" }
+      standard: { height: 38, padding_x: "{spacing.5}", typography: "{typography.label}" }
+    states: [default, hover, active, focus, disabled, busy]
+    token_refs: [colors.accent.base, colors.danger.base, semantic.control_border, corner_radius.small, animation.fast]
+    accessibility:
+      focus: 2px 不透明 semantic.focus 轮廓并保留 2px offset；所有状态遵守 state-contract.md
+
+  StatusPill:
+    role: 用文本和语义色表达七种服务器任务状态
+    variants:
+      pending_review: { foreground: "{colors.ink.600}", background: "{colors.ink.100}" }
+      pending: { foreground: "{colors.warning.strong}", background: "{colors.warning.soft}" }
+      in_progress: { foreground: "{colors.accent.strong}", background: "{colors.accent.soft}" }
+      completed: { foreground: "{colors.success.base}", background: "{colors.success.soft}" }
+      accepted: { foreground: "{colors.accepted.base}", background: "{colors.accepted.soft}" }
+      cancelled: { foreground: "{colors.danger.base}", background: "{colors.danger.soft}" }
+      blocked: { foreground: "{colors.warning.strong}", background: "{colors.warning.soft}", border: "{colors.warning.base}" }
+    sizes:
+      compact: { height: 24, padding_x: "{spacing.3}", typography: "{typography.label}" }
+    states: [default, stale, conflict]
+    token_refs: [colors.ink.100, colors.warning.soft, colors.accent.soft, colors.success.soft, colors.accepted.soft, colors.danger.soft]
+    accessibility:
+      requirement: 标签始终显示状态文本，颜色不作为唯一信息

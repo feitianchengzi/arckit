@@ -73,3 +73,19 @@ Product 管理以 `arckit/spec/agentic-software-development/arcorbit-product-man
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
 
 `project-workbench/interaction.md` 对应 `arckit/spec/agentic-software-development/arcorbit-project-workbench.md` 与 `arckit/interaction/project-workbench/`，生产实现位于 `runtime/arcorbit/src/workbench/` 和独立 project-workbench renderer 模块。
+
+
+## 项目事情台正式原型与探索来源
+
+- 正式策略：project-workbench/interaction.md；可操作入口：project-workbench/default.html。正式入口无探索资源依赖。
+- 视觉输入：arckit/visual/_library/brief.md、design-tokens.yaml、component-catalog.yaml、state-contract.md 与 themes/light.yaml；入口直接消费 generated-tokens.css。重建命令见 project-workbench/README.md。
+- 采纳记录：_explorations/project-workbench-v2/exploration.md；采纳前稿保留在 options/original/，使用独立存储与旧视觉。正式升级不回写候选样本。
+- 其他探索：unified-work-exploration、product-continuity-concept、release-workbench；仅迁移，不改变正式页面覆盖状态。
+- 项目事情台“全部页面”链接到既有 11 个业务入口的原型；Organization 使用 platform-workspace/collaboration-views.html。原型以独立标签页保持当前事情，生产应用内路由另行验证。
+- 异常场景：project-workbench/scenarios.html → default.html?autoplay=off&scenarioTools=on，场景存储与正式原型隔离，禁止真实服务连接。
+- 历史 intake/Case 中的 runtime/arcorbit/design 路径作为原始证据保留；当前地址从 _explorations/migration-baseline.json 的 moves 映射定位。当前 spec 入口已指向正式目录。
+- Renderer 尚未消费本轮视觉应用与本地异常演示代码；此迁移不代表生产界面同步完成。
+
+事情台强调色依据 visual 的 2026-09-17 橙色策略，由同一 generated-tokens.css 自动消费；正式截图已重建，探索截图保持采纳时证据。
+
+浅杏橙已采纳：#F4B77D 主操作、无深橙装饰描边、中性链接与选中文字；正式 project-workbench 消费共享 Token 和对应样式。来源：arckit/visual/_explorations/orange-tone/exploration.md。

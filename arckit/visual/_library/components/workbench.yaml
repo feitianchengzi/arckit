@@ -1,0 +1,69 @@
+metadata:
+  tokens: ../design-tokens.yaml
+  last_updated: "2026-09-16"
+  state_contract: ../state-contract.md
+components:
+  WorkbenchHeader:
+    role: 表达项目范围与此设备运行概况，不重复旧工具栏
+    variants:
+      default: { surface: "{semantic.canvas}", border: "{semantic.divider}" }
+    sizes:
+      standard: { height: "{layout.workbench_topbar_height}", typography: "{typography.label}" }
+    states: [default, disconnected]
+    token_refs: [layout.workbench_topbar_height, typography.label, semantic.canvas, semantic.divider]
+  TaskListRow:
+    role: 单行识别事情与状态，详情负责完整目标
+    variants:
+      default: { surface: "{semantic.canvas}", foreground: "{semantic.text}" }
+      selected: { surface: "{colors.accent.soft}", indicator: "{colors.accent.base}" }
+    sizes:
+      standard: { min_height: "{layout.row_height}", typography: "{typography.body}" }
+    states: [default, hover, selected, focus, loading, empty, stale]
+    token_refs: [layout.row_height, typography.body, colors.accent.soft, colors.accent.base]
+  FormField:
+    role: 呈现标签、输入、帮助与就地错误
+    variants:
+      default: { surface: "{semantic.canvas}", border: "{semantic.control_border}" }
+      error: { border: "{colors.danger.base}", message: "{colors.danger.base}" }
+    sizes:
+      standard: { min_height: "{layout.control_height}", typography: "{typography.body}" }
+      workbench_search: { height: "{layout.workbench_search_height}", typography: "{typography.body}", scope: project_workbench_filter }
+    states: [default, hover, focus, filled, disabled, readonly, error, busy]
+    token_refs: [layout.control_height, layout.workbench_search_height, semantic.control_border, colors.danger.base, typography.body]
+  Composer:
+    role: 保留草稿、上下文与清晰的发送或停止动作
+    variants:
+      default: { surface: "{semantic.canvas}", border: "{semantic.control_border}" }
+      error: { message: "{colors.danger.base}" }
+    sizes:
+      standard: { padding: "{spacing.5}", radius: "{corner_radius.large}", typography: "{typography.conversation}" }
+    states: [empty, draft, focus, sending, streaming, paused, error, disabled]
+    token_refs: [semantic.canvas, semantic.control_border, typography.conversation, corner_radius.large, spacing.5]
+  RuntimePopover:
+    role: 所有项目此设备范围的运行概况，不替代事情详情
+    variants:
+      default: { surface: "{semantic.elevated}", shadow: "{shadows.small}" }
+    sizes:
+      standard: { padding: "{spacing.5}", radius: "{corner_radius.medium}" }
+    states: [idle, running, queued, attention, disconnected, loading, error]
+    token_refs: [semantic.elevated, shadows.small, spacing.5, corner_radius.medium]
+    accessibility: { requirement: 保持交互定义的分组、局部滚动、关闭与焦点返回 }
+  ArtifactEvidence:
+    role: 区分成果、Agent 声明、检查证据和用户验收
+    variants:
+      artifact: { surface: "{semantic.canvas}", border: "{semantic.divider}" }
+      addition: { foreground: "{colors.success.base}", surface: "{colors.success.soft}", marker: "+" }
+      deletion: { foreground: "{colors.danger.base}", surface: "{colors.danger.soft}", marker: "−" }
+    sizes:
+      standard: { padding: "{spacing.5}", typography: "{typography.body}" }
+    states: [available, unverified, verified, failed, external_wait, accepted]
+    token_refs: [semantic.canvas, semantic.divider, typography.body, colors.success.base, colors.success.soft, colors.danger.base, colors.danger.soft]
+  ContextChip:
+    role: 标识附件、共同约定或引用来源
+    variants:
+      default: { surface: "{colors.ink.50}", foreground: "{semantic.muted}" }
+    sizes:
+      standard: { min_height: "{layout.compact_control_height}", typography: "{typography.label}" }
+    states: [default, hover, focus, unavailable, selected]
+    token_refs: [colors.ink.50, semantic.muted, layout.compact_control_height, typography.label]
+    accessibility: { requirement: 可移除时提供独立名称和键盘入口，来源失效显示文本 }

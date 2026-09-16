@@ -1016,7 +1016,8 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
     readFile(rendererStylesPath, "utf8")
   ]);
 
-  const sidebar = html.slice(html.indexOf('<nav class="primary-nav"'), html.indexOf('</nav>'));
+  const sidebar = html.slice(html.indexOf('id="legacyPagesMenu"'), html.indexOf('id="accountButton"'));
+  assert.ok(html.indexOf('id="legacyPagesButton"') > html.indexOf('class="sidebar-footer"'));
   const orderedLabels = [
     "PERSONAL", "Today", "Chat",
     "PRODUCT LIFECYCLE", "Idea", "Work", "Automation", "Release", "Operations", "Feedback",

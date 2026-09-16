@@ -126,6 +126,10 @@
 
         <nav class="primary-nav" aria-label="主导航">
           <button class="nav-item is-active" data-page="project-workbench" type="button" title="项目事情台"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>事情台</strong></button>
+          <div id="projectWorkbenchNav" aria-label="项目导航"></div>
+        </nav>
+
+        <div class="sidebar-footer">
           <button id="legacyPagesButton" class="nav-item legacy-pages-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="legacyPagesMenu" title="全部旧页面"><svg class="ui-icon" aria-hidden="true"><use href="#icon-window-maximize"></use></svg><strong>全部页面</strong><em>›</em></button>
           <div id="legacyPagesMenu" class="legacy-pages-menu" aria-label="旧页面入口" hidden>
           <p class="nav-label">PERSONAL</p>
@@ -147,11 +151,9 @@
           <button class="nav-item" data-page="engineering" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-engineering"></use></svg><strong>Engineering</strong></button>
 
           </div>
-          <div id="projectWorkbenchNav" aria-label="项目导航"></div>
-        </nav>
 
-        <div class="sidebar-footer">
           <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small></button>
+          <button id="workbenchSettingsButton" class="pw-sidebar-settings workbench-only" type="button" aria-label="设置" title="设置"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></button>
         </div>
       </aside>
 
@@ -329,6 +331,7 @@
           <button id="closeSettingsButton" class="icon-button" type="button" aria-label="关闭设置">×</button>
         </div>
         <div class="settings-sections">
+          <section class="codex-settings-section workbench-only"><h3>工作空间</h3><div class="pw-settings-actions"><button id="workbenchSyncSettings" class="secondary-button" type="button">同步项目与事情</button><button id="workbenchFeedbackSettings" class="secondary-button" type="button">产品反馈</button></div></section>
           <section class="account-settings-section">
             <h3>Workshop 账户</h3>
             <div class="account-card">

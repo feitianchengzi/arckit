@@ -61,20 +61,20 @@ arckit/interaction/
 - 页面标题、上下文、主要动作和当前状态形成稳定首屏顺序。相同外壳内的 Today、Work、Feedback、Automation、Chat 和规划页面通过任务结构与主要对象形成清晰身份。
 - 动效只解释状态变化、层级进入和直接操控反馈；减少动效设置下取消非必要位移和缩放，但保留状态结果。
 
-## 线框图规范
+## 原型呈现规范
 
-- **视觉风格（强制）**: 极简线框图 — 仅使用 wireframe-style.css 中的灰度与线框类，禁止内联彩色样式，禁止在 HTML 或 CSS 中引入非灰度色值。
+- **视觉依据**：存在适用正式视觉规范时消费 arckit/visual 的 Tokens、组件与主题；无规范时使用极简灰度线框。候选视觉只在 _explorations/ 中使用。
 - **扩写 wireframe-style.css**：仅添加通用组件类（不与具体业务耦合）；扩写前在文件中搜索，避免重复定义；按既有区块归类插入。详见 references/wireframe-style.md「扩写规则」。
-- 格式: 自包含 HTML，样式仅来自根目录 wireframe-style.css（相对路径引用）
-- 状态: 至少 4 个（加载中/成功/空状态/错误）
+- 格式：default.html 为完整可操作入口；允许页面本地 JS/CSS 与模拟状态，禁止连接真实业务执行。共用视觉数值消费生成 CSS，不复制第二份 Token。
+- 状态：按页面覆盖加载、成功、空、错误及适用的冲突/权限/恢复路径；场景工具与产品操作区分开。
 - 标注: 关键节点使用 data-kit 属性标注目标平台控件
-- 弹窗: 直接渲染在页面中，不使用 position:fixed
+- 弹窗：按真实覆盖范围使用 dialog、fixed 或局部定位，检查关闭顺序、滚动和焦点返回。
 - 设备: `.device-frame`（iOS）/ `.tablet`（iPad）/ `.desktop`（macOS）
 
 ## 复杂页面拆分
 
-- default.html 为整体骨架（各区域占位）
-- 再平铺各区域独立 .html（sidebar.html、editor-area.html 等）
+- default.html 保持完整操作链；复杂内容按样式、模型、行为与场景拆分，不降为占位骨架。
+- 子视图仅为辅助；探索位于 _explorations/，正式页面按既有归属维护。
 
 ## 状态标识
 

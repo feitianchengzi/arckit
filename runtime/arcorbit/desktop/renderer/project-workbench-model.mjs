@@ -15,7 +15,7 @@ export function runtimeGroups(snapshot={}) {
 export function visibleTasks(snapshot,state) {
   const attention=new Set(runtimeGroups(snapshot)[0].items.map(i=>i.id));
   return (snapshot.tasks||[]).filter(task=> (state.project==='all'||state.project==='attention'&& (attention.has(String(task.id))||task.state==='completed'||task.state==='blocked')||String(task.project_id)===state.project)
-    && (!state.filter||task.state===state.filter) && (!state.search||title(task).toLowerCase().includes(state.search.toLowerCase())||String(task.id)===state.search)
+    && (!state.filter||(state.filter==='attention'?(attention.has(String(task.id))||task.state==='completed'||task.state==='blocked'):task.state===state.filter)) && (!state.search||title(task).toLowerCase().includes(state.search.toLowerCase())||String(task.id)===state.search)
     && (!state.executor||String(task.executor_id)===state.executor) && (!state.priority||String(task.priority)===state.priority));
 }
 export function taskMode(task,snapshot,detail,modes) {

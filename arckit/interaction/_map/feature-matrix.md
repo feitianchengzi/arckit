@@ -19,4 +19,6 @@
 
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
 
-| `project-workbench/interaction.md` | ✅ | 独立事情台、主会话与新旧页面过渡。 |
+| `project-workbench/` | ✅ | V2 已采纳为完整正式原型，消费 visual light 橙色强调；覆盖资料、成果、可变安排、消息与草稿连续性、运行概况、旧页面、异常恢复与窄窗。验证见 verification*.json；不代表生产实现通过。 |
+
+浅杏橙已采纳：#F4B77D 主操作、无深橙装饰描边、中性链接与选中文字；正式 project-workbench 消费共享 Token 和对应样式。来源：arckit/visual/_explorations/orange-tone/exploration.md。

@@ -44,4 +44,4 @@ UI 与 Agent 的业务操作遵循同一权限、对象、状态、版本和幂�
 
 ## 验收依据
 
-最终交互参考 runtime/arcorbit/design/project-workbench-v2/；逐项清单位于 arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md。参考原型只证明交互选择，不证明生产接口可用。旧页面入口集合以实施前应用壳为依据。
+正式交互设计为 arckit/interaction/project-workbench/；逐项清单位于 arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md。参考原型只证明交互选择，不证明生产接口可用。旧页面入口集合以实施前应用壳为依据。
