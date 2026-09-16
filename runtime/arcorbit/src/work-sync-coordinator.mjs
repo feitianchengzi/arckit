@@ -552,7 +552,7 @@ function demandedProjectIds(store, accessibleProjects) {
   const accessible = new Set((accessibleProjects || []).map((project) => String(project.id)));
   const platform = store.platform || {};
   const activeWorkset = (platform.worksets || []).find((item) => item.id === platform.active_workset_id) || platform.worksets?.[0];
-  const ids = new Set((activeWorkset?.project_ids || []).map(String));
+  const ids = new Set([...(activeWorkset?.project_ids || []).map(String), ...Object.values(store.automation?.requested_tasks || {}).map(String)]);
   for (const [projectId, participating] of Object.entries(store.automation?.project_participation || {})) {
     if (participating) ids.add(String(projectId));
   }

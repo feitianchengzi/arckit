@@ -40,3 +40,5 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 
 
 Engineering 内置 Skills 管理以 arcorbit-scene-skills.md 为产品源，scene-skills-solution.md 为技术源，engineering-profile/ 为交互投影。可信 inventory 与 mutation 只覆盖 ArcOrbit 随包 Skills，Codex 用户/项目 Skills 保持原生所有权。
+
+`arcorbit/project-workbench-solution.md` 对应 `arckit/spec/agentic-software-development/arcorbit-project-workbench.md` 与 `arckit/interaction/project-workbench/`，生产实现位于 `runtime/arcorbit/src/workbench/` 和独立 project-workbench renderer 模块。

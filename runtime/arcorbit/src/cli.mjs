@@ -142,7 +142,7 @@ export async function run(options) {
   });
 }
 
-function parseRunOptions(args) {
+export function parseRunOptions(args) {
   const options = {
     project: ".",
     adapter: "dry-run",
@@ -175,6 +175,8 @@ function parseRunOptions(args) {
       options.superviseStdin = true;
     } else if (arg === "--supervise-parent-port") {
       options.superviseParentPort = true;
+    } else if (arg === "--yolo" || arg === "--no-yolo") {
+      options.yoloMode = arg === "--yolo";
     } else if (arg === "--approval-policy") {
       options.approvalPolicy = requiredValue(args, ++index, arg);
     } else if (arg === "--model") {
@@ -386,6 +388,7 @@ Usage:
 MVP behavior:
   - reads arckit/project state
   - keeps one persistent Codex thread for the full todo, including validation, repair, and Git closeout
+  - --yolo explicitly disables Codex approvals and sandbox; --no-yolo restores ordinary execution
   - resumes the saved thread after process restart and compacts that same thread at 80% context utilization
   - lets the manifest-triggered Controller select one Case gap per round
   - sends only skill triggers, human input, and bounded Runtime facts to Agent turns

@@ -1,7 +1,7 @@
 import { normalizeCodexSettings, validateCodexSettingsPatch } from "../../src/codex-model-settings.mjs";
 
 export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
-  const { contexts, refreshButton, saveButton, feedback, catalogFeedback, generalSaveButton } = elements;
+  const { contexts, refreshButton, saveButton, feedback, catalogFeedback, generalSaveButton, yoloCheckbox } = elements;
   const fields = Object.values(contexts);
   let generation = 0;
   let queryRevision = 0;
@@ -22,12 +22,14 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
   function busy(value) {
     for (const field of fields) field.model.disabled = field.effort.disabled = value;
     saveButton.disabled = generalSaveButton.disabled = value;
+    if (yoloCheckbox) yoloCheckbox.disabled = value;
   }
   function read() {
     const value = Object.fromEntries(Object.entries(contexts).map(([key, context]) => [key, {
       model: context.model.value,
       reasoning_effort: context.effort.value
     }]));
+    if (yoloCheckbox) value.yolo_mode = yoloCheckbox.checked;
     validateCodexSettingsPatch(value);
     return normalizeCodexSettings(value);
   }
@@ -35,6 +37,7 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
     generation += 1;
     queryRevision += 1;
     const value = normalizeCodexSettings(settings.codex);
+    if (yoloCheckbox) yoloCheckbox.checked = value.yolo_mode;
     models = [];
     for (const [key, context] of Object.entries(contexts)) {
       context.model.value = value[key].model;
@@ -85,12 +88,13 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
       if (current !== generation) return;
       onSaved(settings);
       const saved = normalizeCodexSettings(settings.codex);
+      if (yoloCheckbox) yoloCheckbox.checked = saved.yolo_mode;
       for (const [key, context] of Object.entries(contexts)) {
         context.model.value = saved[key].model;
         context.effort.value = saved[key].reasoning_effort;
         updateEfforts(context);
       }
-      feedback.textContent = "已保存。新对话使用 Chat 默认值，下一次 Automation Run 使用 Automation 默认值。";
+      feedback.textContent = "已保存。新对话使用 Chat 默认值，下一次 Automation Run 使用 Automation 默认值。YOLO 设置用于后续消息、新 Run 和终端接力。";
     } catch {
       if (current === generation) feedback.textContent = "保存失败。Model 和 Level 需为 1–200 个字符的非空文本；请检查后重试，当前输入已保留。";
     } finally {
@@ -101,6 +105,7 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
     context.model.addEventListener("input", () => { feedback.textContent = ""; updateEfforts(context); });
     context.effort.addEventListener("input", () => { feedback.textContent = ""; });
   }
+  yoloCheckbox?.addEventListener("change", () => { feedback.textContent = ""; });
   refreshButton.addEventListener("click", refresh);
   saveButton.addEventListener("click", save);
   function lockSave() {

@@ -114,3 +114,15 @@ test("interactive launcher reports a rejected macOS terminal request", async () 
     /osascript failed with exit code 1/
   );
 });
+
+for (const platform of ['darwin', 'linux', 'win32']) {
+ test(`interactive handoff explicitly enables and disables YOLO on ${platform}`, () => {
+  const input = { projectPath: '/workspace/project', threadId: 'THREAD-1', prompt: 'continue', platform };
+  const enabled = buildInteractiveCodexLaunchSpec({ ...input, yoloMode: true });
+  const disabled = buildInteractiveCodexLaunchSpec({ ...input, yoloMode: false });
+  assert.match(enabled.args.join(' '), /--dangerously-bypass-approvals-and-sandbox/);
+  assert.doesNotMatch(disabled.args.join(' '), /--dangerously-bypass-approvals-and-sandbox/);
+  assert.match(disabled.args.join(' '), /--ask-for-approval.*on-request.*--sandbox.*workspace-write/);
+  assert.throws(() => buildInteractiveCodexLaunchSpec({ ...input, yoloMode: 'true' }), /boolean/);
+ });
+}

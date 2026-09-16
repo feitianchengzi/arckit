@@ -51,7 +51,7 @@
   - intervention-workbench.html 介入工作台线框：单行有界待办标题、Chat 共享消息面、固定三栏与 Composer、完整时间及逐 Gap 执行全貌。✅ (99行)
   - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、Case 绑定待确认、用户说明续跑、安全停止、lane 局部外部变化与 Work Sync 异常。✅ (152行)
   - eligibility-guidance.html 资格引导子视图：成员本地目录动作、待评审、全局总闸和项目授权责任的原位解释。✅ (39行)
-  - interaction.md 自动化指挥中心交互：统一 Project Catalog、覆盖安装自愈、逐项目 Task Readiness、Work 本地状态消费、资格原因与 Case 绑定就地恢复、external handoff 人工介入投影、统一待办标题、双队列、workspace lane 串行与跨项目并行。✅ (454行)
+  - interaction.md 自动化指挥中心交互：统一 Project Catalog、覆盖安装自愈、逐项目 Task Readiness、Work 本地状态消费、资格原因与 Case 绑定就地恢复、external handoff 人工介入投影、统一待办标题、双队列、workspace lane 串行与跨项目并行。✅ (455行)
 - task-browser/ Work 同屏任务浏览：以本地 Task Projection、单行控制轨和剩余高度列表/可持久调宽 Inspector 创建、分区检查、协作、验收并同步待办。✅
   - default.html Work 任务浏览线框：顶部产品范围、Inspector 引导动作、编辑兜底提示、Automation 消费、运行/验收、恢复与冲突。✅ (218行)
   - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、可调宽分区 Inspector 与图片浏览。✅ (96行)
@@ -70,3 +70,7 @@
 - idea-add/ 添加 Idea：从空白或材料建立可恢复 Idea，在可编辑资料区与对话区协作完成接入。✅
   - default.html 添加 Idea状态与恢复。✅ (159行)
   - interaction.md 添加 Idea状态与恢复。✅ (36行)
+
+- project-workbench/ 项目事情台：项目导航、场景详情、中央消息与旧页面二级菜单。✅
+  - interaction.md 项目事情台交互策略与连续性。✅ (53行)
+  - default.html 主路径、执行、恢复与窄窗口状态投影。✅ (10行)

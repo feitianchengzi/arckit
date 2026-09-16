@@ -18,3 +18,5 @@
 | `agentic-software-development/loop-engineering-research.md` | ⚪ | Loop Engineering 研究输入，保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。 |
 
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
+
+| `agentic-software-development/arcorbit-project-workbench.md` | ✅ | 独立事情台、主会话与新旧页面过渡。 |

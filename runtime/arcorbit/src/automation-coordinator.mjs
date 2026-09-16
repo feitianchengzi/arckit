@@ -1,3 +1,4 @@
+import { taskTurnOwner } from './workbench/task-turn-lock.mjs';
 import { buildExecutionHistory } from './automation/execution-history.mjs';
 import { automationDeliveryPolicy } from './automation/delivery-policy.mjs';
 import { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
@@ -183,7 +184,7 @@ export function createAutomationCoordinator(options) {
     dispatchPromise = (async () => {
       const { automation } = await ensureKnownLanes();
       const globalRecovery = (automation.recovery_items || []).some((item) => item.freeze_scope === "global");
-      if (!automation.enabled || automation.queue_paused || globalRecovery) return null;
+      if ((!automation.enabled && !Object.keys(automation.requested_tasks || {}).length) || automation.queue_paused || globalRecovery) return null;
       const activeKeys = new Set(Object.keys(automation.active_executions));
       let available = Math.max(0, (automation.concurrency_limit || 3) - activeKeys.size);
       if (available === 0) return null;
@@ -191,7 +192,7 @@ export function createAutomationCoordinator(options) {
       for (const [key, coordinator] of laneCoordinators) {
         if (activeKeys.has(key)) continue;
         const snapshot = await coordinator.getSnapshot();
-        const next = selectNextExecution(snapshot.todo_queue, snapshot.acceptance_feedback_queue);
+        const next = selectNextExecution(automation.enabled ? snapshot.todo_queue : snapshot.todo_queue.filter(task => automation.requested_tasks?.[task.id]), automation.enabled ? snapshot.acceptance_feedback_queue : []);
         if (next) candidates.push({ key, coordinator, next });
       }
       candidates.sort((left, right) => compareSupervisorCandidates(left.next, right.next) || left.key.localeCompare(right.key));
@@ -200,6 +201,7 @@ export function createAutomationCoordinator(options) {
         if (available <= 0) break;
         const run = await candidate.coordinator.maybeStartNext();
         if (run) {
+          await updateAutomation(next => { if (run.task_id) delete next.requested_tasks?.[run.task_id]; });
           started.push(run);
           available -= 1;
         }
@@ -224,6 +226,23 @@ export function createAutomationCoordinator(options) {
       mutator(automation, store);
       return store;
     });
+  }
+
+  async function enqueueTask(taskId) {
+    const projection = await sharedWorkSync.getSnapshot();
+    const task = projection.tasks.find(item => String(item.id) === String(taskId));
+    if(task?.state==='in_progress' && Object.values((await runManager.readDesktopStore()).automation.active_executions || {}).some(e=>String(e.task_id)===String(taskId)))return getSnapshot();
+    if (!task || task.state !== 'pending' || String(task.executor_id) !== String(projection.user?.id)) throw new Error('只有分配给自己的待处理事情可以 Auto。');
+    const store = await runManager.readDesktopStore();
+    if (!store.automation.project_bindings?.[task.project_id]) throw new Error('项目尚未绑定本地工作区。');
+    await updateAutomation(automation => { automation.requested_tasks ||= {}; automation.requested_tasks[task.id] = String(task.project_id); });
+    await sync();
+    return getSnapshot();
+  }
+
+  async function dequeueTask(taskId) {
+    await updateAutomation(automation => { delete automation.requested_tasks?.[taskId]; });
+    return getSnapshot();
   }
 
   async function setEnabled(enabled) {
@@ -279,6 +298,7 @@ export function createAutomationCoordinator(options) {
   async function clearRemoteSession() {
     await updateAutomation((automation) => {
       automation.enabled = false;
+      automation.requested_tasks = {};
       automation.queue_paused = false;
       for (const execution of Object.values(automation.active_executions)) {
         if (execution.execution_kind !== "acceptance_feedback") continue;
@@ -387,6 +407,8 @@ export function createAutomationCoordinator(options) {
     refreshProject,
     handleTaskProjectionChanged,
     setEnabled,
+    enqueueTask,
+    dequeueTask,
     setQueuePaused,
     clearRemoteSession,
     bindProject,
@@ -830,6 +852,7 @@ function createLaneAutomationCoordinator({
   async function clearRemoteSession() {
     await patchAutomation((automation) => {
       automation.enabled = false;
+      automation.requested_tasks = {};
       automation.queue_paused = false;
       if (automation.active_task?.execution_kind === "acceptance_feedback") {
         const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
@@ -1329,7 +1352,7 @@ function createLaneAutomationCoordinator({
       taskIntent: buildAutomationTask(task)
     });
     if (!current.thread_id) throw new Error("The active task has no persisted Codex thread to resume in CLI.");
-    await cliLauncher.launch({ projectPath: project.path, threadId: current.thread_id, prompt });
+    await cliLauncher.launch({ projectPath: project.path, threadId: current.thread_id, prompt, yoloMode: store.settings?.codex?.yolo_mode === true });
     await patchAutomation((automation) => {
       if (automation.active_task?.task_id !== current.task_id) return;
       automation.active_task.phase = "cli_handoff";
@@ -1531,7 +1554,7 @@ function createLaneAutomationCoordinator({
     dispatchPromise = (async () => {
       const store = await readStore();
       const automation = store.automation;
-      if (!automation.enabled
+      if ((!automation.enabled && !Object.keys(automation.requested_tasks || {}).length)
         || automation.queue_paused
         || automation.active_task
         || automation.attention_items.length > 0
@@ -1543,7 +1566,7 @@ function createLaneAutomationCoordinator({
       const projectIndex = new Map(automation.snapshot.projects.map((project) => [String(project.id), project]));
       const queue = buildQueue(automation.snapshot.tasks, automation, projectIndex, localIndex);
       const feedbackQueue = buildAcceptanceFeedbackQueue(automation.acceptance_feedback_items);
-      const selection = selectNextExecution(queue, feedbackQueue);
+      const selection = selectNextExecution(automation.enabled ? queue : queue.filter(task => automation.requested_tasks?.[task.id]), automation.enabled ? feedbackQueue : []);
       if (!selection) {
         return null;
       }
@@ -2289,6 +2312,11 @@ function createLaneAutomationCoordinator({
       }
       return existing;
     }
+    const mainSession = sessions.find(item => item.kind === 'automation-task' && String(item.task_id) === String(active.task_id));
+    if (mainSession) {
+      await patchAutomation(automation => { if (automation.active_task?.task_id === active.task_id) automation.active_task.session_id = mainSession.id; });
+      return mainSession;
+    }
     const session = await runManager.createSession(active.local_project_id, {
       title: `待办 · ${taskDisplayTitle(task?.content, task?.title || active.task_title || active.task_id)}`,
       kind: "automation-task",
@@ -2744,7 +2772,7 @@ function createLaneAutomationCoordinator({
 
 export function buildQueue(tasks, automation, projectIndex, localIndex) {
   return buildPendingCandidates(tasks, automation, projectIndex, localIndex)
-    .filter((task) => task.eligible)
+    .filter((task) => task.eligible && !taskTurnOwner(task.local_project_id, task.id))
     .sort(compareQueueTasks)
     .map((task, index) => ({ ...task, queue_position: index + 1 }));
 }
@@ -2764,15 +2792,15 @@ export function buildPendingCandidates(tasks, automation, projectIndex, localInd
         project_name: project?.name || remoteId,
         local_project_id: localProjectId,
         local_project_path: localProject?.path || "",
-        eligible: Boolean(localProject && automation.project_participation[remoteId] === true && !projectError),
+        eligible: Boolean(localProject && (automation.project_participation[remoteId] === true || automation.requested_tasks?.[task.id]) && !projectError),
         eligibility_reason: !localProject
           ? "未绑定本地工作区"
-          : automation.project_participation[remoteId] !== true
+          : automation.project_participation[remoteId] !== true && !automation.requested_tasks?.[task.id]
             ? "项目未允许自动领取"
             : projectError ? "任务源异常" : "可执行",
         eligibility_code: !localProject
           ? "project_unbound"
-          : automation.project_participation[remoteId] !== true
+          : automation.project_participation[remoteId] !== true && !automation.requested_tasks?.[task.id]
             ? "project_not_participating"
             : projectError ? "work_sync_error" : "eligible"
       };

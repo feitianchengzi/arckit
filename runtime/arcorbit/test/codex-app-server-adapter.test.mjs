@@ -525,3 +525,45 @@ test('malformed Automation output reports a transport error without Agent contin
     await assert.rejects(collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'work', options: { resultKind: 'agent-loop-result' } })), error => error.code === 'INVALID_AGENT_RESULT');
   } finally { adapter.close(); }
 });
+
+for (const threadId of ['', 'THREAD-PERSISTED']) {
+ test(`explicit YOLO applies to ${threadId ? 'resume' : 'start'} and disabling restores the same thread`, async () => {
+  const client = new FakeClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  const options = { threadKey: 'yolo', threadId, resultKind: 'agent-loop-result' };
+  try {
+   await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'enabled', options: { ...options, yoloMode: true, approvalPolicy: 'on-request', sandboxPolicy: { type: 'readOnly', networkAccess: false } } }));
+   const thread = client.requests.find(x => x.method === (threadId ? 'thread/resume' : 'thread/start'));
+   assert.equal(thread.params.approvalPolicy, 'never');
+   assert.equal(thread.params.sandbox, 'danger-full-access');
+   await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'disabled', options: { ...options, yoloMode: false } }));
+   await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'read only', options: { ...options, yoloMode: false, sandboxPolicy: { type: 'readOnly', networkAccess: false } } }));
+   const turns = client.requests.filter(x => x.method === 'turn/start').map(x => x.params);
+   assert.deepEqual(turns[0].sandboxPolicy, { type: 'dangerFullAccess' });
+   assert.equal(turns[1].approvalPolicy, 'on-request');
+   assert.equal(turns[1].sandboxPolicy.type, 'workspaceWrite');
+   assert.equal(turns[1].sandboxPolicy.networkAccess, false);
+   assert.deepEqual(turns[1].sandboxPolicy.writableRoots, ['/workspace/project']);
+   assert.deepEqual(turns[2].sandboxPolicy, { type: 'readOnly', networkAccess: false });
+   assert.equal(new Set(turns.map(x => x.threadId)).size, 1);
+  } finally { adapter.close(); }
+ });
+}
+
+test('resuming a previously privileged thread with YOLO off sets a bounded sandbox before the turn', async () => {
+ const client = new FakeClient();
+ const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+ try {
+  await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'ordinary', options: { threadId: 'THREAD-PERSISTED', yoloMode: false, resultKind: 'agent-loop-result' } }));
+  const params = client.requests.find(x => x.method === 'thread/resume').params;
+  assert.equal(params.approvalPolicy, 'on-request');
+  assert.equal(params.sandbox, 'workspace-write');
+ } finally { adapter.close(); }
+});
+
+test('restored work-item thread receives MCP configuration without replacing its identity',async()=>{
+ const client=new FakeClient(),adapter=createCodexAppServerAdapter({clientFactory:()=>client});
+ const config={'mcp_servers.arcorbit_workbench':{url:'http://127.0.0.1:4567/mcp',bearer_token_env_var:'ARCORBIT_WORKBENCH_TOKEN'}};
+ try {await collect(adapter.runTurn({projectRoot:'/workspace/project',prompt:'continue',options:{resultKind:'chat',threadId:'EXISTING',threadConfig:config}}));
+ assert.deepEqual(client.requests.find(x=>x.method==='thread/resume').params.config,config);assert.equal(client.requests.filter(x=>x.method==='thread/start').length,0);assert.equal(client.requests.find(x=>x.method==='turn/start').params.threadId,'EXISTING');}finally{adapter.close();}
+});

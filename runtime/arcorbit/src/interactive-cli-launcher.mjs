@@ -21,15 +21,18 @@ export function buildCodexCliHandoffPrompt({ caseId = "", taskTitle = "", taskIn
   ].filter((line, index, lines) => line || (index > 0 && lines[index - 1])).join("\n");
 }
 
-export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt, codexExecutable = { command: "codex", pathEntries: [] }, platform = process.platform, env = process.env } = {}) {
+export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt, yoloMode, codexExecutable = { command: "codex", pathEntries: [] }, platform = process.platform, env = process.env } = {}) {
   const root = String(projectPath || "").trim();
   const initialPrompt = String(prompt || "").trim();
   if (!root) throw new Error("A local project path is required to launch Codex CLI.");
   const persistedThreadId = String(threadId || "").trim();
   if (!persistedThreadId) throw new Error("A persisted Codex thread id is required to launch Codex CLI.");
   if (!initialPrompt) throw new Error("A handoff prompt is required to launch Codex CLI.");
+  if (yoloMode !== undefined && typeof yoloMode !== "boolean") throw new TypeError("yoloMode must be a boolean.");
+  const permissionArgs = yoloMode === true ? ["--dangerously-bypass-approvals-and-sandbox"]
+    : yoloMode === false ? ["--ask-for-approval", "on-request", "--sandbox", "workspace-write"] : [];
   const executable = normalizeCodexExecutable(codexExecutable);
-  const posixCommand = buildPosixCodexCommand({ executable, root, persistedThreadId, initialPrompt });
+  const posixCommand = buildPosixCodexCommand({ executable, root, persistedThreadId, initialPrompt, permissionArgs });
 
   if (platform === "darwin") {
     return {
@@ -49,7 +52,8 @@ export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt,
   }
 
   if (platform === "win32") {
-    const script = "$projectPath=$args[0];$threadId=$args[1];$initialPrompt=$args[2];$codexBin=$args[3];Start-Process -FilePath $codexBin -WorkingDirectory $projectPath -ArgumentList @('resume','--no-alt-screen','-C',$projectPath,$threadId,$initialPrompt)";
+    const permissionLiterals = permissionArgs.map(value => `'${value}'`).join(",");
+    const script = "$projectPath=$args[0];$threadId=$args[1];$initialPrompt=$args[2];$codexBin=$args[3];Start-Process -FilePath $codexBin -WorkingDirectory $projectPath -ArgumentList @('resume','--no-alt-screen','-C',$projectPath," + (permissionLiterals ? permissionLiterals + "," : "") + "$threadId,$initialPrompt)";
     return {
       command: "powershell.exe",
       args: ["-NoProfile", "-Command", script, root, persistedThreadId, initialPrompt, executable.command],
@@ -82,11 +86,11 @@ export function createInteractiveCodexCliLauncher({
   };
 }
 
-function buildPosixCodexCommand({ executable, root, persistedThreadId, initialPrompt }) {
+function buildPosixCodexCommand({ executable, root, persistedThreadId, initialPrompt, permissionArgs }) {
   const pathPrefix = executable.pathEntries.length
     ? `export PATH=${quotePosix(executable.pathEntries.join(":"))}:$PATH; `
     : "";
-  return `${pathPrefix}exec ${quotePosix(executable.command)} resume --no-alt-screen -C ${quotePosix(root)} ${quotePosix(persistedThreadId)} ${quotePosix(initialPrompt)}`;
+  return `${pathPrefix}exec ${quotePosix(executable.command)} resume --no-alt-screen -C ${quotePosix(root)} ${permissionArgs.length ? permissionArgs.map(quotePosix).join(" ") + " " : ""}${quotePosix(persistedThreadId)} ${quotePosix(initialPrompt)}`;
 }
 
 function normalizeCodexExecutable(value) {

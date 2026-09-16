@@ -71,3 +71,5 @@ Intervention Workbench 从 Command Center 的人工关注项或历史运行按�
 Product 管理以 `arckit/spec/agentic-software-development/arcorbit-product-management.md` 为产品源，技术协议在 `arckit/tech/arcorbit/product-management-solution.md`；页面为 `product-list` → `product-detail`、`idea-workspace` → `idea-add`，Today 通过 `today-workspace/product-continuity.html` 续接原对象。原 Lifecycle 页面保持独立。
 
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
+
+`project-workbench/interaction.md` 对应 `arckit/spec/agentic-software-development/arcorbit-project-workbench.md` 与 `arckit/interaction/project-workbench/`，生产实现位于 `runtime/arcorbit/src/workbench/` 和独立 project-workbench renderer 模块。

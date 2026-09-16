@@ -1725,6 +1725,7 @@ test("CLI handoff interrupts and resumes the same thread after trusted Case bind
     case_binding_run_id: "RUN-OLD",
     case_bound_at: "2026-08-10T00:00:00Z"
   });
+  store.settings = { ...store.settings, codex: { yolo_mode: true } };
   const runManager = fakeRunManager(store, starts, {
     isRunActive() { return running; },
     async controlRun(runId, control) {
@@ -1742,6 +1743,7 @@ test("CLI handoff interrupts and resumes the same thread after trusted Case bind
 
   assert.deepEqual(controls, [{ runId: "RUN-OLD", control: { type: "interrupt" } }]);
   assert.equal(launches.length, 1);
+  assert.equal(launches[0].yoloMode, true);
   assert.equal(launches[0].threadId, "THREAD-PERSISTED");
   assert.match(launches[0].prompt, /CASE-20260810-005/);
   assert.equal(store.automation.active_task.phase, "cli_handoff");
@@ -2339,4 +2341,19 @@ test('application shutdown keeps recoverable association instead of hiding feedb
     await coordinator.manageExecution({ history_id: 'AF-ORIGINAL', action: 'resume' });
     assert.equal(starts[0].threadId, 'THREAD-PERSISTED');
   } finally { coordinator.dispose(); }
+});
+
+test('explicit work-item Auto starts only the requested task without enabling global collection', async () => {
+  const store=multiProjectStore(3);store.automation.enabled=false;store.automation.project_participation={};store.automation.requested_tasks={'task-2':'remote-2'};
+  const starts=[];
+  const manager=fakeRunManager(store,starts,{async listSessions(){return [];},async createSession(project,input){return {id:`session-${input.task_id}`};},async startRun(input){starts.push(input);return {id:'run-explicit',task_id:input.taskId,project_id:input.projectId,session_id:input.sessionId,thread_id:'thread-explicit'};}});
+  const coordinator=createAutomationCoordinator({runManager:manager,setupReadinessPreflight:async()=>{}});
+  try {await coordinator.maybeStartNext();assert.deepEqual(starts.map(s=>s.taskId),['task-2']);assert.equal(store.automation.enabled,false);assert.deepEqual(store.automation.project_participation,{});assert.equal(store.automation.snapshot.tasks.find(t=>t.id==='task-1').state,'pending');assert.equal(store.automation.requested_tasks['task-2'],undefined);}finally{coordinator.dispose();}
+});
+
+
+test('logout clears explicit work-item Auto requests before another account can dispatch', async () => {
+  const store=multiProjectStore(3);store.automation.enabled=false;store.automation.queue_paused=true;store.automation.requested_tasks={'task-2':'remote-2'};
+  const starts=[];const coordinator=createAutomationCoordinator({runManager:fakeRunManager(store,starts),setupReadinessPreflight:async()=>{}});
+  try {await coordinator.clearRemoteSession();assert.deepEqual(store.automation.requested_tasks,{});assert.equal(store.automation.enabled,false);await coordinator.maybeStartNext();assert.equal(starts.length,0);}finally{coordinator.dispose();}
 });

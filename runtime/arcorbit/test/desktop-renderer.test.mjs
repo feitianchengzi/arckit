@@ -852,7 +852,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(html, /data-page-view="feedback"/);
   assert.match(html, /id="worksetSelect"/);
   assert.match(html, /不受当前产品集过滤/);
-  assert.match(source, /page: "today"/);
+  assert.match(source, /page: "project-workbench"/);
   assert.match(source, /api\.platformSnapshot/);
   assert.match(source, /api\.setActiveWorkset/);
   assert.match(source, /api\.updateWorkset\(\{ id: activeWorkset\.id, project_ids: projectIds \}\)/);
@@ -1991,7 +1991,7 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(preload, /confirmCodexSetup: \(input\) => ipcRenderer\.invoke\("arckit:codex-setup-confirm", input\)/);
   assert.match(preload, /migrateCodexToStandalone: \(input\) => ipcRenderer\.invoke\("arckit:codex-setup-migrate", input\)/);
   assert.match(main, /setupReadinessPreflight: async \(projectRoot\)/);
-  assert.equal((main.match(/await codexSetupManager\.assertReady\(\)/g) || []).length, 2);
+  assert.equal((main.match(/await codexSetupManager\.assertReady\(\)/g) || []).length, 3);
   assert.match(main, /activeOwners: async \(\) => activeCodexOwnersFromStore/);
   assert.match(main, /recheckReadiness: \(\{ codexProbe \}\) => skillProvisioningManager\.check\(\{ quiet: true, codexProbeResult: codexProbe \}\)/);
   assert.match(main, /codexProbe: async \(\) => codexProbeFromSetupSnapshot\(codexSetupManager\.getSnapshot\(\)\)/);

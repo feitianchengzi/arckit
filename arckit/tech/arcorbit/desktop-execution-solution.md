@@ -55,6 +55,14 @@ Store 对 Chat 持久化以下状态：
 - 以 `turn/interrupt` 停止当前 turn，并对活动 turn、client close 与进程异常给出可恢复终态。
 - 处理 command single-flight、workspace roots、sandbox、approval policy 和用户 approval request。
 
+### 显式 Agent 权限配置
+
+Desktop Store 的 `settings.codex.yolo_mode` 是当前设备统一布尔开关，缺省或非法存量值归一化为 false，保存拒绝非布尔值。共享 ChatCoordinator 在消息接受时从当前设备设置捕获该值；Idea/Release 的私有会话 Store 不充当权限设置源。DesktopRunManager 在 Run 启动时捕获并保存 `yolo_mode`，以 `--yolo` 或 `--no-yolo` 传入独立 CLI，后者不读取 Desktop Store。终端接力在启动时捕获当前设备设置。
+
+共享 adapter 统一将显式开启映射为 `approvalPolicy: never`，thread start/resume 的 `sandbox: danger-full-access` 和每次 turn/start 的 `sandboxPolicy.type: dangerFullAccess`。显式关闭时恢复 `on-request` 与场景显式沙箱（Idea 为 readOnly），无场景沙箱时使用 workspaceWrite、当前项目 writableRoots、无网络。每轮重新传递策略，避免 thread 复用或重启保留此前全权限。直接 adapter 调用可用布尔 `yoloMode`；未提供时保留调用方既有策略。单独 `approvalPolicy: never` 仍只是拒绝审批，不等价于 YOLO。终端接力开启传入 Codex `--dangerously-bypass-approvals-and-sandbox`，关闭显式传入常规审批和 workspace-write。
+
+此开关仅控制 Codex 执行策略；动态业务工具仍在原 main-process provider 中核对授权和业务确认。停止、同线程恢复、场景 Skills 与可信 ledger 入口保持既有所有权。权限配置不能绕过宿主托管策略。协议依据为本机 `codex app-server generate-ts` 的 ThreadStartParams、ThreadResumeParams、TurnStartParams 与 SandboxPolicy；调用覆盖见 `arckit/cases/evidence/arcorbit-yolo/contract.md`。
+
 ### Codex Model / Level 接口调查（2026-09-05）
 
 Codex app-server 提供 `model/list`，Level 对应 reasoning effort。请求在 `initialize` 响应及 `initialized` 通知之后发出，接受 `cursor`、`limit`、`includeHidden`；响应为 `data` 与 `nextCursor`。每个模型提供执行用 `model`、展示用 `displayName`、`supportedReasoningEfforts` 和 `defaultReasoningEffort`。级别选项包含 `reasoningEffort` 与说明，不能用一个固定全局 Level 枚举替代模型自身清单。默认查询只包含 picker-visible 模型；隐藏模型并不等于不存在。
@@ -81,11 +89,11 @@ Codex app-server 提供 `model/list`，Level 对应 reasoning effort。请求在
 
 `desktop-run-manager.listCodexModels` 在主进程解析当前 executable 和 PATH，并读取保存的代理 context。无参数 IPC `arckit:list-codex-models` 只调用该方法；Renderer 不提供 method、argv、cwd、environment 或凭据。`src/codex-model-catalog.mjs` 通过既有 `JsonRpcStdioClient` 创建独立 app-server，只执行 initialize、initialized、model/list，从不创建或恢复 thread。全查询超时 10 秒，每页请求 100 项，最多 50 页和 1000 个模型，检测游标重复及畸形页；只有分页完成才发布清单，任何失败均丢弃部分结果。finally 关闭 client；原始 stderr 不进入 Renderer，只投影固定非敏感恢复说明。
 
-Renderer 的 `codex-settings-form.mjs` 为 Chat 与 Automation 两组配置提供可编辑 datalist，分别按模型更新 Level 候选并保留当前输入。清单与保存有独立反馈，打开周期和查询序号隔离过期响应；清单不成为设置事实源。“保存 Codex 配置”只写四个场景字段；“保存并同步”包含四字段和既有任务源/代理草稿。查询使用保存值而非代理草稿。
+Renderer 的 `codex-settings-form.mjs` 为 Chat 与 Automation 两组配置提供可编辑 datalist，分别按模型更新 Level 候选并保留当前输入。清单与保存有独立反馈，打开周期和查询序号隔离过期响应；清单不成为设置事实源。“保存 Codex 配置”写四个场景字段和统一 YOLO 开关；“保存并同步”包含四字段、YOLO 开关和既有任务源/代理草稿。查询使用保存值而非代理草稿。
 
 Chat session 与未发送草稿持有自己的 `model` / `reasoning_effort`，新建时继承 `settings.codex.chat`。Composer 通过既有 typed Chat IPC 保存当前选择；发送被接受时 ChatCoordinator 捕获不可变配置快照，并作为 `model` / `reasoningEffort` options 提交共享 adapter，之后对同一 session 的编辑只影响后续 turn。session、thread 和配置是独立字段，改变配置不替换 thread。DesktopRunManager 在每次 Run 启动读取并固定 `settings.codex.automation`，将实际选择记录在 Run 的 `model` / `reasoning_effort`，通过 `--model` / `--reasoning-effort` 传至 CLI；显式调用参数仍优先于 Desktop 偏好。state-driven runner 持续复用启动 options，直至该 Run 结束，包括后续轮次和收尾。独立 CLI 不读取 Desktop Store。
 
-共享 adapter 每次 turn/start 使用 `model` 和 `effort`，不通过替代 thread 实现配置变更。账号设置只改变新 Chat 会话与新 Automation Run 的默认值；Composer 只改变对应 Chat 会话后续发送。正在执行的 turn/Run 保持已提交参数，Chat 与 Automation 之间没有配置回写。交互式 CLI 接力继续 codex resume 原 thread，不另加 Desktop 配置覆盖。清单成功不是执行授权，模型不支持、账户限制或执行失败仍走既有恢复路径。
+共享 adapter 每次 turn/start 使用 `model` 和 `effort`，不通过替代 thread 实现配置变更。账号设置只改变新 Chat 会话与新 Automation Run 的默认值；Composer 只改变对应 Chat 会话后续发送。正在执行的 turn/Run 保持已提交参数，Chat 与 Automation 之间没有配置回写。交互式 CLI 接力继续 codex resume 原 thread，按接力启动时的 YOLO 开关显式设置审批和沙箱。清单成功不是执行授权，模型不支持、账户限制或执行失败仍走既有恢复路径。
 
 行为证据由 `test/codex-model-settings.test.mjs`、`test/desktop-store.test.mjs`、`test/desktop-run-manager.test.mjs`、`test/chat-state-coordinator.test.mjs`、`test/chat-coordinator.test.mjs`、`test/codex-settings-electron.test.mjs` 和 `test/codex-app-server-adapter.test.mjs` 覆盖旧配置迁移、场景隔离、持久化、完整分页及失败、Composer 草稿保持、turn/Run 参数固定、参数贯通和同 thread 连续性。实际本机清单证据限于前述版本与上下文，不外推为其它账户、安装或 WSL transport 已验证。
 

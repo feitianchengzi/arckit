@@ -1,0 +1,10 @@
+{
+  "case_id": "CASE-20260915-001",
+  "transition_applied": true,
+  "case_status": "resolved",
+  "next_responsibility": "none",
+  "fresh_state": "available",
+  "project_revision": 388,
+  "observed_after_commit": true,
+  "remaining_case_candidates": []
+}

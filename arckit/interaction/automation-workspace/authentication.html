@@ -53,7 +53,7 @@
             <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="Sheet">
                 <div class="desktop-titlebar"><strong>账户与 Runtime</strong><span>Codex 配置</span></div>
                 <div class="page-content"><section class="surface"><div class="surface-header"><h2>Codex Runtime</h2></div><div class="surface-body">
-                    <h3>Chat 默认值</h3><label>Model <input value="gpt-6-astra" ></label><label>Level（推理级别） <input value="high" ></label><h3>Automation 默认值</h3><label>Model <input value="gpt-6-astra" ></label><label>Level（推理级别） <input value="high" ></label>
+                    <label><input type="checkbox"> YOLO 模式</label><p>跳过命令审批并解除 Codex 沙箱限制；覆盖各处 Agent 调用，应用业务确认仍然有效。保存后作用于后续消息、新 Run 和终端接力。</p><h3>Chat 默认值</h3><label>Model <input value="gpt-6-astra" ></label><label>Level（推理级别） <input value="high" ></label><h3>Automation 默认值</h3><label>Model <input value="gpt-6-astra" ></label><label>Level（推理级别） <input value="high" ></label>
                     <p>两个场景默认 gpt-6-astra / high，分别保存。候选不限制人工输入，清单推荐默认值不覆盖当前选择。</p>
                     <p role="status">已获取候选。Model 和 Level 都可手动输入；Level 候选随模型更新，选择模型不自动覆盖 Level。</p><div class="page-actions"><button class="compact-action">刷新清单</button><button class="compact-action" >保存 Codex 配置</button></div>
                 </div></section></div>
@@ -69,7 +69,7 @@
             <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="Sheet">
                 <div class="desktop-titlebar"><strong>账户与 Runtime</strong><span>Codex 配置</span></div>
                 <div class="page-content"><section class="surface"><div class="surface-header"><h2>Codex Runtime</h2></div><div class="surface-body">
-                    <h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" ></label><label>Level（推理级别） <input value="high" ></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" ></label><label>Level（推理级别） <input value="high" ></label>
+                    <label><input type="checkbox"> YOLO 模式</label><p>跳过命令审批并解除 Codex 沙箱限制；覆盖各处 Agent 调用，应用业务确认仍然有效。保存后作用于后续消息、新 Run 和终端接力。</p><h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" ></label><label>Level（推理级别） <input value="high" ></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" ></label><label>Level（推理级别） <input value="high" ></label>
                     <p>两个场景分别保存；清单刷新不覆盖任一组草稿。</p>
                     <p role="status">正在获取清单；仍可编辑、保存。刷新使用已保存代理，返回结果不覆盖草稿。</p><div class="page-actions"><button class="compact-action">刷新清单</button><button class="compact-action" >保存 Codex 配置</button></div>
                 </div></section></div>
@@ -85,7 +85,7 @@
             <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="Sheet">
                 <div class="desktop-titlebar"><strong>账户与 Runtime</strong><span>Codex 配置</span></div>
                 <div class="page-content"><section class="surface"><div class="surface-header"><h2>Codex Runtime</h2></div><div class="surface-body">
-                    <h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" ></label><label>Level（推理级别） <input value="custom-level" ></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" ></label><label>Level（推理级别） <input value="custom-level" ></label>
+                    <label><input type="checkbox"> YOLO 模式</label><p>跳过命令审批并解除 Codex 沙箱限制；覆盖各处 Agent 调用，应用业务确认仍然有效。保存后作用于后续消息、新 Run 和终端接力。</p><h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" ></label><label>Level（推理级别） <input value="custom-level" ></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" ></label><label>Level（推理级别） <input value="custom-level" ></label>
                     <p>两个场景的当前值和输入都保留，可手动保存或重试。</p>
                     <p role="status">暂无可用清单。当前值和输入保留，可手动保存或重试。</p><div class="page-actions"><button class="compact-action">刷新清单</button><button class="compact-action" >保存 Codex 配置</button></div>
                 </div></section></div>
@@ -101,9 +101,9 @@
             <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="Sheet">
                 <div class="desktop-titlebar"><strong>账户与 Runtime</strong><span>Codex 配置</span></div>
                 <div class="page-content"><section class="surface"><div class="surface-header"><h2>Codex Runtime</h2></div><div class="surface-body">
-                    <h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" disabled></label><label>Level（推理级别） <input value="custom-level" disabled></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" disabled></label><label>Level（推理级别） <input value="custom-level" disabled></label>
+                    <label><input type="checkbox" disabled> YOLO 模式</label><p>跳过命令审批并解除 Codex 沙箱限制；覆盖各处 Agent 调用，应用业务确认仍然有效。保存后作用于后续消息、新 Run 和终端接力。</p><h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" disabled></label><label>Level（推理级别） <input value="custom-level" disabled></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" disabled></label><label>Level（推理级别） <input value="custom-level" disabled></label>
                     <p>两个场景分别保存；旧单组有效值升级时复制为两组初始值。</p>
-                    <p role="status">正在保存 Codex 配置…仅锁定四字段和保存入口，保持当前页面。</p><div class="page-actions"><button class="compact-action">刷新清单</button><button class="compact-action" disabled>正在保存…</button></div>
+                    <p role="status">正在保存 Codex 配置…锁定四字段、YOLO 和保存入口，保持当前页面。</p><div class="page-actions"><button class="compact-action">刷新清单</button><button class="compact-action" disabled>正在保存…</button></div>
                 </div></section></div>
             </div></div>
             <div class="component-list"><h3>组件清单</h3><ul><li>Model、模型对应的 Level 候选输入</li><li>清单反馈与独立保存反馈</li><li>刷新、保存与生效范围说明</li></ul></div>
@@ -117,7 +117,7 @@
             <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="Sheet">
                 <div class="desktop-titlebar"><strong>账户与 Runtime</strong><span>Codex 配置</span></div>
                 <div class="page-content"><section class="surface"><div class="surface-header"><h2>Codex Runtime</h2></div><div class="surface-body">
-                    <h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" ></label><label>Level（推理级别） <input value="custom-level" ></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" ></label><label>Level（推理级别） <input value="custom-level" ></label>
+                    <label><input type="checkbox"> YOLO 模式</label><p>跳过命令审批并解除 Codex 沙箱限制；覆盖各处 Agent 调用，应用业务确认仍然有效。保存后作用于后续消息、新 Run 和终端接力。</p><h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" ></label><label>Level（推理级别） <input value="custom-level" ></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" ></label><label>Level（推理级别） <input value="custom-level" ></label>
                     <p>两个场景分别保存；Composer 中的选择仍属于具体 Chat 会话。</p>
                     <p role="status">已保存。新对话使用 Chat 默认值，下一次 Automation Run 使用 Automation 默认值；既有会话与活动执行保持自身配置。</p><div class="page-actions"><button class="compact-action">刷新清单</button><button class="compact-action" >保存 Codex 配置</button></div>
                 </div></section></div>
@@ -133,7 +133,7 @@
             <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="Sheet">
                 <div class="desktop-titlebar"><strong>账户与 Runtime</strong><span>Codex 配置</span></div>
                 <div class="page-content"><section class="surface"><div class="surface-header"><h2>Codex Runtime</h2></div><div class="surface-body">
-                    <h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" ></label><label>Level（推理级别） <input value="custom-level" ></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" ></label><label>Level（推理级别） <input value="custom-level" ></label>
+                    <label><input type="checkbox"> YOLO 模式</label><p>跳过命令审批并解除 Codex 沙箱限制；覆盖各处 Agent 调用，应用业务确认仍然有效。保存后作用于后续消息、新 Run 和终端接力。</p><h3>Chat 默认值</h3><label>Model <input value="custom-chat-model" ></label><label>Level（推理级别） <input value="custom-level" ></label><h3>Automation 默认值</h3><label>Model <input value="custom-automation-model" ></label><label>Level（推理级别） <input value="custom-level" ></label>
                     <p>保存失败不丢失任一场景的输入。</p>
                     <p role="status">保存失败。检查 1–200 个字符的非空文本后重试；输入已保留。</p><div class="page-actions"><button class="compact-action">刷新清单</button><button class="compact-action" >重试保存</button></div>
                 </div></section></div>

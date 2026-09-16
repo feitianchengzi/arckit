@@ -191,3 +191,5 @@
 | [CASE-20260911-005](closed/CASE-20260911-005-unify-arckit-state-driven-loop-capability-and-invocation-surface.md) | closed | Unify arckit-state-driven-loop capability and invocation surfaces | 2026-09-11T13:32:03.858Z |
 | [CASE-20260912-001](closed/CASE-20260912-001-separate-chat-and-automation-codex-model-and-level-configuration.md) | closed | Separate Chat and Automation Codex model and level configuration | 2026-09-12T04:21:28.956Z |
 | [CASE-20260912-002](closed/CASE-20260912-002-optimize-arcorbit-engineering-for-built-in-skills-management.md) | closed | Optimize ArcOrbit Engineering for built-in Skills management | 2026-09-12T05:01:26.443Z |
+| [CASE-20260915-001](closed/CASE-20260915-001-implement-the-unified-arcorbit-project-workbench-while-preservin.md) | closed | Implement the unified ArcOrbit project workbench while preserving legacy surfaces | 2026-09-15T19:42:16.227Z |
+| [CASE-20260915-002](closed/CASE-20260915-002-support-explicit-yolo-configuration-across-arcorbit-agent-calls.md) | closed | Support explicit YOLO configuration across ArcOrbit agent calls | 2026-09-15T19:26:18.486Z |

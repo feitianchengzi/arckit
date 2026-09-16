@@ -29,6 +29,11 @@ function httpStatus(value) {
 const invokeFeedbackV2 = (channel, input) => ipcRenderer.invoke(channel, input).then(unwrapFeedbackV2Ipc);
 
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  setWorkspaceSurface: surface => ipcRenderer.invoke('arckit:workspace-surface',surface),
+  projectWorkbenchSnapshot: () => ipcRenderer.invoke('arckit:project-workbench-snapshot'),
+  projectWorkbenchDetail: id => ipcRenderer.invoke('arckit:project-workbench-detail',id),
+  projectWorkbenchCommand: (action,input) => ipcRenderer.invoke('arckit:project-workbench-command',action,input),
+  onProjectWorkbenchEvent: listener => { const handler=(_event,value)=>listener(value);ipcRenderer.on('arckit:project-workbench-event',handler);return()=>ipcRenderer.off('arckit:project-workbench-event',handler); },
   engineeringSnapshot: () => ipcRenderer.invoke('arckit:engineering-snapshot'),
   engineeringUpdate: input => ipcRenderer.invoke('arckit:engineering-update', input),
   onEngineeringEvent: listener => { const handler = (_event, value) => listener(value); ipcRenderer.on('arckit:engineering-event', handler); return () => ipcRenderer.removeListener('arckit:engineering-event', handler); },

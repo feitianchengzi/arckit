@@ -1,3 +1,4 @@
+import { createProjectWorkbenchSurface } from './project-workbench-surface.mjs';
 import { workbenchExecutionTarget } from '../../src/automation/execution-history.mjs';
 import { openMemberAddSheet } from "./project-member-add.mjs";
 import { createEngineeringSurface } from './engineering-surface.mjs';
@@ -145,7 +146,7 @@ const state = {
   codexAuthMethod: "",
   codexAuthFlow: "",
   codexInstallMethod: "",
-  page: "today",
+  page: "project-workbench",
   selectedProjectId: "all",
   todaySelectedProjectId: "all",
   todayMode: "",
@@ -226,6 +227,7 @@ const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map
 const codexSettingsForm = createCodexSettingsForm({
   api,
   elements: {
+    yoloCheckbox: els.codexYoloMode,
     contexts: {
       chat: {
         model: els.codexChatModel, effort: els.codexChatEffort,
@@ -322,6 +324,10 @@ const releaseSurface = createReleaseSurface({
   api, normalizeChatSnapshot, formatTime, performAction: runAction,
   navigateSetup: () => showPage("command")
 });
+const projectWorkbenchSurface = createProjectWorkbenchSurface({
+  root:document.getElementById('projectWorkbenchView'),nav:document.getElementById('projectWorkbenchNav'),api,navigate:showPage,
+  openSettings:()=>document.getElementById('settingsButton').click()
+});
 const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
@@ -415,6 +421,10 @@ async function boot() {
 }
 
 function wireEvents() {
+  const legacyButton=document.getElementById('legacyPagesButton'),legacyMenu=document.getElementById('legacyPagesMenu');
+  legacyButton.addEventListener('click',()=>{legacyMenu.hidden=!legacyMenu.hidden;legacyButton.setAttribute('aria-expanded',String(!legacyMenu.hidden));if(!legacyMenu.hidden)legacyMenu.querySelector('button')?.focus();});
+  document.addEventListener('click',event=>{if(!event.target.closest('#legacyPagesButton,#legacyPagesMenu')){legacyMenu.hidden=true;legacyButton.setAttribute('aria-expanded','false');}});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!legacyMenu.hidden){legacyMenu.hidden=true;legacyButton.setAttribute('aria-expanded','false');legacyButton.focus();}});
   initializeWorkInspectorResize();
   els.setupRetryButton.addEventListener("click", () => runAction(async () => {
     state.setupActionError = "";
@@ -1763,6 +1773,8 @@ function renderWorkSurface() {
 }
 
 function renderPageVisibility() {
+  document.body.classList.toggle('project-workbench-active',state.page==='project-workbench');
+  projectWorkbenchSurface.show(state.page==='project-workbench');
   engineeringSurface.show(state.page === 'engineering', state.page === 'chat');
   releaseSurface.show({active:state.page === "release", projectId:state.selectedProjectId, workset:state.platform.active_workset});
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
@@ -1793,7 +1805,7 @@ function renderCommandBar() {
     ? organizationScope?.name || "个人项目"
     : project?.name || state.platform.active_workset?.name || "项目集全部";
   els.pageTitle.textContent = {
-    today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
+    "project-workbench":"事情台", today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
     work: "Work", feedback: "Feedback", command: "Automation", release: "Release", operations: "Operations",
     tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
   }[state.page] || "ArcOrbit";
@@ -4961,7 +4973,10 @@ function invalidatePlatformTaskSelectionContext() {
 }
 
 function showPage(page) {
+  document.getElementById('legacyPagesMenu').hidden=true;
+  document.getElementById('legacyPagesButton').setAttribute('aria-expanded','false');
   state.page = page;
+  if(page==='project-workbench') { renderPageVisibility();renderNavigation();renderCommandBar();return; }
   if (["product", "product-detail", "idea", "idea-add"].includes(page)) {
     renderPageVisibility(); renderNavigation(); renderCommandBar();
     productSurface.show(page).catch(error => showToast(error.message));

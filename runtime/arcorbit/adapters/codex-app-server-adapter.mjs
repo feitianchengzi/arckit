@@ -1,3 +1,5 @@
+import { workbenchAgentOptions } from '../src/workbench/agent-bridge.mjs';
+import { resolveCodexExecutionPolicy } from '../src/codex-execution-policy.mjs';
 import { createExecutionControl, executionStopError, requestExecutionStop } from "../src/kernel/execution-control.mjs";
 import { invalidTaskCloseoutResult } from '../src/task-closeout-contract.mjs';
 import { createInterface } from "node:readline";
@@ -55,7 +57,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
     name: "codex-app-server",
     async *runTurn({ projectRoot, prompt, options = {} }) {
       assertRunning();
-      const effectiveOptions = { ...adapterOptions, ...options };
+      const effectiveOptions = resolveCodexExecutionPolicy({ ...workbenchAgentOptions(options.env || process.env), ...adapterOptions, ...options }, projectRoot);
       if (effectiveOptions.outputSchema) {
         assertCodexOutputSchema(effectiveOptions.outputSchema, { name: `${effectiveOptions.resultKind || "turn"}.outputSchema` });
       }
@@ -166,10 +168,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           });
           try {
             const resumeResult = await client.request("thread/resume", {
-              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
+              ...((sceneSkills || effectiveOptions.threadConfig) ? { config: {...(sceneSkills?.config || {}), ...(effectiveOptions.threadConfig || {})}, ...(sceneSkills?.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               threadId: state.threadId,
               cwd: projectRoot,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              ...(effectiveOptions.sandbox ? { sandbox: effectiveOptions.sandbox } : {}),
               model: effectiveOptions.model || null
             });
             loadedThreadIds.add(state.threadId);
@@ -188,10 +191,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             }
             const missingThreadId = state.threadId;
             const fallback = await client.request("thread/start", {
-              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
+              ...((sceneSkills || effectiveOptions.threadConfig) ? { config: {...(sceneSkills?.config || {}), ...(effectiveOptions.threadConfig || {})}, ...(sceneSkills?.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               cwd: projectRoot,
               ephemeral: false,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              ...(effectiveOptions.sandbox ? { sandbox: effectiveOptions.sandbox } : {}),
               approvalsReviewer: "user",
               model: effectiveOptions.model || null,
               runtimeWorkspaceRoots: [projectRoot],
@@ -231,10 +235,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           let threadStartResult;
           try {
             threadStartResult = await client.request("thread/start", {
-              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
+              ...((sceneSkills || effectiveOptions.threadConfig) ? { config: {...(sceneSkills?.config || {}), ...(effectiveOptions.threadConfig || {})}, ...(sceneSkills?.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               cwd: projectRoot,
               ephemeral: false,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              ...(effectiveOptions.sandbox ? { sandbox: effectiveOptions.sandbox } : {}),
               approvalsReviewer: "user",
               model: effectiveOptions.model || null,
               runtimeWorkspaceRoots: [projectRoot],

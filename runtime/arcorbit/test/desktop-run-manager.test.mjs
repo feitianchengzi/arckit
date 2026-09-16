@@ -262,23 +262,29 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
     assert.equal(calls[0].args[calls[0].args.indexOf('--scene-skill-binding-file')+1],firstRun.scene_skill_binding_file);
     skillRevision=3;
     assert.deepEqual((await manager.getSettings()).codex, {
+      yolo_mode: false,
       chat: { model: "gpt-6-astra", reasoning_effort: "high" },
       automation: { model: "gpt-6-astra", reasoning_effort: "high" }
     });
     assert.equal(calls[0].args[calls[0].args.indexOf("--model") + 1], "gpt-6-astra");
+    assert.equal(firstRun.yolo_mode, false);
+    assert(calls[0].args.includes("--no-yolo"));
     assert.equal(calls[0].args[calls[0].args.indexOf("--reasoning-effort") + 1], "high");
     await manager.updateSettings({ codex: {
+      yolo_mode: true,
       chat: { model: "chat-model", reasoning_effort: "medium" },
       automation: { model: "custom-model", reasoning_effort: "ultra" }
     } });
     await manager.updateSettings({ codex_proxy: { enabled: false } });
     assert.deepEqual((await manager.getSettings()).codex, {
+      yolo_mode: true,
       chat: { model: "chat-model", reasoning_effort: "medium" },
       automation: { model: "custom-model", reasoning_effort: "ultra" }
     });
     await assert.rejects(manager.updateSettings({ codex: { automation: { model: " ", reasoning_effort: "high" } } }));
     const reloaded = createDesktopRunManager({ runtimeRoot: dataDir, dataDir });
     assert.deepEqual((await reloaded.getSettings()).codex, {
+      yolo_mode: true,
       chat: { model: "chat-model", reasoning_effort: "medium" },
       automation: { model: "custom-model", reasoning_effort: "ultra" }
     });
@@ -288,6 +294,14 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
     assert.equal(calls[1].args[calls[1].args.indexOf("--model") + 1], "custom-model");
     assert.equal(calls[1].args[calls[1].args.indexOf("--reasoning-effort") + 1], "ultra");
     assert.equal(calls[0].args[calls[0].args.indexOf("--model") + 1], "gpt-6-astra");
+    assert.equal(firstRun.yolo_mode, false);
+    assert(calls[0].args.includes("--no-yolo"));
+    assert(calls[1].args.includes("--yolo"));
+    await assert.rejects(manager.updateSettings({ codex: { yolo_mode: "true" } }));
+    await manager.updateSettings({ codex: { yolo_mode: false } });
+    await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-3", task: "Normal" });
+    assert(calls[2].args.includes("--no-yolo"));
+    assert(calls[1].args.includes("--yolo"));
     const codexIndex = calls[0].args.indexOf("--codex-bin");
     assert.equal(calls[0].args[codexIndex + 1], "/fixture/nvm/bin/codex");
     const pathKey = Object.keys(calls[0].options.env).find((key) => key.toUpperCase() === "PATH");

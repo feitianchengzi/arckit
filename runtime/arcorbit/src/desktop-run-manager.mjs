@@ -1,3 +1,4 @@
+import { acquireTaskTurn } from './workbench/task-turn-lock.mjs';
 import { executionProgress } from "./kernel/execution-progress.mjs";
 import { createExecutionControl, requestExecutionStop } from "./kernel/execution-control.mjs";
 import { executionOutcome } from './automation/execution-outcome.mjs';
@@ -58,6 +59,7 @@ export function createDesktopRunManager({
   spawnProcess = spawn,
   runtimeHost = null,
   resolveSceneSkills = async () => null,
+  getTaskAgentEnvironment = async () => ({}),
   ensureProject = ensureArckitProject
 }) {
   const emitter = new EventEmitter();
@@ -658,7 +660,26 @@ export function createDesktopRunManager({
     return null;
   }
 
-  async function startRun(input) {
+  async function startRun(input = {}) {
+    const release = acquireTaskTurn(input.projectId, input.taskId, `auto:${randomUUID()}`);
+    try {
+      const run = await startRunUnlocked(input);
+      const active = activeRuns.get(run.id);
+      if (active) active.releaseTaskTurn = release;
+      else release();
+      return run;
+    } catch (error) { release(); throw error; }
+  }
+
+  async function bindTaskThread(projectIdValue, taskIdValue, binding) {
+    if (!binding.threadId) throw new Error('Task thread binding is empty.');
+    const file = join(dataDir, 'thread-bindings', projectIdValue, `${stableTaskKey(taskIdValue)}.json`);
+    const previous = await readThreadBinding(file);
+    if (previous?.threadId && previous.threadId !== binding.threadId) throw new Error('Task thread binding cannot be replaced.');
+    await writeJson(file, { schema_version: 'arckit-codex-thread-binding/v1', ...binding });
+  }
+
+  async function startRunUnlocked(input) {
     const store = await readStore();
     const project = store.projects.find((item) => item.id === input.projectId);
     if (!project) {
@@ -700,6 +721,7 @@ export function createDesktopRunManager({
     const run = {
       id: runId,
       model: input.model || codexSettings.model,
+      yolo_mode: normalizeCodexSettings(store.settings?.codex).yolo_mode,
       reasoning_effort: input.reasoningEffort || codexSettings.reasoning_effort,
       project_id: project.id,
       session_id: input.sessionId || "",
@@ -782,16 +804,19 @@ export function createDesktopRunManager({
       args.push("--dry-run");
     } else {
       args.push("--adapter", run.adapter, host.controlMode === "parent-port" ? "--supervise-parent-port" : "--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
+      args.push(run.yolo_mode ? "--yolo" : "--no-yolo");
       args.push("--codex-bin", codexExecutable.command);
       args.push("--model", run.model, "--reasoning-effort", run.reasoning_effort);
     }
 
+    const taskAgentEnv = await getTaskAgentEnvironment({ projectId: project.id, taskId: run.task_id, runId: run.id });
     const child = host.spawn(runtimeBin, args, {
       cwd: runtimeCwd,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
       env: buildRuntimeEnv(prependRuntimePath({
         ...process.env,
+        ...taskAgentEnv,
         FORCE_COLOR: "0",
         ARCORBIT_EXECUTION_CONTROL_FILE: run.execution_control_file
       }, codexExecutable?.pathEntries), store.settings)
@@ -884,7 +909,7 @@ export function createDesktopRunManager({
     const active = activeRuns.get(runId);
     if (!active) return Promise.resolve();
     if (!active.finishPromise) active.finishPromise = finalizeRun(runId, status, exitCode, errorMessage, stdout)
-      .finally(() => { if (activeRuns.get(runId) === active) activeRuns.delete(runId); });
+      .finally(() => { active.releaseTaskTurn?.(); if (activeRuns.get(runId) === active) activeRuns.delete(runId); });
     return active.finishPromise;
   }
 
@@ -958,6 +983,7 @@ export function createDesktopRunManager({
       }
       return store;
     });
+    active.releaseTaskTurn?.();
     emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
   }
 
@@ -1310,6 +1336,7 @@ export function createDesktopRunManager({
     warmRunSummaryIndex,
     readRunResult,
     getTaskThreadBinding,
+    bindTaskThread,
     isRunActive(runId) {
       return activeRuns.has(runId);
     },

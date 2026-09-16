@@ -818,3 +818,32 @@ test('scene environment changes restart the process but preserve the conversatio
   assert.equal(created,2);assert.equal(closed,1);assert.equal(calls[2].options.threadId,'THREAD-1');assert.equal(calls[2].options.env.PATH,'/second/bin');assert.equal(result.sessions.length,1);assert.equal(result.messages.filter(m=>m.role==='user').length,3);
  }finally{await c.close();await f.cleanup();}
 });
+
+for (const sessionKind of ['chat', 'automation-task']) {
+ test(`${sessionKind} captures device YOLO before preflight and disables it on the next same-thread message`, async () => {
+  const fixture = await chatFixture();
+  let yoloMode = true, release, entered;
+  const ready = new Promise(resolve => { entered = resolve; });
+  const calls = [], contexts = [];
+  const coordinator = createChatCoordinator({ ...fixture.options, sessionKind,
+   runManager: { ...fixture.options.runManager, getSettings: async () => ({ codex: { yolo_mode: yoloMode } }) },
+   setupReadinessPreflight: async () => { if (!calls.length) { entered(); await new Promise(resolve => { release = resolve; }); } },
+   getTurnContext: async context => { contexts.push(context.yoloMode); return {}; },
+   createAdapter: () => completedAdapter(1, calls)
+  });
+  try {
+   const first = await coordinator.send({ project_id: 'PROJECT-1', text: 'one', client_request_id: 'yolo-one' });
+   await ready;
+   yoloMode = false;
+   release();
+   const id = first.sessions[0].id;
+   await waitForChatTerminal(coordinator, id);
+   assert.equal(calls[0].options.yoloMode, true);
+   await coordinator.send({ session_id: id, text: 'two', client_request_id: 'yolo-two' });
+   await waitForChatTerminal(coordinator, id);
+   assert.equal(calls[1].options.yoloMode, false);
+   assert.equal(calls[1].options.threadId, 'THREAD-1');
+   assert.deepEqual(contexts, [true, false]);
+  } finally { release?.(); await coordinator.close(); await fixture.cleanup(); }
+ });
+}

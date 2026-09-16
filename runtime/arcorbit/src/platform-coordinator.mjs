@@ -462,9 +462,8 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     return { work_inspector_width_px: width };
   }
 
-  async function executeAction(command, input = {}) {
-    const action = requiredText(command, "Platform action", 120);
-    const handlers = {
+  function actionHandlers(input = {}) {
+    return {
       "organization.create": () => platformSource.createOrganization(input),
       "organization.update": () => platformSource.updateOrganization(input.organization_id, input),
       "organization.delete": () => platformSource.deleteOrganization(input.organization_id),
@@ -574,6 +573,11 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
         }
       }
     };
+  }
+
+  async function executeAction(command, input = {}) {
+    const action = requiredText(command, "Platform action", 120);
+    const handlers = actionHandlers(input);
     const handler = handlers[action];
     if (!handler) throw new TypeError(`Unsupported platform action: ${action}`);
     return handler();
@@ -784,6 +788,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     setWorkspacePreference,
     setWorkInspectorWidth,
     executeAction,
+    listActions: () => Object.keys(actionHandlers()),
     getFeedbackV2Messages,
     sendFeedbackV2Reply,
     markFeedbackV2Read,

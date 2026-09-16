@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-09-12T05:01:26.443Z",
-    "revision": 382
+    "updated_at": "2026-09-15T19:42:16.227Z",
+    "revision": 388
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -113,7 +113,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "优化 ArcOrbit Engineering 页面的信息密度与易用性，使其专注于 ArcOrbit 内置 Skills 的安装后管理，并禁止展示或操作用户自行安装的其他 Skills。",
+      "current_focus": "通过显式配置开启 ArcOrbit 各处 Agent 的 YOLO 模式。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -131,8 +131,8 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the intended outcome and scope.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit is the repository-owned development protocol and skill system; ArcOrbit is its supervised Desktop/Runtime product and is expanding into a local-project-anchored, multi-product software-development platform for people who coordinate organization, product, member, todo, AI execution, and feedback work without relying on the Todo or Feedback web clients for daily operation. Product 是用户持续推进的中心；Product/Idea 能力保持既有边界。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。",
-          "reason": "用户批准 Release 核心能力实施，替换旧计划展示边界。",
+          "statement": "Arckit is the repository-owned development protocol and skill system; ArcOrbit is its supervised Desktop/Runtime product and is expanding into a local-project-anchored, multi-product software-development platform for people who coordinate organization, product, member, todo, AI execution, and feedback work without relying on the Todo or Feedback web clients for daily operation. Product 保持产品资料推进能力；Product/Idea 能力保持既有边界。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。 ArcOrbit 的默认主工作入口更新为项目事情台，以项目范围内持续存在的事情承载目标表达、检查成果、处理例外和改变方向；Product 等旧业务仍通过统一二级菜单完整访问。",
+          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
           "evidence": [
             "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
             "arckit/pending/prototypes/arcorbit-platform-next/README.md",
@@ -143,11 +143,16 @@
             "arckit/spec/agentic-software-development/arcorbit-release-workspace.md",
             "arckit/tech/arcorbit/release-workspace-solution.md",
             "arckit/interaction/release-workspace/interaction.md",
-            "arckit/interaction/release-workspace/default.html"
+            "arckit/interaction/release-workspace/default.html",
+            "arckit/cases/evidence/CASE-20260915-001/verification.md",
+            "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
+            "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
+            "arckit/interaction/project-workbench/interaction.md",
+            "arckit/tech/arcorbit/project-workbench-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit only if the server ownership boundary or protected ArcOrbit Runtime semantics change.",
-          "revision": 5
+          "resume_condition": "Revisit only if the server ownership boundary or protected ArcOrbit Runtime semantics change. 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
+          "revision": 6
         },
         "gap_refs": []
       },
@@ -158,19 +163,25 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback、Work、Setup、Today、Product/Idea 与 Release 能力及既有边界。ArcOrbit 账号与 Runtime 设置分别维护当前设备 Chat 与 Automation 的 Codex Model/Level 默认值：动态候选来自当前 Codex，四个字段始终可人工输入；查询失败或未知当前值不阻止保存。两组缺省均为 gpt-6-astra / high，旧单组有效值迁移为两组初始值，随后独立保存。新 Chat 会话继承 Chat 默认值并可在 Composer 快速调整当前会话后续消息；Automation Run 只读取 Automation 默认值。已接受 Chat turn 与已启动 Run 固定配置，Chat 保持原 thread，任一场景调整不污染另一场景。Engineering 是高密度 ArcOrbit 内置 Skills 安装后管理页面，只管理可信随包 Skills 在 Chat 与 Automation 的使用方式；用户级、项目级、其他 catalog 和本地目录 Skills 不显示且不能通过 Engineering 操作。Setup Readiness 继续独占内置 Skills 的安装、更新、漂移恢复和清理。其他既有 Work、Feedback、Project Catalog、本地工作区绑定、Automation participation、Codex Setup、Today、Product/Idea 与 Release 契约保持不变。",
-          "reason": "用户明确要求 Engineering 提升信息密度并专注于 ArcOrbit 内置 Skills；稳定规格、生产实现和验证已兑现该边界。",
+          "statement": "ArcOrbit 保留既有 Desktop、Runtime、Chat、Automation、Feedback、Work、Setup、Today、Product/Idea 与 Release 能力及既有边界。ArcOrbit 账号与 Runtime 设置分别维护当前设备 Chat 与 Automation 的 Codex Model/Level 默认值：动态候选来自当前 Codex，四个字段始终可人工输入；查询失败或未知当前值不阻止保存。两组缺省均为 gpt-6-astra / high，旧单组有效值迁移为两组初始值，随后独立保存。新 Chat 会话继承 Chat 默认值并可在 Composer 快速调整当前会话后续消息；Automation Run 只读取 Automation 默认值。已接受 Chat turn 与已启动 Run 固定配置，Chat 保持原 thread，任一场景调整不污染另一场景。Engineering 是高密度 ArcOrbit 内置 Skills 安装后管理页面，只管理可信随包 Skills 在 Chat 与 Automation 的使用方式；用户级、项目级、其他 catalog 和本地目录 Skills 不显示且不能通过 Engineering 操作。Setup Readiness 继续独占内置 Skills 的安装、更新、漂移恢复和清理。其他既有 Work、Feedback、Project Catalog、本地工作区绑定、Automation participation、Codex Setup、Today、Product/Idea 与 Release 契约保持不变。 ArcOrbit 各处 Agent 执行统一受设备级 settings.codex.yolo_mode 显式开关控制，缺省关闭；开启跳过审批并解除 Codex 沙箱，后续消息、新 Run 和终端接力捕获，关闭恢复场景策略；业务授权和托管权限上限保持有效。 新增独立项目事情台：创建自分配待评审事情、先讨论或直接单事情 Auto、运行中消息介入与暂停讨论、结构化约定/标准/报告/上下文、成果检查与验收；旧业务能力保留。场景/软件能力工具复用原业务协调器，身份删除/跨项目替换仍走旧页面。",
+          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
           "evidence": [
             "arckit/spec/agentic-software-development/arcorbit-scene-skills.md",
             "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
             "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
             "arckit/spec/arcorbit-distribution.md",
             "runtime/arcorbit/src/scene-skill-manager.mjs",
-            "arckit/cases/evidence/CASE-20260912-002/verification.md"
+            "arckit/cases/evidence/CASE-20260912-002/verification.md",
+            "arckit/cases/evidence/arcorbit-yolo/contract.md",
+            "arckit/cases/evidence/CASE-20260915-001/verification.md",
+            "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
+            "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
+            "arckit/interaction/project-workbench/interaction.md",
+            "arckit/tech/arcorbit/project-workbench-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 Engineering 的管理对象、内置身份来源、Setup 所有权或 Chat/Automation 场景模式改变时重审。",
-          "revision": 47
+          "resume_condition": "当 Engineering 的管理对象、内置身份来源、Setup 所有权或 Chat/Automation 场景模式改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
+          "revision": 49
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -202,19 +213,25 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization、Today、Work、Automation、Feedback、Chat、Product/Idea 与 Release 导航、交互及恢复语义。账号设置覆盖层为 Chat 与 Automation 分别提供可编辑 Model 和 Level 候选输入，Chat Composer 在输入框附近显示并调整当前会话后续消息所用 Model/Level，保存、失败恢复、thread 连续与场景隔离保持既有契约。Engineering 以“内置 Skills”明确范围，在首屏紧凑呈现场景、生效时机、内置总数、直接发现、按需使用、已停用、搜索、状态筛选和三列列表；用户在行内调整内置 Skill 使用方式并接收原位反馈。Automation 核心可见且锁定；搜索与状态可组合并一键清除；刷新或保存失败保留最近可信列表、场景和筛选；窄窗口按两列及单列降级且保持键盘焦点。用户自行安装的 Skills 不进入页面列表、计数、错误或操作，Chat 返回保留原会话与草稿。其他既有 Work Inspector、验收、Setup、Feedback、Today、项目绑定、Product/Idea 与 Release 交互契约保持不变。",
-          "reason": "用户要求提升 Engineering 易用性并排除非内置 Skills；交互文档、线框、真实 Renderer 与行为验证共同确立新交互。",
+          "statement": "ArcOrbit 的旧业务页面保留既有交互及恢复语义。账号设置覆盖层为 Chat 与 Automation 分别提供可编辑 Model 和 Level 候选输入，Chat Composer 在输入框附近显示并调整当前会话后续消息所用 Model/Level，保存、失败恢复、thread 连续与场景隔离保持既有契约。Engineering 以“内置 Skills”明确范围，在首屏紧凑呈现场景、生效时机、内置总数、直接发现、按需使用、已停用、搜索、状态筛选和三列列表；用户在行内调整内置 Skill 使用方式并接收原位反馈。Automation 核心可见且锁定；搜索与状态可组合并一键清除；刷新或保存失败保留最近可信列表、场景和筛选；窄窗口按两列及单列降级且保持键盘焦点。用户自行安装的 Skills 不进入页面列表、计数、错误或操作，Chat 返回保留原会话与草稿。其他既有 Work Inspector、验收、Setup、Feedback、Today、项目绑定、Product/Idea 与 Release 交互契约保持不变。 ArcOrbit 各处 Agent 执行统一受设备级 settings.codex.yolo_mode 显式开关控制，缺省关闭；开启跳过审批并解除 Codex 沙箱，后续消息、新 Run 和终端接力捕获，关闭恢复场景策略；业务授权和托管权限上限保持有效。 新默认事情台使用左项目范围、右单行列表及底部唯一创建、中央紧凑详情四类别与底部输入；消息默认隐藏并按需在中央覆盖，右列表可操作。运行状态弹层跨项目定位，逐事情草稿/阅读位置保留，760 抽屉、390 无横向溢出。旧 11 个页面入口统一收纳于“全部页面”二级菜单，其业务页面不重写。",
+          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
           "evidence": [
             "arckit/interaction/engineering-profile/interaction.md",
             "arckit/interaction/engineering-profile/default.html",
             "runtime/arcorbit/desktop/renderer/engineering-surface.mjs",
             "runtime/arcorbit/desktop/renderer/engineering.css",
             "runtime/arcorbit/test/engineering-surface.test.mjs",
-            "runtime/arcorbit/test/fixtures/engineering-electron.mjs"
+            "runtime/arcorbit/test/fixtures/engineering-electron.mjs",
+            "arckit/cases/evidence/arcorbit-yolo/contract.md",
+            "arckit/cases/evidence/CASE-20260915-001/verification.md",
+            "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
+            "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
+            "arckit/interaction/project-workbench/interaction.md",
+            "arckit/tech/arcorbit/project-workbench-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 Engineering 信息层级、筛选、场景生效时机、失败恢复、键盘/窄窗行为或非内置隔离边界改变时重审。",
-          "revision": 70
+          "resume_condition": "当 Engineering 信息层级、筛选、场景生效时机、失败恢复、键盘/窄窗行为或非内置隔离边界改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
+          "revision": 72
         },
         "gap_refs": []
       },
@@ -225,16 +242,21 @@
         "evidence_expectation": "Durable visual evidence sufficient to recover the project visual language.",
         "decision": {
           "status": "settled",
-          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口保持既有单一应用标题栏和平台原生窗口控件差异。Work Inspector 使用既有中性表面、8px 间距节奏、标题层级和可见焦点表达身份动作、内容、紧凑属性、协作和验收分区；分区不只依赖单条顶边，属性在可用宽度下优先两列并在窄宽度降为单列。",
-          "reason": "新增页面级 Inspector 层级继续复用既有视觉语言，不引入独立主题或品牌色。",
+          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口保持既有单一应用标题栏和平台原生窗口控件差异。Work Inspector 使用既有中性表面、8px 间距节奏、标题层级和可见焦点表达身份动作、内容、紧凑属性、协作和验收分区；分区不只依赖单条顶边，属性在可用宽度下优先两列并在窄宽度降为单列。 新事情台沿用现有主题；200px 项目栏、325px 右列表、44px 单行、紧凑标题与四类别、局部消息覆盖。新页面窄窗允许 390px 布局，旧页面保持原窗口边界；不引入演示数据或演示文案。",
+          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
           "evidence": [
             "arckit/visual/_library/brief.md",
             "arckit/interaction/task-browser/daily-work.html",
-            "arckit/interaction/wireframe-style.css"
+            "arckit/interaction/wireframe-style.css",
+            "arckit/cases/evidence/CASE-20260915-001/verification.md",
+            "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
+            "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
+            "arckit/interaction/project-workbench/interaction.md",
+            "arckit/tech/arcorbit/project-workbench-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "当平台 chrome 策略或 Work Inspector 表面、间距、焦点、属性列与分区层级改变时重审。",
-          "revision": 5
+          "resume_condition": "当平台 chrome 策略或 Work Inspector 表面、间距、焦点、属性列与分区层级改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
+          "revision": 6
         },
         "gap_refs": []
       },
@@ -245,16 +267,17 @@
         "evidence_expectation": "Durable product and technical evidence sufficient to recover access decisions.",
         "decision": {
           "status": "settled",
-          "statement": "认证仍限定于配置的执行与任务来源，授权受用户批准、工作区、沙箱和可信入口约束。Runtime 会话保持服务端支持的七天不活动窗口，成功登录、启动恢复或 token 刷新通过轮换凭据续期；超期、凭据缺失或失效、退出和服务端拒绝要求重新登录。产品反馈使用有效 Workshop 登录及 current-user 不可变业务 ID，账户变化关闭旧上下文。Codex 认证独立，以 codex login status 退出码确认；认证方式和 ChatGPT 浏览器或 device-auth 路径均由用户显式选择，无默认值。组织项目直接添加由 ArcOrbit 主进程限制为项目 owner/admin，组织角色不替代项目角色；目标同组织，新增角色固定 member。Workshop 服务保持原样：现有接口要求已认证并校验目标同组织，但不校验 caller 项目角色。客户端限制不能替代或被描述为服务端保护，本功能不要求服务端修改或发布。",
-          "reason": "用户明确要求服务端保持不变，修订预期事实和客户端逻辑。",
+          "statement": "认证仍限定于配置的执行与任务来源，授权受用户批准、工作区、沙箱和可信入口约束。Runtime 会话保持服务端支持的七天不活动窗口，成功登录、启动恢复或 token 刷新通过轮换凭据续期；超期、凭据缺失或失效、退出和服务端拒绝要求重新登录。产品反馈使用有效 Workshop 登录及 current-user 不可变业务 ID，账户变化关闭旧上下文。Codex 认证独立，以 codex login status 退出码确认；认证方式和 ChatGPT 浏览器或 device-auth 路径均由用户显式选择，无默认值。组织项目直接添加由 ArcOrbit 主进程限制为项目 owner/admin，组织角色不替代项目角色；目标同组织，新增角色固定 member。Workshop 服务保持原样：现有接口要求已认证并校验目标同组织，但不校验 caller 项目角色。客户端限制不能替代或被描述为服务端保护，本功能不要求服务端修改或发布。 ArcOrbit 各处 Agent 执行统一受设备级 settings.codex.yolo_mode 显式开关控制，缺省关闭；开启跳过审批并解除 Codex 沙箱，后续消息、新 Run 和终端接力捕获，关闭恢复场景策略；业务授权和托管权限上限保持有效。",
+          "reason": "用户要求统一显式 YOLO 配置，调用链和协议支持该契约。",
           "evidence": [
             "arckit/spec/agentic-software-development/arcorbit-organization-management.md",
             "arckit/tech/arcorbit/platform-composition-solution.md",
-            "services/workshop-api/api/project.md"
+            "services/workshop-api/api/project.md",
+            "arckit/cases/evidence/arcorbit-yolo/contract.md"
           ],
           "confidence": "high",
           "resume_condition": "认证域或直接添加客户端角色、服务端范围改变时重审。",
-          "revision": 6
+          "revision": 7
         },
         "gap_refs": []
       },
@@ -265,8 +288,8 @@
         "evidence_expectation": "Durable data and technical evidence sufficient to recover the state model.",
         "decision": {
           "status": "settled",
-          "statement": "Canonical development state、Workshop 远端真相、ArcOrbit Task Projection、Automation execution、Chat session/thread、Case 绑定收据及其他既有 Desktop 控制事实继续保持原所有权边界。Desktop Store 独占当前设备 `settings.codex.chat.{model,reasoning_effort}` 与 `settings.codex.automation.{model,reasoning_effort}`；旧平铺 `settings.codex.model/reasoning_effort` 的有效值迁移为两组初始值。缺失或非法字段分别归一化为 gpt-6-astra / high，保存 patch 去除首尾空白、拒绝空值、控制字符及超过 200 字符的值，并允许未知模型和级别。Chat session 与未发送草稿持有自身 model/reasoning_effort，新会话从 Chat 默认值继承；更新一个场景、无关设置及重启保留其他有效用户值，不改写用户全局 Codex 配置。Automation Run 保存启动时的 Automation model/effort；已接受 Chat turn 使用发送边界捕获的会话配置。模型清单不是持久事实源，Renderer 只投影和提交这些 Desktop 控制事实。其他既有 Inspector 偏好、Setup recovery、Project Catalog、Workspace Control、Task Readiness、Idea 与 Release 数据边界保持不变。",
-          "reason": "场景拆分要求明确两组默认值、旧值迁移、Chat session/draft 与 Automation Run 的数据所有权。",
+          "statement": "Canonical development state、Workshop 远端真相、ArcOrbit Task Projection、Automation execution、Chat session/thread、Case 绑定收据及其他既有 Desktop 控制事实继续保持原所有权边界。Desktop Store 独占当前设备 `settings.codex.chat.{model,reasoning_effort}` 与 `settings.codex.automation.{model,reasoning_effort}`；旧平铺 `settings.codex.model/reasoning_effort` 的有效值迁移为两组初始值。缺失或非法字段分别归一化为 gpt-6-astra / high，保存 patch 去除首尾空白、拒绝空值、控制字符及超过 200 字符的值，并允许未知模型和级别。Chat session 与未发送草稿持有自身 model/reasoning_effort，新会话从 Chat 默认值继承；更新一个场景、无关设置及重启保留其他有效用户值，不改写用户全局 Codex 配置。Automation Run 保存启动时的 Automation model/effort；已接受 Chat turn 使用发送边界捕获的会话配置。模型清单不是持久事实源，Renderer 只投影和提交这些 Desktop 控制事实。其他既有 Inspector 偏好、Setup recovery、Project Catalog、Workspace Control、Task Readiness、Idea 与 Release 数据边界保持不变。 ArcOrbit 各处 Agent 执行统一受设备级 settings.codex.yolo_mode 显式开关控制，缺省关闭；开启跳过审批并解除 Codex 沙箱，后续消息、新 Run 和终端接力捕获，关闭恢复场景策略；业务授权和托管权限上限保持有效。 事情台共享任务及附件依然属于 Workshop；计划、约定、标准、上下文选择和报告保存在账号隔离的本机场景，revision 和请求收据保护修改。目标变化使检查失效。事情主 session/thread 在 Chat 与 Auto 间复用，互斥保证同事情串行；requested_tasks 表达只启动当前事情的显式请求。",
+          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
           "evidence": [
             "arckit/tech/arcorbit/desktop-execution-solution.md",
             "runtime/arcorbit/src/codex-model-settings.mjs",
@@ -274,11 +297,17 @@
             "runtime/arcorbit/src/chat-coordinator.mjs",
             "runtime/arcorbit/src/desktop-run-manager.mjs",
             "runtime/arcorbit/test/codex-model-settings.test.mjs",
-            "arckit/cases/evidence/CASE-20260912-001/verification.md"
+            "arckit/cases/evidence/CASE-20260912-001/verification.md",
+            "arckit/cases/evidence/arcorbit-yolo/contract.md",
+            "arckit/cases/evidence/CASE-20260915-001/verification.md",
+            "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
+            "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
+            "arckit/interaction/project-workbench/interaction.md",
+            "arckit/tech/arcorbit/project-workbench-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 Desktop Store schema、Chat session/draft 所有权、Automation Run 固定参数或模型清单所有权改变时重审。",
-          "revision": 25
+          "resume_condition": "当 Desktop Store schema、Chat session/draft 所有权、Automation Run 固定参数或模型清单所有权改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
+          "revision": 27
         },
         "gap_refs": [
           "GAP-cross-record-audit"
@@ -291,19 +320,25 @@
         "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 继续通过显式 main-process adapters 集成 Codex app-server/CLI、Workshop、Feedback、Codex Setup、Product/Idea、GitHub 与 Release 能力，并保持 Renderer 无凭据、无通用请求能力。真实 Chat 继续使用可复用的 Codex Conversation 基础层处理 app-server initialize、persistent thread start/resume、turn start/interrupt、streamed items、token usage 和 approval request；ChatCoordinator 直接提交用户文本，不调用 state-driven Runtime、trusted ledger 或 Automation Coordinator。Codex 模型清单继续由固定无参数 IPC 在主进程查询当前 active executable，失败不发布部分清单或原始错误。Chat turn 从对应 session 读取并在消息接受时固定 model/effort；Automation Run 从 `settings.codex.automation` 读取并在启动时固定。共享 adapter 的 `turn/start.model/effort` 与 CLI `--model`/`--reasoning-effort` 分别生效并保持原 thread。Composer、Chat 默认值和 Automation 默认值相互隔离；清单可见不代表执行授权。其他 Workshop、Feedback、Setup installer、Product/Idea、GitHub 与 Release adapter 契约保持不变。",
-          "reason": "Chat app-server 与 Automation CLI/adapter 现在从不同配置来源取得参数，并保持活动执行固定与 thread 连续。",
+          "statement": "ArcOrbit 继续通过显式 main-process adapters 集成 Codex app-server/CLI、Workshop、Feedback、Codex Setup、Product/Idea、GitHub 与 Release 能力，并保持 Renderer 无凭据、无通用请求能力。真实 Chat 继续使用可复用的 Codex Conversation 基础层处理 app-server initialize、persistent thread start/resume、turn start/interrupt、streamed items、token usage 和 approval request；ChatCoordinator 直接提交用户文本，不调用 state-driven Runtime、trusted ledger 或 Automation Coordinator。Codex 模型清单继续由固定无参数 IPC 在主进程查询当前 active executable，失败不发布部分清单或原始错误。Chat turn 从对应 session 读取并在消息接受时固定 model/effort；Automation Run 从 `settings.codex.automation` 读取并在启动时固定。共享 adapter 的 `turn/start.model/effort` 与 CLI `--model`/`--reasoning-effort` 分别生效并保持原 thread。Composer、Chat 默认值和 Automation 默认值相互隔离；清单可见不代表执行授权。其他 Workshop、Feedback、Setup installer、Product/Idea、GitHub 与 Release adapter 契约保持不变。 ArcOrbit 各处 Agent 执行统一受设备级 settings.codex.yolo_mode 显式开关控制，缺省关闭；开启跳过审批并解除 Codex 沙箱，后续消息、新 Run 和终端接力捕获，关闭恢复场景策略；业务授权和托管权限上限保持有效。 事情场景原生动态工具与业务能力目录连接 Platform、Product、Release、Engineering、Feedback；自动 Run 使用本机 loopback 工具桥，短期令牌绑定账号/事情/工作区，退出撤销。实际操作仍执行原服务权限与必要用户确认。",
+          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
           "evidence": [
             "arckit/tech/arcorbit/desktop-execution-solution.md",
             "runtime/arcorbit/src/chat-coordinator.mjs",
             "runtime/arcorbit/src/desktop-run-manager.mjs",
             "runtime/arcorbit/adapters/codex-app-server-adapter.mjs",
             "runtime/arcorbit/test/chat-coordinator.test.mjs",
-            "runtime/arcorbit/test/desktop-run-manager.test.mjs"
+            "runtime/arcorbit/test/desktop-run-manager.test.mjs",
+            "arckit/cases/evidence/arcorbit-yolo/contract.md",
+            "arckit/cases/evidence/CASE-20260915-001/verification.md",
+            "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
+            "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
+            "arckit/interaction/project-workbench/interaction.md",
+            "arckit/tech/arcorbit/project-workbench-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 app-server turn 参数、CLI 参数、模型清单边界或场景配置路由改变时重审。",
-          "revision": 18
+          "resume_condition": "当 app-server turn 参数、CLI 参数、模型清单边界或场景配置路由改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
+          "revision": 20
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -356,8 +391,8 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit and ArcOrbit retain their existing ledger, skill, Electron, Runtime, Platform Coordinator, Work Sync, Chat, Setup Readiness, trusted case-control, and repository-relative path boundaries. The public Arckit monorepo additionally owns Todo Web under apps, Feedback Console under apps, the Feedback Web SDK under packages, the shared Workshop API under services, and integration examples under examples. JavaScript surfaces use one root workspace with independent build and release entries; the Workshop API remains an independently testable Go module. Public builds and tests never require the sibling private arckit-ops workspace. Product Coordinator 属于应用层，产品资料使用版本化协议与 revision 校验，正式记录单文件原子维护。同步通过独立 Git index 和资料分支，处理并发拒绝与远端核对，不改变开发 checkout。场景会话使用应用私有固定 cwd，材料范围与正式目录分别保存；运行内核不增加技能路由或工作角色。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。",
-          "reason": "用户批准 Release 核心能力实施，替换旧计划展示边界。",
+          "statement": "Arckit and ArcOrbit retain their existing ledger, skill, Electron, Runtime, Platform Coordinator, Work Sync, Chat, Setup Readiness, trusted case-control, and repository-relative path boundaries. The public Arckit monorepo additionally owns Todo Web under apps, Feedback Console under apps, the Feedback Web SDK under packages, the shared Workshop API under services, and integration examples under examples. JavaScript surfaces use one root workspace with independent build and release entries; the Workshop API remains an independently testable Go module. Public builds and tests never require the sibling private arckit-ops workspace. Product Coordinator 属于应用层，产品资料使用版本化协议与 revision 校验，正式记录单文件原子维护。同步通过独立 Git index 和资料分支，处理并发拒绝与远端核对，不改变开发 checkout。场景会话使用应用私有固定 cwd，材料范围与正式目录分别保存；运行内核不增加技能路由或工作角色。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。 ProjectWorkbench 为独立业务协调与呈现层，复用 WorkSync、ChatCoordinator、Automation 和 Run Manager；不复制旧业务页面或 Runtime/skill 工作流。场景组件从结构化状态投影，消息从真实 turn/run 投影；Agent 只调用受约束命令，不直接操纵 DOM。",
+          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
           "evidence": [
             "arckit/tech/repository-governance/monorepo-solution.md",
             "arckit/tech/arcorbit/solution.md",
@@ -374,11 +409,16 @@
             "arckit/spec/agentic-software-development/arcorbit-release-workspace.md",
             "arckit/tech/arcorbit/release-workspace-solution.md",
             "arckit/interaction/release-workspace/interaction.md",
-            "arckit/interaction/release-workspace/default.html"
+            "arckit/interaction/release-workspace/default.html",
+            "arckit/cases/evidence/CASE-20260915-001/verification.md",
+            "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
+            "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
+            "arckit/interaction/project-workbench/interaction.md",
+            "arckit/tech/arcorbit/project-workbench-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when workspace tooling, repository-relative capability paths, or source ownership boundaries change.",
-          "revision": 49
+          "resume_condition": "Revisit when workspace tooling, repository-relative capability paths, or source ownership boundaries change. 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
+          "revision": 50
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"

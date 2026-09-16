@@ -18,3 +18,5 @@
 | Product / Idea / Today 续接 | ✅ | 产品目录与详情、空白/材料接入、双区协作、显式状态、Git 共享冲突与来源恢复。 |
 
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
+
+| `project-workbench/interaction.md` | ✅ | 独立事情台、主会话与新旧页面过渡。 |

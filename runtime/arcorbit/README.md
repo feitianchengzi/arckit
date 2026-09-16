@@ -241,3 +241,9 @@ Automation 的“执行历史与恢复”保留活动、异常、已停止的普
 - 应用退出使用可恢复中断，不写入人工停止标记。升级前遗留的停止记录可手动恢复；恢复操作兼容旧的按待办存储的停止控制。
 
 清理误建问题时，先取消并按需归档，再恢复原问题。不要通过修改来源待办状态代替验收问题恢复。
+
+## Agent YOLO 模式
+
+在“账号与 Runtime → Codex Runtime”勾选 **YOLO 模式**并保存。设备设置 `settings.codex.yolo_mode` 默认 `false`，只接受布尔值；覆盖 Chat、Idea、Release、项目事情台、Automation 和终端 Agent 接力。开启后 Codex 使用 `never` 审批与 `dangerFullAccess` 沙箱策略，应用业务确认保持有效。保存影响后续消息、新 Run 和终端接力，活动调用保持原配置；关闭后复用线程也显式恢复场景沙箱。设置不会修改全局 Codex 配置。
+
+独立 Runtime CLI 使用 `run --yolo` 开启，`run --no-yolo` 显式恢复常规执行；直接 adapter 调用对应 `yoloMode: true/false`。仅设置 `--approval-policy never` 不会解除沙箱。

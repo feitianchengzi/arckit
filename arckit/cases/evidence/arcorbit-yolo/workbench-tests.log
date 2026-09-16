@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: task Chat and Auto share persistent task session and thread; a running turn prevents Auto
+ok 1 - task Chat and Auto share persistent task session and thread; a running turn prevents Auto
+  ---
+  duration_ms: 112.376469
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 805.501013
