@@ -8,7 +8,7 @@ import { createProjectWorkbench } from '../src/workbench/coordinator.mjs';
 import { createSceneStore } from '../src/workbench/scene-store.mjs';
 import { acquireTaskTurn, taskTurnOwner } from '../src/workbench/task-turn-lock.mjs';
 import { createWorkbenchAgentBridge, workbenchAgentOptions } from '../src/workbench/agent-bridge.mjs';
-import { visibleTasks,runtimeGroups } from '../desktop/renderer/project-workbench-model.mjs';
+import { visibleTasks,runtimeGroups,taskMode } from '../desktop/renderer/project-workbench-model.mjs';
 
 async function fixture(t,{adapter}={}){
  const root=await mkdtemp(join(tmpdir(),'arcorbit-workbench-'));t.after(()=>rm(root,{recursive:true,force:true}));
@@ -112,4 +112,19 @@ test('MCP fallback exposes the same scoped scene commands for restored threads',
  result=(await request('tools/call',{name:'arcorbit_scene_update',arguments:{action:'report',expected_revision:0,request_id:'mcp-report',input:{summary:'restored thread report'}}})).result;assert.equal(result.isError,undefined);assert.equal((await f.c.detail('1')).scene.reports.at(-1).summary,'restored thread report');
  result=(await request('tools/call',{name:'arcorbit_call',arguments:{action:'acceptance.accept',expected_revision:1,request_id:'forbidden',input:{}}})).result;assert.equal(result.isError,true);
  bridge.revoke('restored');assert.match((await request('tools/list')).error,/expired/);
+});
+
+// Count source reads instead of relying on machine-dependent timing thresholds.
+test('workbench resolves runtime modes once for the whole task list',()=>{
+ let reads=0;
+ const tasks=Array.from({length:1000},(_,i)=>({get id(){reads++;return String(i);},state:'pending'}));
+ const snapshot={tasks,runtime:{queue:tasks.map(t=>({task_id:t.id})),attention_items:[{task_id:'0',reason:'review'}]}};
+ reads=0;
+ const groups=runtimeGroups(snapshot),modes=new Map(groups.flatMap(g=>g.items.map(i=>[i.id,g.group])));
+ assert.equal(taskMode(tasks[0],snapshot,null,modes),'待介入');
+ for(const task of tasks.slice(1))assert.equal(taskMode(task,snapshot,null,modes),'已排队');
+ assert(reads<=tasks.length*3,`expected linear task reads, got ${reads}`);
+ snapshot.scenes={'1':{pause_requested:true}};
+ assert.equal(taskMode(tasks[1],snapshot,{current_turn_owner:'auto:run'},modes),'正在暂停');
+ assert.equal(taskMode(tasks[1],snapshot,null,modes),'已暂停');
 });

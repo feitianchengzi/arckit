@@ -4,8 +4,8 @@ export const tabs={overview:'概览',context:'资料与协作',results:'成果�
 export const title=task=>taskDisplayTitle(String(task?.content||'').split(/\r?\n/).find(line=>line.trim())?.replace(/^#{1,6}\s+/,''),task?.id || '未命名事情');
 export const escape=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 export function runtimeGroups(snapshot={}) {
-  const runtime=snapshot.runtime || {},tasks=snapshot.tasks || [],entries=new Map();
-  const put=(item,group,reason)=>{const id=String(item.task_id || item.source_task_id || item.id);if(entries.has(id))return;const task=tasks.find(t=>String(t.id)===id);if(!task)return;entries.set(id,{id,task,group,reason});};
+  const runtime=snapshot.runtime || {},tasks=snapshot.tasks || [],entries=new Map(),tasksById=new Map(tasks.map(task=>[String(task.id),task]));
+  const put=(item,group,reason)=>{const id=String(item.task_id || item.source_task_id || item.id);if(entries.has(id))return;const task=tasksById.get(id);if(!task)return;entries.set(id,{id,task,group,reason});};
   (runtime.recovery_items||[]).forEach(i=>put(i,'attention',i.message||i.reason||'需要恢复'));
   (runtime.attention_items||[]).forEach(i=>put(i,'attention',i.reason||i.question||'需要你处理'));
   (runtime.active_executions||[]).forEach(i=>put(i,['awaiting_human','waiting_external','recovery'].includes(i.phase)?'attention':'running',i.intervention_reason || i.phase));
@@ -18,10 +18,10 @@ export function visibleTasks(snapshot,state) {
     && (!state.filter||task.state===state.filter) && (!state.search||title(task).toLowerCase().includes(state.search.toLowerCase())||String(task.id)===state.search)
     && (!state.executor||String(task.executor_id)===state.executor) && (!state.priority||String(task.priority)===state.priority));
 }
-export function taskMode(task,snapshot,detail) {
+export function taskMode(task,snapshot,detail,modes) {
   if(snapshot.scenes?.[task.id]?.pause_requested)return detail?.current_turn_owner?.startsWith('auto:')?'正在暂停':'已暂停';
-  const entry=runtimeGroups(snapshot).flatMap(g=>g.items).find(i=>i.id===String(task.id));
-  return entry?{attention:'待介入',running:'Auto',queued:'已排队'}[entry.group]:stateLabels[task.state]||task.state;
+  const group=modes ? modes.get(String(task.id)) : runtimeGroups(snapshot).find(g=>g.items.some(i=>i.id===String(task.id)))?.group;
+  return group?{attention:'待介入',running:'Auto',queued:'已排队'}[group]:stateLabels[task.state]||task.state;
 }
 export function sceneMessages(detail={}) {
   const messages=[...(detail.messages||[]),...(detail.activity?.messages||[])];

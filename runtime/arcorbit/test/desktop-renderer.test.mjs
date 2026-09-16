@@ -2490,3 +2490,26 @@ test('workbench activation follows Workshop authentication through startup, logi
   }
   assert.deepEqual(activations, [false, true, false]);
 });
+
+test('workbench polling checks authentication without loading legacy snapshots', async () => {
+  const source = await readFile(rendererPath, 'utf8');
+  const start = source.indexOf('async function refreshProjectWorkbench()');
+  const end = source.indexOf('\nfunction scheduleRefresh(', start);
+  let authentication = { authenticated: true }, reads = 0, refreshes = 0, routes = 0;
+  const state = { page: 'project-workbench', authentication: {} };
+  const context = vm.createContext({ state,
+    api: { getAuthStatus: async () => { reads++;return authentication; } },
+    normalizeAuthentication: value => value,
+    renderPageVisibility() {}, renderNavigation() {}, routeAuthentication() { routes++; },
+    projectWorkbenchSurface: { refresh: async () => { refreshes++; } }
+  });
+  vm.runInContext(source.slice(start, end), context);
+  await vm.runInContext('refreshProjectWorkbench()', context);
+  assert.equal(reads, 1);assert.equal(refreshes, 1);assert.equal(routes, 1);
+  authentication = { authenticated: false, status: 'logged_out' };
+  await vm.runInContext('refreshProjectWorkbench()', context);
+  assert.equal(state.authentication.status, 'logged_out');assert.equal(refreshes, 1);assert.equal(routes, 2);
+  state.page = 'work';
+  await vm.runInContext('refreshProjectWorkbench()', context);
+  assert.equal(refreshes, 1);assert.equal(routes, 2);
+});

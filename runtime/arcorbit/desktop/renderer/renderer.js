@@ -413,7 +413,8 @@ async function boot() {
     }
   });
   window.setInterval(() => {
-    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
+    const refresh = state.page === "project-workbench" ? refreshProjectWorkbench()
+      : state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     refresh.catch(() => {});
   }, 30_000);
   window.setInterval(() => {
@@ -1334,21 +1335,37 @@ function mergeWorkPlatformSnapshot(current, incoming) {
   };
 }
 
+// The workbench owns its event subscriptions. Only poll its data and account status;
+// rebuilding legacy snapshots here duplicates work on the same renderer thread.
+async function refreshProjectWorkbench() {
+  const authentication = normalizeAuthentication(await api.getAuthStatus());
+  if (state.page !== "project-workbench") return;
+  state.authentication = authentication;
+  renderPageVisibility();
+  renderNavigation();
+  routeAuthentication();
+  if (authentication.authenticated) await projectWorkbenchSurface.refresh();
+}
+
 function scheduleRefresh(delay = 80) {
+  if (state.page === "project-workbench") return;
   if (refreshQueued) return;
   refreshQueued = true;
   window.setTimeout(async () => {
     refreshQueued = false;
+    if (state.page === "project-workbench") return;
     const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     await refresh.catch((error) => showToast(error.message));
   }, delay);
 }
 
 function scheduleAutomationRefresh(delay = 80) {
+  if (state.page === "project-workbench") return;
   if (automationRefreshQueued) return;
   automationRefreshQueued = true;
   window.setTimeout(async () => {
     automationRefreshQueued = false;
+    if (state.page === "project-workbench") return;
     if (state.refreshing) {
       scheduleAutomationRefresh(delay);
       return;
@@ -1753,6 +1770,7 @@ function render() {
   renderPageVisibility();
   renderNavigation();
   renderCommandBar();
+  if (state.page === "project-workbench") return;
   renderWorkset();
   renderToday();
   renderChat();
@@ -4974,9 +4992,11 @@ function invalidatePlatformTaskSelectionContext() {
 }
 
 function showPage(page) {
+  const leavingProjectWorkbench = state.page === "project-workbench" && page !== state.page;
   document.getElementById('legacyPagesMenu').hidden=true;
   document.getElementById('legacyPagesButton').setAttribute('aria-expanded','false');
   state.page = page;
+  if (leavingProjectWorkbench) void refreshSnapshot({ quiet: true, afterMutation: true }).catch(error => showToast(error.message));
   if(page==='project-workbench') { renderPageVisibility();renderNavigation();renderCommandBar();return; }
   if (["product", "product-detail", "idea", "idea-add"].includes(page)) {
     renderPageVisibility(); renderNavigation(); renderCommandBar();
