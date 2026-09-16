@@ -313,6 +313,7 @@ const chatConversationSurface = createConversationSurface({
 const productSurface = createProductSurface({
   api, normalizeChatSnapshot, formatTime, performAction: runAction,
   getPlatform: () => state.platform,
+  isAuthenticated: () => state.authentication.authenticated,
   navigate: async (page, projectId, feedbackId) => {
     if (projectId) state.selectedProjectId = String(projectId);
     if (feedbackId) state.selectedFeedbackId = String(feedbackId);
@@ -1774,7 +1775,7 @@ function renderWorkSurface() {
 
 function renderPageVisibility() {
   document.body.classList.toggle('project-workbench-active',state.page==='project-workbench');
-  projectWorkbenchSurface.show(state.page==='project-workbench');
+  projectWorkbenchSurface.show(state.page==='project-workbench' && state.authentication.authenticated);
   engineeringSurface.show(state.page === 'engineering', state.page === 'chat');
   releaseSurface.show({active:state.page === "release", projectId:state.selectedProjectId, workset:state.platform.active_workset});
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));

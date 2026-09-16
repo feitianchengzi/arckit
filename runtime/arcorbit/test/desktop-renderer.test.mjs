@@ -2470,3 +2470,23 @@ test('Automation presents every current closeout disposition with the shared clo
     assert.deepEqual(presentation.fields.find((field) => field.label === 'Status').values, [status]);
   }
 });
+
+test('workbench activation follows Workshop authentication through startup, login and logout', async () => {
+  const source = await readFile(rendererPath, 'utf8');
+  const start = source.indexOf('function renderPageVisibility()');
+  const end = source.indexOf('\nfunction renderNavigation()', start);
+  const activations = [];
+  const state = { page: 'project-workbench', authentication: { authenticated: false }, platform: {} };
+  const context = vm.createContext({
+    state,
+    document: { body: { classList: { toggle() {} } }, querySelectorAll: () => [] },
+    projectWorkbenchSurface: { show: active => activations.push(active) },
+    engineeringSurface: { show() {} }, releaseSurface: { show() {} }
+  });
+  vm.runInContext(source.slice(start, end), context);
+  for (const authenticated of [false, true, false]) {
+    state.authentication.authenticated = authenticated;
+    vm.runInContext('renderPageVisibility()', context);
+  }
+  assert.deepEqual(activations, [false, true, false]);
+});
