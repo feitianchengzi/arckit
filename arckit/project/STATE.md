@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 388
-Updated: 2026-09-15T19:42:16.227Z
+Revision: 389
+Updated: 2026-09-16T06:31:15.206Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -46,11 +46,12 @@ Arckit is a state-driven software-development protocol and optional supervised R
 
 ## Software Invariants
 
-- product-expectations-remain-recoverable: Every materially affected product expectation is accurate, unambiguous, and durably recoverable.
-- interaction-expectations-remain-recoverable: Every materially affected interaction expectation is coherent, complete enough to recover its decisions and states, and durably recoverable.
-- visual-language-remains-consistent: Every materially affected visual expectation remains intentional, internally consistent, and durably recoverable.
-- technical-decisions-remain-explainable: Every materially affected technical decision remains coherent, explainable, and durably recoverable, including its rationale and affected relationships.
-- accepted-facts-are-realized: The accepted software state realizes every materially relevant accepted fact and upheld Project decision and invariant.
+- product-expectations-remain-recoverable: 相关需求预期有明确来源、范围和验收含义，内部一致且可恢复；已形成或改变的结论及时维护到权威事实载体，尚未确定的决定如实保留。需求明确不表示已经实现。
+- interaction-expectations-remain-recoverable: 相关交互预期的动作、状态、反馈与恢复语义明确、自洽且可恢复；已形成或改变的结论及时维护，独立未决问题保留。页面存在或外观截图不替代行为定义。
+- visual-language-remains-consistent: 相关视觉决定有明确依据，与已接受的视觉规则和用户要求一致，必要偏离有说明且可恢复；需要人的审美判断时保留待定，不以 Agent 自评冒充认可。
+- technical-decisions-remain-explainable: 相关技术决定及理由、约束和关系明确、自洽且可恢复，关键可行性主张有相称依据；新反证触及时重审旧结论，方案文档完整不等于技术可行或实现完成。
+- accepted-facts-are-realized: 实际软件兑现当前范围内适用的已接受预期和约束，并保留本次未授权改变的相关行为；实现与完成主张不超出证据。accepted facts 中的故障观察或假设不是要实现的要求。
+- debug-causes-remain-grounded: 区分观察、原因假设与已验证的因果结论，原因分析解释相关现象，修复主张说明为何针对原因；症状消失不自动证明根因成立。诊断结论、反证与未解释部分保持可恢复，未知原因如实保留。
 - material-risks-have-credible-evidence: Every material risk claim accepted in the Case is supported by credible, repeatable, and proportionate evidence.
 
 ## Read For Precision

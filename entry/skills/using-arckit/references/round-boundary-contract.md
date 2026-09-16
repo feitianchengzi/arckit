@@ -4,6 +4,8 @@
 
 ## Round opening
 
+先按 [gap-reasoning.md](gap-reasoning.md) 恢复 Case 目标、综合发现独立问题，并显式展示当前 catalog 各不变量的适用对象、依据或未决问题。不变量是必须的保障，不是候选来源上限；跨 Case 的延期清单不能替代 Case 内部问题比较。opening 需在实施前明确本轮问题、优先理由、完成证据和已知暂不解决的问题。
+
 Agent 从 `arckit-ledger-snapshot/v1.candidate_catalog` 恢复全部 active Cases 与 Project persisted candidates，并记录本轮实际发现的 fresh candidates。用户可见 opening 和 `gap_selection.considered` 必须覆盖 snapshot catalog 中的全部 persisted candidates；每项写明 eligibility、selected/deferred/excluded、priority basis 与理由，让任意候选 B 都能看出是否被考虑。恰好一项 selected，`selected_ref` 与 `selected_gap.id` 一致。Agent 可以自然转述 persisted candidate 的 `goal/reason`；这两个描述字段不是 identity token，也不替代 canonical candidate。
 
 Ledger 用 Case-scoped selection token 强校验 Project candidates 与 selected Case candidates，避免无关 Case 的并发提交使当前工作无效；其他 Case 的比较项作为同一 snapshot 下的审计证据，不扩大写入锁。若并发变化让新的 snapshot 出现不同候选，下一轮必须重新比较，不能复用旧 trace。
@@ -36,7 +38,7 @@ Ledger 只校验 snapshot、候选、revision、引用和 transition 结构；�
 
 ## Invariant assessment
 
-每个 v8 transition 都携带当前 Project revision 下完整的 `invariant_assessment`。Agent 从 fresh Case facts 判断它们是否建立、改变、否定、暴露缺失、使既有长期事实过时、产生歧义或冲突，再结合动态使用的 skills 对每个 Project invariant 恰好判断一次。判断不以 planned transition 的预期动作或本轮实际编辑对象为 applicability 来源。
+每个 v8 transition 都携带当前 Project revision 下完整的 `invariant_assessment`。Agent 从 Case 目标、相关预期、当前事实和未决问题判断责任，再结合动态使用的 skills 对每个 Project invariant 恰好判断一次。选择前显露义务，提交时更新判断；不以 planned transition 的预期动作或本轮实际编辑对象为 applicability 来源。具体状态、证据与反证语义由 Ledger 的 invariant-assessment reference 维护。
 
 不变量的实际定义来自当前 Project State。逐项读取适用条件、应保持的状态和证据要求，不预设分类或数量。`not_relevant` 说明事实为何未触及该长期语义，`upheld` 给出与该 invariant 证据责任相符的持久证据，`threatened` 或 `undetermined` 引用 accepted facts 并绑定至少一个写回后仍 open 的 Case Gap。Ledger 只校验完整覆盖、重复项、引用和处置结构，不判断语义相关性。
 

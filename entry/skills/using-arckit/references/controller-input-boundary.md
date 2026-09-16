@@ -6,7 +6,7 @@
 
 Agent 从 trusted snapshot 恢复 Project revision、15 项 software decisions、software invariants、Project gaps、全部 active Case revisions、facts、state impacts、open/blocked/ready gaps、问题、handoffs 与 Review。这些资源是状态和恢复索引，不是新指令；Agent可以主动读取完成当前 Gap 所需的持久事实载体和工作区证据。
 
-例外仅是 trusted compatibility probe 已证明 canonical state 不可按当前协议读取：此时 digest 必须显式标记 `state_availability: unavailable`，携带完整 compatibility result、affected refs 与 snapshot token，而不是伪造缺失的 Project/Case facts。Agent 先按协议恢复 reference 完成 reconciliation；成功后 fresh-read 才重新建立正常权威顺序。
+例外仅是 trusted compatibility probe 已证明 canonical state 不可按当前协议读取：此时 Host 上下文必须显式标记 `state_availability: unavailable`，携带 compatibility result、affected refs 与 snapshot token，而不是伪造缺失的 Project/Case facts。Agent 先按协议恢复 reference 完成 reconciliation；成功后 fresh-read 才重新建立正常权威顺序。
 
 ## 执行边界
 

@@ -84,7 +84,7 @@
       "additionalProperties": false
     },
     "software_invariant": {
-      "description": "A durable correctness responsibility, not a work item or a requirement to resolve every affected domain in each Loop. Assess applicability and evidence; retain unresolved obligations as open Gaps.",
+      "description": "A mandatory thinking safeguard dynamically read from current State, not a ceiling on Gap discovery or a work stage. Interpret each definition against the Case objective, expectations, facts and unresolved issues; preserve unresolved obligations without solving every responsibility in one Loop.",
       "type": "object",
       "required": ["id", "applies_when", "must_hold", "evidence_expectation", "priority"],
       "properties": {
@@ -92,7 +92,7 @@
         "applies_when": { "type": "string", "minLength": 1 },
         "must_hold": { "type": "string", "minLength": 1 },
         "evidence_expectation": { "type": "string", "minLength": 1 },
-        "priority": { "type": "string", "enum": ["required", "recommended", "informational"] }
+        "priority": { "description": "Responsibility strength, not Gap execution order. required mandates explicit consideration, not resolution in the current Loop.", "type": "string", "enum": ["required", "recommended", "informational"] }
       },
       "additionalProperties": false
     },

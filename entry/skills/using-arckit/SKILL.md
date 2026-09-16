@@ -12,6 +12,7 @@ description: "在 Arckit 项目中持续推进真实软件开发事项。依据 
 - **范围**：用户原任务、当前增量与未撤回授权决定工作范围；状态、候选和后续发现不提供新增授权。
 - **事实**：依据可信的当前 Project/Case State 判断，历史上下文、普通文件读取和写回返回值不能替代 fresh snapshot。
 - **聚焦**：每轮只推进一个独立缺口；全面理解事实和识别义务，不等于本轮解决全部缺口。
+- **保障**：软件不变量是必须的思考下限，不是 Gap 来源或 Agent 推理的上限；每轮从当前定义显式考虑，按 Case 目标综合选择工作。
 - **职责**：Agent 判断任务是否推进及是否继续，Ledger 负责可信校验与写回，Runtime 执行交接与用户控制；Agent 不直接手改 ledger。
 
 ## 职责与 Host 接入
@@ -43,7 +44,7 @@ Host 提供自动续轮、拒绝恢复或完成后的新发现时，读取 [refe
 
 ### 3. 动态选择下一 Gap
 
-**识别相关义务。** 选择 Gap 前，使用当前 Project invariant catalog 逐项审视 fresh Case facts、既有 impacts/gaps 和本轮可用 skills。Agent 必须识别 fresh facts 是否建立、改变、否定、暴露缺失、使既有长期事实过时、产生歧义或冲突。Applicability 从这些事实对长期语义的影响产生，不从 planned transition 或“本轮是否准备修改某类内容”倒推。逐项读取当前不变量的 applies_when、must_hold、evidence_expectation 与 priority，按其实际定义判断相关性与证据；不预设数量、名称、领域或通用证据分类，也不以其他不变量的证据替代当前要求。
+**识别相关义务。** 选择 Gap 前读取 [references/gap-reasoning.md](references/gap-reasoning.md)，从原任务、用户增量、相关预期、当前事实、执行反馈、依赖与外部条件综合发现问题。同时逐项读取当前 Project invariant catalog 的 applies_when、must_hold、evidence_expectation 与 priority，理解后显式说明各项在本 Case 的适用对象、依据和未决问题，作为选题依据之一。Applicability 包括尚未调查的必要预期与缺失，不从 planned transition 或准备修改哪些内容倒推。维度的数量、内容和证据责任完全来自动态读取的定义；required 表示必须考虑，不表示本轮清零或固定排序。
 
 Invariant 不规定工作类型、skill、路径或执行顺序，也不等于必须更新某个载体。实际相关的长期判断不能静默遗漏：已有事实充分时显式确认，事实域无关时说明依据，相关但未解决时如实标记并由开放 Gap 承接，不为了让所有判断变成 upheld 而补做独立决策。
 
@@ -58,7 +59,7 @@ Invariant 不规定工作类型、skill、路径或执行顺序，也不等于�
 
 **界定一个独立缺口。** 一个 Loop 只提交一个 selected Case Gap 的单一验收主张。该 Gap 是原任务范围内当前最关键、最值得独立解决的缺口，具有明确的待回答问题与完成证据；一轮推进一个 Gap，同一 Gap 可以跨轮完成。每轮重新判断其与原任务的必要关系，不预先制定 impacts 或未来 gap 链。
 
-选择时说明：当前缺口要回答什么、为什么最值得先独立解决、什么证据表示它已解决，以及哪些相关问题暂不解决。如果一个候选包进了可分别作出和验收的多个决定，先选其中最关键的缺口；不能只因它们共享最终需求或同一组文件而合并。`planned_transition` 围绕这个缺口安排必要行动，不预先包揽其解决后的下一件事。
+选择时说明：当前缺口要回答什么、为什么最值得先独立解决、什么证据表示它已解决，以及哪些相关问题暂不解决。已持久化 Gap 也须审视边界；“只有一个 Gap”不能证明它合理。若几个结果需要分别取舍，或一个结果成立后应重新决定另一个怎么做，先选最关键的问题；仅能分开测试不要求拆碎。`planned_transition` 围绕该问题安排必要行动，不把 Case 最终交付整体装进一轮。
 
 **比较候选并展示选择。** 根据本轮 snapshot 比较 ledger 为全部 active Cases 与 Project 派生的 persisted candidates，以及当前上下文刚显露的 fresh candidates，再按阻塞程度、风险、信息增益、依赖、用户影响与可验证性选择一个。选择前向用户展示独立 round opening：列出全部 persisted candidates、实际发现的 fresh candidates、selected/deferred/excluded 与简短理由；不得声称穷尽了未发现的 fresh work。完整 trace 随 transition 保存，其中 Project 与 selected Case scope 由 Case-scoped selection token 强绑定，以保留无关 Cases 的并发推进。细则见 [references/round-boundary-contract.md](references/round-boundary-contract.md)。
 
@@ -66,11 +67,17 @@ Invariant 不规定工作类型、skill、路径或执行顺序，也不等于�
 
 ### 4. 同一 Agent 完成一个 Gap
 
-**完成当前问题。** 围绕 selected Gap 的待解决问题读取相关上下文并动态使用必要 skills/tools，完成其结论和证据。例如定位根因时可以补日志、复现、验证假设；确认根因后实施修复通常属于另一个缺口，应提交后重新选择。读到另一领域的事实不等于要在本轮为该领域作出新决定；判断是否跨 Gap 看独立问题与结论，不看 skill 数量、文档数量或软件领域名称。
+**完成当前问题。** 围绕 selected Gap 的待解决问题读取相关上下文并动态使用必要 skills/tools，完成其结论和证据。若当前 Gap 的完成条件是确认根因，确认后提交并重新选择；若诊断、修复与验证共同服务一个已授权的有界问题，可以同轮完成。判断是否跨 Gap 看独立问题与结论，不看 skill 数量、文档数量或软件领域名称。
+
+专业 skills 是独立可复用能力，不是不变量的一一对应执行模块。Agent 依据当前目标选择并读取其方法，在授权与 selected Gap 边界内使用；专业 skill 包含的后续流程不自动扩大本轮目标。若其必要步骤与当前边界冲突，显式报告冲突和剩余义务，不能静默越界或跳过方法门禁。
 
 **处理新事实。** 新事实用于理解、解决或验证当前选中的缺口时，可以在本轮继续使用；暴露另一个独立缺口时，只记录事实与必要候选，不顺带解决。当前缺口解决后提交并 fresh-read，再独立选择下一 Gap；需要用户决定时交接人工。
 
+若新事实证明既有 Gap 过宽或前提失效，按 gap-reasoning 的重新界定规则保留未完成义务，通过可信接口记录取消/替代后 fresh-read 重选；不把取消宣称为完成，不为续轮换号。
+
 **维护已建立的结论。** 全面理解相关事实与判断不变量，不等于本轮补齐全部预期事实。只建立解决 selected Gap 所需的新结论；同一个结论可以同步多个事实载体，但产品、交互、视觉、技术中的独立决策不能因属于同一需求而合并完成。
+
+结论形成或改变的当轮维护对应事实载体，优先更新已有文档。新反证须重审全部实际相关判断，明确哪些旧主张失效或仍有依据；不以文件存在、测试数量或某一问题已修复支持其他未决主张。
 
 ### 5. 提交 Transition
 

@@ -18,7 +18,6 @@ import { createProjectStateRecord } from '../../../entry/skills/arckit-developme
 import { defaultSoftwareInvariants } from '../../../entry/skills/arckit-development-ledger/scripts/project-invariants.mjs';
 import { readLedgerSnapshot } from '../../../entry/skills/arckit-development-ledger/scripts/loop-snapshot.mjs';
 import { validateCaseControlHandoff } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-case-control.mjs';
-import { createControllerContextDigest } from '../src/agent-orchestrator.mjs';
 
 test('new bug Case starts from facts and one diagnosis gap without facet ceremony', () => {
   const record = bugCase();
@@ -67,23 +66,6 @@ test('completion review stays implementation-focused and resolves the current re
   assert.deepEqual(validateCaseRecord(closed), []);
 });
 
-test('Runtime digest exposes the explicit software checklist, invariants and Case facts', () => {
-  const record = bugCase();
-  const projectState = createProjectStateRecord({ name: 'Fixture', intent: 'Fix restore behavior.' });
-  const digest = createControllerContextDigest({
-    snapshot: {
-      projectState,
-      activeCases: [{ ref: 'arckit/cases/active/fixture.md', record }],
-      paths: { projectState: 'arckit/project/state.record.json', activeIteration: '' }, summary: {},
-    },
-    loopFrame: { project_revision: 0, case_id: '' },
-  });
-  assert.equal(digest.project.software_definition.length, 15);
-  assert.equal(digest.project.software_definition[0].id, 'product_intent_and_scope');
-  assert.equal(digest.project.software_invariants.some((item) => item.id === 'accepted-facts-are-realized'), true);
-  assert.equal(digest.active_cases[0].facts[0].id, 'FACT-BUG');
-  assert.equal(Object.hasOwn(digest.active_cases[0], 'facets'), false);
-});
 
 test('Case control binds numeric Project revision and requires semantic initial gaps', () => {
   const valid = {

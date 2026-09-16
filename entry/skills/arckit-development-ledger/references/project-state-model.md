@@ -45,11 +45,13 @@ Project State 从宏观层面回答三件事：当前怎么推进、这个软件
 
 `software_invariants` 保存实际应用到项目的抽象约束。每项包含稳定 `id`、`applies_when`、`must_hold`、`evidence_expectation` 与 `priority`。Agent 从当前 trusted snapshot 逐项读取，再依据事实判断适用性和未解决义务，不从名称猜测内容，也不以 skill 正文中的分类替代项目定义。
 
-模板内容由 `scripts/project-invariants.mjs` 定义，初始化时写入具体项目的 Project State。模板定义的核心项继续精确校验，不允许任意改写、删除或退役；必要的协议更新仍通过受约束的 sync_core 机制处理。项目可增加符合既有协议的长期非核心不变量。读取机制与模板约束是不同职责：工作引导不复述固定模板的内容，不代表当前核心定义可以自由修改。
+模板内容只在 [templates/software-invariants.json](../templates/software-invariants.json) 定义；`scripts/project-invariants.mjs` 动态加载模板用于初始化和确定性校验。Agent 从 trusted State 读取并理解实际内容，提示词、Host 和脚本不预设条目数量、领域、顺序或语义判断。模板核心项继续精确校验；必要的协议更新通过 sync_core 或协议恢复处理。项目可增加符合既有协议的长期非核心不变量。模板可以演进，旧判断不自动继承新含义。
 
 完整 assessment 根据 observed Project revision 下的实际集合校验覆盖、重复项、引用和处置关系。Agent 使用的数量、适用条件和证据要求来自该集合；后续定义或扩展由相应维护机制管理，工作方法无需复制一份同步修改。
 
 ### 不变量、缺口与轮次的关系
+
+不变量是下限不是上限，是保障不是自主推理的限制，也是必须的不是可选的。每轮显式考虑实际 catalog，但候选还可来自目标、用户输入、执行反馈、依赖和外部变化；Gap 不必绑定不变量。`priority` 表示责任强度，required 要求明确判断，不意味着本轮清零或固定工作排序。状态含义、混合结果、反证更新和事实载体维护见 [invariant-assessment.md](invariant-assessment.md)。
 
 不变量描述软件应持续具备的正确性，不是每个 Loop 都要全部重新完成的工作列表。`applies_when` 判断事实是否触及该责任，`must_hold` 描述应维护的状态，`evidence_expectation` 描述接受相应结论所需的证据；这些字段都不选择本轮行动。
 
@@ -59,4 +61,4 @@ Case facts 保存已证实的观察与结论，Gap 保存尚待独立解决的�
 
 ## 生效机制
 
-Agent 从 trusted snapshot 恢复 Project State、active Cases 和相关工程上下文，每轮从具体事实独立判断当前最重要的 Gap，并在 v8 transition 中对当前全部 invariants 留下显式 assessment；只有当前事实或 transition 对 target 产生实际影响时才记录持久 decision/invariant impact。每次被接受的 transition 可原子更新 Project decision/invariant/gap；下一轮 fresh-read 后重新评估全部 invariants，因此先前已处理的事实域也可以因新事实重开。Runtime 只传输 assessment，不推导 skill、路径或结果。
+Agent 从 trusted snapshot 恢复 Project State、active Cases 和相关工程上下文，选择前依据 Case 目标、相关预期、当前事实和未决问题逐项识别责任，综合其他候选来源判断当前最重要的 Gap；提交时按实际证据更新完整 assessment。只有当前事实或 transition 对 target 产生实际影响时才记录持久 impact。结论形成或改变的当轮维护对应事实载体，不等到 Case 最后补文档。下一轮 fresh-read 后重新评估，因此先前判断可因新事实改变。Runtime 只传输与动态投影，不推导领域、skill、路径或结果。

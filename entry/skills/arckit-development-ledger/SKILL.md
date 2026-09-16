@@ -27,6 +27,7 @@ Ledger manifest 的 `agent_contracts` 是 Host 组装语义载荷 schema 和定�
 
 - `software_definition.decision_areas` 是协议明确列出的软件能力决策清单，不由 Agent 临时生发，也不是执行 checklist。每项保存问题、决策要求、证据要求、当前 decision 与实际 gap refs。
 - `software_invariants` 保存项目当前的不变量定义。Agent 从当前 Project State 读取集合及每项适用条件、约束和证据要求，不在工作方法中复制模板内容或按预设分类解释。完整 assessment 只要求识别义务，不要求本轮全部成立；相关但未解决的缺口可以保持 threatened/undetermined 并关联开放 Gap。模板定义的核心项仍由初始化写入并受精确校验保护，不允许项目任意修改、删除或退役；引导层通过状态读取使用定义，不改变模板的维护权限。
+- 不变量是必须的思考下限，不是 Gap 来源或自主推理的上限。首次构造 assessment、出现反证或恢复 upheld 时读取 [references/invariant-assessment.md](references/invariant-assessment.md)。初始化或维护定义时读取 [templates/software-invariants.json](templates/software-invariants.json)；具体内容只在模板定义，Agent 读取当前 State 后理解，其他提示词和脚本不预设维度、数量、顺序或语义映射。
 - `advancement` 只保存当前 Iteration、未完成 Cases、真实 Project gaps 和下一事项的选择上下文；不保存固定工作流或历史 Case 注册表。
 - 技术栈、端、登录、反馈、授权、模块等具体结论写入对应 decision 的 statement/evidence；Case 局部发现写 facts/evidence。不要把项目事实伪装成新不变量。
 - open 决策不自动生成 gap；只有当前事项确实需要解决它时才建立 Project/Case gap。`stale` 决策必须有 gap 承接。

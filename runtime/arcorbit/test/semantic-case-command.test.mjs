@@ -83,6 +83,28 @@ test('Semantic Case Command reports claim and freshness rejections without mixin
   assert.equal(result.rejection.recovery_action, 'replan_from_fresh_state');
 });
 
+test('semantic reframing preserves replacement derivations and obligations across trusted apply and fresh-read', async () => {
+  const projectRoot = await fixtureProject();
+  const snapshot = readLedgerSnapshot(projectRoot);
+  const record = snapshot.canonical.active_cases[0].record;
+  const command = semanticCommand(snapshot, record);
+  command.claim.resolve_selected_gap = null;
+  command.claim.gaps_cancelled = [{ gap_ref: 'case:gap:GAP-WORK', outcome: 'Boundary replaced; work remains.',
+    reason: 'Current evidence separates an independent result from the broad original boundary.', evidence: ['fixture:boundary'] }];
+  command.claim.gaps_added[0].derived_from.push('case:gap:GAP-WORK');
+  command.claim.impacts_added = [];
+  command.project_claim = { decision_changes: [], invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] };
+  const result = await applyRuntimeLedgerWriteback({ projectRoot, runtimeResult: { case_command: command }, snapshot, gate: { allowed: true, reasons: [] } });
+  assert.equal(result.written, true);
+  const fresh = readLedgerSnapshot(projectRoot, { afterCommitToken: result.post_commit_snapshot_token });
+  const next = fresh.canonical.active_cases.find((item) => item.record.id === record.id).record;
+  assert.equal(next.gaps.find((gap) => gap.id === 'GAP-WORK').status, 'cancelled');
+  const replacement = next.gaps.find((gap) => gap.status === 'open');
+  assert.ok(replacement.derived_from.includes('GAP-WORK'));
+  assert.notEqual(next.case_resolution.status, 'resolved');
+  assert.ok(fresh.candidate_catalog.persisted_candidates.some((item) => item.gap.id === replacement.id));
+});
+
 test('Semantic validation rejects malformed containers without escaping as an internal exception', () => {
   const issues = validateSemanticCaseCommand({
     schema_version: 'arckit-semantic-case-command/v1', case_id: 'CASE-20260824-001',
@@ -167,7 +189,7 @@ test('Semantic preflight rejects contract contradictions before canonical apply'
       name: 'core invariant mutation outside sync', path: 'case_command.project_claim.invariant_changes[0].action',
       mutate(command) {
         command.project_claim.invariant_changes = [{
-          action: 'update', ref: 'project:invariant:accepted-facts-are-realized',
+          action: 'update', ref: command.invariant_assessment.judgments[0].invariant_ref,
           definition: {
             applies_when: 'Changed.', must_hold: 'Changed.', evidence_expectation: 'Changed.', priority: 'required',
           },
@@ -274,7 +296,7 @@ test('Review findings explicitly bind invariant judgments to their persisted rep
     ref: findingRef, kind: 'omission', statement: 'Submission context is missing.',
     responsibility: 'agent', artifact_refs: ['fixture:source'], evidence: ['fixture:review'],
   }];
-  const judgment = command.invariant_assessment.judgments.find((item) => item.invariant_ref.endsWith(':accepted-facts-are-realized'));
+  const judgment = command.invariant_assessment.judgments[0];
   Object.assign(judgment, { disposition: 'threatened', reason: 'The accepted context is missing.',
     fact_refs: ['case:fact:FACT-INTENT'], evidence: ['fixture:review'], gap_refs: [findingRef] });
   const unknown = structuredClone(command);
@@ -440,12 +462,13 @@ function semanticCommand(snapshot, record) {
     status: 'settled', statement: 'Use explicit semantic commands and deterministic materialization.',
     reason: 'The responsibility boundary is explicit.', evidence: ['fixture:architecture'], confidence: 'high', resume_condition: 'Revisit when the boundary changes.',
   };
-  const judgments = snapshot.canonical.project_state.software_invariants.map((invariant) => {
-    if (invariant.id === 'accepted-facts-are-realized' || invariant.id === 'material-risks-have-credible-evidence') return {
+  // Fixture-assigned dispositions exercise transport, not domain classification.
+  const judgments = snapshot.canonical.project_state.software_invariants.map((invariant, index) => {
+    if (index === 0) return {
       invariant_ref: `project:invariant:${invariant.id}`, disposition: 'threatened', reason: 'The follow-up remains explicitly open.',
       fact_refs: ['local:fact:result'], evidence: ['fixture:evidence'], gap_refs: ['local:gap:followup'],
     };
-    if (invariant.id === 'technical-decisions-remain-explainable') return {
+    if (index === 1) return {
       invariant_ref: `project:invariant:${invariant.id}`, disposition: 'upheld', reason: 'The technical boundary is explicit.',
       fact_refs: ['local:fact:result'], evidence: ['fixture:architecture'], gap_refs: [],
     };

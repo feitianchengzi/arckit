@@ -89,6 +89,7 @@
       "additionalProperties": false
     },
     "invariant_assessment": {
+      "description": "Assess the current snapshot catalog, never a hardcoded set. Each judgment identifies its concrete responsibility, what evidence supports, and remaining obligations; reassess related claims when counterevidence appears.",
       "type": "object",
       "required": ["project_revision", "judgments"],
       "properties": {

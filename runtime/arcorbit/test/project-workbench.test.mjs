@@ -44,9 +44,13 @@ test('uncertain task creation never silently retries a remote create',async t=>{
 });
 test('task Chat and Auto share persistent task session and thread; a running turn prevents Auto',async t=>{
  let unblock,started;const gate=new Promise(r=>unblock=r),ready=new Promise(r=>started=r);const calls=[];
- const f=await fixture(t,{adapter:()=>({async *runTurn({options}){calls.push(options);await options.onThreadBound({threadId:'thread-1'});started();await gate;yield {type:'codex.turn.completed',turn:{status:'completed'}};},close(){},interrupt(){unblock();}})});
+ const prompts=[];
+ const f=await fixture(t,{adapter:()=>({async *runTurn({options,prompt}){calls.push(options);prompts.push(prompt);await options.onThreadBound({threadId:'thread-1'});started();await gate;yield {type:'codex.turn.completed',turn:{status:'completed'}};},close(){},interrupt(){unblock();}})});
  f.options.runManager.getSettings=async()=>({codex:{yolo_mode:true}});
  await f.c.command('chat.send',{task_id:'1',text:'先分析',request_id:'chat-1',model:'model',reasoning_effort:'medium'});await ready;assert.equal(calls[0].yoloMode,true);
+ assert.match(prompts[0], /arcorbit_scene_read/);assert.match(prompts[0], /Read relevant referenced files yourself/);
+ assert.match(prompts[0], /Scene state is not the Project\/Case Ledger/);
+ assert.doesNotMatch(prompts[0], /"scene"|"task"|pending_review|executor_id/);
  assert.match(taskTurnOwner('local','1'),/^chat:/);await assert.rejects(f.command('auto.start'),/讨论/);
  unblock();for(let i=0;i<30&&taskTurnOwner('local','1');i++)await new Promise(r=>setTimeout(r,10));
  assert.equal(taskTurnOwner('local','1'),'');assert.equal(f.bind().threadId,'thread-1');await f.command('auto.start');assert.equal(f.work.tasks[0].state,'pending');

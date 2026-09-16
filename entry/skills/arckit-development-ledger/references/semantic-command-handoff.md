@@ -1,5 +1,7 @@
 # Semantic Case Command Handoff
 
+首次构造 invariant assessment、发现反证或恢复 upheld 时读取 [invariant-assessment.md](invariant-assessment.md)。选择前显式考虑当前完整 catalog，提交时按各自动态定义的责任更新；不变量是必须的保障，不是全部候选来源。reason 明确具体适用对象、证据支持范围和未决部分，不以笼统“验证通过”覆盖多个判断。
+
 当 Host output schema 声明 `arckit-semantic-case-command/v1` 时使用本契约。Agent 生成业务语义，trusted Ledger 生成 canonical bookkeeping；Runtime 只传输和投影。
 
 ## Agent 必须声明

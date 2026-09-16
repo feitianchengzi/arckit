@@ -25,6 +25,16 @@ Probe 扫描 Project 明确引用的 active Case/Iteration，并补充 active Ca
 
 ## Trusted 验收
 
+### 定义变化与历史保真
+
+核心定义按当前模板数据精确校验；即使字段结构未变化，条文语义变化也可能需要 reconciliation。Agent 读取当前模板、旧 State 及引用后判断如何恢复，不同责任不能仅改名并继承旧判断。
+
+保留旧 rounds、证据和未完成义务；存在旧 target 引用时可暂保留原定义作为非核心兼容项，逐项语义处置后再退休，不自动映射业务含义。新 snapshot 按当前集合判断，旧轮次保留其 Project revision 下的历史含义。
+
+安装副本升级与项目数据 reconciliation 是不同动作。恢复依据实际使用的可信能力版本，不把源代码更新视为运行副本已经升级。
+
+### 原子验收
+
 `validate` 和 `reconcile --dry-run true` 均不写文件。正式 `reconcile` 在 Project commit lock 内重新 probe 并执行：
 
 1. 绑定 snapshot token、每个 source digest、observed kind/version 和允许路径。

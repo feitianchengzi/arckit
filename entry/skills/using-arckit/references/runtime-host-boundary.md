@@ -2,6 +2,8 @@
 
 ## 当前任务与执行上下文
 
+Host prompt 以自然语言说明任务、授权和读取入口，不嵌入项目文件正文或 Project/Case 状态转储。项目文件通过工作区相对路径引用；Host 上下文资源只提供源引用、可信入口、契约及必要执行恢复信息，不另建项目事实副本。Agent 自行读取源文件，并通过 trusted snapshot 确认当前状态和版本。场景工具返回的工作事项状态、Agent 进展报告与 Ledger 事实分开理解，不能互相替代。
+
 用户当前意图和未撤回的已有授权决定工作范围。Host 传入的 continuation、拒绝详情和 next_prompt 是恢复上下文，不能自行扩大任务授权、替换已接受事实或预选下一个 Gap。先按正常入口 fresh-read、比较候选；项目可见范围不等于当前授权范围。
 
 Host 的 `task_context` 提供当前可信 Case 绑定和执行恢复信息，每轮随 Ledger 回执刷新。`case_checkpoint.case_chain` 保留本次执行的 Case 关联，`pending_continuation` 保存后续发现及其来源 Case；它们不是 canonical Case facts，也不指定下一 Gap。结合原任务、用户当前增量、fresh state 和证据判断工作，沿正常 Ledger 接口提交；任务绑定与执行阶段的持久化由 Host 完成。

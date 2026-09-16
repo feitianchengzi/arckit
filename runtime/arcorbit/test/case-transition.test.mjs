@@ -51,6 +51,46 @@ test('a transition rejects a stale Case revision', () => {
   assert.throws(() => applyCaseTransitionToRecord(record, input), /Stale Case transition/);
 });
 
+test('reframing a broad gap cancels its old boundary while preserving open replacement obligations', () => {
+  const record = caseRecord();
+  const old = record.gaps[0];
+  old.goal = 'Deliver the entire feature.';
+  const replacements = ['GAP-COMPATIBILITY', 'GAP-BEHAVIOR'].map((id) => ({
+    ...structuredClone(old), id, goal: `Establish ${id}.`,
+    reason: 'Current evidence exposes an independently decidable result.',
+    derived_from: [old.id, 'FACT-BUG'], status: 'open', resolution: null,
+  }));
+  const input = transition(record, {
+    resolved_gap: null, gaps_added: replacements,
+    gaps_cancelled: [{ id: old.id, reason: 'The old boundary combines independent decisions; both obligations remain in the replacement gaps.', evidence: ['fixture:boundary-analysis'] }],
+  });
+  input.unresolved = replacements.map((gap) => gap.id);
+  const next = applyCaseTransitionToRecord(record, input);
+  assert.equal(next.gaps[0].status, 'cancelled');
+  assert.equal(next.gaps[0].resolution.status, 'cancelled');
+  assert.deepEqual(next.case_resolution.candidate_gaps.map((gap) => gap.id).sort(), replacements.map((gap) => gap.id).sort());
+  assert.notEqual(next.case_resolution.status, 'resolved');
+  assert.equal(next.rounds[0].accepted_state_delta.resolved_gap, null);
+});
+
+test('assessment coverage uses supplied catalog identities and count without domain inference', () => {
+  const project = createProjectStateRecord({ name: 'Fixture', intent: 'Exercise dynamic catalog transport.' });
+  project.software_invariants = ['fixture-one', 'fixture-other'].map((id) => ({
+    id, applies_when: 'Fixture context', must_hold: 'Fixture responsibility', evidence_expectation: 'Fixture evidence', priority: 'required',
+  }));
+  const record = caseRecord();
+  const input = transition(record);
+  input.invariant_assessment = { project_revision: project.project.revision, judgments: project.software_invariants.map((item) => ({
+    invariant_ref: item.id, disposition: 'upheld', reason: 'Explicit fixture claim, not an inferred classification.',
+    fact_refs: ['FACT-BUG'], evidence: ['fixture:claim'], gap_refs: [],
+  })) };
+  const missing = structuredClone(input);
+  missing.invariant_assessment.judgments.pop();
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), missing, { projectState: project }), /cover the current Project invariant catalog/);
+  const next = applyCaseTransitionToRecord(record, input, { projectState: project });
+  assert.deepEqual(next.rounds[0].invariant_assessment, input.invariant_assessment);
+});
+
 test('one dynamic gap may produce facts and the next gap without any document checklist', () => {
   const record = caseRecord();
   const input = transition(record, {
