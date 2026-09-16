@@ -16,6 +16,8 @@
 | `themes/legacy-mixed.yaml` | ✅ | 旧控制台混合主题兼容，不是完整暗色主题。 |
 | `_library/style-preview.html` | ✅ | 组件、主题、输入错误、工具摘要、草稿恢复及生成目录。 |
 | `_library/build-preview.py` | ✅ | 引用解析、确定性 CSS/数据生成、38 项对比度校验。 |
-| `_map/RELATIONS.md` | 🟡 | 已明确交互原型与 Renderer 消费方式；页面同步尚未执行。 |
+| `_map/RELATIONS.md` | 🟡 | 正式事情台与实际 Renderer 已同步；其他旧交互原型仍待各自维护。 |
+
+| `runtime/arcorbit/desktop/renderer/visual-system.css` | ✅ | 实际应用浅杏橙、浅色外壳、中性选择与文字、统一输入/焦点/禁用状态和对话层级；已通过隔离 Renderer 验证，非真实账号与服务端验收。 |
 
 浅杏橙已采纳：#F4B77D 主操作、无深橙装饰描边、中性链接与选中文字；正式 project-workbench 消费共享 Token 和对应样式。来源：arckit/visual/_explorations/orange-tone/exploration.md。

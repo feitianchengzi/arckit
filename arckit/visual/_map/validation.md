@@ -90,3 +90,17 @@ fact_result:
 用户确认采用推荐方向。主色 #F4B77D，悬停 #EFAC6B，按下 #E6A15F，按钮文字 #332C26。移除主按钮深橙描边，普通链接与选中文字回归中性。38 项对比度检查通过，21 个组件引用有效；两主题组件预览在 1440/760/390px、200% 缩放检查通过；正式原型 30 项检查通过，28 张截图已刷新并查看 detail.png。未验证生产 Renderer。采纳记录见 ../_explorations/orange-tone/adoption.yaml。
 
 截图清理说明：按用户要求删除设计 PNG；上文截图查看、迁移数量与校验结果为当时的历史记录，不表示截图目前仍在库中。HTML 原型及验证报告保留，生成截图已加入忽略规则。
+
+## 实际 ArcOrbit Renderer 视觉应用
+
+范围：应用标题栏与侧栏、事情台、共享主/次按钮、输入/焦点/禁用状态、对话阅读面、登录/安装引导/设置、Product、Today、Work、Feedback、Organization、Automation、Release、Operations 与 Engineering 的共享视觉。正式设计 Token 复制为随包文件，组件样式映射不依赖运行时读取设计目录；终端保留深色阅读面并使用中性 Token。
+
+验证：
+
+- 84 项 Renderer、事情台模型与外壳测试通过。
+- 正式事情台 Electron 验证通过，包含导航、消息、草稿、运行浮层，以及 1440/1000/760/390px 无页面水平溢出。
+- visual-system.test.mjs 检查随包 Token 一致性和 11 个旧页面的浅色外壳、浅杏橙按钮/深色文字、无渐变，以及设置输入焦点和窗口图标颜色。
+- experience-realization-electron.test.mjs 的 10 页字号、控件尺寸、布局和键盘操作检查通过；Codex 设置和原生窗口控件 Electron 测试通过。
+- JavaScript 语法与 Token 同步检查通过；临时截图位于运行环境的 /tmp/arcorbit-production-visual，不加入版本库。
+
+限制：安装引导 Electron 测试的 Codex 探测结果全量对象比较失败，因实际结果新增 discovered、executionScope、installAdvice 等字段。使用提交 00122c4 的独立临时副本复测，同样失败；本轮未修改相关探测逻辑或放宽断言。此次浏览器检查使用隔离数据，不代表真实登录、远程业务执行或安装包验收。

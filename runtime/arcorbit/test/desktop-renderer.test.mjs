@@ -990,10 +990,10 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /Automation Coordinator \/ 任务源/);
   assert.match(source, /phase === "remote_completion_pending"/);
   assert.match(source, /api\.setProjectParticipation\(project\.id, true\)/);
-  assert.match(styles, /--sidebar-width: 244px;/);
-  assert.match(styles, /--type-body: 14px;/);
-  assert.match(styles, /--type-conversation: 15px;/);
-  assert.match(styles, /--control-default: 36px;/);
+  assert.match(styles, /--sidebar-width: var\(--layout-sidebar-width\);/);
+  assert.match(styles, /--type-body: var\(--typography-body-size\);/);
+  assert.match(styles, /--type-conversation: var\(--typography-conversation-size\);/);
+  assert.match(styles, /--control-default: var\(--layout-control-height\);/);
   assert.match(styles, /\.product-grid \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
@@ -2456,8 +2456,8 @@ test("desktop account panel supports bounded verification login, expiry, and con
   assert.match(styles, /\.modal-overlay\.login-gate/);
   assert.match(styles, /\.auth-pending \.auth-boot-screen \{ display: grid; \}/);
   assert.match(styles, /\.login-gate #closeSettingsButton \{ display: none; \}/);
-  assert.match(styles, /\.auth-boot-screen[^}]+var\(--violet-100\)[^}]+var\(--ink-75\)/);
-  assert.match(styles, /\.modal-overlay\.login-gate[^}]+var\(--violet-100\)[^}]+var\(--ink-75\)/);
+  assert.match(styles, /\.auth-boot-screen[^}]+background: var\(--colors-ink-50\)/);
+  assert.match(styles, /\.modal-overlay\.login-gate[^}]+background: var\(--colors-ink-50\)/);
   assert.doesNotMatch(styles, /\.auth-boot-screen[^}]+var\(--ink-950\)/);
   assert.doesNotMatch(styles, /\.modal-overlay\.login-gate[^}]+var\(--ink-950\)/);
 });

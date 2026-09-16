@@ -26,9 +26,9 @@
 | `arckit/interaction/login/default.html`、`setup-readiness/default.html` | FormField、AccountPanel、LoginGate | 核对输入对比度、就地错误与窄屏，不添加认证步骤 |
 | `arckit/interaction/task-browser/default.html`、`platform-workspace/default.html` | legacy-mixed、TaskTable、StatusPill | 七状态、可操作行尺寸、焦点，以及兼容主题范围 |
 | `arckit/interaction/CONVENTIONS.md` | 本域 CONVENTIONS 与消费契约 | 已明确正式视觉优先，旧静态线框按原有范围保留 |
-| `runtime/arcorbit/desktop/renderer/project-workbench.css` 与共享 Renderer 样式 | semantic.* 与组件目录 | 现有硬编码色值待映射；检查窗口原生行为、标签截断、运行面板、输入和真实业务状态 |
+| `runtime/arcorbit/desktop/renderer/project-workbench.css` 与共享 Renderer 样式 | semantic.* 与组件目录 | 已接入随包 visual-tokens.css 与 visual-system.css；覆盖应用外壳、事情台、对话、登录设置、旧页面与 Release 外壳。验证与限制见 validation.md |
 
-事情台原型与交互 CONVENTIONS 已同步；其余条目为跨域交接，不代表生产消费者已更新或通过验收。视觉规范维护只写 `arckit/visual/`。
+事情台原型、交互 CONVENTIONS 与实际 Renderer 的共享视觉已同步；表中其余交互原型仍按各自范围交接，不代表所有原型或真实服务链路已通过验收。视觉规范维护只写 `arckit/visual/`。
 
 ## 兼容性
 
@@ -39,3 +39,5 @@
 橙色强调（2026-09-17）：accent 键保持稳定，操作/选择/运行与焦点由生成 CSS 同步为橙色；正式 project-workbench 直接消费此投影，历史探索及其截图保持原样。琥珀警示使用独立 Token 和状态标签。
 
 浅杏橙已采纳：#F4B77D 主操作、无深橙装饰描边、中性链接与选中文字；正式 project-workbench 消费共享 Token 和对应样式。来源：arckit/visual/_explorations/orange-tone/exploration.md。
+
+实际 Renderer 消费：`runtime/arcorbit/scripts/sync-visual-tokens.mjs` 将生成 CSS 确定性复制到应用资源；`visual-system.css` 应用组件角色。打包规则包含 desktop/**/*，运行时无设计目录依赖。开发启动同步，visual-system.test.mjs 检查漂移。

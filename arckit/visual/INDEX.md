@@ -25,9 +25,9 @@
   - light.yaml 当前事情台主题。✅ (7行)
   - legacy-mixed.yaml 仅用于旧控制台的兼容主题。✅ (12行)
 - _map/ 关系、覆盖和验证证据。✅
-  - RELATIONS.md 生成映射与交互、Renderer 消费者交接。🟡 (41行)
-  - feature-matrix.md 规范完成情况与待同步消费者。🟡 (21行)
-  - validation.md 实际检查、未验证项与结构化变更结果。✅ (92行)
+  - RELATIONS.md 生成映射与交互、Renderer 消费者交接。🟡 (43行)
+  - feature-matrix.md 规范完成情况与待同步消费者。🟡 (24行)
+  - validation.md 实际检查、未验证项与结构化变更结果。✅ (106行)
   - accent-change.yaml 橙色强调维护的两域变更范围与事实结果。✅ (369行)
 
 候选探索入口：[_explorations/INDEX.md](_explorations/INDEX.md)。

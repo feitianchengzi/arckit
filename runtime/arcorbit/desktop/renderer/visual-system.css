@@ -1,0 +1,208 @@
+/* ArcOrbit component application. Values come from visual-tokens.css; layouts stay page-owned. */
+:root {
+  color-scheme: light;
+  color: var(--semantic-text);
+  background: var(--semantic-canvas);
+  --surface: var(--colors-ink-50);
+  --panel: var(--semantic-canvas);
+  --text: var(--semantic-text);
+  --border: var(--semantic-divider);
+  --accent: var(--semantic-text);
+}
+body { line-height: var(--typography-body-line-height); }
+.titlebar {
+  background: var(--semantic-chrome);
+  color: var(--semantic-muted);
+  border-bottom: 1px solid var(--semantic-divider);
+}
+.sidebar, .project-workbench-active .sidebar {
+  background: var(--semantic-sidebar);
+  color: var(--semantic-nav-text);
+  border-right-color: var(--semantic-divider);
+}
+.sidebar-brand, .project-workbench-active .sidebar-brand { color: var(--semantic-text); }
+.brand-mark, .project-workbench-active .brand-mark {
+  background: var(--colors-accent-base);
+  color: var(--colors-accent-on);
+  border-color: transparent;
+  box-shadow: none;
+}
+.nav-label, .profile-button small, .project-workbench-active .profile-button small {
+  color: var(--semantic-muted);
+}
+.nav-item, .profile-button, .profile-button strong { color: var(--semantic-nav-text); }
+.nav-item:hover, .profile-button:hover { background: var(--colors-ink-100); color: var(--semantic-text); }
+.nav-item.is-active, #projectWorkbenchNav button[aria-current=true] {
+  background: var(--semantic-nav-selected);
+  color: var(--semantic-nav-selected-text);
+  box-shadow: inset 2px 0 var(--colors-accent-base);
+}
+.nav-item em { color: var(--semantic-muted); background: var(--colors-ink-100); }
+.nav-item.warning em { color: var(--colors-warning-strong); background: var(--colors-warning-soft); }
+.sidebar-footer { border-top-color: var(--semantic-divider); }
+.account-avatar, .project-workbench-active .account-avatar, .pw-avatar {
+  background: var(--colors-ink-100);
+  color: var(--semantic-muted);
+}
+.legacy-pages-menu, .project-workbench-active .legacy-pages-menu {
+  background: var(--semantic-elevated);
+  border-color: var(--semantic-divider);
+  box-shadow: var(--shadows-small);
+}
+.commandbar { background: var(--semantic-canvas); backdrop-filter: none; }
+
+/* Actions and inputs share states across workbench, setup, settings and legacy pages. */
+.primary-button, .pw-button.primary {
+  min-height: var(--layout-control-height);
+  border: 1px solid transparent;
+  border-radius: var(--corner-radius-small);
+  background: var(--colors-accent-base);
+  color: var(--colors-accent-on);
+  box-shadow: none;
+  font-weight: 600;
+}
+.primary-button:hover, .pw-button.primary:hover {
+  background: var(--colors-accent-hover);
+  color: var(--colors-accent-on);
+  border-color: transparent;
+}
+.primary-button:active, .pw-button.primary:active {
+  background: var(--colors-accent-pressed);
+  color: var(--colors-accent-on);
+  transform: none;
+}
+.secondary-button, .pw-button {
+  border-color: var(--semantic-control-border);
+  border-radius: var(--corner-radius-small);
+  min-height: var(--layout-control-height);
+  font-size: var(--typography-label-size);
+}
+.secondary-button:active { transform: none; }
+.text-button, .pw-button.quiet { color: var(--semantic-text); border-color: transparent; }
+.text-button:hover, .pw-button.quiet:hover { background: var(--colors-ink-100); }
+.pw-button.danger { color: var(--colors-danger-base); }
+:is(button, input, textarea, select, summary, a[href], [role="button"], [role="option"], [tabindex]):focus-visible {
+  outline: var(--focus-width) solid var(--semantic-focus);
+  outline-offset: var(--focus-offset);
+}
+.field input, .field select, .field textarea,
+.auth-form input, .codex-secret-region input,
+.engineering-toolbar input, .engineering-toolbar select, .engineering-skill-mode select,
+.release-shell input, .release-shell select, .release-shell textarea, .release-dialog input,
+.pw-dialog input:not([type=checkbox]), .pw-dialog textarea, .pw-dialog select,
+.pw-search-field, .pw-composer, .chat-composer {
+  border-color: var(--semantic-control-border);
+}
+input, textarea, select { accent-color: var(--colors-accent-strong); }
+::placeholder { color: var(--semantic-muted); opacity: 1; }
+input[aria-invalid=true], textarea[aria-invalid=true], select[aria-invalid=true] { border-color: var(--colors-danger-base); }
+button:disabled, .primary-button:disabled, .secondary-button:disabled,
+.pw-shell button:disabled, .pw-dialog button:disabled,
+input:disabled, textarea:disabled, select:disabled {
+  opacity: 1;
+  background: var(--semantic-disabled-bg);
+  color: var(--semantic-disabled-text);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Continuous reading surfaces, quiet selected rows, and separate semantic feedback. */
+.page-heading h1, .workbench-heading h1 { font-size: var(--typography-title-size); line-height: var(--typography-title-line-height); }
+.panel-card, .inspector-card { box-shadow: none; border-color: var(--semantic-divider); }
+.chat-session.is-active, .data-table tbody tr[aria-selected=true],
+.engineering-scenes button.is-active, .release-tabs button[data-active=true] {
+  color: var(--semantic-text);
+  background: var(--colors-accent-soft);
+  box-shadow: inset 2px 0 var(--colors-accent-base);
+  border-color: transparent;
+}
+.chat-message-content, .message p, .feedback-message p, .pw-message:not(.tool), .pw-composer textarea {
+  font-size: var(--typography-conversation-size);
+  line-height: var(--typography-conversation-line-height);
+}
+.message.user-message, .chat-message.user, .pw-message.user {
+  background: var(--colors-accent-faint);
+  border-color: var(--colors-accent-soft);
+}
+.chat-composer, .pw-composer { border-radius: var(--corner-radius-large); box-shadow: none; }
+.chat-composer textarea { font-size: var(--typography-conversation-size); }
+.modal-overlay, .pw-dialog::backdrop, .release-dialog::backdrop { background: var(--semantic-scrim); backdrop-filter: none; }
+.auth-boot-screen, .modal-overlay.login-gate, .setup-readiness { background: var(--colors-ink-50); }
+.setup-shell, .login-gate .settings-panel { border-color: var(--semantic-divider); box-shadow: var(--shadows-small); }
+.settings-panel, .pw-dialog, .release-dialog { border-radius: var(--corner-radius-large); }
+
+/* Project-space application of WorkbenchHeader, TaskListRow and RuntimePopover. */
+#projectWorkbenchView {
+  --pw-line: var(--semantic-divider);
+  --pw-muted: var(--semantic-muted);
+  --pw-accent: var(--colors-accent-strong);
+  --pw-wash: var(--colors-ink-50);
+  font-size: var(--typography-body-size);
+  color: var(--semantic-text);
+}
+.pw-title-row h1 { font-size: var(--typography-title-size); line-height: var(--typography-title-line-height); }
+.pw-section h2, .pw-section h3 { font-size: var(--typography-heading-size); }
+.pw-task-row .pw-row-title { font-size: var(--typography-body-size); }
+.pw-task-row[aria-selected=true] {
+  background: var(--colors-accent-soft);
+  color: var(--semantic-text);
+  border-color: transparent;
+  box-shadow: inset 2px 0 var(--colors-accent-base);
+}
+.pw-tabs button[aria-selected=true] { color: var(--semantic-text); border-color: var(--colors-accent-base); }
+.pw-tabs button { font-size: var(--typography-label-size); }
+.pw-search-field:focus-within { border-color: var(--semantic-focus); box-shadow: none; }
+.pw-search-field .pw-search { font-size: var(--typography-body-size); }
+.pw-search-field .pw-search:focus-visible { outline-offset: 3px; }
+.pw-composer textarea:focus-visible { outline: var(--focus-width) solid var(--semantic-focus); outline-offset: -2px; }
+.pw-compose-foot label, .pw-compose-foot input { font-size: var(--typography-caption-size); }
+.pw-message.tool, .pw-message>header, .pw-note { font-size: var(--typography-caption-size); }
+.pw-runtime, .pw-chat, .pw-dialog { box-shadow: var(--shadows-small); }
+.pw-chat { border-color: var(--semantic-divider); }
+.pw-runtime-dot.running { background: var(--colors-accent-strong); }
+.pw-runtime-trigger, .pw-list-title select { font-size: var(--typography-label-size); }
+.pw-runtime-item small, .pw-runtime-item p { font-size: var(--typography-caption-size); }
+.pw-filter-toggle[aria-expanded=true] { color: var(--semantic-text); }
+.pw-error { background: var(--colors-danger-soft); color: var(--colors-danger-base); }
+
+@media (max-width: 760px) {
+  .pw-compose-foot { flex-wrap: wrap; }
+  .pw-compose-foot label { min-width: 0; }
+  .pw-title-row h1 { min-width: 0; overflow-wrap: anywhere; }
+  .modal-overlay.login-gate { padding: 20px; }
+  .login-gate .settings-panel { max-height: calc(100dvh - 40px); }
+  .setup-readiness { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+}
+
+.window-control { color: var(--semantic-text); }
+.window-control:hover, .window-control:active { background: var(--colors-ink-100); }
+.window-control.close:hover { background: var(--colors-danger-base); color: var(--colors-paper); }
+.pw-task-row[data-state=in_progress] small { color: var(--colors-accent-strong); }
+.pw-task-row[data-state=completed] small { color: var(--colors-success-base); }
+.pw-task-row[data-state=accepted] small { color: var(--colors-accepted-base); }
+.pw-task-row[data-state=cancelled] small { color: var(--colors-danger-base); }
+.pw-task-row[data-state=pending] small, .pw-task-row[data-state=blocked] small { color: var(--colors-warning-strong); }
+.pw-task-row small { font-size: var(--typography-label-size); }
+.product-scope-control select, .product-set-manage, .product-feedback-trigger span,
+.product-tabs button[data-active=true], .organization-scope-item.is-active,
+.organization-tabs button.is-active { color: var(--semantic-text); }
+.chat-composer textarea:focus-visible, .chat-composer-setting input:focus-visible {
+  outline: var(--focus-width) solid var(--semantic-focus);
+  border-color: var(--semantic-focus);
+}
+.today-project-row.is-active, .today-responsibility-row.is-active,
+.planning-list-item.is-active, .feedback-list-item.is-active {
+  color: var(--semantic-text);
+  background: var(--colors-accent-soft);
+  border-left-color: var(--colors-accent-base);
+  box-shadow: inset 2px 0 var(--colors-accent-base);
+}
+.profile-tabs button.is-active, .today-mode-tabs button.is-active em {
+  color: var(--semantic-text);
+  background: var(--colors-accent-soft);
+}
+.today-mode-tabs button.is-active::after { background: var(--colors-accent-base); }
+.pw-runtime-trigger, .pw-runtime-trigger:hover { border-color: transparent; }
