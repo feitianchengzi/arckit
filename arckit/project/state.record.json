@@ -5,15 +5,15 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-09-17T11:14:34.892385Z",
-    "revision": 396
+    "updated_at": "2026-09-17T11:30:23.391Z",
+    "revision": 398
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "active_case_refs": [],
     "project_gaps": [],
     "selection_context": {
-      "current_focus": "Apply approved grouped navigation, independent Thing, centered Chat and existing account capabilities to production ArcOrbit.",
+      "current_focus": "按已验证的同步重复拉取及页面刷新放大分析优化 ArcOrbit。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -289,8 +289,8 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit and ArcOrbit retain their existing ledger, skill, Electron, Runtime, Platform Coordinator, Work Sync, Chat, Setup Readiness, trusted case-control, and repository-relative path boundaries. The public Arckit monorepo additionally owns Todo Web under apps, Feedback Console under apps, the Feedback Web SDK under packages, the shared Workshop API under services, and integration examples under examples. JavaScript surfaces use one root workspace with independent build and release entries; the Workshop API remains an independently testable Go module. Public builds and tests never require the sibling private arckit-ops workspace. Product Coordinator 属于应用层，产品资料使用版本化协议与 revision 校验，正式记录单文件原子维护。同步通过独立 Git index 和资料分支，处理并发拒绝与远端核对，不改变开发 checkout。场景会话使用应用私有固定 cwd，材料范围与正式目录分别保存；运行内核不增加技能路由或工作角色。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。 ProjectWorkbench 为独立业务协调与呈现层，复用 WorkSync、ChatCoordinator、Automation 和 Run Manager；不复制旧业务页面或 Runtime/skill 工作流。场景组件从结构化状态投影，消息从真实 turn/run 投影；Agent 只调用受约束命令，不直接操纵 DOM。",
-          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
+          "statement": "Arckit and ArcOrbit retain their existing ledger, skill, Electron, Runtime, Platform Coordinator, Work Sync, Chat, Setup Readiness, trusted case-control, and repository-relative path boundaries. The public Arckit monorepo additionally owns Todo Web under apps, Feedback Console under apps, the Feedback Web SDK under packages, the shared Workshop API under services, and integration examples under examples. JavaScript surfaces use one root workspace with independent build and release entries; the Workshop API remains an independently testable Go module. Public builds and tests never require the sibling private arckit-ops workspace. Product Coordinator 属于应用层，产品资料使用版本化协议与 revision 校验，正式记录单文件原子维护。同步通过独立 Git index 和资料分支，处理并发拒绝与远端核对，不改变开发 checkout。场景会话使用应用私有固定 cwd，材料范围与正式目录分别保存；运行内核不增加技能路由或工作角色。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。 ProjectWorkbench 为独立业务协调与呈现层，复用 WorkSync、ChatCoordinator、Automation 和 Run Manager；不复制旧业务页面或 Runtime/skill 工作流。场景组件从结构化状态投影，消息从真实 turn/run 投影；Agent 只调用受约束命令，不直接操纵 DOM。 Thing 同步通过 Work Sync 单次目录范围对账完成，项目去重且不改变后台需求与订阅范围。 同步健康通知只更新本地显示；Thing 按选中事情依赖和项目内容事件刷新详情，保留在途失效及失败重试；旧页面仅渲染可见内容。",
+          "reason": "状态事件零读取与内容新鲜度测试验证同步刷新边界。",
           "evidence": [
             "arckit/tech/repository-governance/monorepo-solution.md",
             "arckit/tech/arcorbit/solution.md",
@@ -312,11 +312,17 @@
             "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
             "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
             "arckit/interaction/project-workbench/interaction.md",
-            "arckit/tech/arcorbit/project-workbench-solution.md"
+            "arckit/tech/arcorbit/project-workbench-solution.md",
+            "arckit/cases/evidence/CASE-20260917-002/verification.md",
+            "runtime/arcorbit/test/work-sync-coordinator.test.mjs",
+            "runtime/arcorbit/test/project-workbench.test.mjs",
+            "runtime/arcorbit/test/workbench-refresh.test.mjs",
+            "runtime/arcorbit/test/workbench-activity-sync.test.mjs",
+            "arckit/tech/arcorbit/realtime-synchronization-solution.md"
           ],
           "confidence": "high",
           "resume_condition": "Revisit when workspace tooling, repository-relative capability paths, or source ownership boundaries change. 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
-          "revision": 50
+          "revision": 52
         },
         "gap_refs": []
       },

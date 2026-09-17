@@ -3,6 +3,39 @@ import test from "node:test";
 import { DESKTOP_STORE_VERSION, normalizeStore } from "../src/desktop/desktop-store.mjs";
 import { createWorkSyncCoordinator } from "../src/work-sync-coordinator.mjs";
 
+test("catalog reconciliation loads each accessible project once and retains partial failure evidence", async () => {
+  const calls = [];
+  const state = createState({ platform: { active_workset_id: "main", worksets: [{ id: "main", name: "Main", project_ids: ["1"] }] } });
+  const projects = [{ id: "1" }, { id: "2" }, { id: "3" }];
+  const platform = {
+    async listProjectTasks(id) { calls.push(`tasks:${id}`); if (id === "3") throw new Error("offline"); return [{ id: `T-${id}`, project_id: id, state: "pending" }]; },
+    async listProjectTags(id) { calls.push(`tags:${id}`); return []; }
+  };
+  const sync = createWorkSyncCoordinator({ runManager: state.runManager, taskSource: authenticatedTaskSource(projects, platform), platformSource: platform });
+  const result = await sync.reconcile({ allProjects: true, projectIds: ["1", "denied"] });
+  assert.deepEqual(calls.sort(), ["tags:1", "tags:2", "tags:3", "tasks:1", "tasks:2", "tasks:3"]);
+  assert.equal(result.source_status, "degraded");
+  assert.deepEqual(result.tasks.map(t => t.id), ["T-1", "T-2"]);
+  assert.equal(result.errors[0].project_id, "3");
+  calls.length = 0;
+  await sync.reconcile({ projectIds: ["2", "2", "denied"] });
+  assert.deepEqual(calls.sort(), ["tags:1", "tags:2", "tasks:1", "tasks:2"]);
+});
+
+test("a catalog request arriving during reconciliation retains its wider scope", async () => {
+  const state = createState({ platform: { active_workset_id: "main", worksets: [{ id: "main", name: "Main", project_ids: ["1"] }] } });
+  let release, started;
+  const entered = new Promise(resolve => { started = resolve; });
+  const blocked = new Promise(resolve => { release = resolve; });
+  const calls = [];
+  const platform = { async listProjectTasks(id) { calls.push(id); if (calls.length === 1) { started(); await blocked; } return []; }, async listProjectTags() { return []; } };
+  const sync = createWorkSyncCoordinator({ runManager: state.runManager, taskSource: authenticatedTaskSource([{ id: "1" }, { id: "2" }], platform), platformSource: platform });
+  const first = sync.reconcile(); await entered;
+  const second = sync.reconcile({ allProjects: true }); release();
+  await Promise.all([first, second]);
+  assert.deepEqual(calls, ["1", "1", "2"]);
+});
+
 test("Work Sync reconciles the Workset, Automation participation, and active-task demand union", async () => {
   const calls = [];
   const state = createState({

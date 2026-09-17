@@ -49,7 +49,7 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     const ids = new Set(projects.map(p => p.id));
     return { account_scope:scope, user:work.user, projects, local_projects:local.map(({id,name})=>({id,name})), tasks:work.tasks.filter(task => ids.has(String(task.project_id))),
       runtime:{...runtime,queue:store.automation.enabled?runtime.queue:list(runtime.queue).filter(t=>store.automation.requested_tasks?.[t.id])}, scenes:Object.fromEntries(Object.entries(db.scenes).filter(([id])=>work.tasks.some(task=>String(task.id)===id)).map(([id,s])=>[id,{revision:s.revision,pause_requested:s.pause_requested}])),
-      source_status:work.source_status, errors:work.errors, settings:await runManager.getSettings() };
+      source_status:work.source_status, synced_at:work.synced_at, realtime:work.realtime, errors:work.errors, settings:await runManager.getSettings() };
   }
   async function taskContext(taskId) {
     const scope = await authority();
@@ -180,11 +180,8 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     if(actor==='agent' && !capabilities.some(c=>c.name===action) && !softwareCapabilities().some(c=>c.name===action)) throw new Error('该操作需要用户主动执行。');
     if(action==='task.create') return create(input);
     if(action==='sync') {
-      await workSync.reconcile({reason:'project-workbench'});
-      const work=await workSync.getSnapshot();
-      const ids=input.project_id?[String(input.project_id)]:(work.project_catalog||work.projects||[]).map(p=>String(p.id));
-      const failures=[];
-      for(let i=0;i<ids.length;i+=4){const results=await Promise.allSettled(ids.slice(i,i+4).map(id=>workSync.refreshProject(id)));for(const result of results)if(result.status==='rejected')failures.push(result.reason?.message||'项目同步失败');}
+      const work=await workSync.reconcile({reason:'project-workbench',allProjects:!input.project_id,projectIds:input.project_id?[String(input.project_id)]:[]});
+      const failures=(work.errors||[]).map(error=>error.message||'项目同步失败');
       if(failures.length)throw new Error(failures.join('；'));
       return snapshot();
     }

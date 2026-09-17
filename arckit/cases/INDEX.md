@@ -192,3 +192,4 @@
 | [CASE-20260915-001](closed/CASE-20260915-001-implement-the-unified-arcorbit-project-workbench-while-preservin.md) | closed | Implement the unified ArcOrbit project workbench while preserving legacy surfaces | 2026-09-15T19:42:16.227Z |
 | [CASE-20260915-002](closed/CASE-20260915-002-support-explicit-yolo-configuration-across-arcorbit-agent-calls.md) | closed | Support explicit YOLO configuration across ArcOrbit agent calls | 2026-09-15T19:26:18.486Z |
 | [CASE-20260917-001](closed/CASE-20260917-001-align-arcorbit-navigation-thing-and-chat-with-the-approved-inter.md) | closed | Align ArcOrbit navigation Thing and Chat with the approved interaction prototypes | 2026-09-17T05:47:13.762Z |
+| [CASE-20260917-002](closed/CASE-20260917-002-reduce-arcorbit-synchronization-request-and-renderer-refresh-amp.md) | closed | Reduce ArcOrbit synchronization request and renderer refresh amplification | 2026-09-17T11:30:23.391Z |

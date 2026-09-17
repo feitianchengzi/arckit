@@ -150,8 +150,13 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           const upstream = effectiveOptions.dynamicToolProvider;
           effectiveOptions.dynamicTools = [...(effectiveOptions.dynamicTools || []).filter(t => !sceneSkills.dynamicTools.some(s => s.name === t.name)), ...sceneSkills.dynamicTools];
           effectiveOptions.dynamicToolProvider = params => sceneSkills.dynamicTools.some(t => t.name === params.tool) ? sceneSkills.dynamicToolProvider(params) : upstream?.(params);
-          tracedOptions.dynamicTools = effectiveOptions.dynamicTools;
           tracedOptions.dynamicToolProvider = effectiveOptions.dynamicToolProvider;
+        }
+        if (effectiveOptions.dynamicTools) {
+          // MCP-style tools omit the discriminator; app-server requires one format
+          // across the entire list, including tools added by scene configuration.
+          effectiveOptions.dynamicTools = effectiveOptions.dynamicTools.map(tool => ({ type: 'function', ...tool }));
+          tracedOptions.dynamicTools = effectiveOptions.dynamicTools;
         }
         state.resultKind = effectiveOptions.resultKind || "runtime-result";
         queue.push({ type: "codex.initialize.completed", result: initializeResult });

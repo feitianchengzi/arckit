@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-09-17T11:14:34.892385Z
+Updated: 2026-09-17T11:30:23.391Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -16,8 +16,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260915-001-implement-the-unified-arcorbit-project-workbench-while-preservin.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260915-001-implement-the-unified-arcorbit-project-workbench-while-preservin.md)
 - software_decision.visual_language: settled (arckit/cases/active/CASE-20260915-001-implement-the-unified-arcorbit-project-workbench-while-preservin.md)
 - software_decision.data_and_state: settled (arckit/cases/active/CASE-20260915-001-implement-the-unified-arcorbit-project-workbench-while-preservin.md)
 - software_decision.external_integrations: settled (arckit/cases/active/CASE-20260915-001-implement-the-unified-arcorbit-project-workbench-while-preservin.md)
@@ -26,6 +24,8 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260917-001-align-arcorbit-navigation-thing-and-chat-with-the-approved-inter.md)
 - software_decision.visual_language: settled (arckit/cases/active/CASE-20260917-001-align-arcorbit-navigation-thing-and-chat-with-the-approved-inter.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260917-001-align-arcorbit-navigation-thing-and-chat-with-the-approved-inter.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260917-002-reduce-arcorbit-synchronization-request-and-renderer-refresh-amp.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260917-002-reduce-arcorbit-synchronization-request-and-renderer-refresh-amp.md)
 
 ## Remaining Project Gaps
 

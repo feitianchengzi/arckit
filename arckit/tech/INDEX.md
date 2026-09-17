@@ -10,10 +10,10 @@
   - desktop-execution-solution.md Desktop Codex 会话与执行方案：定义 Chat 内容宽度隔离、版本化状态内核、分层持久化、workspace lane 并行与恢复，定义 Chat/Automation 独立 Model/Level、旧配置迁移、会话选择与 turn/Run 固定。✅ (440行)
   - state-kernel-acceptance.md Desktop State Kernel 架构验收：记录 50 MiB Store、三 lane 三十分钟等价流、single-flight、迁移与故障恢复证据。✅ (50行)
   - platform-composition-solution.md 平台组合方案：Work 投影、Feedback 协作、受限 IPC 与组织成员直接添加既有接口与客户端限制契约。✅ (438行)
-  - realtime-synchronization-solution.md 可靠实时同步：定义统一 Project Catalog、覆盖安装 rehydration、Work-owned 对账、Automation 外部变化消费与 Gate 隔离。✅ (175行)
+  - realtime-synchronization-solution.md 可靠实时同步：定义统一 Project Catalog、覆盖安装 rehydration、Work-owned 对账、健康与内容刷新分离及 Gate 隔离。✅ (177行)
   - product-feedback-integration.md 产品反馈 SDK：定义 Project 107、受限 Electron WebContents、SDK 文档身份、草稿保持、Workshop 稳定身份和未读角标。✅ (67行)
   - release-workspace-solution.md Release 本地能力：终端、仓库、文件、任务服务及场景 Agent。✅ (43行)
   - product-management-solution.md 产品资料方案：版本化记录、场景工具、接入恢复与独立 Git 资料分支。✅ (87行)
-  - project-workbench-solution.md 项目事情台：独立场景、任务主会话、业务能力桥与按事情 Auto。✅ (61行)
+  - project-workbench-solution.md 项目事情台：独立场景、任务主会话、业务能力桥、按事情 Auto 与同步刷新边界。✅ (71行)
 - repository-governance/ 仓库治理：公开源码 monorepo、目录许可与私有运维边界。✅
   - monorepo-solution.md Monorepo 方案：定义 Todo/Feedback 源映射、历史过滤、多许可证矩阵、arckit-ops 隔离与安全门禁。✅ (142行)

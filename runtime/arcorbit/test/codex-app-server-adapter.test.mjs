@@ -3,6 +3,52 @@ import test from "node:test";
 import { createCodexAppServerAdapter, waitForActiveTurn } from "../adapters/codex-app-server-adapter.mjs";
 import { digest, readSkill } from '../src/skill-files.mjs';
 import { fileURLToPath } from 'node:url';
+import { workbenchTools } from '../src/workbench/protocol.mjs';
+import { JsonRpcStdioClient } from '../src/json-rpc-stdio-client.mjs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+for (const mode of ['start', 'missing-thread', 'real-codex']) {
+ test(`mixed dynamic tool formats are normalized for ${mode}`, {
+  skip: mode === 'real-codex' && process.env.ARCORBIT_CODEX_DYNAMIC_TOOLS_TEST !== '1', timeout: 30000
+ }, async () => {
+  const tools = [...workbenchTools, { type: 'function', name: 'arcforge_catalog', description: 'Catalog fixture', inputSchema: { type: 'object', properties: {} } }];
+  const original = structuredClone(tools);
+  let native, home;
+  const client = new FakeClient(), request = client.request.bind(client);
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  try {
+   if (mode === 'real-codex') {
+    home = await mkdtemp(join(tmpdir(), 'arcorbit-dynamic-tools-'));
+    native = new JsonRpcStdioClient({ command: 'codex', args: ['app-server'], cwd: home, env: { ...process.env, CODEX_HOME: home }, stderr: 'ignore' });
+    await native.request('initialize', { clientInfo: { name: 'dynamic-tools-fixture', version: '1' }, capabilities: { experimentalApi: true } });
+    await assert.rejects(native.request('thread/start', { cwd: home, ephemeral: true, dynamicTools: tools }), /dynamic tools must use either canonical or legacy format consistently/);
+   }
+   client.request = async (method, params) => {
+    if (method === 'thread/resume' && mode === 'missing-thread') throw new Error('thread not found');
+    if (method === 'thread/start') {
+     assert.ok(params.dynamicTools.every(tool => tool.type === 'function'));
+     assert.deepEqual(params.dynamicTools.map(tool => tool.name), tools.map(tool => tool.name));
+     if (native) {
+      const result = await native.request(method, { ...params, cwd: home, ephemeral: true });
+      assert.ok(result.thread.id);
+     }
+    }
+    return request(method, params);
+   };
+   await collect(adapter.runTurn({ projectRoot: home || '/workspace/project', prompt: 'Fixture', options: {
+    resultKind: 'agent-loop-result', dynamicTools: tools,
+    ...(mode === 'missing-thread' ? { threadId: 'MISSING' } : {})
+   } }));
+   assert.equal(client.requests.filter(item => item.method === 'thread/start').length, 1);
+   assert.deepEqual(tools, original, 'shared MCP definitions must remain unchanged');
+  } finally {
+   adapter.close(); native?.close();
+   if (home) await rm(home, { recursive: true, force: true });
+  }
+ });
+}
 
 test('scene roots are configured once per process and exclusions travel with thread resume', async () => {
  const client=new FakeClient(),request=client.request.bind(client);

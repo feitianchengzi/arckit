@@ -26,6 +26,18 @@ async function fixture(t,{adapter}={}){
  return {root,db,c,options,command,work,runtime,calls,attachments,setAccount:v=>account=v,bind:()=>binding};
 }
 
+test('workbench sync delegates a single catalog pass and surfaces degraded results',async t=>{
+ const f=await fixture(t);const calls=[];
+ f.options.workSync.reconcile=async input=>{calls.push(input);return f.work;};
+ f.options.workSync.refreshProject=async()=>{throw new Error('duplicate project refresh');};
+ await f.c.command('sync',{});
+ assert.deepEqual(calls,[{reason:'project-workbench',allProjects:true,projectIds:[]}]);
+ await f.c.command('sync',{project_id:'p'});
+ assert.deepEqual(calls[1],{reason:'project-workbench',allProjects:false,projectIds:['p']});
+ f.work.errors=[{message:'project offline'}];
+ await assert.rejects(f.c.command('sync',{}),/project offline/);
+});
+
 test('workbench scene versions reject concurrent edits, preserve accepted criteria when Agent proposes, and survive restart',async t=>{
  const f=await fixture(t);await f.command('criteria.set',{items:['可验收']});const before=await f.c.detail('1');
  await f.c.invokeTool('1',{tool:'arcorbit_scene_update',arguments:{action:'criteria.propose',expected_revision:before.scene.revision,request_id:'proposal',input:{text:'新增建议'}}});

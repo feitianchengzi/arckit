@@ -1,4 +1,5 @@
 import { createProjectWorkbenchSurface } from './project-workbench-surface.mjs';
+import { applyWorkSyncHealth } from './work-sync-health.mjs';
 import { workbenchExecutionTarget } from '../../src/automation/execution-history.mjs';
 import { openMemberAddSheet } from "./project-member-add.mjs";
 import { createEngineeringSurface } from './engineering-surface.mjs';
@@ -327,7 +328,11 @@ const releaseSurface = createReleaseSurface({
 });
 const projectWorkbenchSurface = createProjectWorkbenchSurface({
   root:document.getElementById('projectWorkbenchView'),api,navigate:showPage,
-  openSettings:()=>document.getElementById('settingsButton').click()
+  openSettings:()=>document.getElementById('settingsButton').click(),
+  onSyncHealth: snapshot => {
+    for (const key of ['source_status', 'synced_at', 'realtime']) if (snapshot[key] !== undefined) state.snapshot[key] = snapshot[key];
+    renderNavigation();
+  }
 });
 const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
 const workbenchConversationSurface = createConversationSurface({
@@ -391,7 +396,14 @@ async function boot() {
     renderSetup();
   });
   api.onAutomationEvent(() => scheduleAutomationRefresh());
-  api.onWorkSyncEvent(() => scheduleRefresh());
+  api.onWorkSyncEvent((event) => {
+    if (applyWorkSyncHealth(state.snapshot, event)) {
+      renderNavigation();
+      if (state.page === 'command') renderCommandSyncSummary();
+      return;
+    }
+    scheduleRefresh();
+  });
   api.onChatEvent((event) => {
     if (event?.type === "chat.draft.changed") return;
     if (event?.type === "chat.message.changed") {
@@ -1784,15 +1796,16 @@ function render() {
   renderCommandBar();
   if (state.page === "project-workbench") return;
   renderWorkset();
-  renderToday();
-  renderChat();
-  renderOrganization();
-  renderPlatformWork();
-  renderPlatformFeedback();
-  renderCommandCenter();
-  renderTaskBrowser();
-  renderWorkbench();
-  renderRecovery();
+  // Hidden workspaces are rendered when navigated to, using the latest state.
+  if (state.page === 'today') renderToday();
+  if (state.page === 'chat') renderChat();
+  if (state.page === 'organization') renderOrganization();
+  if (state.page === 'work') renderPlatformWork();
+  if (state.page === 'feedback') renderPlatformFeedback();
+  if (state.page === 'command') renderCommandCenter();
+  if (state.page === 'tasks') renderTaskBrowser();
+  if (state.page === 'workbench') renderWorkbench();
+  if (state.page === 'recovery') renderRecovery();
 }
 
 function renderWorkSurface() {
@@ -4268,6 +4281,13 @@ function workshopTaskPriority(task) {
   return Number.isFinite(number) ? String(number) : String(servicePriority(task?.priority));
 }
 
+function renderCommandSyncSummary() {
+  const snapshot = state.snapshot;
+  const worksetProjects = automationProjectsInActiveWorkset();
+  const scopedProjects = state.selectedProjectId === "all" ? worksetProjects : worksetProjects.filter((project) => project.id === state.selectedProjectId);
+  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · ${realtimeStatusLabel(snapshot.realtime)} · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+}
+
 function renderCommandCenter() {
   const snapshot = state.snapshot;
   const worksetProjects = automationProjectsInActiveWorkset();
@@ -4276,7 +4296,7 @@ function renderCommandCenter() {
   const scopedBlockedPending = (snapshot.blocked_pending_tasks || []).filter(scopedTaskFilter);
   const scopedFeedback = (snapshot.acceptance_feedback_queue || []).filter(scopedTaskFilter);
   els.commandHeading.textContent = state.selectedProjectId === "all" ? "产品集自动领取态势" : `${currentProject()?.name || "项目"} 自动领取态势`;
-  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · ${realtimeStatusLabel(snapshot.realtime)} · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+  renderCommandSyncSummary();
   els.healthBadge.className = `health-badge ${snapshot.health?.tone === "success" ? "success" : snapshot.health?.tone === "danger" ? "danger" : snapshot.health?.tone === "warning" ? "warning" : ""}`;
   els.healthBadge.textContent = snapshot.health?.label || "待命";
   els.queuePauseButton.textContent = snapshot.queue_paused ? "继续领取" : "暂停领取";

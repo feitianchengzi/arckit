@@ -1,4 +1,5 @@
 import { createWorkbenchActivitySync } from './workbench-activity-sync.mjs';
+import { workbenchDetailKey, workEventAffectsDetail } from './workbench-refresh-policy.mjs';
 import { renderRestrictedMarkdown as markdown } from './restricted-markdown.mjs';
 import { parseTaskAttachmentContent } from '../../src/work-task-attachment-content.mjs';
 import { stateLabels, tabs, title, escape as e, visibleTasks, runtimeGroups, taskMode, sceneMessages } from './project-workbench-model.mjs';
@@ -9,9 +10,11 @@ const lines=items=>Array.isArray(items)&&items.length?`<ul>${items.map(item=>`<l
 const section=(name,body,action='')=>`<section class="pw-section"><h2><span>${name}</span>${action}</h2>${body}</section>`;
 const options=(items,value)=>items.map(([id,label])=>`<option value="${e(id)}" ${String(id)===String(value)?'selected':''}>${e(label)}</option>`).join('');
 
-export function createProjectWorkbenchSurface({root,api,navigate,openSettings}) {
+export function createProjectWorkbenchSurface({root,api,navigate,openSettings,onSyncHealth=()=>{}}) {
   const state={active:false,project:'all',task:'',tab:'overview',filter:'',search:'',executor:'',priority:'',activityFilter:'all',chat:false,list:false,runtime:false,snapshot:null,detail:null,error:'',loading:false,drafts:{},scroll:{},pending:{},scope:'',newDraft:null};
   let refreshPromise=null,refreshAgain=false,selectionEpoch=0,timer=0,dialog=null,returnFocus=null,configTask='',persistTimer=0,activityPaintTimer=0,activityDetailChanged=false;
+  let pendingDetail=false,scheduledDetail=false,detailKey='';
+  let renderedDetail=null,renderedDetailTab='',renderedActivityFilter='';
   // Compare generated markup, not browser-normalized innerHTML or user-expanded details.
   const paintedHTML=new WeakMap();
   const q=selector=>root.querySelector(selector);
@@ -27,13 +30,18 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings}) 
   function paint(node,html){if(!node||paintedHTML.get(node)===html)return;const top=node.scrollTop;const focused=node.contains(document.activeElement)?document.activeElement:null;const identity=focused?JSON.stringify(focused.dataset):'';node.innerHTML=html;paintedHTML.set(node,html);node.scrollTop=top;if(identity) [...node.querySelectorAll('button,input,select')].find(n=>JSON.stringify(n.dataset)===identity)?.focus({preventScroll:true});}
   function saveScroll(){if(state.task){state.scroll[`${state.task}:${state.tab}`]=q('.pw-body').scrollTop;state.scroll[`${state.task}:messages`]=q('.pw-messages').scrollTop;}state.scroll.list=q('.pw-rows').scrollTop;}
   function restoreScroll(){q('.pw-body').scrollTop=state.scroll[`${state.task}:${state.tab}`]||0;q('.pw-messages').scrollTop=state.scroll[`${state.task}:messages`]||0;q('.pw-rows').scrollTop=state.scroll.list||0;}
-  async function refresh(){
+  async function refresh({detail=true}={}){
     if(!state.active)return;
+    if(timer){clearTimeout(timer);timer=0;detail ||= scheduledDetail;scheduledDetail=false;}
+    pendingDetail ||= detail;
     if(refreshPromise){refreshAgain=true;return refreshPromise;}
     refreshPromise=(async()=>{do{refreshAgain=false;const epoch=selectionEpoch;try{
-      state.loading=!state.snapshot;render();const snapshot=await api.projectWorkbenchSnapshot();if(!state.active)return;restore(snapshot.account_scope);state.snapshot=snapshot;
+      const forceDetail=pendingDetail;pendingDetail=false;
+      state.loading=!state.snapshot;if(state.loading)render();const snapshot=await api.projectWorkbenchSnapshot();if(!state.active)return;restore(snapshot.account_scope);state.snapshot=snapshot;state.error='';onSyncHealth(snapshot);
       if(!state.task){const task=visibleTasks(snapshot,state)[0];if(task)state.task=String(task.id);}
-      if(state.task && epoch===selectionEpoch){const id=state.task;try{const detail=await api.projectWorkbenchDetail(id);if(id===state.task && epoch===selectionEpoch)state.detail=detail;}catch(error){if(id===state.task)state.error=error.message;}}
+      if(state.task && !snapshot.tasks.some(task=>String(task.id)===state.task)){state.task='';state.detail=null;detailKey='';}
+      const nextDetailKey=workbenchDetailKey(snapshot,state.task);
+      if(state.task && epoch===selectionEpoch && (forceDetail || !state.detail || nextDetailKey!==detailKey)){const id=state.task;try{const detail=await api.projectWorkbenchDetail(id);if(id===state.task && epoch===selectionEpoch){state.detail=detail;detailKey=nextDetailKey;state.error='';}}catch(error){if(id===state.task){detailKey='';state.error=error.message;}}}
       if(!q('[data-config=model]').value){q('[data-config=model]').value=snapshot.settings?.codex?.chat?.model||'';q('[data-config=level]').value=snapshot.settings?.codex?.chat?.reasoning_effort||'medium';}
       render();persist();
     }catch(error){state.error=error.message;render();}finally{state.loading=false;}}while(refreshAgain&&state.active);})().finally(()=>{refreshPromise=null;});return refreshPromise;
@@ -55,7 +63,7 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings}) 
     },
     onError:error=>{state.error=error.message;q('.pw-error').textContent=state.error;}
   });
-  function schedule(){if(timer)return;timer=setTimeout(()=>{timer=0;void refresh();},180);}
+  function schedule(detail=true){if(!state.active)return;scheduledDetail ||= detail;if(timer)return;timer=setTimeout(()=>{timer=0;const detail=scheduledDetail;scheduledDetail=false;void refresh({detail});},180);}
   function render(){
     q('.pw-error').textContent=state.error;
     if(!state.snapshot){paint(q('.pw-heading'),'<h1>Thing</h1>');paint(q('.pw-body'),`<div class="pw-empty">${state.error?'无法载入事情，请重试。':'正在同步项目与事情…'}${button('refresh','重新加载')}</div>`);return;}
@@ -70,7 +78,7 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings}) 
     paint(q('.pw-runtime'),`<header><div><h2 id="pw-runtime-title">运行状态</h2><p>所有项目 · 此设备</p></div>${button('runtime.close',icon('close'),'aria-label="关闭运行状态"','quiet small')}</header><div class="pw-runtime-body">${offline?'<p class="pw-runtime-empty">连接已中断，以下为此设备保留的状态。</p>':''}${groups.filter(g=>g.items.length).map(g=>`<section class="pw-runtime-group"><h3>${{attention:'需要处理',running:'正在执行',queued:'等待执行'}[g.group]} <span>${g.items.length}</span></h3>${g.items.map(i=>`<button type="button" class="pw-runtime-item" data-pw-action="runtime.select" data-id="${e(i.id)}"><div><strong>${e(title(i.task))}</strong><small>${e(projects.find(p=>p.id===String(i.task.project_id))?.name||'')} · ${e({attention:'待介入',running:'Auto 进行中',queued:'等待执行'}[g.group])}</small><p>${e(i.reason||'查看事情进展')}</p></div>${icon('chevron')}</button>`).join('')}</section>`).join('')||'<div class="pw-runtime-empty"><strong>当前没有自动执行中的事情</strong><p>可以从事情详情开始 Auto，或在执行设置中管理自动领取。</p></div>'}</div><footer><span>点选事情，查看进展或介入</span>${button('settings','执行设置','','quiet small')}</footer>`);
     q('.pw-runtime').hidden=!state.runtime;q('.pw-shell').classList.toggle('list-open',state.list);
     if(!t || String(t.id)!==state.task){paint(q('.pw-heading'),'<h1>从一件事情开始</h1>');paint(q('.pw-tabs'),'');paint(q('.pw-body'),`<div class="pw-empty">选择右侧事情查看目标和成果。<br>也可以在下方直接说出想法，创建自己的事情并开始讨论。</div>`);}
-    else {renderDetail(state.detail);if(state.chat)renderMessages(state.detail);}
+    else {if(state.detail!==renderedDetail || state.tab!==renderedDetailTab || (state.tab==='activity' && state.activityFilter!==renderedActivityFilter))renderDetail(state.detail);if(state.chat)renderMessages(state.detail);}
     const draft=state.drafts[state.task || 'new']||{};if(configTask!==state.task && (!state.task || t)){q('[data-config=model]').value=draft.model || state.detail?.session?.model || s.settings?.codex?.chat?.model || '';q('[data-config=level]').value=draft.level || state.detail?.session?.reasoning_effort || s.settings?.codex?.chat?.reasoning_effort || 'medium';configTask=state.task;}const input=q('.pw-composer textarea');if(document.activeElement!==input&&input.value!==String(draft.text||''))input.value=draft.text||'';
     q('[data-pw-action="chat.stop"]').hidden=!activeDiscussion();
     q('[data-pw-action=send]').disabled=Boolean(state.pending.send)||state.detail?.task.state==='accepted';
@@ -79,6 +87,7 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings}) 
   }
   function activeDiscussion(){return ['starting','running','waiting_approval','interrupting'].includes(state.detail?.session?.status);}
   function renderDetail(d){
+    renderedDetail=d;renderedDetailTab=state.tab;renderedActivityFilter=state.activityFilter;
     const t=d.task,readonly=t.state==='accepted',active=d.executions[0],mode=taskMode(t,state.snapshot,d);
     let actions=button('chat.open','先分析');
     if(['pending_review','pending','blocked'].includes(t.state))actions+=button('auto.start','Auto 执行','','primary');
@@ -213,6 +222,9 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings}) 
   document.addEventListener('click',event=>{if(state.runtime&&!event.target.closest('.pw-runtime,[data-pw-action="runtime"]')){state.runtime=false;render();}});
   for(const node of [q('.pw-body'),q('.pw-messages'),q('.pw-rows')])node.addEventListener('scroll',()=>{saveScroll();schedulePersist();},{passive:true});
   window.addEventListener('pagehide',persist);
-  api.onProjectWorkbenchEvent?.(event=>{if(event.type==='workbench.chat.message.changed'&&event.session_id===state.detail?.session?.id&&event.messages){const messages=state.detail.messages;for(const message of event.messages){const index=messages.findIndex(m=>m.id===message.id);if(index>=0)messages[index]=message;else messages.push(message);}if(state.active&&state.chat)renderMessages(state.detail);return;}schedule();});api.onAutomationEvent?.(schedule);api.onWorkSyncEvent?.(schedule);api.onEvent?.(event=>{if(event.type==='run.activity_changed'){activitySync.enqueue(event,120);return;}if(['run.finished','run.started','message.added'].includes(event.type))schedule();});
+  api.onProjectWorkbenchEvent?.(event=>{if(event.type==='workbench.chat.message.changed'&&event.session_id===state.detail?.session?.id&&event.messages){const messages=state.detail.messages;for(const message of event.messages){const index=messages.findIndex(m=>m.id===message.id);if(index>=0)messages[index]=message;else messages.push(message);}if(state.active&&state.chat)renderMessages(state.detail);return;}schedule();});
+  api.onAutomationEvent?.(()=>schedule(false));
+  api.onWorkSyncEvent?.(event=>{if(['work.sync','work.syncing'].includes(event.type))return;schedule(workEventAffectsDetail(event,state.detail?.task));});
+  api.onEvent?.(event=>{if(event.type==='run.activity_changed'){activitySync.enqueue(event,120);return;}if(['run.finished','run.started','message.added'].includes(event.type))schedule();});
   return {show(active){if(state.active===active)return;state.active=active;if(active){void act(async()=>{await refresh();if(!state.active)return;await api.projectWorkbenchCommand('sync',{});await refresh();});if(api.listCodexModels)void api.listCodexModels().then(result=>{paint(q('#pw-models'),(result.models||[]).map(m=>`<option value="${e(m.model||m.id)}">`).join(''));}).catch(()=>{});}else{saveScroll();persist();state.chat=false;state.runtime=false;updateChat();}},refresh,state};
 }
