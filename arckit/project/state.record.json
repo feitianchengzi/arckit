@@ -5,113 +5,13 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-09-17T05:47:13.762Z",
-    "revision": 393
+    "updated_at": "2026-09-17T11:14:34.892385Z",
+    "revision": 396
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "active_case_refs": [
-      "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md",
-      "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md"
-    ],
-    "project_gaps": [
-      {
-        "id": "GAP-agent-scenario-evaluation",
-        "goal": "Validate dynamic gap selection in isolated real software scenarios.",
-        "reason": "The state-driven model still needs fresh-agent evidence across spec-first, code-first, mixed and irrelevant decision paths.",
-        "affects": [
-          {
-            "kind": "software_decision",
-            "ref": "product_capabilities"
-          },
-          {
-            "kind": "software_decision",
-            "ref": "quality_and_validation"
-          },
-          {
-            "kind": "software_invariant",
-            "ref": "material-risks-have-credible-evidence"
-          }
-        ],
-        "priority_basis": {
-          "uncertainty": "high",
-          "risk": "high"
-        },
-        "dependencies": [],
-        "candidate_case_ref": ""
-      },
-      {
-        "id": "GAP-runtime-resilience-and-adapters",
-        "goal": "Strengthen Runtime timeout, transcript compaction and required adapter boundaries.",
-        "reason": "Long-running supervised execution still has known resilience and adapter acceptance work.",
-        "affects": [
-          {
-            "kind": "software_decision",
-            "ref": "external_integrations"
-          },
-          {
-            "kind": "software_decision",
-            "ref": "observability_and_operation"
-          },
-          {
-            "kind": "software_decision",
-            "ref": "technical_foundation"
-          }
-        ],
-        "priority_basis": {
-          "risk": "high",
-          "urgency": "medium"
-        },
-        "dependencies": [],
-        "candidate_case_ref": ""
-      },
-      {
-        "id": "GAP-security-real-project-validation",
-        "goal": "Validate security boundaries in a real permission-bearing project.",
-        "reason": "Credential, permission and sensitive-data rules need evidence from a project with real controlled resources.",
-        "affects": [
-          {
-            "kind": "software_decision",
-            "ref": "security_privacy_compliance"
-          },
-          {
-            "kind": "software_invariant",
-            "ref": "material-risks-have-credible-evidence"
-          }
-        ],
-        "priority_basis": {
-          "risk": "high",
-          "urgency": "medium"
-        },
-        "dependencies": [],
-        "candidate_case_ref": ""
-      },
-      {
-        "id": "GAP-cross-record-audit",
-        "goal": "Accept strict Project, Iteration and Case cross-record auditing in real use.",
-        "reason": "Schema-valid records can still drift unless durable evidence and cross-record consistency are exercised in real projects.",
-        "affects": [
-          {
-            "kind": "software_decision",
-            "ref": "data_and_state"
-          },
-          {
-            "kind": "software_decision",
-            "ref": "quality_and_validation"
-          },
-          {
-            "kind": "software_invariant",
-            "ref": "material-risks-have-credible-evidence"
-          }
-        ],
-        "priority_basis": {
-          "risk": "high",
-          "urgency": "high"
-        },
-        "dependencies": [],
-        "candidate_case_ref": ""
-      }
-    ],
+    "active_case_refs": [],
+    "project_gaps": [],
     "selection_context": {
       "current_focus": "Apply approved grouped navigation, independent Thing, centered Chat and existing account capabilities to production ArcOrbit.",
       "project_priorities": [
@@ -184,9 +84,7 @@
           "resume_condition": "当 Engineering 的管理对象、内置身份来源、Setup 所有权或 Chat/Automation 场景模式改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
           "revision": 49
         },
-        "gap_refs": [
-          "GAP-agent-scenario-evaluation"
-        ]
+        "gap_refs": []
       },
       {
         "id": "runtime_surfaces",
@@ -313,9 +211,7 @@
           "resume_condition": "当 Desktop Store schema、Chat session/draft 所有权、Automation Run 固定参数或模型清单所有权改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
           "revision": 27
         },
-        "gap_refs": [
-          "GAP-cross-record-audit"
-        ]
+        "gap_refs": []
       },
       {
         "id": "external_integrations",
@@ -344,9 +240,7 @@
           "resume_condition": "当 app-server turn 参数、CLI 参数、模型清单边界或场景配置路由改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
           "revision": 20
         },
-        "gap_refs": [
-          "GAP-runtime-resilience-and-adapters"
-        ]
+        "gap_refs": []
       },
       {
         "id": "feedback_and_support",
@@ -424,9 +318,7 @@
           "resume_condition": "Revisit when workspace tooling, repository-relative capability paths, or source ownership boundaries change. 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
           "revision": 50
         },
-        "gap_refs": [
-          "GAP-runtime-resilience-and-adapters"
-        ]
+        "gap_refs": []
       },
       {
         "id": "security_privacy_compliance",
@@ -444,9 +336,7 @@
           "resume_condition": "Revisit when secret storage, customer delivery ownership, infrastructure repositories, or publication scope changes.",
           "revision": 6
         },
-        "gap_refs": [
-          "GAP-security-real-project-validation"
-        ]
+        "gap_refs": []
       },
       {
         "id": "quality_and_validation",
@@ -469,10 +359,7 @@
           "resume_condition": "当 Feedback 消息加载模型、通知语义或 Renderer 状态所有权改变时重审。",
           "revision": 23
         },
-        "gap_refs": [
-          "GAP-agent-scenario-evaluation",
-          "GAP-cross-record-audit"
-        ]
+        "gap_refs": []
       },
       {
         "id": "delivery_and_distribution",
@@ -519,9 +406,7 @@
           "resume_condition": "当项目级健康投影、错误归属或恢复触发改变时重审。",
           "revision": 11
         },
-        "gap_refs": [
-          "GAP-runtime-resilience-and-adapters"
-        ]
+        "gap_refs": []
       }
     ]
   },

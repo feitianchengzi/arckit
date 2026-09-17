@@ -1,0 +1,126 @@
+{
+  "action": "user_requested_force_close",
+  "occurred_at": "2026-09-17T11:14:34.892385Z",
+  "user_instruction": "强制关闭这6个历史状态",
+  "disposition": "cancelled_without_verification",
+  "project_revision_before": 395,
+  "project_gaps": [
+    {
+      "id": "GAP-agent-scenario-evaluation",
+      "goal": "Validate dynamic gap selection in isolated real software scenarios.",
+      "reason": "The state-driven model still needs fresh-agent evidence across spec-first, code-first, mixed and irrelevant decision paths.",
+      "affects": [
+        {
+          "kind": "software_decision",
+          "ref": "product_capabilities"
+        },
+        {
+          "kind": "software_decision",
+          "ref": "quality_and_validation"
+        },
+        {
+          "kind": "software_invariant",
+          "ref": "material-risks-have-credible-evidence"
+        }
+      ],
+      "priority_basis": {
+        "uncertainty": "high",
+        "risk": "high"
+      },
+      "dependencies": [],
+      "candidate_case_ref": ""
+    },
+    {
+      "id": "GAP-runtime-resilience-and-adapters",
+      "goal": "Strengthen Runtime timeout, transcript compaction and required adapter boundaries.",
+      "reason": "Long-running supervised execution still has known resilience and adapter acceptance work.",
+      "affects": [
+        {
+          "kind": "software_decision",
+          "ref": "external_integrations"
+        },
+        {
+          "kind": "software_decision",
+          "ref": "observability_and_operation"
+        },
+        {
+          "kind": "software_decision",
+          "ref": "technical_foundation"
+        }
+      ],
+      "priority_basis": {
+        "risk": "high",
+        "urgency": "medium"
+      },
+      "dependencies": [],
+      "candidate_case_ref": ""
+    },
+    {
+      "id": "GAP-security-real-project-validation",
+      "goal": "Validate security boundaries in a real permission-bearing project.",
+      "reason": "Credential, permission and sensitive-data rules need evidence from a project with real controlled resources.",
+      "affects": [
+        {
+          "kind": "software_decision",
+          "ref": "security_privacy_compliance"
+        },
+        {
+          "kind": "software_invariant",
+          "ref": "material-risks-have-credible-evidence"
+        }
+      ],
+      "priority_basis": {
+        "risk": "high",
+        "urgency": "medium"
+      },
+      "dependencies": [],
+      "candidate_case_ref": ""
+    },
+    {
+      "id": "GAP-cross-record-audit",
+      "goal": "Accept strict Project, Iteration and Case cross-record auditing in real use.",
+      "reason": "Schema-valid records can still drift unless durable evidence and cross-record consistency are exercised in real projects.",
+      "affects": [
+        {
+          "kind": "software_decision",
+          "ref": "data_and_state"
+        },
+        {
+          "kind": "software_decision",
+          "ref": "quality_and_validation"
+        },
+        {
+          "kind": "software_invariant",
+          "ref": "material-risks-have-credible-evidence"
+        }
+      ],
+      "priority_basis": {
+        "risk": "high",
+        "urgency": "high"
+      },
+      "dependencies": [],
+      "candidate_case_ref": ""
+    }
+  ],
+  "archived_cases": [
+    {
+      "previous_ref": "arckit/cases/active/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md",
+      "archive_ref": "arckit/cases/archived/20260917-user-force-close/CASE-20260901-001-consolidate-workshop-todo-and-feedback-into-the-arckit-monorepo.md",
+      "cancelled_gap": "GAP-20260901-001-005"
+    },
+    {
+      "previous_ref": "arckit/cases/active/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md",
+      "archive_ref": "arckit/cases/archived/20260917-user-force-close/CASE-20260909-002-implement-the-integrated-release-terminal-git-and-agent-workspac.md",
+      "cancelled_gap": "GAP-20260909-002-004"
+    }
+  ],
+  "meaning": "Six historical obligations withdrawn by explicit user instruction, not successful validation or authorization for publication. Archived Case records are frozen pre-closure evidence, not active obligations. Reopening requires a new explicit instruction.",
+  "removed_iteration_targets": [
+    {
+      "kind": "project_gap",
+      "ref": "GAP-agent-scenario-evaluation",
+      "expected": "resolved with isolated real-task evidence",
+      "reason": "Dynamic priority selection must work across different fact and dependency shapes."
+    }
+  ]
+}
