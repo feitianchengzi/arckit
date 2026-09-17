@@ -18,3 +18,5 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 Engineering / Chat skills：✅ 已实现；技术源为 `arcorbit/scene-skills-solution.md`，包含可信内置 inventory、受限 mutation、受保护核心、场景绑定和 Codex 原生用户 Skills 隔离；安装与旧项目清理由 Setup Readiness 承担。
 
 | `arcorbit/project-workbench-solution.md` | ✅ | 独立事情台、主会话与新旧页面过渡。 |
+
+无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。

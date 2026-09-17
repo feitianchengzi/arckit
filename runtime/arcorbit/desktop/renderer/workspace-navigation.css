@@ -23,5 +23,5 @@ body.project-workbench-active .sidebar-footer small { display:block; }
  body.project-workbench-active { --sidebar-width:0px; }
  body.project-workbench-active .page-navigation-toggle { display:flex; align-items:center; justify-content:center; width:36px; }
  body.project-workbench-active .sidebar { display:none; }
- body.project-workbench-active.page-navigation-open .sidebar { display:flex; position:fixed; top:var(--titlebar-height,40px); bottom:0; left:0; width:220px; z-index:80; box-shadow:var(--shadows-small); }
+ body.project-workbench-active.page-navigation-open .sidebar { display:flex; position:fixed; top:0; bottom:0; left:0; width:220px; z-index:80; box-shadow:var(--shadows-small); }
 }

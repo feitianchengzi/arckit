@@ -31,7 +31,7 @@ html:has(body.chat-active), body.chat-active { min-width:0; min-height:0; }
  body.chat-active { --sidebar-width:0px; }
  .chat-active .sidebar { display:none; }
  .chat-active .page-navigation-toggle { display:flex; align-items:center; justify-content:center; width:36px; }
- .chat-active.page-navigation-open .sidebar { display:flex; position:fixed; top:var(--titlebar-height,40px); bottom:0; left:0; width:220px; z-index:80; box-shadow:var(--shadows-small); }
+ .chat-active.page-navigation-open .sidebar { display:flex; position:fixed; top:0; bottom:0; left:0; width:220px; z-index:80; box-shadow:var(--shadows-small); }
  #chatView .chat-workspace { display:flex; position:relative; }
  #chatView .chat-main { flex:1; }
  #chatView .chat-sidebar { display:none; }
@@ -44,11 +44,6 @@ html:has(body.chat-active), body.chat-active { min-width:0; min-height:0; }
  #chatView .chat-composer { width:calc(100% - 24px); margin:0 12px 12px; }
  #chatView .chat-composer-setting input { width:92px; }
  #chatView .chat-composer-foot small { font-size:10px; }
- .chat-active .titlebar, .project-workbench-active .titlebar { grid-template-columns:40px minmax(0,1fr) 110px; }
- .chat-active .page-navigation-toggle, .project-workbench-active .page-navigation-toggle { grid-column:1; grid-row:1; }
 }
 /* Keep content in column two when the navigation leaves normal grid flow. */
-.app-stage { grid-column:2; grid-row:2; }
-@media (max-width:760px) {
- .chat-active #titlebarSync, .project-workbench-active #titlebarSync { display:none; }
-}
+.app-stage { grid-column:2; grid-row:1; }

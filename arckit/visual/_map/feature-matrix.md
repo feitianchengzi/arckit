@@ -21,3 +21,5 @@
 | `runtime/arcorbit/desktop/renderer/visual-system.css` | ✅ | 实际应用浅杏橙、浅色外壳、中性选择与文字、统一输入/焦点/禁用状态和对话层级；已通过隔离 Renderer 验证，非真实账号与服务端验收。 |
 
 浅杏橙已采纳：#F4B77D 主操作、无深橙装饰描边、中性链接与选中文字；正式 project-workbench 消费共享 Token 和对应样式。来源：arckit/visual/_explorations/orange-tone/exploration.md。
+
+无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。

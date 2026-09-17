@@ -147,7 +147,9 @@ Coordinator 只消费 Work Sync 从本地 Task Projection Store 发布的当前�
 
 Preload 只暴露产品动作，Renderer 只消费 Automation Snapshot 和 Run activity。认证、任务状态与 Runtime 写操作继续在 main 进程重新校验；待办 transcript 和用量投影遵循 `desktop-execution-solution.md`。
 
-主 BrowserWindow 在 macOS 使用 Electron `titleBarStyle: "hidden"` 和固定 `trafficLightPosition`：系统标题文字隐藏、内容延伸进 40px ArcOrbit 标题栏，但原生 traffic lights 保留，因此绿色按钮的单击全屏/退出全屏与悬停或按住后的系统布局面板继续由 macOS 提供。Windows/Linux 使用 `frame: false`，由 Renderer 在应用标题栏右侧表达最小化、最大化/还原和关闭。两个分支都保留原生 resize/move 能力；标题栏空白区域是 drag region，Windows/Linux 控件是 `no-drag` 交互区，macOS 不注册自绘窗口按钮或双击最大化监听。Preload 只额外投影只读的 `windowControlMode`，并保留 `state`、`minimize`、`toggle-maximize` 和 `close` 四类窗口产品动作；main process 校验调用方确为当前主窗口后才操作 BrowserWindow。main process 监听 maximize、unmaximize、minimize、restore 与 fullscreen 变化并向 Renderer 投影有界状态，使 Windows/Linux 按钮名称和视觉状态与系统快捷键产生的窗口状态保持一致；Renderer 不获得 BrowserWindow 对象、通用 Electron API、shell 或任意系统窗口命令。
+主 BrowserWindow 在 macOS 使用 Electron `titleBarStyle: "hidden"` 和固定 `trafficLightPosition`：系统标题文字隐藏、内容直接使用窗口高度，不创建独立 ArcOrbit 标题栏，但原生 traffic lights 保留，因此绿色按钮的单击全屏/退出全屏与悬停或按住后的系统布局面板继续由 macOS 提供。Windows/Linux 使用 `frame: false`，由 Renderer 在窗口右上角独立控件区域表达最小化、最大化/还原和关闭。两个分支都保留原生 resize/move 能力；导航与页面顶部非交互空白区域是 drag region，Windows/Linux 控件是 `no-drag` 交互区，macOS 不注册自绘窗口按钮或双击最大化监听。Preload 只额外投影只读的 `windowControlMode`，并保留 `state`、`minimize`、`toggle-maximize` 和 `close` 四类窗口产品动作；main process 校验调用方确为当前主窗口后才操作 BrowserWindow。main process 监听 maximize、unmaximize、minimize、restore 与 fullscreen 变化并向 Renderer 投影有界状态，使 Windows/Linux 按钮名称和视觉状态与系统快捷键产生的窗口状态保持一致；Renderer 不获得 BrowserWindow 对象、通用 Electron API、shell 或任意系统窗口命令。
+
+主导航底部用户设置入口消费现有轻量同步投影的 source_status 与 synced_at，只迁移呈现位置，不新增轮询、业务请求或状态所有者。导航收起时保持设置和同步状态可达；窗口控件只使用局部布局避让。
 
 ### Loop Controller
 

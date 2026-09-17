@@ -10,11 +10,7 @@
   --accent: var(--semantic-text);
 }
 body { line-height: var(--typography-body-line-height); }
-.titlebar {
-  background: var(--semantic-chrome);
-  color: var(--semantic-muted);
-  border-bottom: 1px solid var(--semantic-divider);
-}
+
 .sidebar, .project-workbench-active .sidebar {
   background: var(--semantic-sidebar);
   color: var(--semantic-nav-text);

@@ -9,10 +9,10 @@ components:
       project_workbench: { sidebar: "{semantic.sidebar}", workspace: "{semantic.canvas}", topbar: "{layout.workbench_topbar_height}", legacy_commandbar: hidden }
       command_center: { sidebar: "{semantic.sidebar}", workspace: "{colors.ink.75}" }
       workbench: { sidebar: "{semantic.sidebar}", workspace: "{colors.paper}" }
-      window_chrome_macos: { surface: "{semantic.chrome}", controls: native_traffic_lights, green_action: system_full_screen, hover_panel: system_window_layout, drag_region: remaining_titlebar }
-      window_chrome_windows_linux: { surface: "{semantic.chrome}", controls: [minimize, maximize, restore, close], placement: right, drag_region: remaining_titlebar }
+      window_chrome_macos: { surface: "{semantic.chrome}", controls: native_traffic_lights, placement: top_left_navigation, titlebar: absent, green_action: system_full_screen, hover_panel: system_window_layout, drag_region: noninteractive_top_space }
+      window_chrome_windows_linux: { surface: "{semantic.chrome}", controls: [minimize, maximize, restore, close], placement: top_right, titlebar: absent, drag_region: noninteractive_top_space }
     sizes:
-      desktop: { sidebar: "{layout.sidebar_width}", titlebar: "{layout.titlebar_height}", commandbar: "{layout.commandbar_height}" }
+      desktop: { sidebar: "{layout.sidebar_width}", titlebar: absent, commandbar: "{layout.commandbar_height}" }
     states: [loading, ready, degraded, maximized, full_screen]
     token_refs: [colors.ink.900, colors.ink.75, layout.sidebar_width, layout.titlebar_height, layout.commandbar_height]
     accessibility:

@@ -141,9 +141,11 @@ window.visualData = {
         "window_chrome_macos": {
           "surface": "{semantic.chrome}",
           "controls": "native_traffic_lights",
+          "placement": "top_left_navigation",
+          "titlebar": "absent",
           "green_action": "system_full_screen",
           "hover_panel": "system_window_layout",
-          "drag_region": "remaining_titlebar"
+          "drag_region": "noninteractive_top_space"
         },
         "window_chrome_windows_linux": {
           "surface": "{semantic.chrome}",
@@ -153,14 +155,15 @@ window.visualData = {
             "restore",
             "close"
           ],
-          "placement": "right",
-          "drag_region": "remaining_titlebar"
+          "placement": "top_right",
+          "titlebar": "absent",
+          "drag_region": "noninteractive_top_space"
         }
       },
       "sizes": {
         "desktop": {
           "sidebar": "{layout.sidebar_width}",
-          "titlebar": "{layout.titlebar_height}",
+          "titlebar": "absent",
           "commandbar": "{layout.commandbar_height}"
         }
       },

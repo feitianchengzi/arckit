@@ -42,3 +42,5 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 Engineering 内置 Skills 管理以 arcorbit-scene-skills.md 为产品源，scene-skills-solution.md 为技术源，engineering-profile/ 为交互投影。可信 inventory 与 mutation 只覆盖 ArcOrbit 随包 Skills，Codex 用户/项目 Skills 保持原生所有权。
 
 `arcorbit/project-workbench-solution.md` 对应 `arckit/spec/agentic-software-development/arcorbit-project-workbench.md` 与 `arckit/interaction/project-workbench/`，生产实现位于 `runtime/arcorbit/src/workbench/` 和独立 project-workbench renderer 模块。
+
+无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。

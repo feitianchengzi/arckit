@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="./workspace-navigation.css">
     <link rel="stylesheet" href="./visual-system.css">
     <link rel="stylesheet" href="./chat-layout.css">
+    <link rel="stylesheet" href="./window-chrome.css">
   </head>
   <body class="auth-pending">
     <svg class="icon-sprite" aria-hidden="true">
@@ -115,19 +116,15 @@
       </div>
     </section>
     <div class="desktop-app">
-      <header class="titlebar">
-        <div class="window-controls" role="group" aria-label="窗口控制">
-          <button id="windowMinimizeButton" class="window-control minimize" type="button" aria-label="最小化窗口" title="最小化窗口"><svg aria-hidden="true"><use href="#icon-window-minimize"></use></svg></button>
-          <button id="windowMaximizeButton" class="window-control maximize" type="button" aria-label="最大化窗口" title="最大化窗口"><svg class="maximize-glyph" aria-hidden="true"><use href="#icon-window-maximize"></use></svg><svg class="restore-glyph" aria-hidden="true"><use href="#icon-window-restore"></use></svg></button>
-          <button id="windowCloseButton" class="window-control close" type="button" aria-label="关闭窗口" title="关闭窗口"><svg aria-hidden="true"><use href="#icon-window-close"></use></svg></button>
-        </div>
-        <button id="legacyPagesButton" class="page-navigation-toggle" type="button" aria-label="页面导航" aria-controls="legacyPagesMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-window-maximize"></use></svg></button>
-        <div id="titlebarDrag" class="titlebar-drag">ArcOrbit</div>
-        <div id="titlebarSync" class="sync-state"><i></i><span>准备同步</span></div>
-      </header>
+      <div class="window-controls" role="group" aria-label="窗口控制">
+        <button id="windowMinimizeButton" class="window-control minimize" type="button" aria-label="最小化窗口" title="最小化窗口"><svg aria-hidden="true"><use href="#icon-window-minimize"></use></svg></button>
+        <button id="windowMaximizeButton" class="window-control maximize" type="button" aria-label="最大化窗口" title="最大化窗口"><svg class="maximize-glyph" aria-hidden="true"><use href="#icon-window-maximize"></use></svg><svg class="restore-glyph" aria-hidden="true"><use href="#icon-window-restore"></use></svg></button>
+        <button id="windowCloseButton" class="window-control close" type="button" aria-label="关闭窗口" title="关闭窗口"><svg aria-hidden="true"><use href="#icon-window-close"></use></svg></button>
+      </div>
+      <button id="legacyPagesButton" class="page-navigation-toggle" type="button" aria-label="页面导航" aria-controls="legacyPagesMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-window-maximize"></use></svg></button>
 
       <aside class="sidebar">
-        <div class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
+        <div id="windowDragRegion" class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
 
         <nav id="legacyPagesMenu" class="primary-nav" aria-label="主导航">
           <p class="nav-label">PERSONAL</p>
@@ -152,7 +149,7 @@
         </nav>
 
         <div class="sidebar-footer">
-          <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small></button>
+          <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small><span id="accountSync" class="sync-state"><i aria-hidden="true"></i><span>准备同步</span></span></button>
 
         </div>
       </aside>

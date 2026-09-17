@@ -97,3 +97,5 @@ Thing 的个人中心通过 project-workbench/account-settings.js 提供完整�
 chat-workspace/default.html 已迁移为分类应用导航、中央对话与右侧会话列表的可操作页面；原静态主稿保留为 chat-workspace/states.html 辅助说明，右侧方向同步修正。页面按 ConversationSurface 和 light Tokens 呈现；独立模型、渲染、行为与异常工具覆盖会话生命周期。与 Thing 共用 project-workbench/navigation.js、account-settings.js 及基础样式，通过 NavigationHost / AccountHost 显式适配，不共享会话或业务状态。
 
 验证：chat-workspace/verification.json；共用导航回归：project-workbench/verification-states.json。生产 Chat renderer 与产品规格中的旧左右栏描述尚未迁移，本轮不宣称生产同步。
+
+无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。

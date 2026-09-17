@@ -352,7 +352,7 @@ initializeWindowControls({
   closeButton: els.windowCloseButton,
   minimizeButton: els.windowMinimizeButton,
   maximizeButton: els.windowMaximizeButton,
-  dragRegion: els.titlebarDrag,
+  dragRegion: els.windowDragRegion,
   onError: (error) => showToast(error.message || "窗口控制失败")
 });
 
@@ -1853,8 +1853,8 @@ function renderNavigation() {
   els.accountName.textContent = accountName;
   els.accountAvatar.textContent = accountName.slice(0, 1).toUpperCase() || "W";
   els.accountStatus.textContent = state.authentication.authenticated ? sourceStatusLabel(snapshot.source_status) : "未登录";
-  els.titlebarSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
-  els.titlebarSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
+  els.accountSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
+  els.accountSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
 }
 
 function renderCommandBar() {
