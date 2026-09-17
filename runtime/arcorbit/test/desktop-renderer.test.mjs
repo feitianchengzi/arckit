@@ -852,7 +852,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(html, /data-page-view="feedback"/);
   assert.match(html, /id="worksetSelect"/);
   assert.match(html, /不受当前产品集过滤/);
-  assert.match(source, /page: "project-workbench"/);
+  assert.match(source, /page: "command"/);
   assert.match(source, /api\.platformSnapshot/);
   assert.match(source, /api\.setActiveWorkset/);
   assert.match(source, /api\.updateWorkset\(\{ id: activeWorkset\.id, project_ids: projectIds \}\)/);
@@ -997,7 +997,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(styles, /\.product-grid \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
-  assert.match(html, /PERSONAL · CODEX CHAT/);
+  assert.match(html, /class="chat-page-heading"><strong>Chat<\/strong>/);
   for (const id of ["chatProjectSelect", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
@@ -1017,9 +1017,12 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   ]);
 
   const sidebar = html.slice(html.indexOf('id="legacyPagesMenu"'), html.indexOf('id="accountButton"'));
-  assert.ok(html.indexOf('id="legacyPagesButton"') > html.indexOf('class="sidebar-footer"'));
+  assert.ok(html.indexOf('id="legacyPagesButton"') < html.indexOf('class="sidebar"'));
+  assert.match(html, /id="legacyPagesButton"[^>]+aria-controls="legacyPagesMenu"/);
+  assert.match(sidebar, /class="primary-nav"/);
+  assert.doesNotMatch(html, /id="projectWorkbenchNav"|class="legacy-pages-menu"/);
   const orderedLabels = [
-    "PERSONAL", "Today", "Chat",
+    "PERSONAL", "Today", "Chat", "Thing", "PRODUCT", "Product",
     "PRODUCT LIFECYCLE", "Idea", "Work", "Automation", "Release", "Operations", "Feedback",
     "ORGANIZATION", "Organization", "Engineering"
   ];
@@ -1033,8 +1036,11 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
     assert.match(sidebar, new RegExp(`data-page="${page}"`));
     assert.match(html, new RegExp(`data-page-view="${page}"`));
   }
-  assert.match(html, /PERSONAL · CODEX CHAT/);
-  assert.match(html, /Chat 不创建待办、Idea、Case 或 Automation Run/);
+  assert.match(html, /class="chat-page-heading"><strong>Chat<\/strong>/);
+  const chatPage = html.slice(html.indexOf('id="chatView"'), html.indexOf('id="productView"'));
+  assert.ok(chatPage.indexOf('class="chat-main"') < chatPage.indexOf('id="chatSessionsPanel"'));
+  assert.ok(chatPage.indexOf('id="chatSessionList"') < chatPage.indexOf('id="newChatButton"'));
+  assert.doesNotMatch(chatPage, /data-page-view="command"|id="currentRunPanel"/);
   assert.match(html, /data-page-view="idea-add"/);
   assert.match(source, /createReleaseSurface/);
   assert.match(html, /id="releaseView"[^>]+data-page-view="release"/);
@@ -2476,11 +2482,13 @@ test('workbench activation follows Workshop authentication through startup, logi
   const source = await readFile(rendererPath, 'utf8');
   const start = source.indexOf('function renderPageVisibility()');
   const end = source.indexOf('\nfunction renderNavigation()', start);
-  const activations = [];
+  const activations = [], surfaces = [];
   const state = { page: 'project-workbench', authentication: { authenticated: false }, platform: {} };
   const context = vm.createContext({
     state,
     document: { body: { classList: { toggle() {} } }, querySelectorAll: () => [] },
+    renderedWorkspaceSurface: "",
+    api: { setWorkspaceSurface: surface => surfaces.push(surface) },
     projectWorkbenchSurface: { show: active => activations.push(active) },
     engineeringSurface: { show() {} }, releaseSurface: { show() {} }
   });
@@ -2490,6 +2498,13 @@ test('workbench activation follows Workshop authentication through startup, logi
     vm.runInContext('renderPageVisibility()', context);
   }
   assert.deepEqual(activations, [false, true, false]);
+  assert.deepEqual(surfaces, ['workbench']);
+  for (const page of ['chat', 'chat', 'command']) {
+    state.page = page;
+    vm.runInContext('renderPageVisibility()', context);
+  }
+  assert.deepEqual(surfaces, ['workbench', 'chat', 'legacy']);
+  assert.deepEqual(activations.slice(3), [false, false, false]);
 });
 
 test('workbench polling checks authentication without loading legacy snapshots', async () => {

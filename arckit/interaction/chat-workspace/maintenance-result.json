@@ -1,0 +1,154 @@
+{
+  "document_scope": {
+    "scope_kind": "change",
+    "root": "arckit/interaction/",
+    "created": [
+      {
+        "path": "chat-workspace/README.md",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "预览、模拟边界、视觉与验证依据"
+      },
+      {
+        "path": "chat-workspace/model.js",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "独立本地会话、工作区、草稿、turn 与恢复样本"
+      },
+      {
+        "path": "chat-workspace/views.js",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "右侧项目会话分组、中央消息与 Composer"
+      },
+      {
+        "path": "chat-workspace/app.js",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "会话操作、焦点、滚动、输入法、场景与逐段回复"
+      },
+      {
+        "path": "chat-workspace/chat.css",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "中央阅读宽度、右侧列表与窄窗抽屉"
+      },
+      {
+        "path": "chat-workspace/markdown.js",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "受限 Markdown、代码和表格呈现"
+      },
+      {
+        "path": "chat-workspace/scenarios.html",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "独立本地异常工具"
+      },
+      {
+        "path": "chat-workspace/scenario-controls.js",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "场景工具消息转发"
+      },
+      {
+        "path": "chat-workspace/states.html",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "从旧主稿迁移的右侧列表状态辅助说明"
+      },
+      {
+        "path": "chat-workspace/verify.cjs",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "主路径、恢复、滚动与响应式浏览器验证"
+      },
+      {
+        "path": "chat-workspace/verification.json",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "实际本地交互验证结果"
+      },
+      {
+        "path": "chat-workspace/maintenance-result.json",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "本轮文件范围与正式交互事实结果"
+      }
+    ],
+    "updated": [
+      {
+        "path": "chat-workspace/default.html",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+      },
+      {
+        "path": "chat-workspace/interaction.md",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+      },
+      {
+        "path": "project-workbench/navigation.js",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+      },
+      {
+        "path": "project-workbench/account-settings.js",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+      },
+      {
+        "path": "INDEX.md",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+      },
+      {
+        "path": "_map/RELATIONS.md",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+      },
+      {
+        "path": "_map/feature-matrix.md",
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+      }
+    ],
+    "deleted": [],
+    "reorganized": [
+      {
+        "from_paths": [
+          "chat-workspace/default.html"
+        ],
+        "to_paths": [
+          "chat-workspace/default.html",
+          "chat-workspace/states.html"
+        ],
+        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "summary": "原静态主稿保留为状态辅助稿，主入口替换为完整可操作 Chat。"
+      }
+    ]
+  },
+  "fact_result": {
+    "schema_version": "arckit-fact-result/v2",
+    "mode": "standalone",
+    "case_id": null,
+    "gap_id": null,
+    "outcome": "updated",
+    "facts": [
+      {
+        "statement": "Chat 使用左侧四组应用导航、居中对话及 Composer、右侧项目会话列表；窄窗右侧抽屉保持会话选择和恢复。",
+        "basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "source_refs": [
+          "arckit/interaction/chat-workspace/interaction.md",
+          "arckit/visual/_library/components/conversation.yaml"
+        ],
+        "evidence": [
+          "arckit/interaction/chat-workspace/verification.json"
+        ]
+      },
+      {
+        "statement": "Chat 主入口迁移为完整可操作原型，保留独立会话、工作区、草稿、配置、停止与恢复边界；旧状态稿仅作辅助。",
+        "basis": "既有 Chat 交互策略与用户要求；本地模拟不代表生产 Codex 或目录操作成立。",
+        "source_refs": [
+          "arckit/interaction/chat-workspace/README.md",
+          "arckit/interaction/chat-workspace/states.html"
+        ],
+        "evidence": [
+          "arckit/interaction/chat-workspace/verification.json",
+          "arckit/interaction/project-workbench/verification-states.json"
+        ]
+      }
+    ],
+    "unresolved": [],
+    "human_decision_required": false
+  },
+  "exploration_result": null
+}

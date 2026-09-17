@@ -146,7 +146,7 @@ const state = {
   codexAuthMethod: "",
   codexAuthFlow: "",
   codexInstallMethod: "",
-  page: "project-workbench",
+  page: "command",
   selectedProjectId: "all",
   todaySelectedProjectId: "all",
   todayMode: "",
@@ -326,7 +326,7 @@ const releaseSurface = createReleaseSurface({
   navigateSetup: () => showPage("command")
 });
 const projectWorkbenchSurface = createProjectWorkbenchSurface({
-  root:document.getElementById('projectWorkbenchView'),nav:document.getElementById('projectWorkbenchNav'),api,navigate:showPage,
+  root:document.getElementById('projectWorkbenchView'),api,navigate:showPage,
   openSettings:()=>document.getElementById('settingsButton').click()
 });
 const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
@@ -424,12 +424,12 @@ async function boot() {
 
 function wireEvents() {
   const legacyButton=document.getElementById('legacyPagesButton'),legacyMenu=document.getElementById('legacyPagesMenu');
-  els.workbenchSettingsButton.addEventListener('click',()=>els.settingsButton.click());
   els.workbenchSyncSettings.addEventListener('click',()=>runAction(async()=>{await api.projectWorkbenchCommand('sync',{});await projectWorkbenchSurface.refresh();showToast('项目与事情已同步');}));
   els.workbenchFeedbackSettings.addEventListener('click',()=>{els.closeSettingsButton.click();els.productFeedbackButton.click();});
-  legacyButton.addEventListener('click',()=>{legacyMenu.hidden=!legacyMenu.hidden;legacyButton.setAttribute('aria-expanded',String(!legacyMenu.hidden));if(!legacyMenu.hidden)legacyMenu.querySelector('button')?.focus();});
-  document.addEventListener('click',event=>{if(!event.target.closest('#legacyPagesButton,#legacyPagesMenu')){legacyMenu.hidden=true;legacyButton.setAttribute('aria-expanded','false');}});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!legacyMenu.hidden){legacyMenu.hidden=true;legacyButton.setAttribute('aria-expanded','false');legacyButton.focus();}});
+  function closePageNavigation(restoreFocus=false){document.body.classList.remove('page-navigation-open');legacyButton.setAttribute('aria-expanded','false');if(restoreFocus)legacyButton.focus();}
+  legacyButton.addEventListener('click',()=>{const opening=!document.body.classList.contains('page-navigation-open');document.body.classList.toggle('page-navigation-open',opening);legacyButton.setAttribute('aria-expanded',String(opening));if(opening)legacyMenu.querySelector('.is-active,button')?.focus();});
+  document.addEventListener('click',event=>{if(!event.target.closest('.sidebar,#legacyPagesButton'))closePageNavigation();});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.body.classList.contains('page-navigation-open')){event.preventDefault();closePageNavigation(true);}});
   initializeWorkInspectorResize();
   els.setupRetryButton.addEventListener("click", () => runAction(async () => {
     state.setupActionError = "";
@@ -599,9 +599,16 @@ function wireEvents() {
     renderSetup();
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
+  document.getElementById('chatSessionsToggle').addEventListener('click', () => setChatSessionsOpen(!document.body.classList.contains('chat-sessions-open')));
+  document.getElementById('chatSessionsClose').addEventListener('click', () => setChatSessionsOpen(false, true));
+  window.matchMedia('(max-width: 760px)').addEventListener('change', () => setChatSessionsOpen(false));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.body.classList.contains('chat-sessions-open')) setChatSessionsOpen(false, true);
+  });
   els.newChatButton.addEventListener("click", () => runAction(async () => {
     const projectId = defaultChatDraftProject()?.id || "";
     await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
+    setChatSessionsOpen(false);
     renderChat();
     els.chatInput.focus();
   }));
@@ -1620,6 +1627,8 @@ function renderChat() {
     renderedChatSessionList = sessionList;
     els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
       await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
+      setChatSessionsOpen(false);
+      els.chatInput.focus();
       renderChat();
     })));
     els.chatSessionList.querySelectorAll("[data-chat-history-project-id]").forEach((button) => button.addEventListener("click", () => {
@@ -1637,7 +1646,7 @@ function renderChat() {
   els.chatStatusText.textContent = session
     ? `${chatStatusLabel(session.status)}${chat.refreshing ? " · 正在同步" : ""}${session.error ? ` · ${session.error}` : ""}`
     : chat.refreshing ? "正在同步最新会话…"
-      : project ? "发送第一条消息后创建持久会话和 Codex thread。" : "先在 Workset 中配置一个本地 Product Workspace。";
+      : project ? "从一个问题开始，消息与回答会保存在这段对话中。" : "先在 Workset 中配置一个本地 Product Workspace。";
   els.chatTranscript.setAttribute("aria-busy", String(chat.refreshing));
   els.renameChatButton.disabled = !session;
   els.deleteChatButton.disabled = !session;
@@ -1649,7 +1658,7 @@ function renderChat() {
     messages: session ? chat.snapshot.messages : [],
     emptyHtml: session
       ? `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`
-      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : bindableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
+      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "提问、讨论或一起完成工作。你可以随时停止回答，稍后继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : bindableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
   });
   els.chatErrorHost.querySelector("[data-chat-retry-last]")?.addEventListener("click", () => {
     chatStateCoordinator.prepareRetry();
@@ -1794,7 +1803,23 @@ function renderWorkSurface() {
   renderPlatformWork();
 }
 
+let renderedWorkspaceSurface = "";
+function setChatSessionsOpen(open, restoreFocus = false) {
+  const narrow = window.matchMedia('(max-width: 760px)').matches;
+  const visible = Boolean(open && narrow && state.page === 'chat');
+  document.body.classList.toggle('chat-sessions-open', visible);
+  document.getElementById('chatSessionsToggle').setAttribute('aria-expanded', String(visible));
+  document.querySelector('#chatView .chat-main').inert = visible;
+  if (visible) document.getElementById('chatSessionsClose').focus();
+  else if (restoreFocus) document.getElementById('chatSessionsToggle').focus();
+}
 function renderPageVisibility() {
+  document.body.classList.toggle('chat-active', state.page === 'chat');
+  const workspaceSurface = state.page === 'project-workbench' ? 'workbench' : state.page === 'chat' ? 'chat' : 'legacy';
+  if (workspaceSurface !== renderedWorkspaceSurface) {
+    renderedWorkspaceSurface = workspaceSurface;
+    void api.setWorkspaceSurface?.(workspaceSurface);
+  }
   document.body.classList.toggle('project-workbench-active',state.page==='project-workbench');
   projectWorkbenchSurface.show(state.page==='project-workbench' && state.authentication.authenticated);
   engineeringSurface.show(state.page === 'engineering', state.page === 'chat');
@@ -1827,7 +1852,7 @@ function renderCommandBar() {
     ? organizationScope?.name || "个人项目"
     : project?.name || state.platform.active_workset?.name || "项目集全部";
   els.pageTitle.textContent = {
-    "project-workbench":"事情台", today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
+    "project-workbench":"Thing", today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
     work: "Work", feedback: "Feedback", command: "Automation", release: "Release", operations: "Operations",
     tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
   }[state.page] || "ArcOrbit";
@@ -4995,8 +5020,9 @@ function invalidatePlatformTaskSelectionContext() {
 }
 
 function showPage(page) {
+  setChatSessionsOpen(false);
   const leavingProjectWorkbench = state.page === "project-workbench" && page !== state.page;
-  document.getElementById('legacyPagesMenu').hidden=true;
+  document.body.classList.remove('page-navigation-open');
   document.getElementById('legacyPagesButton').setAttribute('aria-expanded','false');
   state.page = page;
   if (leavingProjectWorkbench) void refreshSnapshot({ quiet: true, afterMutation: true }).catch(error => showToast(error.message));

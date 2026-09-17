@@ -12,13 +12,17 @@ async function fixture(t) {
   await mkdir(join(dir, 'project'));
   return { dir, owner: { scope: 'account', id: '11', path: join(dir, 'project') } };
 }
-async function until(fn) {
-  for (let n = 0; n < 100; n++) {
-    const value = await fn();
-    if (value) return value;
+async function until(read, accepts) {
+  // The real login shell and child process can start slowly under the full build suite.
+  const deadline = Date.now() + 30_000;
+  let record;
+  do {
+    record = await read();
+    if (accepts(record)) return record;
+    if (['failed', 'interrupted', 'completed'].includes(record.status)) break;
     await new Promise(resolve => setTimeout(resolve, 50));
-  }
-  throw new Error('Execution did not reach expected state');
+  } while (Date.now() < deadline);
+  assert.fail(`Execution did not reach expected state: ${JSON.stringify({ status: record?.status, exit_code: record?.exit_code, signal: record?.signal, log: record?.log?.slice(-512) })}`);
 }
 
 test('real tasks survive view detachment, keep ownership, stop and persist across restart', async t => {
@@ -27,10 +31,10 @@ test('real tasks survive view detachment, keep ownership, stop and persist acros
   t.after(() => service.close());
   // Node inherits the same PATH as developer tasks; no production file is touched.
   const task = await service.start(owner, { command: 'node -e "console.log(123);setInterval(()=>{},1000)"' });
-  await until(async () => (await service.read(owner, task.id)).log.includes('123'));
+  await until(() => service.read(owner, task.id), record => record.log.includes('123'));
   await assert.rejects(service.read({ ...owner, id: '12' }, task.id), /不属于/);
   await service.control(owner, task.id, 'stop');
-  await until(async () => (await service.read(owner, task.id)).status === 'stopped');
+  await until(() => service.read(owner, task.id), record => record.status === 'stopped');
   await service.close();
   const resumed = createProcessService({ dataDir: dir });
   t.after(() => resumed.close());
@@ -60,5 +64,5 @@ test('rebound project can stop old work but cannot send stdin or reuse an editor
   await assert.rejects(c.command('execution.control', { project_id: owner.id, id: task.id, action: 'write', data: 'x' }), /不属于/);
   await assert.rejects(c.command('files.save', { project_id: owner.id, expected_workspace: owner.path, path: 'file', text: 'x', revision: 'old' }), /已变化/);
   await c.command('execution.control', { project_id: owner.id, id: task.id, action: 'stop' });
-  await until(async () => (await c.command('execution.read', { project_id: owner.id, id: task.id })).status === 'stopped');
+  await until(() => c.command('execution.read', { project_id: owner.id, id: task.id }), record => record.status === 'stopped');
 });

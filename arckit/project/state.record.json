@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-09-16T06:31:15.206Z",
-    "revision": 389
+    "updated_at": "2026-09-17T05:47:13.762Z",
+    "revision": 393
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -113,7 +113,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "通过显式配置开启 ArcOrbit 各处 Agent 的 YOLO 模式。",
+      "current_focus": "Apply approved grouped navigation, independent Thing, centered Chat and existing account capabilities to production ArcOrbit.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -131,8 +131,8 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the intended outcome and scope.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit is the repository-owned development protocol and skill system; ArcOrbit is its supervised Desktop/Runtime product and is expanding into a local-project-anchored, multi-product software-development platform for people who coordinate organization, product, member, todo, AI execution, and feedback work without relying on the Todo or Feedback web clients for daily operation. Product 保持产品资料推进能力；Product/Idea 能力保持既有边界。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。 ArcOrbit 的默认主工作入口更新为项目事情台，以项目范围内持续存在的事情承载目标表达、检查成果、处理例外和改变方向；Product 等旧业务仍通过统一二级菜单完整访问。",
-          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
+          "statement": "Arckit is the repository-owned development protocol and skill system; ArcOrbit is its supervised Desktop/Runtime product and is expanding into a local-project-anchored, multi-product software-development platform for people who coordinate organization, product, member, todo, AI execution, and feedback work without relying on the Todo or Feedback web clients for daily operation. Product 保持产品资料推进能力；Product/Idea 能力保持既有边界。 Release 提供真实本地终端、原生 Git、源码编辑、构建运行及复用 Chat/Idea 的场景 Agent，消费既有工作区绑定；以 arcorbit-release-workspace.md 与 release-workspace-solution.md 为准，外部渠道和监控仍依实际 adapter。 ArcOrbit 的 Thing 是与 Chat 并列的独立入口；四组主导航直接访问全部业务页面，默认进入 Automation。",
+          "reason": "用户明确收窄事情台到独立页面；已批准原型与当前生产导航实现。",
           "evidence": [
             "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
             "arckit/pending/prototypes/arcorbit-platform-next/README.md",
@@ -148,11 +148,12 @@
             "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
             "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
             "arckit/interaction/project-workbench/interaction.md",
-            "arckit/tech/arcorbit/project-workbench-solution.md"
+            "arckit/tech/arcorbit/project-workbench-solution.md",
+            "arckit/cases/evidence/CASE-20260917-001/navigation-electron.json"
           ],
           "confidence": "high",
           "resume_condition": "Revisit only if the server ownership boundary or protected ArcOrbit Runtime semantics change. 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
-          "revision": 6
+          "revision": 7
         },
         "gap_refs": []
       },
@@ -213,8 +214,8 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 的旧业务页面保留既有交互及恢复语义。账号设置覆盖层为 Chat 与 Automation 分别提供可编辑 Model 和 Level 候选输入，Chat Composer 在输入框附近显示并调整当前会话后续消息所用 Model/Level，保存、失败恢复、thread 连续与场景隔离保持既有契约。Engineering 以“内置 Skills”明确范围，在首屏紧凑呈现场景、生效时机、内置总数、直接发现、按需使用、已停用、搜索、状态筛选和三列列表；用户在行内调整内置 Skill 使用方式并接收原位反馈。Automation 核心可见且锁定；搜索与状态可组合并一键清除；刷新或保存失败保留最近可信列表、场景和筛选；窄窗口按两列及单列降级且保持键盘焦点。用户自行安装的 Skills 不进入页面列表、计数、错误或操作，Chat 返回保留原会话与草稿。其他既有 Work Inspector、验收、Setup、Feedback、Today、项目绑定、Product/Idea 与 Release 交互契约保持不变。 ArcOrbit 各处 Agent 执行统一受设备级 settings.codex.yolo_mode 显式开关控制，缺省关闭；开启跳过审批并解除 Codex 沙箱，后续消息、新 Run 和终端接力捕获，关闭恢复场景策略；业务授权和托管权限上限保持有效。 新默认事情台使用左项目范围、右单行列表及底部唯一创建、中央紧凑详情四类别与底部输入；消息默认隐藏并按需在中央覆盖，右列表可操作。运行状态弹层跨项目定位，逐事情草稿/阅读位置保留，760 抽屉、390 无横向溢出。旧 11 个页面入口统一收纳于“全部页面”二级菜单，其业务页面不重写。",
-          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
+          "statement": "ArcOrbit 的旧业务页面保留既有交互及恢复语义。账号设置覆盖层为 Chat 与 Automation 分别提供可编辑 Model 和 Level 候选输入，Chat Composer 在输入框附近显示并调整当前会话后续消息所用 Model/Level，保存、失败恢复、thread 连续与场景隔离保持既有契约。Engineering 以“内置 Skills”明确范围，在首屏紧凑呈现场景、生效时机、内置总数、直接发现、按需使用、已停用、搜索、状态筛选和三列列表；用户在行内调整内置 Skill 使用方式并接收原位反馈。Automation 核心可见且锁定；搜索与状态可组合并一键清除；刷新或保存失败保留最近可信列表、场景和筛选；窄窗口按两列及单列降级且保持键盘焦点。用户自行安装的 Skills 不进入页面列表、计数、错误或操作，Chat 返回保留原会话与草稿。其他既有 Work Inspector、验收、Setup、Feedback、Today、项目绑定、Product/Idea 与 Release 交互契约保持不变。 ArcOrbit 各处 Agent 执行统一受设备级 settings.codex.yolo_mode 显式开关控制，缺省关闭；开启跳过审批并解除 Codex 沙箱，后续消息、新 Run 和终端接力捕获，关闭恢复场景策略；业务授权和托管权限上限保持有效。 Thing 以跨项目事情列表、中央详情与局部消息协作承载事情处理；取消全局项目列表与旧页面二级菜单。PERSONAL 下 Today、Chat、Thing 并列，保留 PRODUCT、PRODUCT LIFECYCLE、ORGANIZATION 类别；个人中心保持全部真实设置能力。 Chat 对话与 Composer 居中，项目分组会话在右侧；窄窗抽屉，逐会话草稿、阅读位置和 thread 保持独立。",
+          "reason": "用户批准 Chat 右侧会话布局并授权实施；生产行为验证通过。",
           "evidence": [
             "arckit/interaction/engineering-profile/interaction.md",
             "arckit/interaction/engineering-profile/default.html",
@@ -227,11 +228,13 @@
             "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
             "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
             "arckit/interaction/project-workbench/interaction.md",
-            "arckit/tech/arcorbit/project-workbench-solution.md"
+            "arckit/tech/arcorbit/project-workbench-solution.md",
+            "arckit/cases/evidence/CASE-20260917-001/navigation-electron.json",
+            "arckit/cases/evidence/CASE-20260917-001/chat-electron.json"
           ],
           "confidence": "high",
           "resume_condition": "当 Engineering 信息层级、筛选、场景生效时机、失败恢复、键盘/窄窗行为或非内置隔离边界改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
-          "revision": 72
+          "revision": 74
         },
         "gap_refs": []
       },
@@ -242,8 +245,8 @@
         "evidence_expectation": "Durable visual evidence sufficient to recover the project visual language.",
         "decision": {
           "status": "settled",
-          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口保持既有单一应用标题栏和平台原生窗口控件差异。Work Inspector 使用既有中性表面、8px 间距节奏、标题层级和可见焦点表达身份动作、内容、紧凑属性、协作和验收分区；分区不只依赖单条顶边，属性在可用宽度下优先两列并在窄宽度降为单列。 新事情台沿用现有主题；200px 项目栏、325px 右列表、44px 单行、紧凑标题与四类别、局部消息覆盖。新页面窄窗允许 390px 布局，旧页面保持原窗口边界；不引入演示数据或演示文案。",
-          "reason": "用户确认最终项目事情台并授权独立实现及保留全部旧入口；生产代码和验证兑现本次变化。",
+          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口保持既有单一应用标题栏和平台原生窗口控件差异。Work Inspector 使用既有中性表面、8px 间距节奏、标题层级和可见焦点表达身份动作、内容、紧凑属性、协作和验收分区；分区不只依赖单条顶边，属性在可用宽度下优先两列并在窄宽度降为单列。 新事情台沿用现有主题；200px 分类业务导航栏、325px 右列表、44px 单行、紧凑标题与四类别、局部消息覆盖。新页面窄窗允许 390px 布局，旧页面保持原窗口边界；不引入演示数据或演示文案。",
+          "reason": "用户明确收窄事情台到独立页面；已批准原型与当前生产导航实现。",
           "evidence": [
             "arckit/visual/_library/brief.md",
             "arckit/interaction/task-browser/daily-work.html",
@@ -252,11 +255,12 @@
             "arckit/cases/evidence/CASE-20260915-001/acceptance-matrix.md",
             "arckit/spec/agentic-software-development/arcorbit-project-workbench.md",
             "arckit/interaction/project-workbench/interaction.md",
-            "arckit/tech/arcorbit/project-workbench-solution.md"
+            "arckit/tech/arcorbit/project-workbench-solution.md",
+            "arckit/cases/evidence/CASE-20260917-001/navigation-electron.json"
           ],
           "confidence": "high",
           "resume_condition": "当平台 chrome 策略或 Work Inspector 表面、间距、焦点、属性列与分区层级改变时重审。 事情身份、主会话、场景所有权或新旧导航边界变化时重审。",
-          "revision": 6
+          "revision": 7
         },
         "gap_refs": []
       },

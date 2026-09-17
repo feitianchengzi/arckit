@@ -83,3 +83,52 @@ button:disabled, textarea:disabled { opacity: 1; background: var(--semantic-disa
 .project-desk .detail-tabs button.active,
 .project-desk .surface-tabs button.active { color: var(--semantic-text); }
 .project-desk .runtime-dot.running { background: var(--colors-accent-strong); }
+
+/* Business page navigation; project membership stays in task content. */
+.project-desk .page-navigation { flex: 1; min-height: 0; overflow-y: auto; }
+.project-desk .page-navigation .nav-item { display: flex; font-size: var(--typography-label-size); }
+.project-desk .sidebar-bottom { margin-top: 0; flex: none; }
+@media (min-width: 761px) and (max-width: 1000px) {
+  .project-desk { grid-template-columns: 160px minmax(0, 1fr); }
+  .project-desk .sidebar-bottom { display: block; }
+  .project-desk .compact-pages { display: none; }
+}
+@media (max-width: 760px) {
+  .project-desk { grid-template-columns: minmax(0, 1fr); }
+  .project-desk .sidebar { display: none; }
+}
+
+/* Existing navigation categories and the shared account capability surface. */
+.page-nav-group { margin-bottom: var(--spacing-4); }
+.page-nav-group h2 { font-size: var(--typography-caption-size); font-weight: 500; color: var(--semantic-muted); padding: var(--spacing-3) var(--spacing-4); margin: 0; }
+.project-desk .page-navigation .nav-item { min-height: var(--layout-control-height); padding-top: var(--spacing-2); padding-bottom: var(--spacing-2); }
+.project-desk .sidebar > .brand { margin-bottom: var(--spacing-5); }
+.account-trigger { width: 100%; text-align: left; background: transparent; border: 0; padding: var(--spacing-3) 0; }
+.account-trigger > svg { width: 18px; margin-left: auto; }
+.account-trigger small { display: block; }
+#account-dialog { width: min(760px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; color: var(--semantic-text); background: var(--semantic-canvas); }
+#account-dialog [hidden], #account-dialog .hidden { display: none !important; }
+#account-dialog .dialog-heading { position: sticky; top: 0; background: var(--semantic-canvas); z-index: 1; padding: var(--spacing-5); }
+#account-dialog h2 { font-size: var(--typography-title-size); }
+#account-dialog h3 { font-size: var(--typography-heading-size); margin: 0 0 var(--spacing-4); }
+#account-dialog h4 { margin: var(--spacing-4) 0; }
+#account-dialog p, #account-dialog small { color: var(--semantic-muted); line-height: 1.6; }
+#account-dialog .settings-sections { padding: 0 var(--spacing-5); }
+#account-dialog .settings-sections > section { padding: var(--spacing-5) 0; border-bottom: 1px solid var(--semantic-divider); }
+#account-dialog .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--spacing-4); }
+#account-dialog .field { display: flex; flex-direction: column; gap: var(--spacing-2); margin: var(--spacing-3) 0; min-width: 0; }
+#account-dialog input:not([type=checkbox]), #account-dialog select { width: 100%; min-width: 0; }
+#account-dialog .toggle-row { display: flex; gap: var(--spacing-3); align-items: flex-start; margin: var(--spacing-4) 0; }
+#account-dialog .toggle-row small { display: block; }
+#account-dialog .settings-actions, #account-dialog .pw-settings-actions, #account-dialog .auth-type { display: flex; flex-wrap: wrap; gap: var(--spacing-3); }
+#account-dialog > .settings-actions, #account-dialog > [role=status], #logoutConfirmation { margin: var(--spacing-5); }
+#account-dialog .settings-advanced { margin-top: var(--spacing-5); }
+#account-dialog summary { cursor: pointer; }
+#account-dialog .auth-feedback { min-height: 1.6em; overflow-wrap: anywhere; }
+#account-dialog .secondary-button { display: inline-flex; align-items: center; padding: var(--spacing-3); border: 1px solid var(--semantic-divider); border-radius: var(--corner-radius-small); }
+#account-dialog [aria-pressed=true] { background: var(--semantic-nav-selected); }
+#account-dialog.account-login-gate .codex-settings-section, #account-dialog.account-login-gate .settings-advanced, #account-dialog.account-login-gate > .settings-actions { display: none; }
+@media (max-width: 480px) { #account-dialog .field-grid { grid-template-columns: minmax(0,1fr); } }
+#account-dialog .primary-button { background: var(--colors-accent-base); color: var(--colors-accent-on); border-color: transparent; }
+#account-dialog .account-summary { display: flex; align-items: flex-start; gap: var(--spacing-4); margin-bottom: var(--spacing-3); }
+#account-dialog .account-summary small { display: block; }

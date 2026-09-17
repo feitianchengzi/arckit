@@ -1,0 +1,27 @@
+/* Approved grouped application navigation. The workbench no longer owns the shell. */
+body { --sidebar-width:200px; }
+.sidebar { background:var(--colors-ink-50); color:var(--semantic-text); border-right:1px solid var(--semantic-divider); padding:24px 14px 12px; }
+.sidebar .sidebar-brand { color:var(--semantic-text); }
+.sidebar .primary-nav { flex:1; min-height:0; overflow:auto; margin-top:22px; }
+.sidebar .nav-label { color:var(--semantic-muted); font-size:var(--typography-caption-size); margin-top:20px; }
+.sidebar .nav-item { color:var(--semantic-text); min-height:36px; }
+.sidebar .nav-item.is-active { color:var(--semantic-nav-selected-text); background:var(--semantic-nav-selected); }
+.sidebar .nav-item:hover { background:var(--colors-ink-100); }
+.sidebar .profile-button { color:var(--semantic-text); }
+.sidebar .profile-button small { color:var(--semantic-muted); }
+body.project-workbench-active .primary-nav > [data-page="project-workbench"] { display:flex; }
+.sidebar .brand-mark { background:var(--colors-accent-base); color:var(--colors-accent-on); }
+.page-navigation-toggle { display:none; border:0; background:transparent; -webkit-app-region:no-drag; }
+body.project-workbench-active .sidebar-brand strong,body.project-workbench-active .nav-item strong,
+body.project-workbench-active .nav-item em,body.project-workbench-active .sidebar-footer strong,
+body.project-workbench-active .sidebar-footer small { display:block; }
+@media (min-width:761px) and (max-width:1000px) {
+ body.project-workbench-active { --sidebar-width:160px; }
+ body.project-workbench-active .sidebar { padding:18px 9px 12px; }
+}
+@media (max-width:760px) {
+ body.project-workbench-active { --sidebar-width:0px; }
+ body.project-workbench-active .page-navigation-toggle { display:flex; align-items:center; justify-content:center; width:36px; }
+ body.project-workbench-active .sidebar { display:none; }
+ body.project-workbench-active.page-navigation-open .sidebar { display:flex; position:fixed; top:var(--titlebar-height,40px); bottom:0; left:0; width:220px; z-index:80; box-shadow:var(--shadows-small); }
+}

@@ -127,6 +127,7 @@ app.whenReady().then(async () => {
         work_inspector_content: workInspectorContent,
         current_run_display_title: currentRunDisplayTitle,
         current_run_single_line: currentRunSingleLine,
+        core_navigation_pages: navigation.map(item => item.dataset.page),
         core_navigation_vector_icons: navigation.filter((item) => item.querySelector("svg.ui-icon use")).length,
         core_navigation_text_icons: navigation.filter((item) => [...item.childNodes].some((node) => node.nodeType === Node.ELEMENT_NODE && node.matches("span") && node.textContent.trim())).length,
         table_font_px: tableFontPx,

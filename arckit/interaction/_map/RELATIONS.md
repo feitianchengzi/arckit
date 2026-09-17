@@ -81,7 +81,7 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 - 视觉输入：arckit/visual/_library/brief.md、design-tokens.yaml、component-catalog.yaml、state-contract.md 与 themes/light.yaml；入口直接消费 generated-tokens.css。重建命令见 project-workbench/README.md。
 - 采纳记录：_explorations/project-workbench-v2/exploration.md；采纳前稿保留在 options/original/，使用独立存储与旧视觉。正式升级不回写候选样本。
 - 其他探索：unified-work-exploration、product-continuity-concept、release-workbench；仅迁移，不改变正式页面覆盖状态。
-- 项目事情台“全部页面”链接到既有 11 个业务入口的原型；Organization 使用 platform-workspace/collaboration-views.html。原型以独立标签页保持当前事情，生产应用内路由另行验证。
+- 平台主导航在 PERSONAL 的 Chat 旁新增独立 Thing 入口，恢复 PERSONAL / PRODUCT / PRODUCT LIFECYCLE / ORGANIZATION 分类；事情台侧栏直接呈现各业务页面，不再承担项目列表、关注分组和资源导航。窄窗页面导航菜单保留所有目的地；其他页面原型在独立标签页打开，当前事情与草稿保留。生产路由与 spec/tech 中旧主体入口描述尚待后续同步。
 - 异常场景：project-workbench/scenarios.html → default.html?autoplay=off&scenarioTools=on，场景存储与正式原型隔离，禁止真实服务连接。
 - 历史 intake/Case 中的 runtime/arcorbit/design 路径作为原始证据保留；当前地址从 _explorations/migration-baseline.json 的 moves 映射定位。当前 spec 入口已指向正式目录。
 - Renderer 尚未消费本轮视觉应用与本地异常演示代码；此迁移不代表生产界面同步完成。
@@ -89,3 +89,11 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 事情台强调色依据 visual 的 2026-09-17 橙色策略，由同一 generated-tokens.css 自动消费；正式截图已重建，探索截图保持采纳时证据。
 
 浅杏橙已采纳：#F4B77D 主操作、无深橙装饰描边、中性链接与选中文字；正式 project-workbench 消费共享 Token 和对应样式。来源：arckit/visual/_explorations/orange-tone/exploration.md。
+
+Thing 的个人中心通过 project-workbench/account-settings.js 提供完整可操作投影；能力源为生产 settingsOverlay、renderer.js 与 codex-settings-form.mjs，逐项映射见 project-workbench/account-capabilities.md。automation-workspace/authentication.html 保留账号状态辅助稿；当前完整能力覆盖以 Thing 弹出页为准。
+
+## Chat 完整原型迁移
+
+chat-workspace/default.html 已迁移为分类应用导航、中央对话与右侧会话列表的可操作页面；原静态主稿保留为 chat-workspace/states.html 辅助说明，右侧方向同步修正。页面按 ConversationSurface 和 light Tokens 呈现；独立模型、渲染、行为与异常工具覆盖会话生命周期。与 Thing 共用 project-workbench/navigation.js、account-settings.js 及基础样式，通过 NavigationHost / AccountHost 显式适配，不共享会话或业务状态。
+
+验证：chat-workspace/verification.json；共用导航回归：project-workbench/verification-states.json。生产 Chat renderer 与产品规格中的旧左右栏描述尚未迁移，本轮不宣称生产同步。

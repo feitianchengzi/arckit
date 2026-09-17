@@ -453,3 +453,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 | Workbench 对话 | 先确认当前待办的 task session，再把该待办跨 Run 和 turn 聚合后的用户、Agent、reasoning、工具与权限消息交给 Chat 同一 Conversation Surface；不读取项目默认会话，也不把 Automation 专属状态、原始 delta、文件正文或命令输出作为普通消息 |
 | 待办标题 | 从当前完整正文生成统一的 64-grapheme 单行展示标题；历史 session 只读标签可保留生成时快照，活动任务、顶部标题和确认对话不得把快照当作正文或写回服务端 |
 | Workbench 执行全貌 | 同步聚合同一 task session 全部 Runtime runs 的首次开始、最终结束、实际 round、selected gap、Agent summary 和 trusted closeout；右栏先显示完整墙钟时间、累计 gap 数与逐 gap 结果，再按需加载 Run、round、turn 用量和软异常证据 |
+
+## 账户与 Runtime 完整原型
+
+账号状态辅助稿 `authentication.html` 的完整可操作补充位于 `../project-workbench/default.html` 左下个人中心。能力逐项对应当前生产设置区，覆盖邮箱/手机、任务源三种认证、YOLO、两组模型、代理、同步及产品反馈。依据与本轮体验优化见 `../project-workbench/account-capabilities.md`，不改变 Automation 执行控制的归属。

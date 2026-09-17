@@ -30,6 +30,8 @@ try{
  await window.loadFile(join(here,'../../desktop/renderer/index.html'));
  const js=code=>window.webContents.executeJavaScript(code);
  async function wait(code,label){for(let i=0;i<100;i++){if(await js(code))return;await new Promise(r=>setTimeout(r,40));}throw new Error('Timed out: '+label);}
+ await wait(`document.querySelector('[data-page-view=command]').classList.contains('is-active')`,'original default automation');
+ await js(`document.querySelector('[data-page=project-workbench]').click()`);
  await wait(`document.querySelector('#projectWorkbenchView .pw-heading').textContent.includes('统一项目事情台')`,'initial workbench');
  // Exercise production scroll handlers and an unchanged refresh in Chromium.
  await js(`new Promise(resolve=>setTimeout(resolve,350))`);
@@ -63,20 +65,16 @@ try{
  assert.equal(snapshotReads,activityBefore.snapshotReads);assert.equal(detailReads,activityBefore.detailReads);
  await js(`document.querySelector('[data-pw-action="chat.open"]').click()`);assert(await js(`document.querySelector('.pw-messages').textContent.includes('增量消息已到达')`));
  await js(`document.querySelector('[data-pw-action="chat.close"]').click()`);checks.push('selected run deltas remain available on chat open without full detail reads');
- assert(await js(`document.querySelector('#projectWorkbenchView').classList.contains('is-active')`));checks.push('new default page with real production renderer');
- assert(await js(`document.querySelector('.sidebar-footer').contains(document.querySelector('#legacyPagesButton'))`));
- assert(await js(`getComputedStyle(document.querySelector('.commandbar')).display==='none' && getComputedStyle(document.querySelector('.primary-nav > [data-page="project-workbench"]')).display==='none'`));
- assert(await js(`document.querySelector('#projectWorkbenchNav').textContent.includes('需要我关注') && document.querySelector('#projectWorkbenchNav').textContent.includes('个人与团队项目')`));
+ assert(await js(`document.querySelector('#projectWorkbenchView').classList.contains('is-active')`));checks.push('independent Thing page with real production renderer');
+ assert.deepEqual(await js(`[...document.querySelectorAll('.primary-nav .nav-label')].map(n=>n.textContent)`),['PERSONAL','PRODUCT','PRODUCT LIFECYCLE','ORGANIZATION']);
+ assert(await js(`getComputedStyle(document.querySelector('.primary-nav > [data-page="project-workbench"]')).display!=='none' && !document.querySelector('#projectWorkbenchNav') && !document.querySelector('.pw-scope-select')`));
  assert(await js(`document.querySelector('.pw-top').getBoundingClientRect().height===54 && !document.querySelector('.pw-top [data-pw-action=sync]')`));
  assert(await js(`document.querySelector('.pw-list-head').getBoundingClientRect().height<=90 && document.querySelector('.pw-search-field .pw-icon') && document.querySelector('[data-pw-action=filters]').getAttribute('aria-label')==='更多筛选'`));
  await js(`document.querySelector('[data-pw-action=filters]').click()`);assert(await js(`!document.querySelector('.pw-extra').hidden && document.querySelector('[data-pw-action=filters]').getAttribute('aria-expanded')==='true'`));await js(`document.querySelector('[data-pw-action=filters]').click()`);
- await js(`document.querySelector('#workbenchSettingsButton').click()`);assert(await js(`!document.querySelector('#settingsOverlay').classList.contains('hidden') && document.querySelector('#workbenchSyncSettings') && document.querySelector('#workbenchFeedbackSettings')`));await js(`document.querySelector('#closeSettingsButton').click()`);
- checks.push('prototype shell: bottom legacy access, project navigation, one top bar, settings utilities and compact list controls');
-
- assert(await js(`document.querySelector('#legacyPagesMenu').hidden`));await js(`document.querySelector('#legacyPagesButton').click()`);
- assert(await js(`!document.querySelector('#legacyPagesMenu').hidden`));checks.push('legacy secondary menu opens');
+ await js(`document.querySelector('#accountButton').click()`);assert(await js(`!document.querySelector('#settingsOverlay').classList.contains('hidden') && document.querySelector('#workbenchSyncSettings') && document.querySelector('#workbenchFeedbackSettings')`));await js(`document.querySelector('#closeSettingsButton').click()`);
+ checks.push('grouped primary navigation, independent Thing, account utilities and compact list controls');
  const legacyReadsBefore=await js(`arckitDesktop.getTestCalls().then(calls=>calls.filter(c=>c[0]==='platformSnapshot').length)`);
- for(const page of ['today','chat','product','idea','work','command','release','operations','feedback','organization','engineering']){await js(`document.querySelector('#legacyPagesButton').click();document.querySelector('[data-page="${page}"]').click()`);await wait(`document.querySelector('[data-page-view="${page}"]').classList.contains('is-active')`,page);}
+ for(const page of ['today','chat','product','idea','work','command','release','operations','feedback','organization','engineering']){await js(`document.querySelector('[data-page="${page}"]').click()`);await wait(`document.querySelector('[data-page-view="${page}"]').classList.contains('is-active')`,page);}
  await wait(`arckitDesktop.getTestCalls().then(calls=>calls.filter(c=>c[0]==='platformSnapshot').length>${legacyReadsBefore})`,'legacy data refreshed');
  checks.push('all eleven legacy pages remain reachable with fresh data');await js(`document.querySelector('[data-page="project-workbench"]').click()`);await wait(`document.querySelector('.pw-task-row[aria-selected=true]')`,'return');
  assert(await js(`document.querySelectorAll('.pw-list-foot [data-pw-action=create]').length===1 && document.querySelectorAll('.pw-top [data-pw-action=create]').length===0`));assert.equal(await js(`document.querySelector('.pw-task-row').getBoundingClientRect().height`),44);checks.push('single-line 44px rows, compact header, one bottom creation entry');

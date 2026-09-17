@@ -1,0 +1,151 @@
+{
+  "status": "passed",
+  "checks": [
+    "Right sessions and centered composer at 1440/1000; no overflow at 760/390.",
+    "Drawer selection closes and restores input; per-session draft survives switching.",
+    "Escape restores focus; compact main navigation and full account settings are reachable."
+  ],
+  "sizes": [
+    {
+      "width": 1440,
+      "overflow": false,
+      "main": {
+        "x": 200,
+        "y": 94,
+        "width": 940,
+        "height": 838,
+        "top": 94,
+        "right": 1140,
+        "bottom": 932,
+        "left": 200
+      },
+      "sidebar": {
+        "x": 1140,
+        "y": 94,
+        "width": 300,
+        "height": 838,
+        "top": 94,
+        "right": 1440,
+        "bottom": 932,
+        "left": 1140
+      },
+      "composer": {
+        "x": 290,
+        "y": 756.5,
+        "width": 760,
+        "height": 155.5,
+        "top": 756.5,
+        "right": 1050,
+        "bottom": 912,
+        "left": 290
+      },
+      "drawer": false
+    },
+    {
+      "width": 1000,
+      "overflow": false,
+      "main": {
+        "x": 160,
+        "y": 94,
+        "width": 580,
+        "height": 838,
+        "top": 94,
+        "right": 740,
+        "bottom": 932,
+        "left": 160
+      },
+      "sidebar": {
+        "x": 740,
+        "y": 94,
+        "width": 260,
+        "height": 838,
+        "top": 94,
+        "right": 1000,
+        "bottom": 932,
+        "left": 740
+      },
+      "composer": {
+        "x": 184,
+        "y": 726.5,
+        "width": 532,
+        "height": 185.5,
+        "top": 726.5,
+        "right": 716,
+        "bottom": 912,
+        "left": 184
+      },
+      "drawer": false
+    },
+    {
+      "width": 760,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 94,
+        "width": 760,
+        "height": 838,
+        "top": 94,
+        "right": 760,
+        "bottom": 932,
+        "left": 0
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      },
+      "composer": {
+        "x": 12,
+        "y": 764.5,
+        "width": 736,
+        "height": 155.5,
+        "top": 764.5,
+        "right": 748,
+        "bottom": 920,
+        "left": 12
+      },
+      "drawer": true
+    },
+    {
+      "width": 390,
+      "overflow": false,
+      "main": {
+        "x": 0,
+        "y": 94,
+        "width": 390,
+        "height": 838,
+        "top": 94,
+        "right": 390,
+        "bottom": 932,
+        "left": 0
+      },
+      "sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      },
+      "composer": {
+        "x": 12,
+        "y": 720.5,
+        "width": 366,
+        "height": 199.5,
+        "top": 720.5,
+        "right": 378,
+        "bottom": 920,
+        "left": 12
+      },
+      "drawer": true
+    }
+  ],
+  "renderer_errors": []
+}

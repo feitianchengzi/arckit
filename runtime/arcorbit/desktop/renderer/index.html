@@ -11,7 +11,9 @@
     <link rel="stylesheet" href="./vendor/release-vendor.css">
     <link rel="stylesheet" href="./engineering.css">
     <link rel="stylesheet" href="./project-workbench.css">
+    <link rel="stylesheet" href="./workspace-navigation.css">
     <link rel="stylesheet" href="./visual-system.css">
+    <link rel="stylesheet" href="./chat-layout.css">
   </head>
   <body class="auth-pending">
     <svg class="icon-sprite" aria-hidden="true">
@@ -119,6 +121,7 @@
           <button id="windowMaximizeButton" class="window-control maximize" type="button" aria-label="最大化窗口" title="最大化窗口"><svg class="maximize-glyph" aria-hidden="true"><use href="#icon-window-maximize"></use></svg><svg class="restore-glyph" aria-hidden="true"><use href="#icon-window-restore"></use></svg></button>
           <button id="windowCloseButton" class="window-control close" type="button" aria-label="关闭窗口" title="关闭窗口"><svg aria-hidden="true"><use href="#icon-window-close"></use></svg></button>
         </div>
+        <button id="legacyPagesButton" class="page-navigation-toggle" type="button" aria-label="页面导航" aria-controls="legacyPagesMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-window-maximize"></use></svg></button>
         <div id="titlebarDrag" class="titlebar-drag">ArcOrbit</div>
         <div id="titlebarSync" class="sync-state"><i></i><span>准备同步</span></div>
       </header>
@@ -126,17 +129,11 @@
       <aside class="sidebar">
         <div class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
 
-        <nav class="primary-nav" aria-label="主导航">
-          <button class="nav-item is-active" data-page="project-workbench" type="button" title="项目事情台"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>事情台</strong></button>
-          <div id="projectWorkbenchNav" aria-label="项目导航"></div>
-        </nav>
-
-        <div class="sidebar-footer">
-          <button id="legacyPagesButton" class="nav-item legacy-pages-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="legacyPagesMenu" title="全部旧页面"><svg class="ui-icon" aria-hidden="true"><use href="#icon-window-maximize"></use></svg><strong>全部页面</strong><em>›</em></button>
-          <div id="legacyPagesMenu" class="legacy-pages-menu" aria-label="旧页面入口" hidden>
+        <nav id="legacyPagesMenu" class="primary-nav" aria-label="主导航">
           <p class="nav-label">PERSONAL</p>
           <button class="nav-item" data-page="today" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><em id="attentionNavCount">0</em></button>
           <button class="nav-item" data-page="chat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chat"></use></svg><strong>Chat</strong><em>Codex</em></button>
+          <button class="nav-item" data-page="project-workbench" type="button" title="Thing"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Thing</strong></button>
 
           <p class="nav-label">PRODUCT</p>
           <button class="nav-item" data-page="product" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Product</strong></button>
@@ -152,10 +149,11 @@
           <button class="nav-item" data-page="organization" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-organization"></use></svg><strong>Organization</strong><em id="organizationNavCount">0</em></button>
           <button class="nav-item" data-page="engineering" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-engineering"></use></svg><strong>Engineering</strong></button>
 
-          </div>
+        </nav>
 
+        <div class="sidebar-footer">
           <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small></button>
-          <button id="workbenchSettingsButton" class="pw-sidebar-settings workbench-only" type="button" aria-label="设置" title="设置"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></button>
+
         </div>
       </aside>
 
@@ -199,12 +197,8 @@
           </section>
 
           <section id="chatView" class="app-view" data-page-view="chat">
+            <header class="chat-page-heading"><strong>Chat</strong><button id="chatSessionsToggle" class="secondary-button" type="button" aria-controls="chatSessionsPanel" aria-expanded="false">会话</button></header>
             <div class="chat-workspace">
-              <aside class="chat-sidebar">
-                <div class="chat-sidebar-head"><div><p class="eyebrow">PERSONAL · CODEX CHAT</p><h1>自由对话</h1></div><button id="newChatButton" class="primary-button compact" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg>新对话</button></div>
-                <div id="chatSessionList" class="chat-session-list" aria-label="对话列表"></div>
-                <div class="chat-sidebar-boundary"><strong>独立对话边界</strong><p>Chat 不创建待办、Idea、Case 或 Automation Run，也不读取任务执行 thread。</p></div>
-              </aside>
               <main class="chat-main">
                 <header class="chat-header"><div class="chat-header-copy"><p id="chatWorkspaceLabel" class="eyebrow">选择本地工作区</p><h2 id="chatTitle">新对话</h2><p id="chatStatusText">发送第一条消息后创建持久会话和 Codex thread。</p></div><div class="chat-header-controls"><label class="chat-workspace-picker chat-header-workspace-picker"><span id="chatWorkspacePickerLabel">新对话属于</span><select id="chatProjectSelect" aria-label="Chat 工作区"></select></label><div class="chat-header-actions"><button id="renameChatButton" class="text-button" type="button">重命名</button><button id="deleteChatButton" class="text-button danger" type="button">删除</button></div></div></header>
                 <div id="chatErrorHost"></div>
@@ -212,6 +206,11 @@
                 <button id="chatJumpLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
                 <footer class="chat-composer"><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><button id="chatSkillsButton" class="secondary-button" type="button" title="配置 Chat 可用技能">技能</button><div class="chat-composer-config" aria-label="当前对话 Codex 配置"><label class="chat-composer-setting"><span>Model</span><input id="chatCodexModel" type="text" list="chatCodexModelOptions" maxlength="200" autocomplete="off" title="调整当前对话后续消息使用的 Model"><datalist id="chatCodexModelOptions"></datalist></label><label class="chat-composer-setting"><span>Level</span><input id="chatCodexEffort" type="text" list="chatCodexEffortOptions" maxlength="200" autocomplete="off" title="调整当前对话后续消息使用的推理级别"><datalist id="chatCodexEffortOptions"></datalist></label></div><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-stop"></use></svg>停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
               </main>
+              <aside id="chatSessionsPanel" class="chat-sidebar" aria-label="会话">
+                <div class="chat-sidebar-head"><h2>会话</h2><button id="chatSessionsClose" class="text-button" type="button" aria-label="关闭会话列表">关闭</button></div>
+                <div id="chatSessionList" class="chat-session-list" aria-label="对话列表"></div>
+                <button id="newChatButton" class="primary-button" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg>新对话</button>
+              </aside>
             </div>
           </section>
 

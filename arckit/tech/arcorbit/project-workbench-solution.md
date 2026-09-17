@@ -2,7 +2,7 @@
 
 ## 范围与职责
 
-项目事情台是独立生产页面，承接用户以事情为中心的讨论、执行、检查和介入。旧 Today、Chat、Product、Idea、Work、Automation、Release、Operations、Feedback、Organization、Engineering 的页面与业务实现保持独立；应用壳负责默认路由与全部旧页面二级菜单。
+项目事情台是独立生产页面，承接用户以事情为中心的讨论、执行、检查和介入。旧 Today、Chat、Product、Idea、Work、Automation、Release、Operations、Feedback、Organization、Engineering 的页面与业务实现保持独立；应用壳负责四组直接业务导航，Thing 与 Chat 并列，默认路由为 Automation。Thing 不渲染全局项目导航，旧持久筛选中的项目范围忽略，以跨项目列表恢复当前事情及草稿。
 
 此域与 desktop-execution-solution.md 的职责分开：后者定义现有执行及自由 Chat；本方案定义事情主会话、结构化场景与业务能力适配。它复用原协调器，不复制 State Driven Loop、技能选择或 Git 交付策略。
 
@@ -59,3 +59,7 @@ Codex adapter 将工具声明与现有 scene skills 工具组合。已有 thread
 草稿与阅读位置按账号、事情和标签页存储。后台刷新合并当前对象，保留草稿、焦点及选择。只加载选中事情的最新运行内容；历史运行按点击读取，不在概览重建全部历史 transcript。
 
 旧页面访问时恢复原最小窗口边界；新事情台允许窄窗口布局。场景 HTML 由注册组件渲染，文本按受限 Markdown 转义，Agent 不生成任意 HTML 或操纵 DOM。
+
+### 同级 Chat 页面布局
+
+Chat 使用独立 `chat-layout.css` 调整中央对话、右侧分组会话及窄窗抽屉，保留既有 Chat State Coordinator、Conversation Surface 与 IPC。页面控制器统一设置 workspace surface：Thing/Chat 最小 390×640，其他页面恢复 1100×720；Thing 子视图不再异步覆盖窗口模式。抽屉打开时正文 inert，选择、新建、离页与跨断点关闭抽屉；Esc 恢复按钮焦点。原型模型与样本不进入产品代码。

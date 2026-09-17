@@ -54,14 +54,17 @@ app.whenReady().then(async()=>{
   assert.equal(await run('document.querySelector(".composer textarea").value'),'输入法组合中的文本');
   await run('document.querySelector(".composer textarea").dispatchEvent(new CompositionEvent("compositionend",{bubbles:true}));');
   checks.push('IME composition cannot submit or replace input');
-  await run('document.querySelector(".sidebar-bottom .legacy-pages > button").focus()');
-  await click('.sidebar-bottom .legacy-pages > button');
-  const links=await run('[...document.querySelectorAll(".sidebar-bottom .legacy-menu a")].map(a=>a.getAttribute("href"))');
-  assert.equal(links.length,11);for(const href of links)assert.ok(fs.existsSync(path.resolve(__dirname,href)),href);
+  win.setContentSize(390,950);await wait();
+  assert.equal(await run('document.querySelectorAll(".sidebar [data-action=project], .sidebar [data-action=scope-all], .sidebar [data-action=resources]").length'),0);
+  await run('document.querySelector(".compact-pages > button").focus()');
+  await click('.compact-pages > button');
+  const links=await run('[...document.querySelectorAll(".compact-pages .legacy-menu a")].map(a=>a.getAttribute("href"))');
+  assert.equal(links.length,12);for(const href of links)assert.ok(fs.existsSync(path.resolve(__dirname,href)),href);
   await run('document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');
-  assert.equal(await run('document.querySelector(".sidebar-bottom .legacy-menu").hidden'),true);
-  assert.equal(await run('document.activeElement.getAttribute("aria-label")'),'全部页面');
-  checks.push('11 local legacy destinations resolve; Escape restores trigger focus');
+  assert.equal(await run('document.querySelector(".compact-pages .legacy-menu").hidden'),true);
+  assert.equal(await run('document.activeElement.getAttribute("aria-label")'),'页面导航');
+  checks.push('12 peer page destinations resolve; Escape restores trigger focus');
+  win.setContentSize(1440,1000);await wait();
   for(const mode of ['paused','stopped','failed','external']){
    await scenario(mode);const thread=await run('window.WorkModel.current().thread');
    const action=mode==='paused'?'resume':mode==='external'?'recheck':'recover';

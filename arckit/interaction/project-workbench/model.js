@@ -7,7 +7,7 @@
  const states = {review:'待评审',ready:'待处理',progress:'进行中',completed:'已完成',accepted:'已验收',blocked:'已阻塞',cancelled:'已取消'};
  const modes = {manual:'由你推进',discussion:'交流分析',queued:'等待 Auto',auto:'Auto 进行中',paused:'已暂停 · 可交流',decision:'等你决定',external:'等待外部条件',failed:'执行需恢复',done:'结果待检查',accepted:'验收通过',stopped:'执行已停止'};
  const base = (id,project,title,status,mode,extra={}) => ({id,project,title,body:title+'。保留现有使用习惯，完成后提供可检查的结果。',status,mode,assignee:'我',priority:'高',tag:'体验',revision:1,thread:'work-thread-'+id,draft:'',messages:[],activity:['事情已建立'],pending:[],issues:[],model:'默认模型',level:'默认强度',...extra});
- function initial() {return {version:2,scope:'orbit',selected:'101',surface:'detail',listOpen:false,reading:{},assigneeFilter:'all',priorityFilter:'all',filter:'all',query:'',tab:'scene',autoClaim:false,offline:false,failNext:false,config:{orbit:true,feedback:true,todo:true},newDraft:'',newProject:'orbit',tasks:[
+ function initial() {return {version:2,scope:'all',selected:'101',surface:'detail',listOpen:false,reading:{},assigneeFilter:'all',priorityFilter:'all',filter:'all',query:'',tab:'scene',autoClaim:false,offline:false,failNext:false,config:{orbit:true,feedback:true,todo:true},newDraft:'',newProject:'orbit',tasks:[
   base('101','orbit','优化事情列表的键盘导航','ready','manual',{body:'支持方向键切换事情，Enter 打开详情，Esc 返回列表。切换后保留用户草稿与列表位置。',tag:'交互'}),
   base('102','orbit','整理离线恢复方案','review','manual',{body:'先分析应用离线、重新联网和重新打开后的状态恢复策略。需要明确哪些内容保留，以及失败时如何继续。',priority:'中',tag:'方案'}),
   base('103','feedback','修复反馈图片加载','progress','auto',{body:'排查反馈图片偶发无法显示的问题，修复后验证列表和详情中的图片加载。',messages:[{role:'user',text:'请修复反馈图片偶发加载失败的问题。'},{role:'agent',text:'正在检查图片请求与重试逻辑。结果会出现在工作现场。'}],activity:['已开始 Auto','正在检查图片请求与重试逻辑']}),
@@ -24,6 +24,7 @@
  const current = () => state.tasks.find(t=>t.id===state.selected);
  const project = id => projects.find(p=>p.id===id);
  const save = () => {try{localStorage.setItem(key,JSON.stringify(state));}catch{storageAvailable=false;}};
+ state.scope='all'; // The independent page always browses all projects.
  const visible = () => state.tasks.filter(t=>(state.scope==='all'||t.project===state.scope) && (state.filter==='all'||(state.filter==='attention'?['decision','paused','failed','done'].includes(t.mode):t.status===state.filter)) && (state.assigneeFilter==='all'||t.assignee===state.assigneeFilter) && (state.priorityFilter==='all'||t.priority===state.priorityFilter) && (!state.query||[t.title,t.body,t.id,t.assignee,t.tag].join(' ').toLowerCase().includes(state.query.toLowerCase())));
  const ownsLane = t => ['auto','paused','decision','external','failed'].includes(t.mode);
  const record = (t,text,meta={}) => {t.activity.push(text);t.revision++;t.events??=[];t.events.push({text,at:new Date().toISOString(),actor:meta.actor||'ArcOrbit',kind:meta.kind||'execution',...meta});};
@@ -73,7 +74,7 @@
   writable();if(!project(pid))throw new Error('请选择这件事情所属的项目。');if(!text.trim())throw new Error('请描述你想推进的事情。');
   const t=base(String(Math.max(...state.tasks.map(x=>Number(x.id)))+1),pid,displayTitle(text),'review',fromChat?'discussion':'manual',{body:text.trim(),priority:'中',tag:fromChat?'对话发起':'新事情'});
   if(fromChat){message(t,'user',text.trim());message(t,'agent','事情已建立，执行人为你。我会先围绕目标交流；开始 Auto 由你决定。');t.analysis='请核对目标和完成标准。可以继续交流，或直接编辑事情内容。';window.WorkProgress.analyze(t,text.trim());}
-  state.tasks.unshift(t);state.selected=t.id;state.scope=pid;state.filter='all';state.query='';state.newDraft='';state.tab='scene';state.surface='detail';state.assigneeFilter='all';state.priorityFilter='all';save();return t;
+  state.tasks.unshift(t);state.selected=t.id;state.scope='all';state.filter='all';state.query='';state.newDraft='';state.tab='scene';state.surface='detail';state.assigneeFilter='all';state.priorityFilter='all';save();return t;
  }
  window.WorkModel={view,key,displayTitle,projects,states,modes,get state(){return state;},get storageAvailable(){return storageAvailable;},current,project,save,visible,record,message,writable,start,send,create,advance,restore,ownsLane,reset(){state=initial();save();}};
 })();

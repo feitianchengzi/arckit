@@ -495,8 +495,8 @@ function combinedSetupReadiness(
 
 function registerIpc() {
   ipcMain.handle('arckit:workspace-surface', (event,surface) => {
-    assertMainRenderer(event);if(!['workbench','legacy'].includes(surface))throw new Error('Unknown workspace surface.');
-    const minimum=surface==='workbench'?[390,640]:[1100,720];mainWindow.setMinimumSize(...minimum);
+    assertMainRenderer(event);if(!['workbench','chat','legacy'].includes(surface))throw new Error('Unknown workspace surface.');
+    const minimum=surface!=='legacy'?[390,640]:[1100,720];mainWindow.setMinimumSize(...minimum);
     const [width,height]=mainWindow.getSize();if(width<minimum[0]||height<minimum[1])mainWindow.setSize(Math.max(width,minimum[0]),Math.max(height,minimum[1]));
   });
   ipcMain.handle('arckit:project-workbench-snapshot', event => { assertMainRenderer(event); return projectWorkbench.snapshot(); });

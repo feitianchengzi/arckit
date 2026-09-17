@@ -6,7 +6,7 @@
     "permission denial preserves edit and recovers",
     "conflict exposes latest facts and requires explicit resubmission",
     "IME composition cannot submit or replace input",
-    "11 local legacy destinations resolve; Escape restores trigger focus",
+    "12 peer page destinations resolve; Escape restores trigger focus",
     "pause/stop/failure/external-wait recovery keep thread identity",
     "grapheme-safe title and empty-filter recovery",
     "narrow navigation access and 200 percent zoom without page overflow"

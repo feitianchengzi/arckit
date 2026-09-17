@@ -36,8 +36,8 @@ test('workbench shell connects navigation, runtime popover and compact list filt
   const q = selector => root.querySelector(selector);
   const click = selector => q(selector).click();
   assert.equal(q('.pw-error').textContent, '');
-  assert.equal(document.querySelectorAll('.pw-nav-group').length, 3);
-  assert.match(document.querySelector('#nav').textContent, /Glare 的工作空间/);
+  assert.equal(document.querySelectorAll('.pw-nav-group').length, 0);
+  assert.equal(root.querySelector('.pw-scope-select'), null);
   assert.ok(q('.pw-search-field svg'));
   assert.equal(root.querySelectorAll('[data-pw-action="create"]').length, 1);
   assert.equal(q('[data-pw-action="create"]').parentElement.className, 'pw-list-foot');
@@ -56,8 +56,6 @@ test('workbench shell connects navigation, runtime popover and compact list filt
   assert.equal(settingsOpened, 1);
   assert.equal(q('.pw-runtime').hidden, true);
   assert.equal(trigger.getAttribute('aria-expanded'), 'false');
-  document.querySelector('[data-nav-action="settings"]').click();
-  assert.equal(settingsOpened, 2);
   click('[data-pw-action="filters"]');
   assert.equal(q('.pw-extra').hidden, false);
   assert.equal(q('[data-pw-action="filters"]').getAttribute('aria-expanded'), 'true');
@@ -71,7 +69,7 @@ test('workbench shell connects navigation, runtime popover and compact list filt
   click('[data-pw-action="runtime"]'); click('[data-pw-action="runtime.select"][data-id="1"]');
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(surface.state.task, '1');
-  assert.equal(surface.state.project, 'p');
+  assert.equal(surface.state.project, 'all');
   assert.equal(surface.state.search, '');
   assert.equal(q('.pw-runtime').hidden, true);
   snapshot.runtime = {};

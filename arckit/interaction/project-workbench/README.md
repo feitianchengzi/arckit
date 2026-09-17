@@ -1,4 +1,4 @@
-# ArcOrbit 项目事情台
+# ArcOrbit · Thing
 
 [打开正式原型](default.html) · [交互规范](interaction.md) · [异常场景工具](scenarios.html)
 
@@ -16,7 +16,8 @@ python3 arckit/visual/_library/build-preview.py
 - Workshop Todo #104：处理决定或先讨论。
 - #105：查看成果，逐项检查标准，提出并处理验收问题，再确认验收。
 - 列表底部“发起事情”：首条输入建立自己负责的待评审事情；切换事情与刷新检查草稿保持。
-- 左下“全部页面”：在独立标签页打开已有页面原型，当前事情与草稿保留；窄窗在顶栏使用同名入口。
+- 左侧业务导航：Chat 旁的“Thing”为新独立入口，其他页面直接打开对应原型并保留当前事情；窄窗通过顶栏“页面导航”访问。保留 PERSONAL、PRODUCT、PRODUCT LIFECYCLE、ORGANIZATION 四组类别，无新增项目列表、关注分组和资源入口。
+- 左下个人中心：打开完整“账户与 Runtime”；样本验证码为 `123456`。字段和行为的代码映射见 [个人中心能力](account-capabilities.md)。
 
 ## 本地场景与模拟边界
 
@@ -33,7 +34,8 @@ python3 arckit/visual/_library/build-preview.py
 - `model.js`：隔离样本、状态、存储、身份与本地业务变化。
 - `work-progress.js`：按事情投影进展与可变安排；`detail-content.js`：共用资料/成果/标准与详情投影。
 - `views.js`：主导航、列表、消息与场景结构；`app.js`：动作、表单、滚动、焦点与进展调度。
-- `navigation.js`：既有页面原型入口；`scenarios*.js/html`：独立验证工具。
+- `account-settings.js`：个人中心完整能力与本地交互；`verify-account.cjs`：生产控件覆盖与操作链验证。
+- `navigation.js`：并列业务页面与窄窗导航入口；`scenarios*.js/html`：独立验证工具。
 - `styles.css`、`desk.css`、`detail-content.css`：页面布局与内容结构；`visual.css`：正式组件规则的页面应用。颜色与文字层级消费 visual 变量。
 - `verify.cjs`：完整主路径回归及截图；`verify-states.cjs`：异常恢复、键盘、幂等样张与窄窗。
 
@@ -44,8 +46,9 @@ python3 arckit/visual/_library/build-preview.py
 ```sh
 node runtime/arcorbit/node_modules/electron/cli.js arckit/interaction/project-workbench/verify.cjs
 node runtime/arcorbit/node_modules/electron/cli.js arckit/interaction/project-workbench/verify-states.cjs
+node runtime/arcorbit/node_modules/electron/cli.js arckit/interaction/project-workbench/verify-account.cjs
 ```
 
-两个脚本使用独立临时浏览器存储；检查时禁止 HTTP(S) 外部请求。报告为 `verification.json` 和 `verification-states.json`，截图可由验证脚本重新生成到 `previews/`，不保留在版本库。正式设计无 runtime/design 资源依赖；上述 Electron 仅为本地验证工具。
+三个脚本使用独立临时浏览器存储；检查时禁止 HTTP(S) 外部请求。报告为 `verification.json` 、`verification-states.json` 和 `verification-account.json`，截图可由验证脚本重新生成到 `previews/`，不保留在版本库。正式设计无 runtime/design 资源依赖；上述 Electron 仅为本地验证工具。
 
 采纳来源、原始候选与迁移记录位于 [V2 探索记录](../_explorations/project-workbench-v2/exploration.md)。

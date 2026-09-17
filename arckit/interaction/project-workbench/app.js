@@ -42,7 +42,7 @@
   switch(action){
    case 'runtime-status':if(M.state.runOpen){closeRuntime(true);}else{M.state.runOpen=true;M.state.listOpen=false;render();document.querySelector('.runtime-popover')?.focus({preventScroll:true});}break;
    case 'close-runtime':closeRuntime(true);break;
-   case 'runtime-select':closeRuntime();M.state.scope=t.project;M.state.filter='all';M.state.query='';M.state.assigneeFilter='all';M.state.priorityFilter='all';select(t.id);document.querySelector('.detail-base [data-action=properties]')?.focus({preventScroll:true});break;
+   case 'runtime-select':closeRuntime();M.state.scope='all';M.state.filter='all';M.state.query='';M.state.assigneeFilter='all';M.state.priorityFilter='all';select(t.id);document.querySelector('.detail-base [data-action=properties]')?.focus({preventScroll:true});break;
    case 'runtime-settings':closeRuntime();settings();break;
    case 'adjust-direction':{const p=window.WorkProgress.ensure(t),value=t.pendingDirection||p;open('调整接下来的安排',`<p>${t.mode==='auto'?'当前工作继续，新安排在下一执行边界生效。':t.mode==='paused'?'保存后保持暂停；准备好后再继续 Auto。':'明确接下来关注什么，已有进展保持记录。'}</p><label class="field">下一步<textarea name="next" required>${esc(value.next)}</textarea></label><label class="field">当前计划（可选，每行一项）<textarea name="plan" placeholder="有明确安排时再填写，可留空。">${esc(value.plan.join('\n'))}</textarea></label>`,cancel()+submit(t.mode==='auto'?'提交调整':'保存安排'),'direction');break;}
    case 'properties':open('事情属性',V.properties(t),button('edit','编辑属性','primary'));dialog.classList.add('properties-dialog');break;
