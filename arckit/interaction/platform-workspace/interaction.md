@@ -46,7 +46,7 @@ ArcOrbit 是在本地项目上开发多个软件产品的平台。Product 目录
 
 计划展示页使用现有 Project、Task、Feedback、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和 release workflow 事实构成可信示例，并显式标记没有真实接入的动作。展示页不写入 Workshop、canonical ledger、Runtime 或外部市场与监控平台。
 
-顶部产品集控件始终显示当前集合名称、产品数量和观察范围。用户可以在“项目集全部”与集合内单个产品之间快速切换，并通过“管理项目集”打开成员管理覆盖层；Today、Idea、Work、Automation、Release、Operations 和 Feedback 共享该选择，Chat 可选择是否携带该上下文。Organization 与 Engineering 使用组织能力范围，不用产品集名称冒充组织范围。
+顶部产品集控件始终显示当前集合名称、产品数量和观察范围。用户可以在“项目集全部”与集合内单个产品之间快速切换，并通过“管理项目集”打开成员管理覆盖层；Idea、Work、Automation、Release、Operations 和 Feedback 共享该选择；Today 展示产品集全部成员，顶部主动切换单向设置其局部选择，Today 内点击不回写顶部，Chat 可选择是否携带该上下文。Organization 与 Engineering 使用组织能力范围，不用产品集名称冒充组织范围。
 
 左侧主导航不展示 `TASK STATUS` 或七状态条目。七状态筛选属于 Work 面板，“仅看验收问题”属于 Automation 面板。
 
@@ -128,7 +128,7 @@ Sheet 使用已有弹层和灰度组件语义，焦点进入搜索框，Tab 在�
 
 ### Today
 
-Today 依据顶部产品集观察范围组合当前用户最值得处理的一项动作、活动执行、人工事项和多产品连接/工作摘要；它不保存第二套 readiness 状态，也不替代各模块的事实写入。完整策略与状态投影位于 `../today-workspace/`，平台页只拥有应用壳、导航和共享产品范围。
+Today 依据产品集全部成员和页内局部项目选择组合当前用户最值得处理的一项动作、活动执行、人工事项和多产品连接/工作摘要；它不保存第二套 readiness 状态，也不替代各模块的事实写入。完整策略与状态投影位于 `../today-workspace/`，平台页只拥有应用壳、导航和共享产品范围。
 
 ### Chat、Idea、Release、Operations 与 Engineering
 

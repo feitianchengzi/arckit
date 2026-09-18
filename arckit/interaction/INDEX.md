@@ -8,7 +8,7 @@
 
 <!-- 直接写文件名/目录名（不用链接语法），每级一句总结，行数如 (285行)；依赖关系在 _map/RELATIONS.md -->
 
-- CONVENTIONS.md 跨页面体验契约：单条全局顶部范围、同步状态及无标题栏、macOS 原生 traffic lights、Windows/Linux 应用控件、可读字号、状态反馈、键盘焦点和对比度。✅ (99行)
+- CONVENTIONS.md 跨页面体验契约：单条全局顶部范围、同步状态及无标题栏、macOS 原生 traffic lights、Windows/Linux 应用控件、可读字号、状态反馈、键盘焦点和对比度。✅ (108行)
 
 - login/ 登录页面：七天滚动会话恢复、临时错误保活与不可绕过的 Workshop 验证码登录门禁。✅
   - default.html 登录线框：会话恢复、未登录入口、验证码已发送和登录失败。✅ (65行)
@@ -29,7 +29,7 @@
   - readiness-details.html 新用户子视图：前置门、项目目录、多项目并行检查、目录/Setup/本机参与和 Work 交接。🟡 (20行)
   - action-details.html 来源操作台：Chat 权限、Automation 人工决策与外部等待分离、Work 内容纠偏与失败保留、状态门、验收问题原位直显及部分成功收口。🟡 (26行)
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
-  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (240行)
+  - interaction.md Today 交互：产品集成员、局部选择与按需初始化、双工作区、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (241行)
   - product-continuity.html 产品续接：添加 Idea、独立新消息和本机草稿。✅ (5行)
 - chat-workspace/ Chat 完整可操作页面：左侧分类导航、中间满宽对话与可调高输入、右侧项目分组会话列表；窄窗抽屉。✅
   - default.html 四组导航、中央对话与右侧会话列表的完整可操作入口。✅ (24行)
@@ -129,7 +129,7 @@
 - _shared/ 全局产品上下文原型：共享范围、顶部能力、页面适配及浏览器验证。
   - global-context.js 本地产品集、范围、对象记忆和状态。
   - global-shell.js / global-context.css 单行顶部、菜单、同步和运行控制。
-  - context-pages.js Product 等页面的范围与对象连续操作。
+  - context-pages.js Product 等页面的范围与对象连续操作、Today 成员选择和初始化模拟。
   - verify-global-context.cjs / global-context-verification.json 实际跨页、草稿和窄窗验证。
 
   - appearance.js 本机外观三选项、系统模式与隔离偏好模拟。

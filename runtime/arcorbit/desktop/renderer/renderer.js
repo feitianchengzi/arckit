@@ -153,6 +153,7 @@ const state = {
   page: "command",
   selectedProjectId: "all",
   todaySelectedProjectId: "all",
+  todaySelectionEpoch: 0,
   todayMode: "",
   todaySelectedItemId: "",
   todayProjectSearch: "",
@@ -331,6 +332,8 @@ async function performGlobalScopeChange(projectId, worksetId = '', {skipProduct 
   if (worksetId) await api.setActiveWorkset(worksetId);
   if (epoch !== globalScopeEpoch) return;
   state.selectedProjectId = String(projectId || 'all');
+  state.todaySelectedProjectId = state.selectedProjectId;
+  const todaySelectionEpoch = ++state.todaySelectionEpoch;
   state.selectedTaskId = ''; setPlatformTaskSelectionIntent(''); state.selectedFeedbackId = '';
   state.workQueryOffset = 0; workQueryState.clear();
   state.workQuery = {key:'', projection:null, loading:false, error:''};
@@ -347,7 +350,10 @@ async function performGlobalScopeChange(projectId, worksetId = '', {skipProduct 
   const work=previousObjects.work&&includesProject(globalScope(),previousObjects.work.project_id)?String(previousObjects.work.id):remembered.work||'';
   setPlatformTaskSelectionIntent(work);
   state.selectedFeedbackId=previousObjects.feedback&&includesProject(globalScope(),previousObjects.feedback.project_id)?String(previousObjects.feedback.id):remembered.feedback||'';
-  state.todaySelectedItemId=previousObjects.today&&includesProject(globalScope(),previousObjects.today.project_id)?previousObjects.today.id:remembered.today||'';
+  if (todaySelectionEpoch === state.todaySelectionEpoch) {
+    state.todaySelectedItemId=previousObjects.today&&includesProject(globalScope(),previousObjects.today.project_id)?previousObjects.today.id:remembered.today||'';
+    scheduleTodayPreferencePersistence();
+  }
   if (state.page === 'work') await refreshWorkQuery();
   render();
 }
@@ -1999,14 +2005,14 @@ function renderWorkset() {
 
 function todayWorkspaceView() {
   return deriveTodayWorkspace({
-    platform: {...state.platform, projects:(state.platform.projects||[]).filter(p=>includesProject(globalScope(),p.id)), product_workspaces:(state.platform.product_workspaces||[]).filter(p=>includesProject(globalScope(),p.project_id||p.id))},
+    platform: state.platform,
     automation: state.snapshot,
     setup: state.setup,
     setupByProject: state.todaySetupByProject,
     chat: chatState().snapshot,
     feedbackLinkRecoveries: state.feedbackLinkRecoveries,
-    selectedProjectId: state.selectedProjectId,
-    projectScopeIds: globalScope().projectIds,
+    selectedProjectId: state.todaySelectedProjectId,
+    projectScopeIds: (state.platform.active_workset?.project_ids || []).map(String),
     selectedMode: state.todayMode,
     selectedItemId: state.todaySelectedItemId
   });
@@ -2021,7 +2027,14 @@ function renderOperationsScope() {
 function renderToday() {
   productSurface.renderToday();
   const view = todayWorkspaceView();
+  const projectSelectionChanged = state.todaySelectedProjectId !== view.selected_project_id;
   state.todaySelectedProjectId = view.selected_project_id;
+  if (projectSelectionChanged) {
+    state.todaySelectionEpoch += 1;
+    state.todayActionError = "";
+    state.todayResult = null;
+    scheduleTodayPreferencePersistence();
+  }
   state.todayMode = view.mode;
   state.todaySelectedItemId = view.selected_item_id;
   const visibleProjects = view.projects.filter((project) => !state.todayProjectSearch || `${project.name} ${project.id}`.toLowerCase().includes(state.todayProjectSearch.toLowerCase()));
@@ -2056,7 +2069,9 @@ function renderToday() {
     ...visibleProjects.map((project) => `<button class="today-project-row ${view.selected_project_id === project.id ? "is-active" : ""}" data-today-project="${escapeHtml(project.id)}" type="button"><i>${escapeHtml((project.name || "P").slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name || project.id)}</strong><small>${todayProjectStatus(project)}</small></span>${project.responsibility_count ? `<em>${project.responsibility_count}</em>` : ""}</button>`)
   ].join("");
   els.todayProjectRail.querySelectorAll("[data-today-project]").forEach((button) => button.addEventListener("click", () => {
-    void runAction(()=>changeGlobalScope(button.dataset.todayProject));
+    state.todaySelectedProjectId = button.dataset.todayProject;
+    state.todaySelectionEpoch += 1;
+    state.todayResult = null;
     state.todaySelectedItemId = "";
     state.todayActionError = "";
     scheduleTodayPreferencePersistence();
@@ -2088,8 +2103,8 @@ function renderToday() {
     runAction(() => editTodayTaskContent(view.selected_item));
   });
   els.todayResponsibilityList.querySelector("[data-today-open-work]")?.addEventListener("click", () => showPage("work"));
-  els.todayResponsibilityList.querySelector("[data-today-empty-add]")?.addEventListener("click", () => runAction(openTodayProjectCatalog));
-  els.todayAddProjectButton.onclick = () => runAction(openTodayProjectCatalog);
+  els.todayResponsibilityList.querySelector("[data-today-empty-add]")?.addEventListener("click", () => runAction(editCurrentWorkset));
+  els.todayAddProjectButton.onclick = () => runAction(editCurrentWorkset);
   els.platformErrorHost.querySelector("[data-today-retry-sources]")?.addEventListener("click", () => runAction(() => refreshSnapshot()));
   els.attentionNavCount.textContent = view.counts.unknown_sources ? `${view.counts.responsibilities}+?` : String(view.counts.responsibilities);
 }
@@ -2119,7 +2134,7 @@ function todayKindLabel(kind) {
 }
 
 function todayEmptyState(view) {
-  if (view.mode === "configuration" && view.counts.configured_projects === 0) return `<div class="today-list-empty"><strong>先添加一个项目</strong><p>可以新建个人项目、从可访问目录选择，或使用邀请码加入。</p><button class="primary-button" data-today-empty-add type="button">添加项目</button></div>`;
+  if (view.mode === "configuration" && view.counts.configured_projects === 0) return `<div class="today-list-empty"><strong>产品集暂无项目</strong><p>在产品集管理中选择要展示的项目。</p><button class="primary-button" data-today-empty-add type="button">管理产品集</button></div>`;
   if (view.mode === "configuration") return `<div class="today-list-empty"><strong>当前范围配置完成</strong><p>项目已满足 Automation 执行前置；创建待办请前往 Work。</p><button class="secondary-button" data-today-open-work type="button">前往 Work 新建待办</button></div>`;
   return `<div class="today-list-empty"><strong>没有需要你处理的事情</strong><p>Automation 和其他页面会在责任明确交给你时发布到这里。</p></div>`;
 }
@@ -2383,76 +2398,6 @@ async function performTodayProjectSetupAction(item, action) {
   } finally {
     state.todaySetupOperationProjectId = "";
   }
-}
-
-async function openTodayProjectCatalog() {
-  const selected = new Set((state.platform.today_project_ids || []).map(String));
-  const accessibleProjects = (state.platform.projects || []).filter((project) => !selected.has(String(project.id)));
-  const sourceField = platformField("source", "项目来源", {
-    type: "select",
-    value: accessibleProjects.length ? "accessible" : "create_personal",
-    options: [
-      { value: "accessible", label: "从可访问项目中选择" },
-      { value: "create_personal", label: "新建个人项目" },
-      { value: "invitation", label: "使用邀请码加入" }
-    ]
-  });
-  const action = openPlatformAction({
-    title: "添加项目到 Today",
-    lead: "项目会立即进入 Today 的独立配置流程；这里不创建待办，也不修改组织角色或其他设备。",
-    confirmLabel: "添加项目",
-    fields: [
-      sourceField,
-      `<div data-today-project-source="accessible">${platformCheckboxGroup("project_ids", "可访问项目（可多选）", accessibleProjects.map((project) => ({ value: project.id, label: project.name, detail: project.organization_id ? organizationName(project.organization_id) : "个人项目" })))}</div>`,
-      `<div data-today-project-source="create_personal">${platformField("name", "个人项目名称", { placeholder: "例如：ArcOrbit Desktop" })}${platformField("git_url", "Git 地址", { placeholder: "可选" })}</div>`,
-      `<div data-today-project-source="invitation">${platformField("invite_kind", "邀请类型", { type: "select", options: [{ value: "project", label: "项目邀请" }, { value: "organization", label: "组织邀请" }] })}${platformField("invite_code", "邀请码", { placeholder: "输入收到的邀请码" })}</div>`
-    ],
-    onSubmit: async (values) => {
-      const beforeIds = new Set((state.platform.projects || []).map((project) => String(project.id)));
-      let addedIds = [];
-      if (values.source === "accessible") {
-        addedIds = Array.isArray(values.project_ids) ? values.project_ids : values.project_ids ? [values.project_ids] : [];
-        if (!addedIds.length) throw new Error("请至少选择一个可访问项目。");
-      } else if (values.source === "create_personal") {
-        const name = String(values.name || "").trim();
-        if (!name) throw new Error("请输入个人项目名称。");
-        const created = await executeManagedAction("project.create", { name, git_url: String(values.git_url || "").trim() }, "个人项目已创建", { refresh: false });
-        const createdId = String(created?.id || created?.project?.id || "");
-        if (createdId) addedIds = [createdId];
-      } else {
-        const inviteCode = String(values.invite_code || "").trim();
-        if (!inviteCode) throw new Error("请输入邀请码。");
-        await executeManagedAction(values.invite_kind === "organization" ? "organization.join" : "project.join", { invite_code: inviteCode }, "邀请已确认", { refresh: false });
-      }
-      if (!addedIds.length) {
-        await refreshSnapshot({ quiet: true });
-        addedIds = (state.platform.projects || []).map((project) => String(project.id)).filter((id) => !beforeIds.has(id));
-      }
-      if (!addedIds.length) throw new Error("来源已确认，但未发现新加入的项目；请刷新来源后重试。");
-      const nextIds = [...new Set([...selected, ...addedIds.map(String)])];
-      await api.setTodayProjects(nextIds);
-      state.todayMode = "configuration";
-      state.todaySelectedProjectId = addedIds[0];
-      state.todaySelectedItemId = "";
-      scheduleTodayPreferencePersistence();
-      await refreshSnapshot({ quiet: true });
-      showToast(`已添加 ${addedIds.length} 个项目；正在分别计算配置状态。`);
-      return { close: true };
-    }
-  });
-  const sourceSelect = els.platformActionFields.querySelector('[name="source"]');
-  const syncSource = () => {
-    const activeSource = sourceSelect?.value || "accessible";
-    els.platformActionFields.querySelectorAll("[data-today-project-source]").forEach((section) => {
-      const active = section.dataset.todayProjectSource === activeSource;
-      section.classList.toggle("hidden", !active);
-      section.querySelectorAll("input, select, textarea").forEach((control) => { control.disabled = !active; });
-    });
-    els.confirmPlatformActionButton.textContent = activeSource === "accessible" ? "添加所选项目" : activeSource === "create_personal" ? "创建并添加" : "加入并添加";
-  };
-  sourceSelect?.addEventListener("change", syncSource);
-  syncSource();
-  await action;
 }
 
 async function performGuidanceAction(guidance, { task = guidance.task, workspace = guidance.workspace } = {}) {

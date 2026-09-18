@@ -42,8 +42,8 @@ test('Today scope expansion keeps the current valid responsibility before rememb
  const {readFile}=await import('node:fs/promises'),{default:vm}=await import('node:vm');
  const source=await readFile(new URL('../desktop/renderer/renderer.js',import.meta.url),'utf8');
  const fn=source.slice(source.indexOf('async function performGlobalScopeChange('),source.indexOf('\nlet chatComposer;'));
- const state={page:'today',selectedProjectId:'A',todaySelectedItemId:'current'};
- const context={state,globalScopeEpoch:0,rememberScopeViews:()=>({today:{id:'current',project_id:'A'}}),rememberedScopeViews:()=>({today:'remembered'}),chatScopeController:{capture(){},async reconcile(){}},chatStateCoordinator:{async flushDraft(){}},setPlatformTaskSelectionIntent(){},workQueryState:{clear(){}},projectWorkbenchSurface:{async scopeChanged(){}},renderCommandBar(){},renderWorkset(){},renderChat(){},refreshSnapshot:async()=>{},render(){},globalScope:()=>({projectIds:state.selectedProjectId==='all'?['A','B']:[state.selectedProjectId]}),includesProject:(scope,id)=>scope.projectIds.includes(id)};
+ const state={page:'today',selectedProjectId:'A',todaySelectionEpoch:0,todaySelectedItemId:'current'};
+ const context={state,globalScopeEpoch:0,scheduleTodayPreferencePersistence(){},rememberScopeViews:()=>({today:{id:'current',project_id:'A'}}),rememberedScopeViews:()=>({today:'remembered'}),chatScopeController:{capture(){},async reconcile(){}},chatStateCoordinator:{async flushDraft(){}},setPlatformTaskSelectionIntent(){},workQueryState:{clear(){}},projectWorkbenchSurface:{async scopeChanged(){}},renderCommandBar(){},renderWorkset(){},renderChat(){},refreshSnapshot:async()=>{},render(){},globalScope:()=>({projectIds:state.selectedProjectId==='all'?['A','B']:[state.selectedProjectId]}),includesProject:(scope,id)=>scope.projectIds.includes(id)};
  const change=vm.runInNewContext('('+fn+')',context);
  await change('all');assert.equal(state.todaySelectedItemId,'current');
  await change('B');assert.equal(state.todaySelectedItemId,'remembered');

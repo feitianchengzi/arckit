@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import {app,BrowserWindow} from 'electron';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join,dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const dir=dirname(fileURLToPath(import.meta.url));
+const userData=await mkdtemp(join(tmpdir(),'today-selection-ui-'));
+app.setPath('userData',userData);app.disableHardwareAcceleration();
+process.env.ARCORBIT_TODAY_SELECTION_TEST='1';
+app.whenReady().then(async()=>{
+const win=new BrowserWindow({show:false,width:1440,height:1000,webPreferences:{preload:join(dir,'organization-center-preload.cjs'),contextIsolation:true,sandbox:false}});
+const errors=[];win.webContents.on('console-message',(_e,level,message)=>{if(level>=2&&!message.includes('Electron Security Warning'))errors.push(message);});
+let code=0;
+try {
+ await win.loadFile(join(dir,'../../desktop/renderer/index.html'));
+ const result=await win.webContents.executeJavaScript(`(async()=>{
+  const wait=(ms=140)=>new Promise(r=>setTimeout(r,ms));
+  const until=async read=>{for(let i=0;i<100;i++){const value=read();if(value)return value;await wait(30);}throw Error('Today condition timed out: '+document.querySelector('#todayOperator')?.textContent);};
+  const click=async selector=>{const e=await until(()=>document.querySelector(selector));e.click();await wait();};
+  const members=()=>[...document.querySelectorAll('[data-today-project]')].map(e=>e.dataset.todayProject);
+  const local=()=>document.querySelector('#todayProjectRail .is-active')?.dataset.todayProject;
+  const top=()=>document.querySelector('#productScopeSelect').value;
+  const chooseTop=async id=>{const e=document.querySelector('#productScopeSelect');e.value=id;e.dispatchEvent(new Event('change',{bubbles:true}));await until(()=>local()===id);await wait();};
+  await click('[data-page="today"]');await until(()=>members().includes('12'));
+  const initial=members();
+  await chooseTop('11');const underSingle=members();
+  await click('[data-today-project="12"]');
+  await click('[data-today-mode="configuration"]');
+  const switched={top:top(),local:local(),members:members(),operator:document.querySelector('#todayOperator').textContent};
+  await click('[data-today-project="12"]');
+  const calls=await window.arckitDesktop.getTestCalls();
+  const saved=calls.filter(c=>c[0]==='setTodayPreference').at(-1)?.[1];
+  await click('[data-page="work"]');const workScope=top();await click('[data-page="today"]');
+  const returned=local();
+  await window.arckitDesktop.emitTestAutomationEvent({type:'automation.changed',reason:'selection-test'});await wait(300);
+  const refreshed=local();
+  await chooseTop('all');
+  await click('[data-today-project="12"]');
+  await click('#todayAddProjectButton');
+  const manager=document.querySelector('#platformActionOverlay').textContent;
+  document.querySelectorAll('#platformActionFields input[name="project_ids"]').forEach(e=>{e.checked=e.value==='11';});
+  document.querySelector('#platformActionForm').requestSubmit();
+  await until(()=>!members().includes('12'));
+  const removed={members:members(),local:local(),top:top()};
+  await click('#todayAddProjectButton');
+  document.querySelectorAll('#platformActionFields input[name="project_ids"]').forEach(e=>{e.checked=false;});
+  document.querySelector('#platformActionForm').requestSubmit();await until(()=>members().length===1);
+  const empty=document.querySelector('#todayResponsibilityList').textContent;
+  return {initial,underSingle,switched,saved,workScope,returned,refreshed,manager,removed,empty,calls:await window.arckitDesktop.getTestCalls()};
+ })()`);
+ assert.deepEqual(result.initial,['all','11','12']);
+ assert.deepEqual(result.underSingle,['all','11','12']);
+ assert.equal(result.switched.top,'11');assert.equal(result.switched.local,'12');
+ assert.match(result.switched.operator,/选择当前设备上的本地目录/);
+ assert.equal(result.saved.selected_project_id,'12');assert.equal(result.workScope,'11');
+ assert.equal(result.returned,'12');assert.equal(result.refreshed,'12');
+ assert.match(result.manager,/管理 核心推进/);
+ assert.deepEqual(result.removed,{members:['all','11'],local:'all',top:'all'});
+ assert.match(result.empty,/产品集暂无项目/);
+ assert.equal(result.calls.some(([name])=>['bindAutomationProject','setTodayProjects','project.create'].includes(name)),false);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({ok:true,checks:['empty legacy roster still shows all workset members','single top scope does not trim project rail','local and repeated clicks preserve top scope','unbound project displays configuration without setup mutation','selection preference, page return and background refresh preserve local choice','shared workset manager removes members and handles empty set'],errors,scope:'real development renderer with isolated synthetic preload; no live account, Agent or installed app mutation'}));
+}catch(error){console.error(error);code=1;}finally{win.destroy();await rm(userData,{recursive:true,force:true});app.exit(code);}
+
+}).catch(error=>{console.error(error);app.exit(1);});

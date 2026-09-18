@@ -236,7 +236,10 @@ export function deriveTodayWorkspace({
   selectedMode = "",
   selectedItemId = ""
 } = {}) {
-  const allProjects = mergeProjects(platform).filter(project=>!projectScopeIds || projectScopeIds.includes(text(project.id))).map((project) => ({
+  const catalog = mergeProjects(platform);
+  const memberIds = [...new Set((projectScopeIds ?? platform.active_workset?.project_ids ?? catalog.map(project => project.id)).map(text))];
+  const allProjects = memberIds.map(id => catalog.find(project => project.id === id)
+    || { id, name: id, accessible: false, source_status: "unknown" }).map(project => ({
     ...project,
     current_user_id: project.current_user_id || platform.user?.id || ""
   }));
@@ -247,13 +250,9 @@ export function deriveTodayWorkspace({
     ...workReplacementInterventions(platform.task_replacements || []),
     ...workInterventions(platform.today_tasks || platform.tasks || automation.tasks || [], projectIndex),
     ...feedbackInterventions(feedbackLinkRecoveries)
-  ]).filter(item=>!projectScopeIds || projectScopeIds.includes(sourceProjectId(item)));
-  const hasExplicitTodayScope = Array.isArray(platform.today_project_ids);
-  const configuredProjectIds = new Set(hasExplicitTodayScope ? platform.today_project_ids.map(text) : allProjects.map((project) => project.id));
-  const visibleProjectIds = new Set([
-    ...configuredProjectIds,
-    ...allInterventions.map((item) => item.project_id).filter(Boolean)
-  ]);
+  ]).filter(item=>memberIds.includes(sourceProjectId(item)));
+  const configuredProjectIds = new Set(memberIds);
+  const visibleProjectIds = configuredProjectIds;
   const unknownProjectIds = new Set((platform.errors || []).map((error) => text(error.project_id)).filter(Boolean));
   const projects = allProjects.filter((project) => visibleProjectIds.has(project.id)).map((project) => {
     const configuration = deriveProjectConfiguration({ ...project, source_unknown: unknownProjectIds.has(project.id) }, { setup, setupByProject });

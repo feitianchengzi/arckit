@@ -35,31 +35,38 @@ test("workspace defaults a newcomer to configuration and keeps parallel project 
   assert.equal(view.non_human_summary.ready_projects, 1);
 });
 
-test("Today scope starts empty, adds multiple projects independently, and never hides an unselected human responsibility", () => {
-  const empty = deriveTodayWorkspace({
-    platform: { today_project_ids: [], projects: [project("a"), project("b")] },
-    setup: { status: "ready" }
-  });
-  assert.deepEqual(empty.projects, []);
-  assert.equal(empty.mode, "configuration");
+test("Today members come from the workset regardless of the legacy Today roster", () => {
+  const platform = {
+    active_workset: { project_ids: ["a", "b"] }, today_project_ids: [],
+    projects: [project("a"), project("b"), project("c")],
+    today_tasks: [{ id: "c-review", project_id: "c", executor_id: "me", state: "pending_review" }]
+  };
+  const view = deriveTodayWorkspace({ platform, selectedProjectId: "b" });
+  assert.deepEqual(view.projects.map(item => item.id), ["a", "b"]);
+  assert.equal(view.selected_project_id, "b");
+  assert.deepEqual(view.configurations.map(item => item.project_id), ["b"]);
+  assert.equal(view.selected_item.configuration.blocker.code, "local_workspace_missing");
+  assert.deepEqual(view.interventions, []);
+  assert.deepEqual(platform.today_project_ids, []);
+  platform.today_project_ids = ["c"];
+  assert.deepEqual(deriveTodayWorkspace({ platform }).projects.map(item => item.id), ["a", "b"]);
+});
 
-  const parallel = deriveTodayWorkspace({
-    selectedMode: "configuration",
-    platform: {
-      today_project_ids: ["a", "b"],
-      projects: [project("a"), project("b", { local_project_id: "lb", participating: true }), project("c", { local_project_id: "lc", participating: true })],
-      today_tasks: [{ id: "c-review", project_id: "c", executor_id: "me", state: "pending_review" }]
-    },
-    setup: { status: "ready" }
-  });
-  assert.deepEqual(parallel.projects.map((item) => item.id).sort(), ["a", "b", "c"]);
-  assert.deepEqual(parallel.configurations.map((item) => item.project_id), ["a"]);
-  assert.equal(parallel.projects.find((item) => item.id === "b").configuration.ready, true);
-  assert.equal(parallel.projects.find((item) => item.id === "c").in_today_scope, false);
-  assert.equal(parallel.counts.configured_projects, 2);
-  assert.equal(parallel.counts.configuration_incomplete, 1);
-  assert.equal(parallel.non_human_summary.ready_projects, 1);
-  assert.equal(parallel.interventions[0].project_id, "c");
+test("Today respects empty membership and falls back when the selected member is removed", () => {
+  const platform = { projects: [project("a"), project("b")], active_workset: { project_ids: ["a"] }, today_project_ids: ["b"] };
+  const view = deriveTodayWorkspace({ platform, selectedProjectId: "b" });
+  assert.equal(view.selected_project_id, "all");
+  assert.deepEqual(view.projects.map(item => item.id), ["a"]);
+  platform.active_workset.project_ids = [];
+  assert.deepEqual(deriveTodayWorkspace({ platform }).projects, []);
+});
+
+test("Today retains a configured member when its catalog details are unavailable", () => {
+  const view = deriveTodayWorkspace({ platform: { active_workset: { project_ids: ["missing"] }, projects: [] }, selectedProjectId: "missing" });
+  assert.equal(view.projects[0].id, "missing");
+  assert.equal(view.selected_project_id, "missing");
+  assert.equal(view.selected_item.configuration.ready, false);
+  assert.deepEqual(view.selected_item.actions, ["retry_project_source"]);
 });
 
 test("workspace aggregates explicit human responsibilities and excludes routine pending work", () => {

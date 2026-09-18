@@ -16,7 +16,7 @@ export async function createTodayAcceptanceState() {
   const projection = { projects, project_catalog: projects, tasks, tags: [], errors: [], user: { id: "7" }, source_status: "healthy" };
   let store = {
     projects: [{ id: "local-11", path: scratch, name: "Synthetic local" }], settings: { task_source: {} },
-    platform: { active_workset_id: "w", worksets: [{ id: "w", name: "Other project only", project_ids: ["12"] }], today_project_ids: ["11"], ui_preferences: {}, workspace_preferences: {} },
+    platform: { active_workset_id: "w", worksets: [{ id: "w", name: "Today members", project_ids: ["11", "12"] }], today_project_ids: ["11"], ui_preferences: {}, workspace_preferences: {} },
     automation: {
       enabled: true, queue_paused: true, project_bindings: { "11": "local-11" }, project_participation: { "11": true },
       snapshot: structuredClone(projection), active_task: null, active_executions: {}, attention_items: [], recovery_items: [], acceptance_feedback_items: [],

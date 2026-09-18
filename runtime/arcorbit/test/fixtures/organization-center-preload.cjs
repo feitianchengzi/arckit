@@ -159,6 +159,11 @@ const platform = {
   capabilities: { organizations: "available", organization_governance: "available", project_members: "managed_with_permissions_except_direct_add", invitation_lifecycle: "create_once_no_list_or_revoke", feedback_v1: "read_write", feedback_v2: feedbackV2ImageTest ? "available" : "unavailable" }, errors: []
 };
 
+if (process.env.ARCORBIT_TODAY_SELECTION_TEST === "1") {
+  platform.today_project_ids = [];
+  platform.ui_preferences = { today: { selected_project_id: "all", drafts: {} } };
+}
+
 if (todayCreateIdentityMode) {
   const globalUserId = "8f14e45f-ea7f-4d31-9f15-0c9f8a7b6c5d";
   platform.user.id = globalUserId;
@@ -524,8 +529,14 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   listRuns: async () => [], listMessages: async () => [],
   checkSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} }),
   applySetupPlan: noOp, recoverSetupUpgrade: noOp, planSetupRemoval: noOp, removeManagedSetupPaths: noOp,
-  setTodayPreference: async (input) => process.env.ARCORBIT_TODAY_ACCEPTANCE_FIXTURE === "1"
-    ? ipcRenderer.invoke("test:today-acceptance:preference", input) : noOp(),
+  setTodayPreference: async (input) => {
+    if (process.env.ARCORBIT_TODAY_ACCEPTANCE_FIXTURE === "1") return ipcRenderer.invoke("test:today-acceptance:preference", input);
+    if (process.env.ARCORBIT_TODAY_SELECTION_TEST === "1") {
+      calls.push(["setTodayPreference", input]);
+      platform.ui_preferences.today = input;
+    }
+    return noOp();
+  },
   submitAcceptanceFeedback: async (input) => process.env.ARCORBIT_TODAY_ACCEPTANCE_FIXTURE === "1"
     ? ipcRenderer.invoke("test:today-acceptance:submit", input) : noOp(), submitIntervention: noOp,
   resolveAutomationRecovery: async (input) => { calls.push(["resolveAutomationRecovery", input]); return {}; },
