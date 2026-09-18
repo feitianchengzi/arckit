@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createDesktopStore } from '../src/desktop/desktop-store.mjs';
 import { createProjectWorkbench } from '../src/workbench/coordinator.mjs';
+import { createWorkshopPlatformAdapter } from '../src/workshop-platform-adapter.mjs';
 import { createSceneStore } from '../src/workbench/scene-store.mjs';
 import { acquireTaskTurn, taskTurnOwner } from '../src/workbench/task-turn-lock.mjs';
 import { createWorkbenchAgentBridge, workbenchAgentOptions } from '../src/workbench/agent-bridge.mjs';
@@ -15,7 +16,7 @@ async function fixture(t,{adapter}={}){
  const db=createDesktopStore({dataDir:root,runsDir:join(root,'runs'),storePath:join(root,'desktop-store.json')});
  await db.updateStore(s=>{s.projects.push({id:'local',name:'Project',path:root});s.automation.project_bindings={'p':'local'};return s;});
  let account='account:7',binding=null;const calls=[];
- const work={user:{id:'7'},projects:[{id:'p',name:'Project'}],project_catalog:[{id:'p',name:'Project'}],tasks:[{id:'1',project_id:'p',content:'目标',state:'pending_review',executor_id:'7',priority:1}],project_states:{p:{state:'healthy'}},source_status:'healthy',errors:[]};
+ const work={user:{id:'account-uuid'},projects:[{id:'p',name:'Project',current_user_id:'7'}],project_catalog:[{id:'p',name:'Project',current_user_id:'7'}],tasks:[{id:'1',project_id:'p',content:'目标',state:'pending_review',executor_id:'7',priority:1}],project_states:{p:{state:'healthy'}},source_status:'healthy',errors:[]};
  const runtime={active_executions:[],execution_history:[],queue:[],attention_items:[],recovery_items:[],acceptance_feedback_items:[]};const attachments=[];
  const runManager={readDesktopStore:db.readStore,updateDesktopStore:db.updateStore,getSettings:async()=>({codex:{chat:{model:'model',reasoning_effort:'medium'}}}),listProjects:async()=>[{id:'local',name:'Project',path:root}],listSessions:async id=>(await db.readStore()).sessions[id]||[],listRuns:async()=>[],getTaskThreadBinding:async()=>binding,bindTaskThread:async(_p,_t,b)=>{if(binding)assert.equal(b.threadId,binding.threadId);binding=b;},createSession:async(project,input)=>{const session={...input,id:'main-session',project_id:project,created_at:new Date().toISOString()};await db.updateStore(s=>{s.sessions[project]||=[];s.sessions[project].push(session);return s;});return session;}};
  const platform={executeAction:async(action,input)=>{calls.push({action,input});if(action==='task.attachments.list')return structuredClone(attachments);if(action==='task.create'||action==='task.subtask.create'){const task={...input,id:String(work.tasks.length+1)};work.tasks.push(task);return task;}if(action==='task.update'){Object.assign(work.tasks.find(t=>t.id===String(input.task_id)),input);return work.tasks[0];}if(action==='task.attachment.create'){const a={...input,id:'a'+attachments.length,created_at:new Date().toISOString()};attachments.push(a);return a;}}};
@@ -50,6 +51,32 @@ test('first Chat creation is self-assigned pending review; retry does not duplic
  const f=await fixture(t);const request={project_id:'p',content:'分析目标',request_id:'new-1'};
  const a=await f.c.command('task.create',request),b=await f.c.command('task.create',request);assert.deepEqual(a,b);assert.equal(f.work.tasks.length,2);assert.equal(f.work.tasks[1].executor_id,'7');assert.equal(f.work.tasks[1].state,'pending_review');
  await assert.rejects(f.c.command('task.create',{...request,content:'changed'}),/另一件/);
+});
+test('creation uses project identity through the real adapter for top-level and child tasks',async t=>{
+ const f=await fixture(t),requests=[];
+ f.work.project_catalog=[{id:'11',current_user_id:'42'},{id:'12',current_user_id:'43'}];
+ const adapter=createWorkshopPlatformAdapter({request:async(path,options)=>{requests.push({path,...options});return {id:100+requests.length,...options.body};},listProjects:async()=>[],normalizeTask:value=>value});
+ f.options.platform.executeAction=async(action,input)=>{
+  assert.ok(['task.create','task.subtask.create'].includes(action));return adapter.createTask(input);
+ };
+ const request={project_id:'11',content:'顶层事情',request_id:'real-top'};
+ await f.c.command('task.create',request);
+ await f.c.command('task.create',request);
+ assert.equal(requests.length,1);
+ assert.deepEqual(requests[0].body,{project_id:11,content:'顶层事情',executor_id:42,state:'pending_review',priority:0});
+ await f.c.command('task.create',{project_id:'12',content:'子事情',father_id:'101',request_id:'real-child'});
+ assert.equal(requests[1].body.executor_id,43);assert.equal(requests[1].body.father_id,101);
+ f.work.tasks[0].project_id='11';
+ await f.command('task.subtask.create',{content:'Agent 子事情'});
+ assert.equal(requests[2].body.executor_id,42);assert.equal(requests[2].body.father_id,1);
+});
+test('missing project identity fails before reserving creation and can retry after refresh',async t=>{
+ const f=await fixture(t),request={project_id:'p',content:'目标',request_id:'refresh-retry'};
+ f.work.user.id='99';delete f.work.project_catalog[0].current_user_id;
+ await assert.rejects(f.c.command('task.create',request),/执行人身份.*刷新/);
+ assert.equal(f.calls.length,0);
+ f.work.project_catalog[0].current_user_id='7';
+ await f.c.command('task.create',request);assert.equal(f.work.tasks[1].executor_id,'7');
 });
 test('uncertain task creation never silently retries a remote create',async t=>{
  const f=await fixture(t);f.options.platform.executeAction=async()=>{throw new Error('network lost');};await assert.rejects(f.c.command('task.create',{project_id:'p',content:'x',request_id:'uncertain'}),/network/);await assert.rejects(f.c.command('task.create',{project_id:'p',content:'x',request_id:'uncertain'}),/避免重复/);

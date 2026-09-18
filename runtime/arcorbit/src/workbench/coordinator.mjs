@@ -13,6 +13,12 @@ import { acquireTaskTurn, taskTurnOwner } from './task-turn-lock.mjs';
 const activeChat = status => ['starting', 'running', 'waiting_approval', 'interrupting'].includes(status);
 const text = (value, max = 100000) => String(value || '').trim().slice(0, max);
 const list = value => Array.isArray(value) ? value : [];
+function projectExecutorId(work, projectId) {
+  const projects = work.project_catalog?.length ? work.project_catalog : work.projects || [];
+  const id = String(projects.find(project => String(project.id) === String(projectId))?.current_user_id || '').trim();
+  if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) throw new Error('无法确认当前用户在所选项目中的执行人身份，请刷新项目后重试。');
+  return id;
+}
 const capabilities = [
   ['scene.read', '读取事情、上下文及版本', {}],
   ['report', '提交 Agent 当前工作、进展、剩余问题与成果声明', { current:'string', advances:'string[]', remaining:'string[]', next:'string', plan:'string[]', artifacts:'{path, summary, version}[]' }],
@@ -154,7 +160,9 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     if(!requestId || !text(input.content)) throw new Error('请填写事情内容。');
     const work=await workSync.getSnapshot();
     if(!(work.project_catalog || work.projects).some(p=>String(p.id)===String(input.project_id))) throw new Error('请选择可访问的项目。');
-    const fingerprint=JSON.stringify([input.project_id,input.content,input.father_id || '',input.executor_id || work.user?.id]);
+    const executorId=input.executor_id || projectExecutorId(work,input.project_id);
+    if(!Number.isSafeInteger(Number(executorId)) || Number(executorId)<=0) throw new Error('执行人 ID 无效，请刷新项目后重试。');
+    const fingerprint=JSON.stringify([input.project_id,input.content,input.father_id || '',executorId]);
     let existing;
     await scenes.mutate(scope,db=>{
       existing=db.creations[requestId];
@@ -163,7 +171,7 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     });
     if(existing?.task_id) return {task_id:existing.task_id};
     if(existing) throw new Error('此前创建结果尚未确认，请同步事情列表后检查，避免重复创建。');
-    const task=await platform.executeAction(input.father_id?'task.subtask.create':'task.create',{project_id:input.project_id,content:input.content,father_id:input.father_id || undefined,executor_id:input.executor_id || work.user?.id,state:'pending_review',priority:input.priority || 0});
+    const task=await platform.executeAction(input.father_id?'task.subtask.create':'task.create',{project_id:input.project_id,content:input.content,...(input.father_id?{father_id:input.father_id}:{}),executor_id:executorId,state:'pending_review',priority:input.priority || 0});
     const taskId=String(task.id || task.task?.id || '');
     if(!taskId) throw new Error('服务未返回事情标识，请同步检查。');
     await scenes.mutate(scope,db=>{db.creations[requestId].task_id=taskId;db.creations[requestId].status='completed';db.scenes[taskId] ||= emptyScene(taskId);});
@@ -214,11 +222,11 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
         await platform.executeAction('task.update',{...changes,task_id:task.id,expected_state:task.state});
         if(changes.content!==undefined && changes.content!==task.content) {scene.criteria=scene.criteria.map(c=>({...c,checked:false}));scene.goal_version=goalVersion(changes.content);}
       } else if(action==='task.subtask.create') {
-        await platform.executeAction(action,{project_id:task.project_id,father_id:task.id,content:payload.content,executor_id:ctx.work.user?.id,state:'pending_review'});
+        await platform.executeAction(action,{project_id:task.project_id,father_id:task.id,content:payload.content,executor_id:projectExecutorId(ctx.work,task.project_id),state:'pending_review'});
       } else if(action==='auto.start') {
         if(taskTurnOwner(ctx.local?.id,task.id)) throw new Error('请等待当前讨论结束后再启动 Auto。');
         if(!ctx.local) throw new Error('请先绑定本地工作区。');
-        if(String(task.executor_id)!==String(ctx.work.user?.id)) throw new Error('只有分配给自己的事情可以在此设备 Auto。');
+        if(String(task.executor_id)!==projectExecutorId(ctx.work,task.project_id)) throw new Error('只有分配给自己的事情可以在此设备 Auto。');
         if(!['pending_review','pending','blocked'].includes(task.state)) throw new Error('当前状态不能直接 Auto，请使用恢复操作。');
         await ensureSession(ctx, false);
         await automation.updateTaskState({taskId:task.id,state:'pending',expectedState:task.state});
