@@ -69,3 +69,6 @@ Thing 将连接状态通知与内容失效分开：`work.sync`、`work.syncing` 
 ### 同级 Chat 页面布局
 
 Chat 使用独立 `chat-layout.css` 调整中央对话、右侧分组会话及窄窗抽屉，保留既有 Chat State Coordinator、Conversation Surface 与 IPC。页面控制器统一设置 workspace surface：Thing/Chat 最小 390×640，其他页面恢复 1100×720；Thing 子视图不再异步覆盖窗口模式。抽屉打开时正文 inert，选择、新建、离页与跨断点关闭抽屉；Esc 恢复按钮焦点。原型模型与样本不进入产品代码。
+
+
+Chat 布局以剩余列满宽呈现，`chat-resize.mjs` 用 Pointer Capture 与键盘分隔线维护右栏宽度和输入高度；尺寸保存至本机 localStorage，ResizeObserver 在容器变化时限制尺寸，存储不可用不阻止编辑。分组视图按项目稳定 id 与会话 created_at/id 排序，不使用 updated_at；Renderer 独立保存项目折叠和五条递增额度，收起清除额度。以上 UI 状态不写入会话或 Runtime，刷新不强制展开选中会话。

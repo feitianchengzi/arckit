@@ -30,13 +30,13 @@ test("real settings page offers model-specific suggestions, saves in place and r
     automation: { model: "automation-model", reasoning_effort: "low" }
   } });
   assert.deepEqual(result.composerDefaults, ["future-model", "max"]);
-  assert.deepEqual(result.composerModels, ["gpt-6-astra", "test-model"]);
+  assert.deepEqual(result.composerModels, ["future-model", "gpt-6-astra", "test-model"]);
   assert.deepEqual(result.composerDrafts.at(-1)[1], {
     session_id: "",
     project_id: "local-11",
     text: "",
-    model: "composer-model",
-    reasoning_effort: "ultra"
+    model: "test-model",
+    reasoning_effort: "max"
   });
   assert.equal(result.modelInputType, "text");
   assert.equal(result.effortInputType, "text");

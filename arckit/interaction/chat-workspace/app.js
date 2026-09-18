@@ -1,6 +1,7 @@
 (() => {
   const M = window.ChatModel, V = window.ChatViews, { esc, btn } = V;
   const dialog = document.getElementById('chat-dialog');
+  let resizeDrag = null;
   let composing = false, noticeTimer, returnFocus, listScroll = 0;
   function notice(text) { document.getElementById('chat-notice').textContent = text; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => document.getElementById('chat-notice').textContent = '', 4000); }
   function capture() {
@@ -9,7 +10,7 @@
     listScroll = document.querySelector('.session-groups')?.scrollTop || 0;
   }
   function render({ capturePosition = true } = {}) {
-    if (composing) return;
+    if (composing || resizeDrag) return;
     if (capturePosition) capture();
     const active = document.activeElement;
     const field = active?.matches('#chat-input,#chat-model,#chat-level') ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
@@ -52,6 +53,25 @@
     if (M.state.listOpen) document.querySelector('.chat-list-close').focus();
     else document.querySelector('.chat-list-toggle').focus();
   }
+  function resize(kind, value) {
+    const layout=document.querySelector('.chat-layout'), center=document.querySelector('.chat-center');
+    if(kind==='width') { M.state.sidebarWidth=Math.max(220,Math.min(560,layout.clientWidth-360,value));layout.style.setProperty('--chat-list-width',M.state.sidebarWidth+'px'); }
+    else { M.state.inputHeight=Math.max(66,Math.min(420,center.clientHeight/2,value));document.querySelector('#chat-input').style.height=M.state.inputHeight+'px'; }
+    M.save();
+  }
+  document.addEventListener('pointerdown',e=>{
+    const handle=e.target.closest('[data-resize]'); if(!handle||e.button!==0)return;
+    e.preventDefault(); const kind=handle.dataset.resize;
+    resizeDrag={kind,origin:kind==='width'?e.clientX:e.clientY,size:document.querySelector(kind==='width'?'.chat-sessions':'#chat-input').getBoundingClientRect()[kind==='width'?'width':'height']};
+    handle.setPointerCapture(e.pointerId);
+  });
+  document.addEventListener('pointermove',e=>{if(resizeDrag)resize(resizeDrag.kind,resizeDrag.size+resizeDrag.origin-(resizeDrag.kind==='width'?e.clientX:e.clientY));});
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])document.addEventListener(event,()=>{resizeDrag=null;});
+  document.addEventListener('keydown',e=>{
+    const kind=e.target.dataset?.resize;if(!kind)return;
+    const up=kind==='width'?'ArrowLeft':'ArrowUp',down=kind==='width'?'ArrowRight':'ArrowDown';
+    if(e.key!==up&&e.key!==down)return;e.preventDefault();resize(kind,(kind==='width'?(M.state.sidebarWidth||300):(M.state.inputHeight||90))+(e.key===up?20:-20));
+  });
   document.addEventListener('click', async event => {
     const el = event.target.closest('[data-chat-action]'); if (!el) return;
     const s = M.current();
@@ -68,7 +88,8 @@
         }
         case 'select': select(el.dataset.id); break;
         case 'toggle-list': toggleList(); break;
-        case 'history': M.state.expanded[el.dataset.project] = !M.state.expanded[el.dataset.project]; render(); break;
+        case 'history': M.state.limits[el.dataset.project] = (M.state.limits[el.dataset.project]||5)+5; render(); break;
+        case 'project': M.state.collapsed[el.dataset.project]=!M.state.collapsed[el.dataset.project]; delete M.state.limits[el.dataset.project]; render(); break;
         case 'rename': open('重命名会话', `<label>会话标题<input name="title" value="${esc(s.title)}" required maxlength="120"></label>`, '保存', 'rename'); break;
         case 'delete': open('删除会话', `<p>${esc(s.title)} · ${esc(M.project(s.project).name)} · ${s.messages.length} 条消息</p><p>${M.active(s) ? '将先停止当前回答，成功后删除本地会话记录。' : '将删除此会话的本地消息、草稿与恢复记录。'}不承诺擦除 Codex 自身保留的底层数据。</p>`, '确认删除', 'delete'); break;
         case 'close': close(); break;
@@ -99,7 +120,7 @@
     if (event.target.id === 'chat-input') o.draft = event.target.value;
     if (event.target.id === 'chat-model') {
       o.model = event.target.value;
-      document.getElementById('chat-level-options').innerHTML = !M.state.catalogUnavailable && o.model === 'gpt-6-astra' ? ['low','medium','high','xhigh','max','ultra'].map(v => `<option value="${v}"></option>`).join('') : '';
+
     }
     if (event.target.id === 'chat-level') o.level = event.target.value;
     const submit = document.querySelector('#chat-compose button[type=submit]');

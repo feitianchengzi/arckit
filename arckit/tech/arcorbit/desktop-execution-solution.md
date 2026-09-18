@@ -91,7 +91,7 @@ Codex app-server 提供 `model/list`，Level 对应 reasoning effort。请求在
 
 Renderer 的 `codex-settings-form.mjs` 为 Chat 与 Automation 两组配置提供可编辑 datalist，分别按模型更新 Level 候选并保留当前输入。清单与保存有独立反馈，打开周期和查询序号隔离过期响应；清单不成为设置事实源。“保存 Codex 配置”写四个场景字段和统一 YOLO 开关；“保存并同步”包含四字段、YOLO 开关和既有任务源/代理草稿。查询使用保存值而非代理草稿。
 
-Chat session 与未发送草稿持有自己的 `model` / `reasoning_effort`，新建时继承 `settings.codex.chat`。Composer 通过既有 typed Chat IPC 保存当前选择；发送被接受时 ChatCoordinator 捕获不可变配置快照，并作为 `model` / `reasoningEffort` options 提交共享 adapter，之后对同一 session 的编辑只影响后续 turn。session、thread 和配置是独立字段，改变配置不替换 thread。DesktopRunManager 在每次 Run 启动读取并固定 `settings.codex.automation`，将实际选择记录在 Run 的 `model` / `reasoning_effort`，通过 `--model` / `--reasoning-effort` 传至 CLI；显式调用参数仍优先于 Desktop 偏好。state-driven runner 持续复用启动 options，直至该 Run 结束，包括后续轮次和收尾。独立 CLI 不读取 Desktop Store。
+Chat session 与未发送草稿持有自己的 `model` / `reasoning_effort`，新建时继承 `settings.codex.chat`。Composer 使用原生 select，Model 来自既有清单，Level 依所选模型的 reasoningEfforts 投影；保存值不在清单时补入当前值，清单不可用仍保留配置。切换 Model 时若旧 Level 不兼容，选择可用的 medium 或首项。Composer 通过既有 typed Chat IPC 保存当前选择；发送被接受时 ChatCoordinator 捕获不可变配置快照，并作为 `model` / `reasoningEffort` options 提交共享 adapter，之后对同一 session 的编辑只影响后续 turn。session、thread 和配置是独立字段，改变配置不替换 thread。DesktopRunManager 在每次 Run 启动读取并固定 `settings.codex.automation`，将实际选择记录在 Run 的 `model` / `reasoning_effort`，通过 `--model` / `--reasoning-effort` 传至 CLI；显式调用参数仍优先于 Desktop 偏好。state-driven runner 持续复用启动 options，直至该 Run 结束，包括后续轮次和收尾。独立 CLI 不读取 Desktop Store。
 
 共享 adapter 每次 turn/start 使用 `model` 和 `effort`，不通过替代 thread 实现配置变更。账号设置只改变新 Chat 会话与新 Automation Run 的默认值；Composer 只改变对应 Chat 会话后续发送。正在执行的 turn/Run 保持已提交参数，Chat 与 Automation 之间没有配置回写。交互式 CLI 接力继续 codex resume 原 thread，按接力启动时的 YOLO 开关显式设置审批和沙箱。清单成功不是执行授权，模型不支持、账户限制或执行失败仍走既有恢复路径。
 

@@ -1,7 +1,7 @@
 {
   "ok": true,
   "checks": [
-    "Four navigation groups; Chat centered between app navigation and right session list; 760px reading width; project history expands",
+    "Four navigation groups; Chat centered between app navigation and right session list; Full reading width; history increases by five",
     "Per-session drafts; new workspace switching creates no empty session; thread continuity, turn config snapshot, background generation and explicit stop",
     "Offline and IME preserve input; approval decision and failed-turn retry remain in the same thread",
     "Long code stays inside message width; session scroll restores; rename and draft survive reload",
@@ -13,7 +13,7 @@
     "centerLeft": 200,
     "centerRight": 1200,
     "list": 1200,
-    "reading": 760
+    "reading": 960
   },
   "errors": [],
   "externalRequests": [],

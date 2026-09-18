@@ -39,6 +39,7 @@ import {
   taskAttachmentIdentityKey
 } from "../../src/work-task-attachment-cache.mjs";
 import { createChatStateCoordinator } from "./chat-state-coordinator.mjs";
+import { installChatResize } from "./chat-resize.mjs";
 import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } from "./chat-session-groups.mjs";
 import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-query-state.mjs";
 import { completedAcceptanceSelectionAfterSuccess, nextCompletedAcceptanceTaskId } from "./work-task-selection.mjs";
@@ -288,7 +289,8 @@ const TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3;
 const feedbackImagePreviewQueue = [];
 let activeFeedbackImagePreviews = 0;
 const FEEDBACK_IMAGE_PREVIEW_CONCURRENCY = 3;
-const expandedChatProjectIds = new Set();
+const collapsedChatProjectIds = new Set();
+const chatProjectLimits = new Map();
 const workQueryState = createWorkQueryState({ cacheLimit: 12 });
 const WORK_QUERY_WINDOW_SIZE = 80;
 const chatStateCoordinator = createChatStateCoordinator({
@@ -611,6 +613,7 @@ function wireEvents() {
     renderSetup();
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
+  installChatResize(document);
   document.getElementById('chatSessionsToggle').addEventListener('click', () => setChatSessionsOpen(!document.body.classList.contains('chat-sessions-open')));
   document.getElementById('chatSessionsClose').addEventListener('click', () => setChatSessionsOpen(false, true));
   window.matchMedia('(max-width: 760px)').addEventListener('change', () => setChatSessionsOpen(false));
@@ -652,8 +655,8 @@ function wireEvents() {
   });
   for (const input of [els.chatCodexModel, els.chatCodexEffort]) {
     input.addEventListener("focus", () => { void loadChatCodexCatalog(); });
-    input.addEventListener("input", () => {
-      updateChatCodexEffortOptions();
+    input.addEventListener("change", () => {
+      updateChatCodexEffortOptions(input === els.chatCodexModel);
       persistChatComposerConfiguration();
     });
   }
@@ -1588,27 +1591,20 @@ function defaultChatDraftProject() {
 }
 
 function renderChatSession(item, selectedSessionId) {
-  return `<button class="chat-session ${item.id === selectedSessionId ? "is-active" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button"><strong>${escapeHtml(item.title)}</strong><span class="chat-session-status ${escapeHtml(item.status)}" aria-label="${escapeHtml(chatStatusLabel(item.status))}"></span><small>${escapeHtml(chatStatusLabel(item.status))} · ${escapeHtml(formatDateTime(item.updated_at))}</small></button>`;
+  return `<button class="chat-session ${item.id === selectedSessionId ? "is-active" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button" title="${escapeHtml(item.title)} · ${escapeHtml(chatStatusLabel(item.status))}"><strong>${escapeHtml(item.title)}</strong><span class="chat-session-status ${escapeHtml(item.status)}" aria-label="${escapeHtml(chatStatusLabel(item.status))}"></span></button>`;
 }
 
 function renderChatSessionGroups(chat) {
   const groups = groupChatSessions({ sessions: chat.snapshot.sessions, projects: chat.snapshot.projects });
-  const currentProjectIds = new Set(groups.map((group) => group.project_id));
-  for (const projectId of expandedChatProjectIds) {
-    if (!currentProjectIds.has(projectId)) expandedChatProjectIds.delete(projectId);
-  }
-  return groups.map((group) => {
+  return groups.map(group => {
     const visibility = chatSessionVisibility(group, {
-      expanded: expandedChatProjectIds.has(group.project_id),
-      selectedSessionId: chat.owner.session_id,
-      limit: CHAT_SESSION_PREVIEW_LIMIT
+      collapsed: collapsedChatProjectIds.has(group.project_id),
+      limit: chatProjectLimits.get(group.project_id) || CHAT_SESSION_PREVIEW_LIMIT
     });
-    if (visibility.selected_requires_history) expandedChatProjectIds.add(group.project_id);
-    const unavailable = group.available ? "" : `<span class="chat-project-unavailable">不可用</span>`;
-    const historyControl = visibility.hidden_count
-      ? `<button class="chat-history-toggle" data-chat-history-project-id="${escapeHtml(group.project_id)}" type="button" aria-expanded="${visibility.expanded}" ${visibility.selected_requires_history ? "disabled title=\"当前会话位于历史中\"" : ""}>${visibility.expanded ? "收起历史会话" : `查看历史会话（其余 ${visibility.hidden_count} 个）`}</button>`
-      : "";
-    return `<section class="chat-project-group" data-chat-project-group="${escapeHtml(group.project_id)}"><div class="chat-project-group-head"><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length} 个会话</span>${unavailable}</div><div class="chat-project-sessions">${visibility.sessions.map((item) => renderChatSession(item, chat.owner.session_id)).join("")}</div>${historyControl}</section>`;
+    const id = escapeHtml(group.project_id);
+    const history = !visibility.collapsed && visibility.hidden_count
+      ? `<button class="chat-history-toggle" data-chat-history-project-id="${id}" type="button">查看更多（剩余 ${visibility.hidden_count} 个）</button>` : "";
+    return `<section class="chat-project-group" data-chat-project-group="${id}"><button type="button" class="chat-project-group-head" data-chat-project-toggle="${id}" aria-expanded="${!visibility.collapsed}"><span aria-hidden="true">${visibility.collapsed ? "▸" : "▾"}</span><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length}</span></button><div class="chat-project-sessions" ${visibility.collapsed ? "hidden" : ""}>${visibility.sessions.map(item => renderChatSession(item, chat.owner.session_id)).join("")}</div>${history}</section>`;
   }).join("");
 }
 
@@ -1635,7 +1631,17 @@ function renderChat() {
     ? renderChatSessionGroups(chat)
     : `<div class="chat-empty-list">还没有对话。发送第一条消息时才会创建会话。</div>`;
   if (sessionList !== renderedChatSessionList) {
+    const listScroll = els.chatSessionList.scrollTop;
+    const focused = els.chatSessionList.contains(document.activeElement) ? document.activeElement : null;
+    const focusedProject = focused?.dataset.chatProjectToggle || focused?.dataset.chatHistoryProjectId;
+    const focusedAction = focused?.dataset.chatHistoryProjectId ? 'chatHistoryProjectId' : 'chatProjectToggle';
     els.chatSessionList.innerHTML = sessionList;
+    els.chatSessionList.scrollTop = listScroll;
+    if (focusedProject) {
+      const buttons = [...els.chatSessionList.querySelectorAll('button')];
+      (buttons.find(button => button.dataset[focusedAction] === focusedProject)
+        || buttons.find(button => button.dataset.chatProjectToggle === focusedProject))?.focus({ preventScroll: true });
+    }
     renderedChatSessionList = sessionList;
     els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
       await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
@@ -1643,10 +1649,15 @@ function renderChat() {
       els.chatInput.focus();
       renderChat();
     })));
+    els.chatSessionList.querySelectorAll("[data-chat-project-toggle]").forEach(button => button.addEventListener("click", () => {
+      const id = button.dataset.chatProjectToggle;
+      if (collapsedChatProjectIds.has(id)) collapsedChatProjectIds.delete(id);
+      else { collapsedChatProjectIds.add(id); chatProjectLimits.delete(id); }
+      renderChat();
+    }));
     els.chatSessionList.querySelectorAll("[data-chat-history-project-id]").forEach((button) => button.addEventListener("click", () => {
       const projectId = button.dataset.chatHistoryProjectId;
-      if (expandedChatProjectIds.has(projectId)) expandedChatProjectIds.delete(projectId);
-      else expandedChatProjectIds.add(projectId);
+      chatProjectLimits.set(projectId, (chatProjectLimits.get(projectId) || CHAT_SESSION_PREVIEW_LIMIT) + CHAT_SESSION_PREVIEW_LIMIT);
       renderedChatSessionList = "";
       renderChat();
     }));
@@ -1713,10 +1724,9 @@ function renderChatComposer() {
   const project = selectedChatProject();
   const active = isChatActive(session?.status);
   const configuration = normalizeCodexExecutionSettings(chat.configuration, state.settings.codex.chat);
-  if (document.activeElement !== els.chatCodexModel) els.chatCodexModel.value = configuration.model;
-  if (document.activeElement !== els.chatCodexEffort) els.chatCodexEffort.value = configuration.reasoning_effort;
+  setChatSelectOptions(els.chatCodexModel, chatCodexModels.map(item => ({ value: item.model, label: item.displayName || item.model })), configuration.model);
+  updateChatCodexEffortOptions(false, configuration.reasoning_effort);
   els.chatCodexModel.disabled = els.chatCodexEffort.disabled = !project;
-  updateChatCodexEffortOptions();
   chatComposer?.render({draft:chat.draft,available:Boolean(project),active,sending:chat.sending,
     stopping:session?.status === "interrupting",waiting:session?.status === "waiting_approval",
     placeholder:project ? "向 Codex 提问或说明希望它在当前项目中完成什么…" : "先配置本地 Product Workspace…"});
@@ -1731,21 +1741,32 @@ function setDatalistOptions(list, values) {
   }));
 }
 
-function updateChatCodexEffortOptions() {
-  const selected = chatCodexModels.find((item) => item.model === els.chatCodexModel.value.trim());
-  setDatalistOptions(els.chatCodexEffortOptions, (selected?.reasoningEfforts || []).map((value) => ({ value })));
+function setChatSelectOptions(select, values, current) {
+  const options = [...values];
+  if (current && !options.some(item => item.value === current)) options.unshift({ value: current, label: current });
+  const signature = JSON.stringify(options);
+  if (select.dataset.options !== signature) {
+    setDatalistOptions(select, options);
+    select.dataset.options = signature;
+  }
+  select.value = current || options[0]?.value || "";
+}
+
+function updateChatCodexEffortOptions(modelChanged = false, current = els.chatCodexEffort.value) {
+  const selected = chatCodexModels.find(item => item.model === els.chatCodexModel.value);
+  const efforts = selected?.reasoningEfforts || [];
+  if (modelChanged && efforts.length && !efforts.includes(current)) current = efforts.includes("medium") ? "medium" : efforts[0];
+  setChatSelectOptions(els.chatCodexEffort, efforts.map(value => ({ value })), current);
 }
 
 async function loadChatCodexCatalog() {
   if (chatCodexCatalogPromise) return chatCodexCatalogPromise;
-  chatCodexCatalogPromise = api.listCodexModels().then((result) => {
+  chatCodexCatalogPromise = api.listCodexModels().then(result => {
     chatCodexModels = result?.status === "available" && Array.isArray(result.models) ? result.models : [];
-    setDatalistOptions(els.chatCodexModelOptions, chatCodexModels.map((item) => ({ value: item.model, label: item.displayName })));
-    updateChatCodexEffortOptions();
+    renderChatComposer();
   }).catch(() => {
     chatCodexModels = [];
-    setDatalistOptions(els.chatCodexModelOptions, []);
-    updateChatCodexEffortOptions();
+    renderChatComposer();
   }).finally(() => { chatCodexCatalogPromise = null; });
   return chatCodexCatalogPromise;
 }

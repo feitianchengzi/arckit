@@ -763,10 +763,10 @@ test("Chat Renderer groups all snapshot sessions by Product Workspace with bound
   ]);
 
   assert.match(source, /groupChatSessions\(\{ sessions: chat\.snapshot\.sessions, projects: chat\.snapshot\.projects \}\)/);
-  assert.match(source, /limit: CHAT_SESSION_PREVIEW_LIMIT/);
-  assert.match(source, /查看历史会话（其余 \$\{visibility\.hidden_count\} 个）/);
+  assert.match(source, /limit: chatProjectLimits\.get/);
+  assert.match(source, /查看更多（剩余 \$\{visibility\.hidden_count\} 个）/);
   assert.match(source, /data-chat-history-project-id/);
-  assert.match(source, /visibility\.selected_requires_history/);
+  assert.match(source, /data-chat-project-toggle/);
   assert.match(styles, /\.chat-project-group \{/);
   assert.match(styles, /\.chat-history-toggle \{/);
 });
@@ -997,7 +997,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(styles, /\.product-grid \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
-  assert.match(html, /class="chat-page-heading"><strong>Chat<\/strong>/);
+  assert.match(html, /class="commandbar"/);
   for (const id of ["chatProjectSelect", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
@@ -1036,7 +1036,7 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
     assert.match(sidebar, new RegExp(`data-page="${page}"`));
     assert.match(html, new RegExp(`data-page-view="${page}"`));
   }
-  assert.match(html, /class="chat-page-heading"><strong>Chat<\/strong>/);
+  assert.match(html, /class="commandbar"/);
   const chatPage = html.slice(html.indexOf('id="chatView"'), html.indexOf('id="productView"'));
   assert.ok(chatPage.indexOf('class="chat-main"') < chatPage.indexOf('id="chatSessionsPanel"'));
   assert.ok(chatPage.indexOf('id="chatSessionList"') < chatPage.indexOf('id="newChatButton"'));

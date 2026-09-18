@@ -1,50 +1,29 @@
-export const CHAT_SESSION_PREVIEW_LIMIT = 10;
+export const CHAT_SESSION_PREVIEW_LIMIT = 5;
 
-function compareUpdatedAt(left, right) {
-  return String(right.updated_at || "").localeCompare(String(left.updated_at || ""));
-}
-
-function compareSessions(left, right) {
-  return compareUpdatedAt(left, right) || String(left.id || "").localeCompare(String(right.id || ""));
-}
-
+// Immutable identity/creation keys keep refreshes and active turns from moving rows.
 export function groupChatSessions({ sessions = [], projects = [] } = {}) {
-  const projectsById = new Map(projects.map((project) => [String(project.id || ""), project]));
-  const groupsByProjectId = new Map();
-
+  const projectsById = new Map(projects.map(project => [String(project.id || ''), project]));
+  const groups = new Map();
   for (const session of sessions) {
-    const projectId = String(session.project_id || "");
-    const project = projectsById.get(projectId);
-    const group = groupsByProjectId.get(projectId) || {
-      project_id: projectId,
-      project_name: String(project?.name || projectId || "不可用的工作区"),
-      available: Boolean(project),
-      sessions: []
-    };
-    group.sessions.push(session);
-    groupsByProjectId.set(projectId, group);
+    const id = String(session.project_id || '');
+    const project = projectsById.get(id);
+    if (!groups.has(id)) groups.set(id, {
+      project_id: id, project_name: String(project?.name || id || '不可用的工作区'),
+      available: Boolean(project), sessions: []
+    });
+    groups.get(id).sessions.push(session);
   }
-
-  return [...groupsByProjectId.values()]
-    .map((group) => ({ ...group, sessions: [...group.sessions].sort(compareSessions) }))
-    .sort((left, right) => compareUpdatedAt(left.sessions[0], right.sessions[0])
-      || left.project_name.localeCompare(right.project_name)
-      || left.project_id.localeCompare(right.project_id));
+  return [...groups.values()].sort((a, b) => a.project_id.localeCompare(b.project_id))
+    .map(group => ({ ...group, sessions: group.sessions.slice().sort((a, b) =>
+      String(a.created_at || '').localeCompare(String(b.created_at || ''))
+      || String(a.id || '').localeCompare(String(b.id || ''))) }));
 }
 
-export function chatSessionVisibility(group, {
-  expanded = false,
-  selectedSessionId = "",
-  limit = CHAT_SESSION_PREVIEW_LIMIT
-} = {}) {
-  const previewLimit = Math.max(1, Math.trunc(Number(limit) || CHAT_SESSION_PREVIEW_LIMIT));
-  const selectedIndex = group.sessions.findIndex((session) => session.id === selectedSessionId);
-  const selectedRequiresHistory = selectedIndex >= previewLimit;
-  const showAll = expanded || selectedRequiresHistory;
+export function chatSessionVisibility(group, { collapsed = false, limit = CHAT_SESSION_PREVIEW_LIMIT } = {}) {
+  const count = Math.max(CHAT_SESSION_PREVIEW_LIMIT, Math.trunc(Number(limit) || CHAT_SESSION_PREVIEW_LIMIT));
   return {
-    expanded: showAll,
-    selected_requires_history: selectedRequiresHistory,
-    hidden_count: Math.max(0, group.sessions.length - previewLimit),
-    sessions: showAll ? group.sessions : group.sessions.slice(0, previewLimit)
+    collapsed,
+    hidden_count: collapsed ? group.sessions.length : Math.max(0, group.sessions.length - count),
+    sessions: collapsed ? [] : group.sessions.slice(0, count)
   };
 }
