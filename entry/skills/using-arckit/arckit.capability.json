@@ -18,7 +18,7 @@
       "agent_loop"
     ]
   },
-  "summary": "Runs one coherent Agent turn from explicit Project software decisions, invariants and fresh facts through the smallest causally ready Case gap, workspace execution, evidence, Project delta, transition claim, and handoff.",
+  "summary": "Runs one coherent Agent turn from explicit Project software decisions, invariants and fresh facts and trusted scene definition through a bounded, prerequisite-ready Case gap, workspace execution, evidence, Project delta, transition claim, and handoff.",
   "input_facts": [
     "original_user_input",
     "current_operator_increment",
@@ -69,7 +69,7 @@
     "No suitable active Case produces a semantic case_control.create_case with outcome, initial facts, relevant impacts, and at least one dynamic gap; Runtime only binds Project revision and explicit review policy.",
     "ArcOrbit Agent output is a snapshot-bound Semantic Case Command with explicit typed semantic relations; the trusted ledger alone allocates canonical ids/revisions, rehydrates candidates, projects reverse relations and compiles the internal Case transition. Direct Agents may use the canonical v8 transition entrypoint.",
     "The Agent evaluates every current Project invariant against fresh Case facts and dynamically chosen skills; threatened or undetermined results become explicit Case gaps without preplanning a workflow.",
-    "Gap boundaries follow independently decidable questions, not phases, file counts or skill names. New evidence may resolve the current question; independently necessary questions remain explicit obligations for fresh selection after closeout. Professional skills do not expand the selected Gap or its authorization.",
+    "Gap boundaries permit jointly decidable low-risk conclusions and isolate important decisions; selection_assessment declares prerequisites and exploration versus establishment. Boundaries follow causal dependencies, not phases, file counts or skill names. New evidence may resolve the current question; independently necessary questions remain explicit obligations for fresh selection after closeout. Professional skills do not expand the selected Gap or its authorization.",
     "Runtime gates schema, revision, authorization, workspace safety, and ledger legality; it does not semantically re-review the Agent claim.",
     "Successful ledger writeback exposes the ledger-produced round closeout before a separately verified post-commit snapshot and the next turn. Human responsibility pauses for operator input; external responsibility remains a recoverable system wait.",
     "The Agent owns semantic progress assessment and continuation decisions; Runtime records observations and executes handoffs without a semantic no-progress cutoff. User stop and bounded protocol recovery remain independent.",

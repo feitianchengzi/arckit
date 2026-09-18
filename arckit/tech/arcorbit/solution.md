@@ -19,7 +19,7 @@ User Input
   -> Desktop UI
 ```
 
-Runtime Kernel 是策略中立的自动化内核，不是语义微编排器。一次 Loop 对应同一 Codex thread 中的一个 Agent turn：Agent 用 Project invariants 与 fresh Case facts 发现候选，选择一个 Case gap，调用必要 skills/tools，只执行和验证该 Gap 的单一 acceptance claim，并返回一个 Case control、Case transition 或 handoff。Runtime 不把这个 turn 再拆成阶段化的多个 Agent invocation，也不解释 invariant 或派生事实域路由。
+Runtime Kernel 是策略中立的自动化内核，不是语义微编排器。一次 Loop 对应同一 Codex thread 中的一个 Agent turn：Agent 用 Project invariants 与 fresh Case facts 发现候选，检查事实前置、结论性质与粒度，选择一个 Case gap，调用必要 skills/tools，只执行和验证该 Gap 的有界 acceptance claim，并返回一个 Case control、Case transition 或 handoff。该 claim 可包含能够共同决定的相关子结论；重要取舍独立处理，预期变更与正式实现分轮，详细契约见 `state-condition-ledger-solution.md`。Runtime 不把这个 turn 再拆成阶段化的多个 Agent invocation，也不解释 invariant 或派生事实域路由。
 
 Runtime Kernel 不充当 semantic truth judge。代码不判断产品概念、架构取舍、skill 适用性或业务语义是否“真的正确”；这些语义判断来自当前 Agent、人类或显式委派方。Runtime Kernel 只验证 schema、revision、授权、工作区/路径安全、证据存在性和 ledger transition 合法性，不重做 Agent 的语义 review。
 

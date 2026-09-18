@@ -1,3 +1,4 @@
+import { selectionAssessment } from './helpers/selection-assessment.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -210,7 +211,7 @@ function baseTransition(record, selected) {
   return {
     schema_version: 'arckit-case-transition/v8', case_id: record.id, case_updated_at: record.updated_at, project_revision: 0,
     gap_selection: selectionTrace(record, selected), selected_gap: structuredClone(selected),
-    planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
+    planned_transition: { selection_assessment: selectionAssessment(), goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: { resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [], resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null },
     project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
     invariant_assessment: {

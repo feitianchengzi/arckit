@@ -154,7 +154,7 @@ Runtime 每次 ledger writeback 后先原样投影 ledger 的 `round_closeout`�
 
 Persisted candidate 的稳定身份由 `selected_ref`、Gap id、Case revision、Project revision、selection token 与当前 ready 状态共同确认。Agent 可以用自己的语言表达同一 Gap 的目标和原因；这些描述不要求与 snapshot 逐字一致，也不能替代身份与 freshness 校验。Ledger apply 时重新读取当前 canonical candidate，并以 canonical 内容形成 round 和 closeout；真正的 stale snapshot、错误引用、候选不再 ready 或责任变化仍然拒绝。
 
-每个 Loop 仍只推进一个 Case gap，多个 gap 按 fresh ledger state 串行选择。执行效率不通过合并 gap、并行推进同一待办、总墙钟上限、生产性 Round 上限或长命令 watchdog 获得；长时间编译属于 Agent 执行阶段，由执行事件持续投影直至自然完成或收到显式停止请求。
+每个 Loop 仍只推进一个 Case gap，多个 gap 按 fresh ledger state 串行选择。Gap 粒度由 Agent 按 `controller-worker-loop.md` 判断：可共同决定的相关小问题允许合并，关键取舍独立处理，预期变更与正式实现分轮。Runtime 不为执行效率自动合并 gap、并行推进同一待办，或施加总墙钟上限、生产性 Round 上限、长命令 watchdog；长时间编译属于 Agent 执行阶段，由执行事件持续投影直至自然完成或收到显式停止请求。
 
 Runtime 对同一工作区内仍在运行的等价命令保持单一执行实例。后续相同命令观察同一执行状态，不并发启动第二个会修改或编译同一目标的进程。长时间命令的进行中、增量输出和完成状态由执行层持续投影，等待本身不要求 Agent 反复发起模型推理或重复提交命令。
 

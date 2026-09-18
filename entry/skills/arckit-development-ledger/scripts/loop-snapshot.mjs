@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { auditCaseRecord, readCaseRecord } from './development-case.mjs';
 import { probeProtocolCompatibility } from './protocol-compatibility.mjs';
+import { readStateDefinition } from './state-definition.mjs';
 
 const PROJECT_REF = 'arckit/project/state.record.json';
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -13,6 +14,7 @@ const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 export function readLedgerSnapshot(projectRoot, { afterCommitToken = '' } = {}) {
   const root = path.resolve(projectRoot);
   const compatibility = probeProtocolCompatibility(root);
+  const stateDefinition = readStateDefinition();
   const base = {
     schema_version: 'arckit-ledger-snapshot/v1',
     protocol_revision: 'software-definition-ledger/v8',
@@ -22,6 +24,7 @@ export function readLedgerSnapshot(projectRoot, { afterCommitToken = '' } = {}) 
     observed_after_commit: afterCommitToken ? compatibility.snapshot_token === afterCommitToken : false,
     expected_after_commit_token: afterCommitToken,
     compatibility,
+    state_definition: stateDefinition,
     source_digests: Object.fromEntries((compatibility.observed || []).map((item) => [item.ref, item.source_digest])),
   };
   if (afterCommitToken && !base.observed_after_commit) {
@@ -56,19 +59,20 @@ export function readLedgerSnapshot(projectRoot, { afterCommitToken = '' } = {}) 
       content_revision: record.content_revision,
       latest_invariant_assessment: structuredClone(record.rounds?.at(-1)?.invariant_assessment || null),
     })),
-    selection_tokens: Object.fromEntries(activeCases.map(({ ref, record }) => [record.id, selectionToken(compatibility, ref)])),
+    selection_tokens: Object.fromEntries(activeCases.map(({ ref, record }) => [record.id, selectionToken(compatibility, ref, stateDefinition.digest)])),
     canonical: { project_state: projectState, iteration_record: iterationRecord, active_cases: activeCases },
     candidate_catalog: candidateCatalog(projectState, activeCases),
     paths: defaultPaths(activeCaseRefs, iterationRef),
   };
 }
 
-function selectionToken(compatibility, caseRef) {
+function selectionToken(compatibility, caseRef, definitionDigest) {
   const digests = new Map((compatibility.observed || []).map((item) => [item.ref, item.source_digest]));
   return crypto.createHash('sha256').update(JSON.stringify({
     project: digests.get(PROJECT_REF) || '',
     case: digests.get(caseRef) || '',
     protocol: 'software-definition-ledger/v8',
+    state_definition: definitionDigest,
   })).digest('hex');
 }
 

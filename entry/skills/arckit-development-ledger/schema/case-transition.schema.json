@@ -41,7 +41,7 @@
     },
     "selected_gap": { "type": "object" },
     "planned_transition": {
-      "description": "Actions and evidence for the selected independently resolvable deficit. Learning facts within that deficit is allowed; resolving a different deficit requires a fresh selection after submission.", "type": "object" },
+      "description": "Bounded results and explicit prerequisite, exploration and realization claims.", "type": "object", "required": ["goal", "expected_state_change", "selection_assessment"], "properties": { "goal": {"type": "string", "minLength": 1}, "expected_state_change": {"type": "string", "minLength": 1}, "selection_assessment": {"$ref": "selection-assessment.schema.json"} } },
     "accepted_state_delta": {
       "type": "object",
       "required": ["resolved_gap", "facts_added", "facts_superseded", "impacts_added", "impacts_updated", "gaps_added", "gaps_cancelled", "resolved_open_questions", "completed_handoffs", "completion_review_result", "resolved_review_findings", "review_budget_extension"],

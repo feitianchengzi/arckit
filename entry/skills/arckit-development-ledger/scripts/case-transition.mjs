@@ -10,6 +10,7 @@ import { coreSoftwareInvariantIds, defaultSoftwareInvariants } from './project-i
 import { validateIterationStateRecord } from './project-iteration.mjs';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
 import { readLedgerSnapshot } from './loop-snapshot.mjs';
+import { validateSelectionAssessment, validateSelectionAssessmentAgainstState, validateSelectionAssessmentAgainstHistory } from './selection-assessment.mjs';
 import {
   renderIterationProjection,
   renderProjectStateProjection,
@@ -77,6 +78,7 @@ export function validateCaseTransition(transition, file = '<transition>') {
   validateGapSelection(transition.gap_selection, `${file}: gap_selection`, errors);
   validateGap(transition.selected_gap, `${file}: selected_gap`, errors, { candidate: true });
   if (!transition.planned_transition?.goal || !transition.planned_transition?.expected_state_change) errors.push(`${file}: planned_transition is incomplete`);
+  errors.push(...validateSelectionAssessment(transition.planned_transition?.selection_assessment, `${file}: planned_transition.selection_assessment`));
   const delta = transition.accepted_state_delta;
   const arrays = ['facts_added', 'facts_superseded', 'impacts_added', 'impacts_updated', 'gaps_added', 'gaps_cancelled', 'resolved_open_questions', 'completed_handoffs', 'resolved_review_findings'];
   if (!isObject(delta) || !Object.hasOwn(delta, 'resolved_gap') || !Object.hasOwn(delta, 'completion_review_result') || !Object.hasOwn(delta, 'review_budget_extension')) errors.push(`${file}: accepted_state_delta is incomplete`);
@@ -260,12 +262,15 @@ function applyReviewBudgetExtension(record, extension, candidate, timestamp) {
 
 export function applyCaseTransitionToRecord(record, transition, { timestamp = new Date().toISOString(), runtimeResultRef = '', projectState = null, invariantProjectState = projectState } = {}) {
   const errors = validateCaseTransition(transition);
+  if (projectState) errors.push(...validateSelectionAssessmentAgainstState(transition.planned_transition?.selection_assessment, projectState));
   if (errors.length) throw new Error(errors.join('\n'));
   if (record.schema_version !== 'development-case-record/v5') throw new Error(`Unsupported Case State schema: ${record.schema_version || '<missing>'}`);
   if (record.id !== transition.case_id) throw new Error(`Case transition targets ${transition.case_id}, not ${record.id}`);
   if (record.updated_at !== transition.case_updated_at) throw new Error(`Stale Case transition for ${record.id}`);
   const selection = selectTransitionGap(record, transition);
   const candidate = selection.gap;
+  const historyErrors = validateSelectionAssessmentAgainstHistory(transition.planned_transition.selection_assessment, record, candidate.id);
+  if (historyErrors.length) throw new Error(historyErrors.join('\n'));
   const canonicalSelectedGap = structuredClone(candidate);
   const delta = transition.accepted_state_delta;
   const isReview = candidate.id.includes(':completion-review:');
@@ -451,6 +456,7 @@ function roundCloseoutReceipt(transition, nextCase, projectedProject, priorSelec
     round: nextCase.rounds.length,
     selected_gap: structuredClone(nextCase.rounds.at(-1)?.selected_gap || transition.selected_gap),
     gap_selection: structuredClone(transition.gap_selection),
+    planned_transition: structuredClone(transition.planned_transition),
     accepted_state_delta: structuredClone(transition.accepted_state_delta),
     project_state_delta: structuredClone(transition.project_state_delta),
     invariant_assessment: structuredClone(transition.invariant_assessment),

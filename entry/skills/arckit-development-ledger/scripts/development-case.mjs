@@ -157,7 +157,7 @@ function loopHandoff(record, status, stage, candidateGaps) {
   const human = candidateGaps.find((gap) => gap.responsibility === 'human');
   const agent = candidateGaps.find((gap) => gap.responsibility === 'agent');
   const external = candidateGaps.find((gap) => gap.responsibility === 'external');
-  const next = status === 'resolved' ? 'none' : human ? 'human' : agent ? 'agent' : external ? 'external' : 'agent';
+  const next = status === 'resolved' ? 'none' : agent ? 'agent' : human ? 'human' : external ? 'external' : 'agent';
   return {
     version: 'loop-handoff/v2',
     status: status === 'resolved' ? 'done' : next === 'human' ? 'needs_human' : next === 'external' ? 'external_wait' : stage === 'blocked' ? 'blocked' : 'continue',
@@ -165,7 +165,7 @@ function loopHandoff(record, status, stage, candidateGaps) {
     agent_continuation_available: next === 'agent',
     human_decision_required: next === 'human',
     trigger_mode: next === 'none' ? 'none' : next === 'human' ? 'user_decision' : next === 'external' ? 'external_wait' : 'automatic',
-    responsibility_reason: status === 'resolved' ? 'The current Case revision passed completion review.' : (human || agent || external)?.reason || 'No ready gap is currently available.',
+    responsibility_reason: status === 'resolved' ? 'The current Case revision passed completion review.' : (agent || human || external)?.reason || 'No ready gap is currently available.',
     next_prompt: next === 'agent'
       ? `Continue ${record.id}: compare the ready dynamic gaps and advance one evidence-backed transition.`
       : next === 'external'
@@ -192,10 +192,8 @@ function auditCaseRecordV5(record, timestamp = nowIso()) {
     reason: `Pending handoff to ${item.target}.`, derived_from: [`handoff:${item.id}`], blocked_by: [],
     priority_basis: { blocking: 'high', uncertainty: 'medium', risk: 'medium', user_impact: 'medium' }, evidence_required: ['handoff completion evidence'],
   })));
-  const humanReady = ready.filter((gap) => gap.responsibility === 'human');
-  const agentReady = ready.filter((gap) => gap.responsibility === 'agent');
-  const externalReady = ready.filter((gap) => gap.responsibility === 'external');
-  let candidateGaps = humanReady.length ? humanReady : agentReady.length ? agentReady : externalReady;
+  // Responsibility belongs to the candidate, not to readiness of unrelated work.
+  let candidateGaps = ready;
   const unsettledImpacts = (record.state_impacts || []).filter((impact) => ['threatened', 'undetermined'].includes(impact.effect));
   const latestRound = (record.rounds || []).at(-1);
   const latestAssessmentClosed = latestRound?.transition_schema_version !== 'arckit-case-transition/v8'

@@ -86,7 +86,9 @@ Loop 是 case 的推进循环。一个 case 可以经历多个 loop。每个 loo
 
 Project State 不由 loop 直接静默改写。Loop 的输出必须先通过验证、case closeout 与 ledger gate，才能成为 Project State delta；独立 report 还必须先经主 Agent intake。
 
-Project State 和 Case State 的字段定义不是普通配置项。Project State 显式提供 15 项软件能力决策清单，项目在这些 area 中沉淀产品意图、能力、端、交互、视觉、访问、数据、集成、支持、商业、技术、安全、质量、交付和运营结论；协议另行固定产品预期、交互预期、视觉语言、技术决策、现实兑现和风险依据六条核心软件不变量。Controller 依据 fresh decisions、invariants 和具体 facts 生成当前实际需要的 gap；State 不绑定 skill、路径和流程。
+Project State 和 Case State 的字段定义不是普通配置项。软件场景的 Project State 显式提供 15 项软件能力决策清单，项目在这些 area 中沉淀产品意图、能力、端、交互、视觉、访问、数据、集成、支持、商业、技术、安全、质量、交付和运营结论；场景协议定义产品预期、交互预期、视觉语言、技术决策、实现兑现和诊断原因有依据六个核心责任方向，当前 State 的附加风险约束仍须判断。Agent 依据 fresh decisions、invariants 和具体 facts 生成实际缺口；State 不绑定 skill、路径和固定执行流水线。
+
+通用 State Driven Loop、场景 State 定义和具体项目 State 分层。通用方法负责恢复、发现、资格检查、比较、执行取证、提交和重选；场景定义提供业务对象、事实关系、不变量、证据与完成规则；项目状态提供实际维护对象、事实、载体及剩余义务。切换行业或场景替换定义与相应状态校验、能力和证据适配，保留通用控制与可信提交边界。软件专属语义不进入 Runtime 内核，也不要求修改通用方法才能适配另一场景。
 
 Project State、Case State 和 Agent Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存 advancement、software definition decisions、software invariants 和 evidence，不保存独占 Loop selection。Case State 是事项级 checkpoint，保存当前事项的 facts、targeted impacts、dynamic gaps、content revision、completion review cycles/findings/budget、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Agent Loop 是一次执行过程，只产生 transition/report、runtime result 和原始运行证据，不把完整 prompt、activity、stream delta、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
 
@@ -122,6 +124,8 @@ Project State、Case State 和 Agent Loop 通过分层上下文保持长期连�
 
 最终产物类型不改变阶段判断和前置软件流程。系统仍按真实软件预期判断需求、体验、技术、任务、治理和验收口径；进入实现时通过 `artifact_type` 选择实现 adapter；进入验证时按产物类型收集代码测试、构建日志、运行状态、Agent 执行行为、真实任务试跑、分发状态、文档事实对照或 workflow 回放等证据。
 
+实现载体识别是 Agent 恢复上下文的显式责任，由项目维护对象、生效方式及实际用途决定，不按扩展名或“应当”措辞分类。Skill 指令正文是实现载体，定义该 skill 应具备什么能力的规格是预期事实；前者修改成功不代表 Agent 行为已经兑现。探索和正式确立与产物类型正交，实验观察可以成立，但不能自动采纳为正式预期或宣称交付完成。
+
 评测集属于过程产物。它承接真实场景预期，用于检查产品方案、最终产物和能力单元是否覆盖真实活动。
 
 评测集不直接改变正式预期事实。评测结果可以触发规格修订、实现修复、任务生成、未决记录或工作方式更新。
@@ -150,6 +154,8 @@ Project State 是事实系统的恢复视图，不替代各事实源。Project S
 传输 envelope 和原始 runtime evidence 属于过程证据，不属于 Project State 或 Case State 的语义字段。Desktop operator event、完整 activity、完整 controller frame、完整 ledger write result、app-server stream output 和 raw prompt transcript 保存在 Runtime 宿主拥有的 execution record、raw events 或 audit 记录中，不复制到目标项目目录。Case round 可以保存不含宿主文件系统路径的 opaque run ref；该引用不替代 accepted delta 或持久 evidence，也不得进入 Project `case_control`、Case `current_round`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
 
 Project State 只维护 advancement、明确的软件定义决策和抽象软件不变量。Case State 维护单事项的 facts、targeted impacts、dynamic gaps、open questions、pending handoffs、content revision、completion review 与 resolution。Loop 只承载一个 Case 的一次 planned/accepted transition；多个 Loop 可以并行推进不同 Case。candidate gaps 不携带固定顺序；当前 Agent 根据真实上下文动态选择诊断、定义、实现、验证或持久上下文维护。每个接受的 Gap 可以立即原子沉淀相关 Project delta；只有全部普通工作闭合后才进入以实施正确性、验证可信度、回归风险和最小性为重点的完成态复审。
+
+Gap 选择以纵向业务对象限定范围，以横向不变量识别责任，先检查前置资格，再比较影响面、关键不确定性和依赖价值。正式决定缺少关键依据时先探索，正式实现依赖其范围内已接受的有效预期；不要求无依赖模块等待全 Case 预期齐备。可共同决定的相关小问题允许组成一个有界 Gap，重要取舍或需先取得答案的关键未知独立处理；预期变更与正式实现不合并。细则和行为验收由 `controller-worker-loop.md` 维护。
 
 语义字段必须由当前 Agent、人类输入、稳定事实源或已接受的独立 report 显式产生。Runtime 可以校验和拒绝结构化字段，但不能把原始 operator event 自行理解为项目目标，也不能把 raw task fallback 写成下一轮状态。结构化语义字段缺失、超长或包含 Desktop operator event marker 时，本轮应进入 Agent recoverable、blocked 或 ledger gate blocked，而不是静默截断后写回长期状态。
 

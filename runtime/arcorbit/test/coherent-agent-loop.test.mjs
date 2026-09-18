@@ -1,3 +1,4 @@
+import { selectionAssessment } from './helpers/selection-assessment.mjs';
 import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
@@ -205,6 +206,7 @@ function agentLoopResult(gap, caseId, mode = "candidate") {
       gap_selection: selectionTrace(gap, caseId, mode),
       selected_gap: gap,
       planned_transition: {
+        selection_assessment: selectionAssessment(),
         goal: "Implement and verify the bounded change.",
         expected_state_change: "Resolve GAP-IMPLEMENT with implementation and verification evidence."
       },

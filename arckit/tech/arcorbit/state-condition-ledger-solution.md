@@ -20,9 +20,17 @@ Project State 分成三个正交层次：
 
 1. `advancement`：当前 Iteration、未完成 Cases、真实 Project gaps 和选择下一事项所需的上下文。
 2. `software_definition`：协议明确列出的 15 项软件能力决策，以及当前项目对每项的具体结论与证据。
-3. `software_invariants`：持续指导 Case Loop 显式判断发现、并约束所有被接受 Case transition 的六条抽象正确性要求。
+3. `software_invariants`：持续指导 Case Loop 显式判断发现、并约束所有被接受 Case transition 的软件核心正确性要求及项目附加约束。
 
 这套设计没有 facet 状态机，也不让通用 skill 写死产品、交互、视觉、技术、代码和测试流程。清单属于具体 State；skill 只提供“恢复全部相关信息、比较动态 Gap、完成一个 Gap、提交 transition、fresh-read 继续”的通用算法。
+
+### 通用控制与场景定义边界
+
+通用 Loop 负责目标恢复、缺口发现、依赖与资格检查、优先级比较、执行取证、可信提交和重新选择。场景 State 定义负责业务对象、决策、不变量、事实类型与依赖、证据要求、完成条件和决策权限；具体项目 State 及其持久事实引用提供维护对象、实现载体、生效方式和验证依据。`software_definition`、`software_invariants` 与下述 15 项 decision areas 属于软件场景协议，不是通用 Loop 的固定业务词表。
+
+场景替换的边界包括 State 定义、对应 schema/确定性校验和领域能力、证据适配；Loop 控制方法、snapshot/transition/closeout 的职责与 freshness 原则保持不变。场景定义有版本并受可信校验约束，不能靠项目任意改写核心定义冒充兼容切换，也不能只换不变量名称而保留旧场景的事实关系和完成语义。
+
+Agent 从场景定义理解语义规则，Runtime 不按场景名、文件路径、工具调用或不变量 id 预路由。Ledger 验证载荷、引用、依赖状态与原子提交；事实依据是否充分、对象是否相关、探索结论是否支持采纳，由 Agent 显式判断。详细行为和验收场景由 `arckit/spec/agentic-software-development/controller-worker-loop.md` 定义。
 
 Canonical 协议只接受：
 
@@ -106,22 +114,24 @@ gap_refs: []
 - `deferred`：当前明确不决策，必须有 reason 和 resume condition。
 - `stale`：旧结论因新事实失效，必须由 Project gap 承接。
 
-“settled”不混入“是否与代码对齐”。后续实现 Gap 必须读取全部相关 decisions；若实现偏离，它属于 Case fact/impact/gap。产品决策在自己的 Gap 中清楚就是清楚，无需增加后续 facet 复查状态。
+“settled”不混入“是否与实际实现对齐”。后续实现 Gap 必须读取全部相关 decisions；若实现偏离，它属于 Case fact/impact/gap。产品决策在自己的 Gap 中清楚就是清楚，无需增加后续 facet 复查状态。实现载体按项目对象识别，包含 skill 指令、脚本、配置等，不限于代码。
 
 ### Software invariants
 
-`scripts/project-invariants.mjs` 固定六条不可删除、改写或退役的核心不变量：
+软件场景的六个核心方向由模板定义，并由 `scripts/project-invariants.mjs` 校验核心定义不可被项目任意删除、改写或退役：
 
 - `product-expectations-remain-recoverable`
 - `interaction-expectations-remain-recoverable`
 - `visual-language-remains-consistent`
 - `technical-decisions-remain-explainable`
 - `accepted-facts-are-realized`
-- `material-risks-have-credible-evidence`
+- `debug-causes-remain-grounded`
 
 这些不变量既约束当前 transition 能否被接受，也作为每轮从 fresh Project/Case state 发现显式判断的抽象指导。Applicability 由 fresh facts 是否建立、改变、否定、暴露缺失、使既有内容过时、产生歧义或冲突决定，不从 planned transition 的动作或实际编辑对象倒推。
 
-产品、交互、视觉和技术四条分别维护对应权威长期预期或决策；realization 判断现实软件状态是否兑现相关事实；risk 判断重要风险主张是否有可信依据。三类证据责任不能相互替代。它们不形成六个轨道，也不映射固定 skill、路径、工件或顺序；Agent 结合当前 Case facts、既有 round judgments、稳定事实源和原生 skill 能力，判断某条不变量是否实际相关，以及是否暴露新的结果 Gap。
+产品、交互、视觉和技术四条分别维护对应权威长期预期或决策；realization 判断项目实际实现是否兑现已接受预期；debug 判断问题直接原因是否有证据。它们不形成六个固定执行轨道，也不映射固定 skill、路径或工件。每个软件业务 Gap 说明对象范围、相关不变量及缺少的结果，六个方向都须考虑但不要求都产生 Gap。风险主张仍需相称证据；State 中已有的 `material-risks-have-credible-evidence` 等附加不变量仍完整参与 assessment，不因核心方向调整而静默删除。
+
+诊断原因未知时，先取得解释现象的直接因果证据，再 fresh-read 判断相关预期是否有问题及后续如何处理。原因已知且预期有效时可直接修复；不要求无异常任务进行 Debug。查清原因、接受解决方案和证明修复完成是不同主张，症状消失不能替代因果证据。
 
 核心定义以 Case Loop 和 accepted transition 为作用域；协议升级可通过 `sync_core` 精确同步 canonical 定义，项目不能任意改写。技术栈、框架、模块、文件、某条产品需求和一次 Case 发现是 decision/fact/evidence，不是新不变量。同一不变量在不同 round 可以从 `not_relevant` 或 `upheld` 重新变成 `threatened` 或 `undetermined`，历史判断不形成一次性完成标记。
 
@@ -151,11 +161,48 @@ Target 可以是 `software_decision` 或 `software_invariant`。Impact 只在当
 
 ### Dynamic gap
 
-Gap 只保存可验证结果的 goal、reason、derived_from、blocked_by、开放 priority basis、responsibility、evidence requirement 和 resolution。诊断、产品定义、文档维护、实现、测试和交付使用同一结构；不包含 facet、skill、allowed path、固定工作类型或把“实现、跨产物一致性、规格、测试”预排成下一轮路径的复合步骤。实现方式属于本轮 `planned_transition`，下一轮仍从 fresh state 独立判断。
+Gap 只保存可验证结果的 goal、reason、derived_from、blocked_by、开放 priority basis、responsibility、evidence requirement 和 resolution。诊断、产品定义、文档维护、实现、测试和交付使用同一结构；不包含 facet、skill、allowed path、固定工作类型或把“实现、跨产物一致性、规格、测试”预排成下一轮路径的复合步骤。合并的是适合共同决定的相关结果，不是未来执行链。实现方式属于本轮 `planned_transition`，下一轮仍从 fresh state 独立判断。
 
-Audit 从全部 `open` 且依赖闭合的 gaps 派生无序 candidate set。当前 Agent 每轮从 fresh state 结合 Project decisions/invariants、Case facts、上一轮 judgments 与稳定事实源发现 fresh candidates，再根据阻塞、风险、信息增益、依赖、用户影响和可验证性选择下一项。根因未知的 bug 通常先产生诊断 Gap，是事实与不确定性驱动结果，不是 code invariant 或 diagnosis facet。
+Audit 从全部 `open` 且依赖闭合的 gaps 派生无序 candidate set。当前 Agent 每轮结合 Project decisions/invariants、Case facts、上一轮 judgments 与稳定事实源发现 fresh candidates，先检查事实依据、正式实现所需预期、授权与责任资格，再按影响面、关键不确定性、阻塞和依赖价值比较，结合风险、用户影响与可验证性选择。结构 ready 只说明账本依赖状态，不替代 Agent 对当前语义前置的检查；根因未知的 Bug 由诊断不变量承接直接原因缺口，不成为固定阶段。
 
-每个 Gap 只建立一个可独立接受的 claim。证明该 claim 所需的调查、编辑、构建或测试可以留在当前 round；执行中产生的新事实只进入 facts、impacts、invariant assessment 和后续 gaps，不授权当前 round 改做另一个独立结果。selected gap resolved 或确定为 partial/blocked 后立即进入 transition；下一项工作只能在 closeout 后从 fresh snapshot 重新选择。
+每个 Gap 建立一个有界 claim，可以包含围绕同一目标、适合共同决定和验收的相关子结论。影响后续方向、多个对象或需要独立取舍的关键判断独立成 Gap，工作量不直接决定粒度；需要先取得一个答案才能决定其余工作时，不在同轮包办后续决定。预期事实的建立或修改与正式实现不得合并，复用已有预期不要求额外 Gap。调查、编辑、构建或测试可共同证明当前 claim；新事实支持当前问题时继续使用，暴露关键独立问题时记录 facts、impacts、assessment 和必要候选，不自动扩大本轮执行。selected gap resolved 或确定为 partial/blocked 后进入 transition；下一项工作从 closeout 后的 fresh snapshot 重选。
+
+同一有界结果可以覆盖一个小 Case 的全部普通工作，不为 Case/Gap 范围一致额外拆分。当前事实已支持的多个缺口和依赖可以同时记录，包括初始化时的已知义务；不预测未来执行链不等于逐轮隐瞒已知问题。关联和合并不能绕过 selected Gap 身份、引用保真、原子提交与 fresh-read 重选。
+
+### 选择语义的状态承载
+
+事实方向与结论性质正交。探索取得决定所需依据；正式确立接受有依据的预期、因果结论或对已接受预期的兑现结果。它们不是 facet 状态机，也不为所有领域强加探索轮次。现有语义字段承载以下责任，不能仅记录一句“必要时可探索”：
+
+| 语义责任 | 承载位置与含义 |
+|---|---|
+| 对象与范围 | Gap goal/reason、相关 facts 和 invariant judgment 明确纵向对象、适用不变量与证据覆盖边界。 |
+| 结论性质 | goal、选择 basis 与 planned transition 说明取得依据还是正式确立，列出可共同验收的子结论及暂不接受的下游主张。 |
+| 前置事实 | derived_from 与持久 evidence 引用已有依据；真实未闭合 Gap 依赖用 blocked_by 表达，未记录的关键缺口先显式承接，不伪装成 ready。 |
+| 选择资格 | gap_selection 的 eligibility、reason 和比较依据说明责任条件、关键证据是否充分、相关预期是否有效，不仅复述 catalog 状态。 |
+| 探索验收 | evidence requirement 和 accepted facts 表达授权目标或受阻决定、具体问题、证据、条件、限制及尚未决定事项；resolution 只关闭已被回答的未知，证实不可行也可完成，证据不足保持开放。 |
+| 义务连续性 | facts、开放 gaps、问题、handoff 与 invariant assessment 保存剩余责任、反证及依赖关系，不从 Gap 关闭推断全部不变量满足。 |
+
+正式实现引用其范围及共享前提所需的已接受预期；无关模块的未决预期不阻塞当前局部。缺少关键依据的正式决定则由探索 Gap 先取得依据。探索结果可以接受真实实现观察，但不能自动批准产品方向、技术方案或正式交付；仍需作出的决定保持开放。实验载体可以在预期接受后复用、调整和验证，不要求重写。
+
+预期接受包含权限内的语义采纳与权威事实源的可恢复表达，不由 Ledger receipt 自动证明，也不默认要求人工审批。新建或变更的预期在负责它的 Gap 中维护；已有充分事实源引用复用。探索引用试验假设与观察标准即可建立取证边界，不要求待探索的正式功能预期已全部成立。其 accepted facts 分别说明真实观察、对既有行为的实际影响与尚未兑现的正式目标；不能把实验观察引用成正式兑现证据，实际引入的回归仍由开放义务承接。
+
+Agent 识别实际维护对象、载体、生效方式与证据类型。Skill 正文即使使用 Markdown，也可能直接实现 Agent 行为；其源码、安装生效和执行表现分别论证，不因扩展名推断为预期文档。探索 skill 与探索代码遵守同一结论边界。
+
+Ledger 校验声明与引用的确定性一致性，Runtime 透传状态和结果，不从自然语言或文件变化推测缺失的事实关系。粒度适当性、证据充分性和是否可以正式确立由 Agent 负责。Agent 区分同一验收内的动作依赖与需要另行选择的独立结果；前者就绪或约束内实现手段调整不单独触发重选。常规排障可服务当前结果，重要独立因果问题或已接受预期、关键前提、责任、验收边界变化则保存证据并重新选择。既有记录的 ready、resolution 或 partial 不代替上述语义判断，也不因探索或合并要求绕过 freshness、原子提交与责任权限。
+
+### 场景快照与选择说明接口
+
+Ledger 的 `templates/software-state-definition.json` 是软件场景语义定义，按 `arckit-state-definition/v1` 表达事实类型、选择规则、完成规则及实现载体判断；不复制 Project 中动态的不变量条文。`loop_snapshot.state_definition` 提供定义与内容 digest，Case selection token 同时绑定该 digest，阻止定义变更后接受旧选择。当前软件 Ledger 的对象 schema、定义资源与校验共同构成场景 adapter；通用入口只消费快照，不从目标项目任意路径加载另一份场景代码。软件场景定义引导首次使用者读取 Ledger 随包概念示例，串联不变量责任、纵向范围、事实角色、结论性质与 Gap；示例不依赖本仓库研发文档或先前会话，不构成固定业务执行链。
+
+每轮 `planned_transition.selection_assessment` 显式提供对象范围、维护对象、实现载体与生效/验证方式、探索或正式确立性质、关联 invariant refs、可共同验收的结果、前置依据、预期来源、是否建立预期或正式兑现、合并/独立理由及暂不处理的义务。Semantic Command 和 direct Transition 共用同一结构与 validator，materializer 原样保留 Agent 声明，round 和 closeout 保留该说明。该接口强化当前提交契约，不改写历史 round 或为既有 Case 生成新 Gap。
+
+Ledger 检查结构完整、已满足前置有证据、当前工作没有声明未满足的执行前置、正式兑现引用已有预期、探索不声明正式采纳/兑现，以及同轮不兼有预期变更和正式兑现。声明正式预期或兑现时 invariant refs 必须非空，所有 invariant refs 必须属于当前 Project catalog。同一 Gap 的已记录声明跨轮检查：不得通过 partial 合并预期建立与正式兑现；先闭合或保真重界定，再 fresh-read 选择独立 Gap。探索标签不独自限制续轮采纳，是否出现下游选择或重要重新决定由 Agent 依据结果边界判断；历史无声明的 Round 不补造性质。预期来源和普通 evidence 只作结构校验，内容接受状态与充分性仍由 Agent 核实。这些检查只验证 Agent 显式主张及其一致性，不从编辑文件推测真假，不用评分替代优先级判断。缺少说明返回可恢复的协议错误，由同一 Agent 补齐，不填充默认业务判断。
+
+稳定实现上下文首次随 selection_assessment 保存：context_ref 为 null，maintenance_object、implementation_carriers、activation、verification 提供完整值。后续可用 case:round:N 引用同一 Case 已接受轮次，将四项置 null；Ledger 确定性解析引用，拒绝缺失或循环，并检查正式兑现的有效载体。只继承稳定上下文，不继承 scope、acceptance、前置或选择。Agent 每轮确认适用性，变化时写新上下文，权威来源仍可引用 Project/Case 的持久事实。
+
+新项目通过 project_state init 创建状态后 fresh-read；该入口拒绝已有 Project record/STATE 或 Case/Iteration 历史，已有记录缺失走恢复。Direct Agent 可用 case_control apply <handoff.json|-> 调用与 Host 相同的加锁原子创建路径。已有复审策略优先；无策略时采用软件场景 direct_review_policy，默认最多 3 次自主 Completion Review，不限制业务 Gap 数或扩展授权。
+
+候选目录保留所有依赖已闭合的责任类型；human、agent、external 由条目的 responsibility 表达，不因另一个人工候选存在就把可推进的 Agent 工作标成 blocked。依赖阻塞与责任交接分别表达，具体处理与交接仍由 Agent 判断。
 
 ## Case Transition v8
 
@@ -199,14 +246,16 @@ case_resolution: {}
 
 `invariant_assessment.judgments` 对 snapshot 中全部 Project software invariants 恰好覆盖一次。每项 disposition 为：
 
-- `not_relevant`：本轮 facts 与 selected gap 不触及该不变量；必须说明原因，不能以缺失代替。
+- `not_relevant`：当前 Case 目标、相关预期、facts 和未决问题未触及该不变量；必须说明对象范围和原因，不能以本轮未选、尚未调查或缺失代替。
 - `upheld`：当前 facts 与证据已经满足该不变量；必须有持久 evidence。
 - `threatened`：当前 facts 已证明相关预期受到威胁；必须引用 facts 与至少一个在 apply 后仍 open 的 result Gap。
 - `undetermined`：当前 facts 已证明该判断相关但证据不足；必须引用 facts 与至少一个在 apply 后仍 open 的调查或澄清 Gap。
 
 assessment 绑定 observed Project revision。Ledger 只校验 invariant 引用全覆盖、disposition 结构、fact/gap 引用和 evidence 闭合，不判断某条 invariant 是否语义相关，也不把 invariant 映射到 Tech、Spec、代码、测试、skill 或路径。Agent 可在后续 round 用新 facts 将过去的 `not_relevant`/`upheld` 判断重新声明为 `threatened`/`undetermined`；round history 保留重新打开的依据。
 
-`gap_selection` 记录 snapshot catalog 中全部 persisted candidates 与本轮 fresh gap 候选，逐项给出 eligibility、priority basis 和 selected/deferred/excluded 理由。Ledger 对当前 Project gaps 与所选 Case persisted candidates 做强覆盖校验；其他 Cases 的条目保留为选择审计但不进入并发锁。`mode=candidate` 时，`selected_ref`、Gap id、Case `updated_at`、Project revision、selection token 与当前 ready 状态共同构成稳定 identity/freshness 边界；`selected_gap.goal/reason` 是 Agent 可自然转述的语义投影，不参与逐字身份比较。Apply 在锁内按稳定身份重新解析当前 canonical candidate，并将 canonical object 写入 round 与 closeout，避免 Agent 表达成为第二份事实。`mode=fresh` 时原子创建并关闭一个此前未持久化、Agent-owned、无未闭合依赖且本轮已完成的普通 Gap。两种模式都只关闭 selected gap；`gaps_added` 仅持久化本轮新事实已经暴露但仍未解决的结果 Gap，不作为未来 Loop 计划，也不能在本轮继续执行。任何一轮都可以提交相关 Project delta，不等待 Case resolved：
+每项 judgment 的理由与证据说明覆盖对象和范围。局部结论不能支持整个模块或 Case 的 upheld；同一方向仍有相关未决义务时，由现有 threatened/undetermined 处置及开放 Gap 保留，不能因局部探索成功覆盖剩余缺口。反证触及共享前提时重新检查相关决定及依赖实现的选择资格，不扩大到无关对象。
+
+`gap_selection` 记录 snapshot catalog 中全部 persisted candidates 与本轮 fresh gap 候选，逐项给出 eligibility、priority basis 和 selected/deferred/excluded 理由。Ledger 对当前 Project gaps 与所选 Case persisted candidates 做强覆盖校验；其他 Cases 的条目保留为选择审计但不进入并发锁。`mode=candidate` 时，`selected_ref`、Gap id、Case `updated_at`、Project revision、selection token 与当前 ready 状态共同构成稳定 identity/freshness 边界；`selected_gap.goal/reason` 是 Agent 可自然转述的语义投影，不参与逐字身份比较。Apply 在锁内按稳定身份重新解析当前 canonical candidate，并将 canonical object 写入 round 与 closeout，避免 Agent 表达成为第二份事实。`mode=fresh` 时原子创建并推进一个此前未持久化、Agent-owned、无未闭合依赖的普通 Gap。两种模式都只推进 selected gap；验收未完成时提交 partial，普通 Gap 的 resolution 为 null 并保持开放，不为满足写回条件虚报完成或取消换号。`gaps_added` 持久化本轮当前事实已经支持、仍未解决的结果 Gap，不作为预测性的未来 Loop 计划，也不能在本轮切换执行。任何一轮都可以提交相关 Project delta，不等待 Case resolved：
 
 - 产品或技术结论在被真正澄清的当轮更新对应 decision。
 - 新事实使旧决策失效时标记 stale 并绑定 Project gap。
@@ -237,6 +286,8 @@ Iteration 不保存 Loop prompt、next responsibility、Worker 顺序、dimensio
 - regression risk
 - minimality
 
+上述维度按当前 Case 授权目标及实际产物解释。探索或定义 Case 复审自己的结论、载体、实际影响与证据，不把未授权的正式实现当成其关闭前置；范围内真实未决仍须闭合，后续责任保留可恢复交接，不能宣称完整产品已经兑现。
+
 Finding 转成普通动态 Gap；修复提升 content revision，再审查新 revision。普通 Gap 的 evidence requirement 和 ledger validation 属于执行证明与确定性协议校验，不是其他自查阶段。Review 是最终兜底；clean 并关闭 Case 后只允许 Git-only closeout，不再检查、验证、编辑或修复内容。
 
 ## Runtime 集成
@@ -247,8 +298,8 @@ Ledger manifest 的 `loop_snapshot` 是直接 Codex 与 Runtime 共用的 truste
 
 1. 恢复用户增量、trusted snapshot receipt 与全部相关工程事实。
 2. 选择或创建一个 Case。
-3. 用 Project decisions/invariants、fresh Case facts 与原生 skills 发现 fresh candidates，可见地比较并选择最值得优先处理的一项。
-4. 动态使用必要 skills/tools，只完成并验证该 Gap 的单一 acceptance claim。
+3. 恢复维护对象与实现载体，用 Project decisions/invariants、fresh Case facts 与原生 skills 发现 fresh candidates；先检查事实依赖、资格和粒度，再可见地比较并选择一项。
+4. 动态使用必要 skills/tools，完成该 Gap 有界 acceptance claim 内适合共同决定的相关结果，按探索或正式确立的证据责任验收。
 5. 提交 Case delta、完整 invariant assessment 与由该 Gap 直接建立的 Project delta；新暴露的 Gap 不在本轮执行。
 6. trusted writeback 返回独立 `arckit-round-closeout/v2`：列出本轮 accepted delta、invariant judgments、证据和 resulting revisions，但明确不投影 next candidate。
 7. Host 展示 closeout 后，以 `post_commit_snapshot_token` 调 `loop_snapshot --after-commit`；只有返回 `observed_after_commit=true` 的 receipt 才能自动续轮。
@@ -262,12 +313,16 @@ Ledger manifest 的 `loop_snapshot` 是直接 Codex 与 Runtime 共用的 truste
 - Case v5 不包含 facet、maturity、alignment、diverged 或事实域 not-required checklist；round 只保存对 Project invariant catalog 的 fresh assessment。
 - Decision 自身是否清楚，与后续实现是否正确分开表达。
 - 每个被接受的 Gap transition 都能立即原子沉淀相关 Project change。
-- 文档、诊断、实现和验证按实际依赖自由排序；文档应在负责其事实的 Gap 中更新。
+- 预期方向之间按实际依赖选择，关键依据不足先探索，正式实现以相关预期齐备为资格条件；事实载体在负责其结论的 Gap 中维护。
 - Runtime、output schema、gate、ledger 和 Desktop 只接受当前 v5/v3/v7 与 snapshot/closeout v1 协议。
 - 直接 Codex 与 Runtime 通过同一 ledger manifest、trusted snapshot/transition entrypoints 和 receipts 工作；Runtime 不复制候选、revision、fresh-read 或 closeout 的 canonical 机制。
 - 每轮用 Project invariants 与 fresh Case facts 动态发现 candidate/fresh Gap，并提供完整可见比较轨迹；不依赖上一轮预排 impacts、事实域、复合步骤 Gap 或 gap 链。
-- 每个 Gap 只建立一个独立 acceptance claim；新 facts 只能写入 delta 并暴露下一轮候选，不能扩大本轮执行。
+- 每个 Gap 建立一个有界 acceptance claim，可共同决定的相关小项允许合并；重要取舍独立处理，预期变更与正式实现分轮，新 facts 不授权跨越结论边界。
 - 每个 accepted content round 完整覆盖当前 invariant catalog；实际相关判断必须 upheld 或由 open Gap 承接，后续 facts 可以重新打开历史判断。
 - writeback 后先显示独立 closeout，再完成可验证 post-commit fresh-read；内存 candidate 或 writeback result 不能充当 fresh state。
 - Completion Review 是唯一显式语义自查，且 Case resolved 后 closeout 只处理 Git。
 - 自动续轮直到 resolved；只有 human responsibility 请求人类介入。
+- 通用方法不内置软件方向；场景替换包含定义、校验与证据适配，软件核心约束仍受当前场景协议保护。
+- 探索的关键前置、范围、证据和未决决定可恢复；实验观察可以接受，采纳与正式兑现不能被自动推导。
+- 同一 Case 允许无依赖局部推进；共享预期未定时依赖实现不可选择，局部证据不外推为全部义务满足。
+- Skill 项目修改行为指令属于实际实现；文本修改、安装生效和真实行为验收分开论证。

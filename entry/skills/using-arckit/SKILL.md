@@ -1,18 +1,18 @@
 ---
 name: using-arckit
-description: "在 Arckit 项目中持续推进真实软件开发事项。依据 fresh Project 软件定义决策/不变量/推进状态与 Case facts/state impacts/dynamic gaps，选择最值得优先处理的 gap，由同一 Agent 动态使用必要 skills/tools 完成并形成可信 transition；在当前授权范围内自动续轮，区分 Case 完成、用户停止、人工决定与外部等待。"
+description: "在 Arckit 项目中开始、恢复与持续推进已授权事项时使用。依据可信场景定义与 Project/Case State 选择有界 Gap，控制局部前置、探索与正式建立的边界；不代替领域能力或 Ledger 写回。"
 ---
 
 # Using Arckit
 
-本 skill 是通用状态驱动控制算法，不硬编码工作类型、产物类别或执行流程，也不规定 skill、路径和工作顺序。项目个性化来自 Project State 的显式软件定义清单及其已沉淀决策；事实变化通过 Case impacts 和动态 gaps 推进。
+本 skill 是通用状态驱动控制算法，不硬编码工作类型、产物类别或执行流程，也不规定 skill、路径和工作顺序。场景语义来自可信 snapshot.state_definition 与 Project State；更换场景时替换状态定义及适配器，不改 Loop 方法。事实变化通过 Case impacts 和动态 gaps 推进。
 
 ## 全程约束
 
 - **范围**：用户原任务、当前增量与未撤回授权决定工作范围；状态、候选和后续发现不提供新增授权。
 - **事实**：依据可信的当前 Project/Case State 判断，历史上下文、普通文件读取和写回返回值不能替代 fresh snapshot。
-- **聚焦**：每轮只推进一个独立缺口；全面理解事实和识别义务，不等于本轮解决全部缺口。
-- **保障**：软件不变量是必须的思考下限，不是 Gap 来源或 Agent 推理的上限；每轮从当前定义显式考虑，按 Case 目标综合选择工作。
+- **聚焦**：每轮只推进一个可共同决策、共同验收的有界缺口；全面理解事实和识别义务，不等于本轮解决全部缺口。
+- **保障**：不变量给出场景责任范围；候选来源不限，但业务 Gap 必须对应相关责任。控制、恢复与交接义务按其自身契约处理，不伪造业务映射。
 - **职责**：Agent 判断任务是否推进及是否继续，Ledger 负责可信校验与写回，Runtime 执行交接与用户控制；Agent 不直接手改 ledger。
 
 ## 职责与 Host 接入
@@ -27,20 +27,24 @@ Host 提供自动续轮、拒绝恢复或完成后的新发现时，读取 [refe
 
 ### 1. 恢复全部相关信息
 
+Case 是本次目标及其已知义务；Gap 是其中尚未成立的具体结果；Loop 是围绕一个 Gap 取得证据、提交状态并重新选择的一轮。先理解结果，再填写协议。
+
 **取得可信快照。** 每轮只接受 ledger capability 产出的 `arckit-ledger-snapshot/v1`。Runtime 未提供时，Agent 从已安装的 `arckit-development-ledger` manifest 解析同一个 `loop_snapshot` entrypoint 并自行调用；普通文件读取和 writeback 返回值都不能冒充 fresh snapshot。
 
 **检查可用性。** fresh canonical state 不可用且 ledger compatibility probe 报告协议不一致时，先进入协议恢复模式；此时不得创建、选择或推进普通 Case Gap。恢复规则按需读取 [references/protocol-compatibility-recovery.md](references/protocol-compatibility-recovery.md)。 `unavailable` 时暂停普通 Loop；协议恢复由同一 Agent 完成语义 reconciliation，trusted ledger 原子验收成功后重新调用 snapshot，再从原始用户事项判断。
 
-**恢复状态与证据。** `available` 时读取用户当前增量、fresh Project/Iteration、全部 active Cases、15 项软件定义决策、软件不变量与 candidate catalog，再读取完成判断所需的持久事实载体和工作区证据。
+**读取场景契约。** 读取 snapshot.state_definition.definition 的事实分类、选择规则、完成规则、实现判断指引和状态来源；首次使用该场景时，按定义指引读取随包概念示例。结合项目确认维护对象、实现载体、生效方式及验证方式，不按文件扩展名推断事实角色。稳定上下文在 Case 中保存一次，后续确认仍适用后引用；变化时更新，未知时说明缺口。定义缺失或不可用时先恢复可信能力。
 
-- Project `project-state-record/v5` 明确给出软件能力决策清单、当前决策、抽象软件不变量和当前推进上下文。Agent 必须逐项理解它们，但不会为每项制造过场 gap。
+**恢复状态与证据。** `available` 时读取用户当前增量、fresh Project/Iteration、全部 active Cases、场景定义、当前决策、不变量与 candidate catalog，再读取完成判断所需的持久事实载体和工作区证据。
+
+- 当前软件适配器的 Project `project-state-record/v5` 给出领域决策清单、当前决策、不变量和推进上下文。Agent 必须逐项理解它们，但不会为每项制造过场 gap。
 - 所有 active Case 使用 `development-case-record/v5`。Case 只记录实际相关的 facts、targeted impacts、dynamic gaps、问题、handoff 和 completion review。
 
 额外读取可以支持当前 Gap 的调查、实现与验证；新候选必须先通过原任务范围判断。正向轮次见 [references/controller-conversation-protocol.md](references/controller-conversation-protocol.md)，输入边界见 [references/controller-input-boundary.md](references/controller-input-boundary.md)。
 
 ### 2. 选择或创建 Case
 
-结合用户意图、Project gaps、active Cases、风险和依赖选择唯一 Case。没有合适 Case 时返回 `case_control.create_case`：明确 intent/outcome、至少一个 accepted fact，以及由这些当前事实直接支持的一个具体 initial gap。首个 Gap 依据关键阻塞与不确定性产生：可能是定位根因、明确产品行为、交互决策、技术验证，也可能直接实现；这些是例子，不是固定阶段或必经顺序。只有现有证据已经表明某个 Project target 受到实际影响时才创建 initial impact；允许为空，不预测影响范围。
+结合用户意图、Project gaps、active Cases、风险和依赖选择唯一 Case。没有合适 Case 时返回 `case_control.create_case`：明确 intent/outcome、至少一个 accepted fact（用户明确提出目标本身即可构成事实，不代表方案已经确定），以及由这些当前事实直接支持的 initial gaps。已知未完成义务及真实依赖一并保留，不预测未知执行链。首个 Gap 依据关键阻塞与不确定性产生：可能是定位根因、明确产品行为、交互决策、技术验证，也可能直接实现；这些是例子，不是固定阶段或必经顺序。只有现有证据已经表明某个 Project target 受到实际影响时才创建 initial impact；允许为空，不预测影响范围。
 
 ### 3. 动态选择下一 Gap
 
@@ -57,17 +61,17 @@ Invariant 不规定工作类型、skill、路径或执行顺序，也不等于�
 - 证据不足：`undetermined` + 调查/澄清 gap。
 - 不相关：不创建 impact；但在本轮 `invariant_assessment` 中记录 `not_relevant` 理由。
 
-**界定一个独立缺口。** 一个 Loop 只提交一个 selected Case Gap 的单一验收主张。该 Gap 是原任务范围内当前最关键、最值得独立解决的缺口，具有明确的待回答问题与完成证据；一轮推进一个 Gap，同一 Gap 可以跨轮完成。每轮重新判断其与原任务的必要关系，不预先制定 impacts 或未来 gap 链。
+**先判断当前能否推进。** 按场景规则检查局部事实与共享依赖。问：剩余未知的不同答案，是否会改变本次结果、关键约束或验收标准？若会改变重要决定，先选择能区分答案的取证问题；若不影响本范围，说明依据并保留未知。前置未满足的候选先处理前置或交接，优先级不能绕过资格。将选择依据写入 planned_transition.selection_assessment，字段语义见 [references/selection-assessment.md](references/selection-assessment.md)。它区分探索与正式建立，并明确本轮验收及未决义务。
 
-选择时说明：当前缺口要回答什么、为什么最值得先独立解决、什么证据表示它已解决，以及哪些相关问题暂不解决。已持久化 Gap 也须审视边界；“只有一个 Gap”不能证明它合理。若几个结果需要分别取舍，或一个结果成立后应重新决定另一个怎么做，先选最关键的问题；仅能分开测试不要求拆碎。`planned_transition` 围绕该问题安排必要行动，不把 Case 最终交付整体装进一轮。
+**明确这一轮要成立什么。** Gap 表达尚未成立的具体结果，说明缺什么、成立后改变什么、何种证据足够。子结果共享目标、前提和验收边界时可以合并；若答案会改变后续方向、影响多个对象或需要独立取舍，则在这个判断处收紧边界。工作量、文件或测试数量不直接决定 Gap 数；大工作可 partial 跨轮，小任务可只有一个普通 Gap。遵守场景中的事实顺序与合并禁区。
 
-**比较候选并展示选择。** 根据本轮 snapshot 比较 ledger 为全部 active Cases 与 Project 派生的 persisted candidates，以及当前上下文刚显露的 fresh candidates，再按阻塞程度、风险、信息增益、依赖、用户影响与可验证性选择一个。选择前向用户展示独立 round opening：列出全部 persisted candidates、实际发现的 fresh candidates、selected/deferred/excluded 与简短理由；不得声称穷尽了未发现的 fresh work。完整 trace 随 transition 保存，其中 Project 与 selected Case scope 由 Case-scoped selection token 强绑定，以保留无关 Cases 的并发推进。细则见 [references/round-boundary-contract.md](references/round-boundary-contract.md)。
+**比较候选并展示选择。** 根据本轮 snapshot 比较 ledger 为全部 active Cases 与 Project 派生的 persisted candidates，以及当前上下文刚显露的 fresh candidates，在合格候选中选择最能解除当前目标关键阻塞、减少重大返工或产生直接价值的结果。影响面、不确定性、风险与依赖用于解释判断，不按陌生程度排序。选择前向用户展示独立 round opening：列出全部 persisted candidates、实际发现的 fresh candidates、selected/deferred/excluded 与简短理由；不得声称穷尽了未发现的 fresh work。完整 trace 随 transition 保存，其中 Project 与 selected Case scope 由 Case-scoped selection token 强绑定，以保留无关 Cases 的并发推进。细则见 [references/round-boundary-contract.md](references/round-boundary-contract.md)。
 
-**普通工作闭合后选择 Review。** Completion Review 是唯一显式语义自查，只在普通工作闭合后检查实施正确性、问题是否真实解决、验证可信度、回归风险与最小性。普通 Gap 的证据收集和确定性校验不是额外 Review 阶段。
+**普通工作闭合后选择 Review。** Completion Review 是唯一显式语义自查，只在授权范围内的普通工作闭合后检查结果正确性、问题是否真实解决、验证可信度、回归风险与最小性。普通 Gap 的证据收集和确定性校验不是额外 Review 阶段。
 
 ### 4. 同一 Agent 完成一个 Gap
 
-**完成当前问题。** 围绕 selected Gap 的待解决问题读取相关上下文并动态使用必要 skills/tools，完成其结论和证据。若当前 Gap 的完成条件是确认根因，确认后提交并重新选择；若诊断、修复与验证共同服务一个已授权的有界问题，可以同轮完成。判断是否跨 Gap 看独立问题与结论，不看 skill 数量、文档数量或软件领域名称。
+**工作到当前结果成立或需要重新决定。** 围绕 selected Gap 的结果动态使用必要 skills/tools。调查、比较、试验可用于证明当前结果；证据足够时验收，未足够则保留 partial。若需要另行选择的独立结果或重要决定首次具备条件，或新证据使已接受预期、关键前提、责任或验收边界需要重定，保存当前证据及义务，提交并 fresh-read 重选。同一验收内的动作依赖就绪、约束内的方法调整与常规排障可继续；独立因果问题按场景规则处理。不因探索标签自动换 Gap，也不以实验存在宣称正式兑现；关键前置缺失仍先取得依据。
 
 专业 skills 是独立可复用能力，不是不变量的一一对应执行模块。Agent 依据当前目标选择并读取其方法，在授权与 selected Gap 边界内使用；专业 skill 包含的后续流程不自动扩大本轮目标。若其必要步骤与当前边界冲突，显式报告冲突和剩余义务，不能静默越界或跳过方法门禁。
 
@@ -75,7 +79,7 @@ Invariant 不规定工作类型、skill、路径或执行顺序，也不等于�
 
 若新事实证明既有 Gap 过宽或前提失效，按 gap-reasoning 的重新界定规则保留未完成义务，通过可信接口记录取消/替代后 fresh-read 重选；不把取消宣称为完成，不为续轮换号。
 
-**维护已建立的结论。** 全面理解相关事实与判断不变量，不等于本轮补齐全部预期事实。只建立解决 selected Gap 所需的新结论；同一个结论可以同步多个事实载体，但产品、交互、视觉、技术中的独立决策不能因属于同一需求而合并完成。
+**维护已建立的结论。** 全面理解相关事实与判断不变量，不等于本轮补齐全部预期事实。只建立解决 selected Gap 所需的新结论；同一有界结论集合可以同步多个事实载体；相关低风险结论可以共同建立，独立重要决策与场景规定不可合并的结论必须分开。
 
 结论形成或改变的当轮维护对应事实载体，优先更新已有文档。新反证须重审全部实际相关判断，明确哪些旧主张失效或仍有依据；不以文件存在、测试数量或某一问题已修复支持其他未决主张。
 
@@ -104,7 +108,7 @@ Ledger 写回成功后，先向用户展示其 `arckit-round-closeout/v2`：实�
 
 - 协议不一致时：trusted reconciliation 结果、保真声明、剩余不确定性和 fresh-read handoff
 - selected Case 和动态 Gap，或完整 `case_control.create_case`
-- 本轮使用的决策、事实、invariants、skills/tools 与 evidence 摘要
+- 本轮 selection_assessment、决策、事实、invariants、skills/tools 与 evidence 摘要
 - Host-bound `arckit-semantic-case-command/v1`、direct `arckit-case-transition/v8`，或明确 handoff
 - 用户可见的 round opening、accepted round closeout 与 post-write fresh-read receipt
 - `round_outcome`、`case_resolution`、`project_state_delta`、`loop-handoff/v2`

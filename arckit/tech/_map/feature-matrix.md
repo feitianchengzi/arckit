@@ -4,7 +4,7 @@
 |---|---|---|
 | `arcorbit/solution.md` | ✅ | Runtime Kernel、Automation Supervisor、Codex adapter、trusted ledger 和同线程生命周期。 |
 | `arcorbit/installer-supply-chain.md` | ✅ | 人工 GitHub 出包、ArcForge embedded provider、Product Workspace 项目 targets、用户级 managed 迁移、离线 provisioning、签名和升级回滚。 |
-| `arcorbit/state-condition-ledger-solution.md` | ✅ | Project/Case ledger、fresh snapshot、Transition v8、Closeout v2 和完整 invariant assessment。 |
+| `arcorbit/state-condition-ledger-solution.md` | ✅ | Project/Case ledger、fresh snapshot、Transition v8、Closeout v2 和完整 invariant assessment；定义场景替换边界、Gap 前置资格、探索结论与剩余义务承载、局部证据范围和实现载体识别。 |
 | `arcorbit/desktop-execution-solution.md` | ✅ | 自由 Chat 与 Automation 隔离、共享 Codex transport/Conversation Surface、场景化 Model/Level 默认值与旧配置迁移、Chat 会话选择、turn/Run 参数固定、Work 本地任务状态驱动、Desktop session、执行租约、thread/Case binding 和恢复。 |
 | `arcorbit/platform-composition-solution.md` | ✅ | Product Workspace、独立组织治理、多产品 workset、Work 本地 Task Projection、持久化 Inspector 宽度与紧凑分区、多维任务树与评论附件契约、受限 IPC 和双反馈线。 |
 | `arcorbit/realtime-synchronization-solution.md` | ✅ | PostgreSQL 持久项目事件、项目 WebSocket 游标恢复、Work-owned REST/mutation 同步、本地任务状态发布、Automation 消费和人工 Gate 隔离。 |

@@ -1,3 +1,4 @@
+import { selectionAssessment } from './helpers/selection-assessment.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -396,11 +397,14 @@ test('review-budget extensions reject malformed or non-human decisions', () => {
   assert.match(validateCaseTransition(malformed).join('\n'), /authorized_by must be human/);
 });
 
-test('human questions pause while external handoffs wait only when no Agent gap is ready', () => {
+test('human and external obligations preserve independent Agent candidates and wait when none remain', () => {
   const human = caseRecord();
   human.open_questions.push({ id: 'Q-1', question: 'Which policy is authoritative?', owner: 'human', status: 'open', evidence: [] });
   const humanAudit = auditCaseRecord(human);
-  assert.equal(humanAudit.loop_handoff.next_responsibility, 'human');
+  assert.equal(humanAudit.loop_handoff.next_responsibility, 'agent');
+  assert.deepEqual(new Set(humanAudit.candidate_gaps.map((gap) => gap.responsibility)), new Set(['agent', 'human']));
+  human.gaps[0].status = 'resolved';
+  assert.equal(auditCaseRecord(human).loop_handoff.next_responsibility, 'human');
 
   const external = caseRecord();
   external.pending_handoffs.push({ id: 'H-1', target: 'deployment', owner: 'external', status: 'pending', resume_condition: 'Wait for deployment evidence.', evidence: [] });
@@ -465,7 +469,7 @@ function baseTransition(record, selected, mode = 'candidate') {
   return {
     schema_version: 'arckit-case-transition/v8', case_id: record.id, case_updated_at: record.updated_at,
     project_revision: 0, gap_selection: selectionTrace(record, selected, mode), selected_gap: structuredClone(selected),
-    planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
+    planned_transition: { selection_assessment: selectionAssessment(), goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: {
       resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
       resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null,
@@ -517,3 +521,72 @@ function assessmentFor(project, overrides = {}) {
     })),
   };
 }
+
+test('partial rounds cannot combine expectation establishment and realization within one Gap', () => {
+  for (const firstKind of ['expectation', 'realization']) {
+    const record = caseRecord();
+    const first = baseTransition(record, record.case_resolution.candidate_gaps[0]);
+    first.round_outcome = 'partial';
+    first.planned_transition.selection_assessment = selectionAssessment({
+      invariant_refs: ['accepted-facts-are-realized'],
+      conclusion_kind: firstKind === 'exploration' ? 'exploration' : 'establishment',
+      establishes_expectations: firstKind === 'expectation',
+      delivers_realization: firstKind === 'realization',
+      expected_fact_refs: ['fixture:accepted-contract'],
+      implementation_carriers: ['fixture:implementation'],
+    });
+    const next = applyCaseTransitionToRecord(record, first);
+    const continued = baseTransition(next, next.case_resolution.candidate_gaps[0]);
+    continued.round_outcome = 'partial';
+    continued.planned_transition.selection_assessment = selectionAssessment({
+      invariant_refs: ['accepted-facts-are-realized'],
+      establishes_expectations: firstKind === 'realization',
+      delivers_realization: firstKind !== 'realization',
+      expected_fact_refs: ['fixture:accepted-contract'],
+      implementation_carriers: ['fixture:implementation'],
+    });
+    const unchanged = structuredClone(next);
+    assert.throws(() => applyCaseTransitionToRecord(next, continued), /same Gap/);
+    assert.deepEqual(next, unchanged);
+  }
+});
+
+test('partial continuation within one conclusion kind and separate fresh realization remain legal', () => {
+  const record = caseRecord();
+  const first = baseTransition(record, record.case_resolution.candidate_gaps[0]);
+  first.round_outcome = 'partial';
+  first.planned_transition.selection_assessment = selectionAssessment({
+    establishes_expectations: true, invariant_refs: ['product-expectations-remain-recoverable'],
+  });
+  const next = applyCaseTransitionToRecord(record, first);
+  const continued = baseTransition(next, next.case_resolution.candidate_gaps[0]);
+  continued.round_outcome = 'partial';
+  continued.planned_transition.selection_assessment = structuredClone(first.planned_transition.selection_assessment);
+  assert.doesNotThrow(() => applyCaseTransitionToRecord(structuredClone(next), continued));
+
+  const newGap = { ...structuredClone(next.gaps[0]), id: 'GAP-LOCAL-REALIZATION', goal: 'Realize a different local scope whose contract is already accepted.' };
+  const separate = baseTransition(next, newGap, 'fresh');
+  separate.round_outcome = 'partial';
+  separate.planned_transition.selection_assessment = selectionAssessment({
+    delivers_realization: true, invariant_refs: ['accepted-facts-are-realized'],
+    expected_fact_refs: ['fixture:accepted-local-contract'], implementation_carriers: ['fixture:local-implementation'],
+  });
+  assert.doesNotThrow(() => applyCaseTransitionToRecord(structuredClone(next), separate));
+});
+
+test('exploration labeling does not force a new Gap when evidence serves the same bounded decision', () => {
+  const record = caseRecord();
+  record.gaps[0].goal = 'Select the batch size within already accepted memory and latency limits.';
+  record.case_resolution = auditCaseRecord(record);
+  const first = baseTransition(record, record.case_resolution.candidate_gaps[0]);
+  first.round_outcome = 'partial';
+  first.planned_transition.selection_assessment = selectionAssessment({ conclusion_kind: 'exploration' });
+  const next = applyCaseTransitionToRecord(record, first);
+  const continued = baseTransition(next, next.case_resolution.candidate_gaps[0]);
+  continued.planned_transition.selection_assessment = selectionAssessment({
+    establishes_expectations: true, invariant_refs: ['technical-decisions-remain-explainable'],
+    boundary_reason: 'The comparison answers the original parameter decision; scope and acceptance remain unchanged.',
+  });
+  continued.accepted_state_delta.resolved_gap = resolution(continued.selected_gap.id, 'The supported batch size is selected.');
+  assert.doesNotThrow(() => applyCaseTransitionToRecord(next, continued));
+});

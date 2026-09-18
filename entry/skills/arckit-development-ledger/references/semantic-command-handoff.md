@@ -13,7 +13,7 @@
 
 ## Selected Gap 主张
 
-选择说明使用既有 goal、reason、priority basis 和 evidence requirements 表达当前最关键的独立问题、优先解决的价值与完成标准。事实、Project decision 变化和 impacts 必须来自当前缺口已经建立的结论；不能通过一个宽泛 selected Gap 同时提交多个独立产品、交互或技术决定。完整 invariant assessment 可以保留其他相关缺口未解决，不要求本轮全部 upheld。
+选择说明使用 goal、reason、priority basis、evidence requirements 与必填 planned_transition.selection_assessment 表达有界验收集合、局部前置和结论性质。selection_assessment 使用与 direct v8 相同的结构，invariant_refs 是当前 catalog 的原始 ID；结构见 ../schema/selection-assessment.schema.json。事实、Project decision 变化和 impacts 必须来自当前缺口已经建立的结论；相关低风险结果可以共同决定和验收，但不能合并重要独立取舍，也不能将建立预期与正式兑现合并。完整 invariant assessment 可以保留其他相关缺口未解决，不要求本轮全部 upheld。
 
 
 - 普通 Case Gap 未验收完成时允许 `round_outcome: partial`、`claim.resolve_selected_gap: null`，提交已有事实和证据并保留同一 Gap；不得为通过校验虚报完成或新增替代 Gap。

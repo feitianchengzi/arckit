@@ -1,3 +1,4 @@
+import { selectionAssessment } from './selection-assessment.mjs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -46,7 +47,7 @@ export function progressTransition(record, projectRevision, evidence, snapshot) 
     project_revision: projectRevision,
     gap_selection: selectionTrace(record, gap, snapshot, 'This ledger candidate is the most important current action.'),
     selected_gap: gap,
-    planned_transition: { goal: gap.goal, expected_state_change: 'Open fixture work becomes resolved.' },
+    planned_transition: { selection_assessment: selectionAssessment(), goal: gap.goal, expected_state_change: 'Open fixture work becomes resolved.' },
     accepted_state_delta: {
       resolved_gap: { id: gap.id, status: 'resolved', outcome: 'Fixture work completed.', reason: 'The independent transition completed.', evidence: [evidence] },
       facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
@@ -85,7 +86,7 @@ export function cleanReviewTransition(record, projectRevision, evidence, snapsho
     project_revision: projectRevision,
     gap_selection: selectionTrace(record, gap, snapshot, 'Completion Review is the only remaining semantic check.'),
     selected_gap: gap,
-    planned_transition: { goal: gap.goal, expected_state_change: 'Record a clean implementation-focused completion review.' },
+    planned_transition: { selection_assessment: selectionAssessment(), goal: gap.goal, expected_state_change: 'Record a clean implementation-focused completion review.' },
     accepted_state_delta: {
       resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
       resolved_open_questions: [],

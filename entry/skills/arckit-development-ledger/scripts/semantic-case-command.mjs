@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 
 import { REVIEW_DIMENSIONS, auditCaseRecord } from './development-case.mjs';
 import { coreSoftwareInvariantIds, defaultSoftwareInvariants } from './project-invariants.mjs';
+import { validateSelectionAssessment, validateSelectionAssessmentAgainstState, validateSelectionAssessmentAgainstHistory } from './selection-assessment.mjs';
 
 const COMMAND_VERSION = 'arckit-semantic-case-command/v1';
 const DISPOSITIONS = new Set(['not_relevant', 'upheld', 'threatened', 'undetermined']);
@@ -24,6 +25,9 @@ export function validateSemanticCaseCommand(command, field = 'case_command') {
   issue(/^CASE-\d{8}-\d{3}$/.test(command?.case_id || ''), `${field}.case_id`, 'must be a canonical Case id', issues);
   validateSelection(command?.selection, `${field}.selection`, issues);
   issue(object(command?.planned_transition) && nonEmpty(command.planned_transition.goal) && nonEmpty(command.planned_transition.expected_state_change), `${field}.planned_transition`, 'requires goal and expected_state_change', issues);
+  for (const message of validateSelectionAssessment(command?.planned_transition?.selection_assessment)) {
+    issues.push({ path: `${field}.planned_transition.selection_assessment`, message });
+  }
   issue(command?.fresh_gap === null || object(command?.fresh_gap), `${field}.fresh_gap`, 'must be an object or null', issues);
   if (object(command?.fresh_gap)) validateNewGap(command.fresh_gap, `${field}.fresh_gap`, issues);
   validateClaim(command?.claim, `${field}.claim`, issues);
@@ -53,6 +57,9 @@ export function materializeSemanticCaseCommand({ command, snapshot }) {
   }
 
   const record = active.record;
+  for (const message of validateSelectionAssessmentAgainstState(command.planned_transition.selection_assessment, project)) {
+    issues.push({ path: 'case_command.planned_transition.selection_assessment', message });
+  }
   const expectedToken = snapshot.selection_tokens?.[record.id];
   if (command.selection.snapshot_token !== expectedToken) {
     throw new SemanticCommandError([
@@ -65,6 +72,9 @@ export function materializeSemanticCaseCommand({ command, snapshot }) {
   const selectedGap = fresh
     ? materializeGap(command.fresh_gap, refs, issues)
     : selectedPersistedGap({ command, snapshot, record, issues });
+  for (const message of validateSelectionAssessmentAgainstHistory(command.planned_transition.selection_assessment, record, selectedGap?.id)) {
+    issues.push({ path: 'case_command.planned_transition.selection_assessment', message });
+  }
   const expectedSelectedRef = fresh ? command.fresh_gap.ref : `case-gap:${record.id}:${selectedGap?.id || ''}`;
   issue(command.selection.selected_ref === expectedSelectedRef, 'case_command.selection.selected_ref', `must be ${expectedSelectedRef}`, issues);
   validateSelectionForSnapshot(command.selection, { snapshot, record, selectedGap, fresh, issues });

@@ -1,6 +1,174 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "selection_assessment": {
+      "type": "object",
+      "required": [
+        "context_ref",
+        "scope",
+        "maintenance_object",
+        "implementation_carriers",
+        "activation",
+        "verification",
+        "conclusion_kind",
+        "invariant_refs",
+        "acceptance",
+        "prerequisites",
+        "expected_fact_refs",
+        "establishes_expectations",
+        "delivers_realization",
+        "boundary_reason",
+        "deferred"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "maintenance_object": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "implementation_carriers": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "activation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "conclusion_kind": {
+          "type": "string",
+          "enum": [
+            "exploration",
+            "establishment"
+          ]
+        },
+        "invariant_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "acceptance": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "statement",
+              "status",
+              "evidence"
+            ],
+            "properties": {
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "satisfied",
+                  "unresolved"
+                ]
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "expected_fact_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "establishes_expectations": {
+          "type": "boolean"
+        },
+        "delivers_realization": {
+          "type": "boolean"
+        },
+        "boundary_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "deferred": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "context_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^case:round:[1-9][0-9]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "semantic_case_command": {
       "type": "object",
       "required": [
@@ -31,7 +199,8 @@
           "type": "object",
           "required": [
             "goal",
-            "expected_state_change"
+            "expected_state_change",
+            "selection_assessment"
           ],
           "properties": {
             "goal": {
@@ -39,6 +208,9 @@
             },
             "expected_state_change": {
               "type": "string"
+            },
+            "selection_assessment": {
+              "$ref": "#/$defs/selection_assessment"
             }
           },
           "additionalProperties": false

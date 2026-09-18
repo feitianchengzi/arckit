@@ -4,7 +4,7 @@
 
 ## Round opening
 
-先按 [gap-reasoning.md](gap-reasoning.md) 恢复 Case 目标、综合发现独立问题，并显式展示当前 catalog 各不变量的适用对象、依据或未决问题。不变量是必须的保障，不是候选来源上限；跨 Case 的延期清单不能替代 Case 内部问题比较。opening 需在实施前明确本轮问题、优先理由、完成证据和已知暂不解决的问题。
+先按 [gap-reasoning.md](gap-reasoning.md) 恢复 Case 目标、综合发现独立问题，并显式展示当前 catalog 各不变量的适用对象、依据或未决问题。候选可来自任何证据，业务 Gap 应对应当前场景不变量责任；跨 Case 的延期清单不能替代 Case 内部问题比较。opening 需在实施前明确本轮问题、优先理由、完成证据和已知暂不解决的问题。
 
 Agent 从 `arckit-ledger-snapshot/v1.candidate_catalog` 恢复全部 active Cases 与 Project persisted candidates，并记录本轮实际发现的 fresh candidates。用户可见 opening 和 `gap_selection.considered` 必须覆盖 snapshot catalog 中的全部 persisted candidates；每项写明 eligibility、selected/deferred/excluded、priority basis 与理由，让任意候选 B 都能看出是否被考虑。恰好一项 selected，`selected_ref` 与 `selected_gap.id` 一致。Agent 可以自然转述 persisted candidate 的 `goal/reason`；这两个描述字段不是 identity token，也不替代 canonical candidate。
 
@@ -20,7 +20,7 @@ Persisted Gap 保存未成立的结果、未知、风险或验收边界，不保
 
 每轮从原任务和当前用户增量判断 Gap 的必要性。Persisted Gap、handoff 和 invariant 检查不提供新增授权；独立新问题只记录证据并提示。已偏离范围的旧 Gap 应通过正常取消接口注明理由，不继续执行以清空列表。
 
-一个 Gap 表示当前最关键、最值得独立解决的缺口；它的完成标准是一个有证据支持的问题结论，不是笼统的 Case 最终交付目标。选择理由应交代待回答的问题、独立解决的价值、完成证据和暂不解决的问题，使用既有 goal、reason、priority basis、evidence requirements 与 selection trace 表达，不增加固定阶段。
+一个 Gap 表示当前尚未成立的具体结果，说明缺少什么、成立后改变什么以及足够证据；影响后续方向或多个对象、需要独立取舍的关键判断独立处理，工作量不直接决定粒度，紧密相关的低风险结果可共同验收，小任务可仅有一个普通 Gap。选择理由应交代待回答的问题、独立解决的价值、完成证据和暂不解决的问题，使用 goal、reason、priority basis、evidence requirements、selection trace 和 planned_transition.selection_assessment 表达；先按可信场景定义检查局部前置，再比较优先级。
 
 新事实按它与 selected Gap 的关系处理：
 
@@ -30,11 +30,11 @@ Persisted Gap 保存未成立的结果、未知、风险或验收边界，不保
 
 当前缺口已解决就提交，不因还有时间或同一 Agent 可以继续而包揽下一缺口。当前缺口未解决可以提交 partial，resolution 保持 null，下一 Loop 可以继续同一个 Gap。新知识出现、本轮结束和新建 Gap 是三件不同的事。
 
-产品、交互、视觉、技术是事实视角，不是固定 Gap 分类。判断多个动作能否属于同一 Gap，要问它们是否共同证明同一个结论，还是分别完成了可以独立讨论、取舍和验收的决定。一个结论同步多个载体可以同轮；产品意图、交互行为、技术实现即使共享需求，也不能因此一并定案。若仍有独立关键不确定性，先解决其中当前最重要的一项。
+产品、交互、视觉、技术是事实视角，不是固定 Gap 分类。判断多个动作能否属于同一 Gap，要问它们是否共同证明同一个结论，还是分别完成了可以独立讨论、取舍和验收的决定。同类事实中紧密相关且可共同决定的结果可以合并；建立预期与正式兑现实现不能合并。复用已接受预期不算重新建立。若仍有独立关键不确定性，先解决其中当前最重要的一项。
 
-例如：根因未知时可能先定位根因，根因已知后才重新比较修复工作；交互语义未知时可能先确定行为，随后再判断是否需要技术验证；相关决策都已清楚时可直接选择实现 Gap。顺序来自事实，不把这些例子变成固定路线图。
+例如：用户待解决的故障或重要独立因果问题，直接原因未知时先定位原因，查清后重新比较处置；同一实现结果内的常规排障可继续，若动摇关键前提则保存证据后重选；交互语义未知时可能先确定行为，随后再判断是否需要技术验证；相关决策都已清楚时可直接选择实现 Gap。顺序来自事实，不把这些例子变成固定路线图。
 
-Ledger 只校验 snapshot、候选、revision、引用和 transition 结构；上述因果边界由 Agent 正向遵守，不在 Runtime 中复制判断机制或固定工作类型。
+Ledger 校验 snapshot、候选、revision、引用、transition 结构和 selection_assessment 中明确声明的前置与合并冲突；上述因果边界由 Agent 正向遵守，不在 Runtime 中复制判断机制或固定工作类型。
 
 ## Invariant assessment
 
@@ -48,7 +48,7 @@ Ledger 只校验 snapshot、候选、revision、引用和 transition 结构；�
 
 ## Closeout 与 fresh-read
 
-Trusted apply 成功后返回 `arckit-round-closeout/v2`，内容来自实际提交后的 canonical state：accepted delta、Project delta、invariant assessment、evidence、resulting revisions、next responsibility 与 post-commit snapshot token。`next_candidate_projection` 固定为 `null`，writeback candidate 不得用于续轮。
+Trusted apply 成功后返回 `arckit-round-closeout/v2`，内容来自实际提交后的 canonical state：accepted delta、Project delta、planned_transition（含 selection_assessment）、invariant assessment、evidence、resulting revisions、next responsibility 与 post-commit snapshot token。`next_candidate_projection` 固定为 `null`，writeback candidate 不得用于续轮。
 
 Host 必须先展示 closeout，再调用 `loop_snapshot read --after-commit <token>`。返回的 snapshot 必须标记 `observed_after_commit: true`；随后展示 Project/Case revisions、observed time 与 snapshot token，才可开始下一 round opening。Direct Codex 由当前 Agent调用并展示；Runtime 只编排和透传同一 receipt。
 
