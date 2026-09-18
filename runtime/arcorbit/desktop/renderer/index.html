@@ -125,22 +125,25 @@
       <button id="legacyPagesButton" class="page-navigation-toggle" type="button" aria-label="页面导航" aria-controls="legacyPagesMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-window-maximize"></use></svg></button>
 
       <aside class="sidebar">
-        <div id="windowDragRegion" class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
+        <div id="windowDragRegion" class="sidebar-brand">
+          <svg class="sidebar-orbit-mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M25.5 8.5a12 12 0 1 0 3.8 14.8"/><ellipse cx="18" cy="18" rx="17" ry="6.5" transform="rotate(-35 18 18)"/><circle class="orbit-core" cx="18" cy="18" r="3"/><circle class="orbit-satellite" cx="27" cy="10" r="2.5"/></svg>
+          <strong>Arc<span>Orbit</span></strong>
+        </div>
 
         <nav id="legacyPagesMenu" class="primary-nav" aria-label="主导航">
           <p class="nav-label">PERSONAL</p>
-          <button class="nav-item" data-page="today" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><em id="attentionNavCount">0</em></button>
+          <button class="nav-item nav-experimental" data-page="today" type="button" title="Today：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span><em id="attentionNavCount">0</em></span></button>
           <button class="nav-item" data-page="chat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chat"></use></svg><strong>Chat</strong><em>Codex</em></button>
-          <button class="nav-item" data-page="project-workbench" type="button" title="Thing"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Thing</strong></button>
+          <button class="nav-item nav-experimental" data-page="project-workbench" type="button" title="Thing：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Thing</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
 
           <p class="nav-label">PRODUCT</p>
-          <button class="nav-item" data-page="product" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Product</strong></button>
+          <button class="nav-item nav-experimental" data-page="product" type="button" title="Product：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Product</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
           <p class="nav-label">PRODUCT LIFECYCLE</p>
-          <button class="nav-item" data-page="idea" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong></button>
+          <button class="nav-item nav-experimental" data-page="idea" type="button" title="Idea：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
           <button class="nav-item" data-page="work" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Work</strong><em id="workNavCount">0</em></button>
           <button class="nav-item" data-page="command" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-automation"></use></svg><strong>Automation</strong><em id="automationNavCount">0</em></button>
-          <button class="nav-item" data-page="release" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong></button>
-          <button class="nav-item" data-page="operations" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-operations"></use></svg><strong>Operations</strong><em>5</em></button>
+          <button class="nav-item nav-experimental" data-page="release" type="button" title="Release：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
+          <button class="nav-item nav-experimental" data-page="operations" type="button" title="Operations：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-operations"></use></svg><strong>Operations</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
           <button class="nav-item" data-page="feedback" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-feedback"></use></svg><strong>Feedback</strong><em id="feedbackQueueNavCount">0</em></button>
 
           <p class="nav-label">ORGANIZATION</p>
@@ -148,6 +151,8 @@
           <button class="nav-item" data-page="engineering" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-engineering"></use></svg><strong>Engineering</strong></button>
 
         </nav>
+
+        <p id="navExperimentNotice" class="nav-experiment-notice">标有「实验中」的功能仍在开发探索，暂不建议使用。</p>
 
         <div class="sidebar-footer">
           <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small><span id="accountSync" class="sync-state"><i aria-hidden="true"></i><span>准备同步</span></span></button>
