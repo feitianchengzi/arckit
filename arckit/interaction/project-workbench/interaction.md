@@ -18,11 +18,11 @@
 
 ## 导航与布局
 
-左侧使用浅色业务页面导航，保持既有四组类别：PERSONAL（Today、Chat、Thing）、PRODUCT（Product）、PRODUCT LIFECYCLE（Idea、Work、Automation、Release、Operations、Feedback）、ORGANIZATION（Organization、Engineering）。Thing 为当前入口，Chat 名称不变。底部完整个人中心按钮打开“账户与 Runtime”。不展示项目列表、项目计数、工作分组或项目资源导航。列表统一浏览跨项目事情，项目归属在事情属性及创建表单中表达；运行定位和创建不切换隐藏的项目范围。
+左侧使用随明暗主题适配的业务页面导航，保持既有四组类别：PERSONAL（Today、Chat、Thing）、PRODUCT（Product）、PRODUCT LIFECYCLE（Idea、Work、Automation、Release、Operations、Feedback）、ORGANIZATION（Organization、Engineering）。Thing 为当前入口，Chat 名称不变。底部完整个人中心按钮打开“账户与 Runtime”。不展示项目列表、项目计数、工作分组或项目资源导航。列表统一浏览跨项目事情，项目归属在事情属性及创建表单中表达；运行定位和创建不切换隐藏的项目范围。
 
-主体只有一条 54px 顶栏：左侧“Thing”，右侧运行状态；窄窗增加事情列表入口及页面导航菜单；页面导航仅在侧栏不可见时使用，Esc 关闭并恢复焦点。产品反馈、手动同步从底部设置进入，顶栏不重复显示旧工具栏。运行按钮显示状态点、执行/排队/待处理计数及展开箭头，空闲和连接中断分别明示。
+主体顶部复用 CONVENTIONS.md 定义的唯一全局上下文栏，产品范围、同步、运行、反馈与设置在所有页面保持一致。事情列表遵循顶部产品范围；窄窗列表入口位于内容区。
 
-运行状态弹窗包含“所有项目 · 此设备”范围、可滚动的需要处理/正在执行/等待执行分组，以及固定底部的定位提示和执行设置。点选事情定位到所属项目详情；再次点击、外部点击、关闭按钮或 Esc 关闭，键盘关闭恢复触发按钮焦点。
+运行状态弹窗包含“所有项目 · 此设备”范围、可滚动的需要处理/正在执行/等待执行分组，以及统一的自动领取、暂停领取与设置入口。点选事情定位到所属项目详情；再次点击、外部点击、关闭按钮或 Esc 关闭，键盘关闭恢复触发按钮焦点。
 
 事情列表控制区两行：第一行标题与数量、状态选择（含需要我关注）、更多筛选图标；第二行 31px 搜索框。更多筛选展开执行人/优先级和清除筛选，按钮表达展开状态。列表保持单行，底部是唯一固定创建入口。
 
@@ -66,7 +66,7 @@ default.html 是完整正式原型，包含主路径、业务页面导航、右�
 
 ## 视觉依据
 
-原型使用 arckit/visual/_library/brief.md、design-tokens.yaml、component-catalog.yaml、state-contract.md 和 themes/light.yaml（2026-09-17 视觉策略）。通过 ../../visual/_library/generated-tokens.css 读取 Token；visual.css 仅映射页面组件规则，不维护第二套数值事实。基础样式中的 green 别名仅兼容既有选择器，值指向橙色 accent 角色。
+原型使用 arckit/visual/_library/brief.md、design-tokens.yaml、component-catalog.yaml、state-contract.md 和 themes/light.yaml / dark.yaml（2026-09-18 主题适配）。通过 ../../visual/_library/generated-tokens.css 读取 Token；visual.css 仅映射页面组件规则，不维护第二套数值事实。基础样式中的 green 别名仅兼容既有选择器，值指向橙色 accent 角色。
 
 浅灰业务页面导航、白色内容面、浅杏橙主操作与淡橙选择、中性链接和选中文字、明确的状态色、14px 正文和 15px 对话共同构成可读层级。业务状态标签与执行方式分别表达；运行详情及属性面板保留执行方式。输入边界、焦点、危险动作和禁用状态遵循正式组件契约。
 
@@ -98,3 +98,5 @@ README.md 提供打开与验证命令；scenarios.html 是与产品区分开的�
 ## 实际验证
 
 verify.cjs 覆盖主路径、资料与成果、安排变更、消息与阅读连续性、1500/1280/1024/760/390px；verify-states.cjs 覆盖提交失败、离线/权限恢复、版本冲突、输入法、并列页面入口、恢复身份、标题 grapheme 与 200% 缩放。报告记录实际运行结果，不用候选旧截图代替正式稿验证。
+
+外观：设置提供跟随系统、浅色、深色，立即独立保存，切换不丢失草稿或打断执行。完整规则见 ../CONVENTIONS.md；共享原型模拟见 ../_shared/appearance.js，验证见 ../../visual/_map/dark-mode/verification.json。

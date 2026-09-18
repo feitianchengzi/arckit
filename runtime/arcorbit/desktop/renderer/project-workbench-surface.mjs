@@ -1,3 +1,4 @@
+import { restoredSelection } from './global-context.mjs';
 import { createWorkbenchActivitySync } from './workbench-activity-sync.mjs';
 import { workbenchDetailKey, workEventAffectsDetail } from './workbench-refresh-policy.mjs';
 import { renderRestrictedMarkdown as markdown } from './restricted-markdown.mjs';
@@ -10,8 +11,8 @@ const lines=items=>Array.isArray(items)&&items.length?`<ul>${items.map(item=>`<l
 const section=(name,body,action='')=>`<section class="pw-section"><h2><span>${name}</span>${action}</h2>${body}</section>`;
 const options=(items,value)=>items.map(([id,label])=>`<option value="${e(id)}" ${String(id)===String(value)?'selected':''}>${e(label)}</option>`).join('');
 
-export function createProjectWorkbenchSurface({root,api,navigate,openSettings,onSyncHealth=()=>{}}) {
-  const state={active:false,project:'all',task:'',tab:'overview',filter:'',search:'',executor:'',priority:'',activityFilter:'all',chat:false,list:false,runtime:false,snapshot:null,detail:null,error:'',loading:false,drafts:{},scroll:{},pending:{},scope:'',newDraft:null};
+export function createProjectWorkbenchSurface({root,api,navigate,openSettings,getScope=()=>null,onSyncHealth=()=>{}}) {
+  const state={active:false,project:'all',task:'',tab:'overview',filter:'',search:'',executor:'',priority:'',activityFilter:'all',chat:false,list:false,runtime:false,snapshot:null,detail:null,error:'',loading:false,drafts:{},scroll:{},pending:{},scope:'',newDraft:null,contextKey:'',selections:{},projectIds:null};
   let refreshPromise=null,refreshAgain=false,selectionEpoch=0,timer=0,dialog=null,returnFocus=null,configTask='',persistTimer=0,activityPaintTimer=0,activityDetailChanged=false;
   let pendingDetail=false,scheduledDetail=false,detailKey='';
   let renderedDetail=null,renderedDetailTab='',renderedActivityFilter='';
@@ -20,24 +21,39 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings,on
   const q=selector=>root.querySelector(selector);
   root.innerHTML=`<div class="pw-shell"><header class="pw-top"><div class="pw-breadcrumb"><strong>Thing</strong></div><div class="pw-top-actions">${button('list',icon('list')+'事情列表','aria-label="打开或收起事情列表"','pw-list-toggle')}${button('runtime','运行状态','aria-haspopup="dialog" aria-expanded="false" aria-controls="pw-runtime" title="查看所有项目的本机运行状态"','pw-runtime-trigger')}</div></header>
     <main class="pw-center"><div class="pw-detail"><div class="pw-heading"></div><nav class="pw-tabs" role="tablist" aria-label="事情详情类别"></nav><div class="pw-body"></div></div><div class="pw-scrim" hidden></div><section class="pw-chat" hidden role="dialog" aria-label="事情协作消息"><header><strong>与 Agent 协作</strong><small data-chat-status></small>${button('chat.close','×','aria-label="关闭协作消息"')}</header><div class="pw-messages"></div></section>
-    <div class="pw-error" role="status"></div><footer class="pw-composer"><div class="pw-composer-head"><span data-compose-hint>表达目标，或调整这件事情的方向</span>${button('chat.open','协作消息','','quiet small')}</div><textarea aria-label="与 Agent 协作" placeholder="输入目标、问题或补充说明…"></textarea><div class="pw-compose-foot">${button('voice','◉','disabled title="语音输入尚未开放"','quiet pw-voice')}<label>Model<input data-config="model" maxlength="200" list="pw-models"></label><datalist id="pw-models"></datalist><label>Level<input data-config="level" maxlength="200" list="pw-levels"></label><datalist id="pw-levels"><option value="low"><option value="medium"><option value="high"><option value="xhigh"></datalist>${button('chat.stop','停止回复','hidden','small')}${button('send','发送','title="⌘ / Ctrl + Enter 发送"','primary pw-send')}</div></footer></main>
+    <div class="pw-error" role="status"></div><footer class="pw-composer"><div class="pw-composer-head"><span data-compose-hint>表达目标，或调整这件事情的方向</span>${button('list',icon('list')+'事情列表','aria-label="打开或收起事情列表"','pw-list-toggle')}${button('chat.open','协作消息','','quiet small')}</div><textarea aria-label="与 Agent 协作" placeholder="输入目标、问题或补充说明…"></textarea><div class="pw-compose-foot">${button('voice','◉','disabled title="语音输入尚未开放"','quiet pw-voice')}<label>Model<input data-config="model" maxlength="200" list="pw-models"></label><datalist id="pw-models"></datalist><label>Level<input data-config="level" maxlength="200" list="pw-levels"></label><datalist id="pw-levels"><option value="low"><option value="medium"><option value="high"><option value="xhigh"></datalist>${button('chat.stop','停止回复','hidden','small')}${button('send','发送','title="⌘ / Ctrl + Enter 发送"','primary pw-send')}</div></footer></main>
     <aside class="pw-list" aria-label="事情列表"><header class="pw-list-head"><div class="pw-list-title"><strong>事情 <small data-pw-count>0</small></strong><div class="pw-list-controls"><select data-filter="state" aria-label="事情状态">${options([['','全部状态'],['attention','需要我关注'],...Object.entries(stateLabels)],'')}</select>${button('filters',icon('settings'),'aria-label="更多筛选" title="更多筛选" aria-expanded="false" aria-controls="pw-extra-filters"','quiet pw-filter-toggle')}${button('list.close',icon('close'),'aria-label="关闭事情列表"','quiet pw-list-close')}</div></div><label class="pw-search-field">${icon('search')}<input class="pw-search" placeholder="搜索事情…" aria-label="搜索事情或编号"></label><div id="pw-extra-filters" class="pw-extra" hidden><label>执行人<select data-filter="executor" aria-label="执行人"></select></label><label>优先级<select data-filter="priority" aria-label="优先级">${options([['','全部优先级'],['0','无优先级'],['1','P1'],['2','P2'],['3','P3']],'')}</select></label>${button('clear','清除筛选','','quiet small')}</div></header><div class="pw-rows"></div><footer class="pw-list-foot">${button('create','＋ 发起事情','','primary')}</footer></aside>
     <aside id="pw-runtime" class="pw-runtime" hidden role="dialog" tabindex="-1" aria-labelledby="pw-runtime-title"></aside></div>`;
-  function persist(){clearTimeout(persistTimer);persistTimer=0;if(state.scope)try{localStorage.setItem(`arcorbit-workbench:${state.scope}`,JSON.stringify({project:state.project,task:state.task,tab:state.tab,filter:state.filter,search:state.search,executor:state.executor,priority:state.priority,drafts:state.drafts,scroll:state.scroll}));}catch{}}
+  function persist(){clearTimeout(persistTimer);persistTimer=0;if(state.scope)try{localStorage.setItem(`arcorbit-workbench:${state.scope}`,JSON.stringify({project:state.project,task:state.task,tab:state.tab,filter:state.filter,search:state.search,executor:state.executor,priority:state.priority,drafts:state.drafts,scroll:state.scroll,selections:state.selections}));}catch{}}
   // Keep synchronous storage off the scrolling path; navigation and pagehide flush immediately.
   function schedulePersist(){clearTimeout(persistTimer);persistTimer=setTimeout(persist,250);}
-  function restore(scope){if(state.scope===scope)return;state.scope=scope;Object.assign(state,{task:'',project:'all',tab:'overview',drafts:{},scroll:{},chat:false,detail:null});try{const saved=JSON.parse(localStorage.getItem(`arcorbit-workbench:${scope}`)||'{}');for(const key of ['task','tab','filter','search','executor','priority','drafts','scroll'])if(saved[key]!==undefined)state[key]=saved[key];}catch{}q('.pw-search').value=state.search;q('[data-filter=state]').value=state.filter;q('[data-filter=priority]').value=state.priority;}
+  function restore(scope){if(state.scope===scope)return;state.scope=scope;Object.assign(state,{task:'',project:'all',tab:'overview',drafts:{},scroll:{},selections:{},contextKey:'',chat:false,detail:null});try{const saved=JSON.parse(localStorage.getItem(`arcorbit-workbench:${scope}`)||'{}');for(const key of ['task','tab','filter','search','executor','priority','drafts','scroll','selections'])if(saved[key]!==undefined)state[key]=saved[key];}catch{}q('.pw-search').value=state.search;q('[data-filter=state]').value=state.filter;q('[data-filter=priority]').value=state.priority;}
   function paint(node,html){if(!node||paintedHTML.get(node)===html)return;const top=node.scrollTop;const focused=node.contains(document.activeElement)?document.activeElement:null;const identity=focused?JSON.stringify(focused.dataset):'';node.innerHTML=html;paintedHTML.set(node,html);node.scrollTop=top;if(identity) [...node.querySelectorAll('button,input,select')].find(n=>JSON.stringify(n.dataset)===identity)?.focus({preventScroll:true});}
   function saveScroll(){if(state.task){state.scroll[`${state.task}:${state.tab}`]=q('.pw-body').scrollTop;state.scroll[`${state.task}:messages`]=q('.pw-messages').scrollTop;}state.scroll.list=q('.pw-rows').scrollTop;}
   function restoreScroll(){q('.pw-body').scrollTop=state.scroll[`${state.task}:${state.tab}`]||0;q('.pw-messages').scrollTop=state.scroll[`${state.task}:messages`]||0;q('.pw-rows').scrollTop=state.scroll.list||0;}
+  function adoptScope() {
+    const scope=getScope(); if(!scope)return;
+    if(state.contextKey!==scope.key) {
+      saveScroll();
+      if(state.contextKey) state.selections[state.contextKey]=state.task;
+      state.contextKey=scope.key; selectionEpoch++; state.chat=false; updateChat();
+    }
+    state.project=scope.projectId; state.projectIds=scope.projectIds;
+    if(!state.snapshot)return;
+    const tasks=state.snapshot.tasks.filter(t=>scope.projectIds.includes(String(t.project_id)));
+    const next=restoredSelection(tasks,state.task,state.selections[scope.key]);
+    if(next!==state.task) { state.task=next;state.detail=null;detailKey='';configTask=''; q('.pw-composer textarea').value=state.drafts[next]?.text||''; }
+    state.selections[scope.key]=state.task;
+  }
+  async function scopeChanged() { adoptScope();persist();if(state.active){render();await refresh();restoreScroll();} }
   async function refresh({detail=true}={}){
     if(!state.active)return;
     if(timer){clearTimeout(timer);timer=0;detail ||= scheduledDetail;scheduledDetail=false;}
     pendingDetail ||= detail;
     if(refreshPromise){refreshAgain=true;return refreshPromise;}
-    refreshPromise=(async()=>{do{refreshAgain=false;const epoch=selectionEpoch;try{
+    refreshPromise=(async()=>{do{refreshAgain=false;let epoch=selectionEpoch;try{
       const forceDetail=pendingDetail;pendingDetail=false;
-      state.loading=!state.snapshot;if(state.loading)render();const snapshot=await api.projectWorkbenchSnapshot();if(!state.active)return;restore(snapshot.account_scope);state.snapshot=snapshot;state.error='';onSyncHealth(snapshot);
+      state.loading=!state.snapshot;if(state.loading)render();const snapshot=await api.projectWorkbenchSnapshot();if(!state.active)return;restore(snapshot.account_scope);state.snapshot=snapshot;adoptScope();state.error='';onSyncHealth(snapshot);epoch=selectionEpoch;
       if(!state.task){const task=visibleTasks(snapshot,state)[0];if(task)state.task=String(task.id);}
       if(state.task && !snapshot.tasks.some(task=>String(task.id)===state.task)){state.task='';state.detail=null;detailKey='';}
       const nextDetailKey=workbenchDetailKey(snapshot,state.task);
@@ -140,7 +156,7 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings,on
   function updateChat(){q('.pw-chat').hidden=!state.chat;q('.pw-scrim').hidden=!state.chat;q('.pw-detail').inert=state.chat;q('.pw-detail').setAttribute('aria-hidden',String(state.chat));}
   function openChat(messageId){returnFocus=document.activeElement;state.chat=true;if(state.detail)renderMessages(state.detail);updateChat();if(messageId){const node=[...q('.pw-messages').querySelectorAll('[data-message-id]')].find(n=>n.dataset.messageId===messageId);node?.scrollIntoView({block:'center'});node?.classList.add('flash');}else q('.pw-composer textarea').focus();}
   function closeChat(){state.chat=false;updateChat();if(returnFocus?.isConnected)returnFocus.focus();}
-  async function select(id){saveScroll();persist();selectionEpoch++;state.task=String(id);q('.pw-composer textarea').value=state.drafts[state.task]?.text||'';state.detail=null;state.chat=false;state.list=false;state.error='';render();restoreScroll();await refresh();restoreScroll();}
+  async function select(id){if(state.snapshot && state.projectIds && !state.snapshot.tasks.some(t=>String(t.id)===String(id)&&state.projectIds.includes(String(t.project_id))))return;saveScroll();persist();selectionEpoch++;state.task=String(id);q('.pw-composer textarea').value=state.drafts[state.task]?.text||'';state.detail=null;state.chat=false;state.list=false;state.error='';render();restoreScroll();await refresh();restoreScroll();}
 
   async function invoke(action,payload={}){const input={task_id:state.task,expected_revision:state.detail?.scene.revision,request_id:crypto.randomUUID(),input:payload};const value=await api.projectWorkbenchCommand(action,input);state.error='';await refresh();return value;}
   async function act(fn){try{await fn();}catch(error){state.error=error.message;q('.pw-error').textContent=state.error;}}
@@ -153,12 +169,13 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings,on
   const field=(label,name,value='',type='text')=>`<label>${e(label)}${type==='textarea'?`<textarea name="${name}">${e(value)}</textarea>`:`<input name="${name}" type="${type}" value="${e(value)}">`}</label>`;
   function editText(label,value,action,key='text'){showDialog(label,field(label,'value',value,'textarea'),form=>invoke(action,{[key]:form.value}));}
   function createTask(asChat=false,parent=''){
-    const s=state.snapshot,projectId=state.project!=='all'&&state.project!=='attention'?state.project:s.projects[0]?.id;
+    const s=state.snapshot,projects=s.projects.filter(p=>!state.projectIds||state.projectIds.includes(String(p.id))),projectId=state.project!=='all'&&state.project!=='attention'?state.project:projects[0]?.id;
+    if(!projects.length){state.error='当前产品范围没有可创建事情的项目。';render();return;}
     const requestId=state.newDraft?.request_id || crypto.randomUUID();
-    showDialog(parent?'创建子事情':asChat?'发起事情并讨论':'发起事情',`<label>所属项目<select name="project_id">${options(s.projects.map(p=>[p.id,p.name]),projectId)}</select></label>${field('目标或问题','content',asChat?q('.pw-composer textarea').value:state.newDraft?.content||'','textarea')}<p class="pw-note">创建为待评审，执行人是你；Auto 由你单独发起。</p><label><input name="chat" type="checkbox" ${asChat?'checked':''}> 创建后与 Agent 讨论</label>`,async form=>{
+    showDialog(parent?'创建子事情':asChat?'发起事情并讨论':'发起事情',`<label>所属项目<select name="project_id">${options(projects.map(p=>[p.id,p.name]),projectId)}</select></label>${field('目标或问题','content',asChat?q('.pw-composer textarea').value:state.newDraft?.content||'','textarea')}<p class="pw-note">创建为待评审，执行人是你；Auto 由你单独发起。</p><label><input name="chat" type="checkbox" ${asChat?'checked':''}> 创建后与 Agent 讨论</label>`,async form=>{
       if(!form.content.trim())throw new Error('请输入事情内容。');state.newDraft={...form,request_id:requestId};
       const created=await api.projectWorkbenchCommand('task.create',{...form,father_id:parent,request_id:requestId});
-      state.project='all';await select(created.task_id);state.newDraft=null;
+      await select(created.task_id);state.newDraft=null;
       if(form.chat){state.drafts[state.task]={...state.drafts[state.task],text:form.content};q('.pw-composer textarea').value=form.content;persist();await send();}
     },'创建');
   }
@@ -226,5 +243,5 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings,on
   api.onAutomationEvent?.(()=>schedule(false));
   api.onWorkSyncEvent?.(event=>{if(['work.sync','work.syncing'].includes(event.type))return;schedule(workEventAffectsDetail(event,state.detail?.task));});
   api.onEvent?.(event=>{if(event.type==='run.activity_changed'){activitySync.enqueue(event,120);return;}if(['run.finished','run.started','message.added'].includes(event.type))schedule();});
-  return {show(active){if(state.active===active)return;state.active=active;if(active){void act(async()=>{await refresh();if(!state.active)return;await api.projectWorkbenchCommand('sync',{});await refresh();});if(api.listCodexModels)void api.listCodexModels().then(result=>{paint(q('#pw-models'),(result.models||[]).map(m=>`<option value="${e(m.model||m.id)}">`).join(''));}).catch(()=>{});}else{saveScroll();persist();state.chat=false;state.runtime=false;updateChat();}},refresh,state};
+  return {show(active){if(state.active===active)return;state.active=active;if(active){void act(async()=>{await refresh();if(!state.active)return;await api.projectWorkbenchCommand('sync',{});await refresh();});if(api.listCodexModels)void api.listCodexModels().then(result=>{paint(q('#pw-models'),(result.models||[]).map(m=>`<option value="${e(m.model||m.id)}">`).join(''));}).catch(()=>{});}else{saveScroll();persist();state.chat=false;state.runtime=false;updateChat();}},refresh,scopeChanged,selectTask:select,state};
 }

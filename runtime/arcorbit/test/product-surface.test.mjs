@@ -9,7 +9,7 @@ import { createProductCoordinator } from '../src/product-coordinator.mjs';
 import { runProductCommand } from '../src/product-git.mjs';
 import { createProductSurface } from '../desktop/renderer/product-surface.mjs';
 const wait=async(fn,label)=>{for(let i=0;i<300;i++){if(await fn())return;await new Promise(r=>setTimeout(r,20));}throw new Error(`Timeout: ${label}`);};
-async function fixture(t,{failAgent=false}={}) {
+async function fixture(t,{failAgent=false,getScope=()=>null}={}) {
  const root=await realpath(await mkdtemp(join(tmpdir(),'arcorbit-idea-dom-')));const material=join(root,'demo');await mkdir(material);await writeFile(join(material,'README.md'),'Design review app for creative teams');
  const url='https://github.com/example/demo';await runProductCommand('git',['init',material]);await runProductCommand('git',['-C',material,'remote','add','origin',url]);
  const {document,window}=parseHTML(await readFile(new URL('../desktop/renderer/index.html',import.meta.url),'utf8'));
@@ -31,7 +31,7 @@ async function fixture(t,{failAgent=false}={}) {
   yield{type:'codex.item.completed',params:{item:{type:'agentMessage',id:'answer',text:'已准备可修改的方案，请在左侧核对。'}}};yield{type:'codex.turn.completed',turn:{status:'completed'}};
  },async interrupt(){},close(){}})});
  const api={productSnapshot:i=>i?.refresh?c.refresh():c.snapshot(),productDetail:id=>c.detail(id),productCommand:(a,i)=>c.command(a,i),productChat:i=>c.chatAction(i),pickProductMaterial:i=>i?.id?c.chooseMaterial(i.id,material):c.command('create',{material_path:material}),onProductEvent:fn=>c.onEvent(fn),openWorkExternalLink:async()=>{}};
- const surface=createProductSurface({api,normalizeChatSnapshot:s=>({sessions:[],projects:[],messages:[],draft:{project_id:'',text:''},selected_session_id:'',...s}),formatTime:x=>x,performAction:async fn=>{try{return await fn();}catch(e){errors.push(e.message);}},getPlatform:()=>platform,navigate:async page=>surface.show(page)});
+ const surface=createProductSurface({api,normalizeChatSnapshot:s=>({sessions:[],projects:[],messages:[],draft:{project_id:'',text:''},selected_session_id:'',...s}),formatTime:x=>x,performAction:async fn=>{try{return await fn();}catch(e){errors.push(e.message);}},getPlatform:()=>platform,getScope,navigate:async page=>surface.show(page)});
  const $=s=>document.querySelector(s);const click=s=>{assert.ok($(s),`missing ${s}`);assert.ok(!$(s).disabled,`disabled ${s}`);$(s).click();};const input=(s,v)=>{$(s).value=v;$(s).dispatchEvent(new window.Event('input',{bubbles:true}));};
  t.after(async()=>{await new Promise(r=>setTimeout(r,180));await c.close();await rm(root,{recursive:true,force:true});});
  await surface.show('idea');click('#ideaListHost [data-product-action=new]');await wait(()=>!$('#ideaStart').classList.contains('hidden'),'start');
@@ -126,4 +126,27 @@ test('signed-out product surfaces skip snapshots and resume loading after login'
  authenticated=true;await surface.show('idea');assert.equal(calls,1);
  authenticated=false;surface.reset();surface.renderToday();await surface.show('idea');
  assert.equal(calls,1);assert.equal(document.getElementById('todayProductContinuity').innerHTML,'');
+});
+
+
+test('Product list and detail follow shared scope while preserving product-specific editor drafts',async t=>{
+ let scope={key:'all',projectId:'all',projectIds:['p1','p2']};
+ const f=await fixture(t,{getScope:()=>scope});
+ f.platform.projects.push({id:'p2',name:'Second product',git_url:''});
+ const a=await f.c.command('attach',{project_id:'p1'}),b=await f.c.command('attach',{project_id:'p2'});
+ await f.surface.show('product');
+ assert.match(f.$('#productListHost').textContent,/Second product/);
+ scope={key:'p1',projectId:'p1',projectIds:['p1']};await f.surface.scopeChanged();
+ assert.doesNotMatch(f.$('#productListHost').textContent,/Second product/);
+ await f.surface.show('product-detail');
+ // A direct detail route also resolves the current top-level product.
+ await f.surface.scopeChanged();
+ assert.match(f.$('#productDetailHost').textContent,/Design review/);
+ f.click('#productDetailHost [data-product-action=edit]');await wait(()=>f.$('#productDetailHost [data-field=description]'),'editor');f.input('#productDetailHost [data-field=description]','A unsaved draft');
+ scope={key:'p2',projectId:'p2',projectIds:['p2']};await f.surface.scopeChanged();
+ assert.match(f.$('#productDetailHost').textContent,/Second product/);
+ scope={key:'p1',projectId:'p1',projectIds:['p1']};await f.surface.scopeChanged();assert.equal(f.$('#productDetailHost [data-field=description]').value,'A unsaved draft');
+ scope={key:'all',projectId:'all',projectIds:['p1','p2']};await f.surface.scopeChanged();
+ assert.match(f.$('#productListHost').textContent,/Design review/);assert.match(f.$('#productListHost').textContent,/Second product/);
+ assert.equal((await f.c.detail(a.id)).remote_project_id,'p1');assert.equal((await f.c.detail(b.id)).remote_project_id,'p2');
 });

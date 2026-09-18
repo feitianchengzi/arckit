@@ -111,7 +111,7 @@
           try { await navigator.clipboard.writeText(el.parentElement.querySelector('code').textContent); notice('代码已复制。'); }
           catch { notice('无法访问剪贴板，请选择代码后复制。'); }
           break;
-        case 'bind': open('绑定项目工作区', `<p>选择可访问项目及其本地目录，检查成功后返回当前草稿。</p><label>项目<select name="project" ${s ? 'disabled' : ''}>${M.state.projects.filter(p => !s || p.id === s.project).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>本地目录<input name="path" value="/Projects/atlas" required></label>`, '绑定并检查', 'bind'); break;
+        case 'bind': open('绑定项目工作区', `<p>选择可访问项目及其本地目录，检查成功后返回当前草稿。</p><label>项目<select name="project" ${s ? 'disabled' : ''}>${[...M.state.projects,...(window.GlobalContext?.projects||[]).filter(p=>!M.state.projects.some(local=>(({atlas:'orbit',borealis:'feedback'})[local.id]||local.id)===p.id))].filter(p => (!s || p.id === s.project) && (!window.GlobalContext||GlobalContext.includes(({atlas:'orbit',borealis:'feedback'})[p.id]||p.id))).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>本地目录<input name="path" value="/Projects/atlas" required></label>`, '绑定并检查', 'bind'); break;
       }
     } catch (error) { notice(error.message); }
   });
@@ -146,7 +146,7 @@
       }
       if (form.dataset.chatForm === 'bind') {
         const path = data.get('path').trim(); if (!path.startsWith('/')) throw Error('请输入本地目录的完整路径。');
-        const p = M.project(s?.project || data.get('project')); p.path = path; p.ready = true; if (!s) M.owner().project = p.id;
+        const id=s?.project||data.get('project');if(!id)throw Error('当前范围没有可绑定产品。');if(window.GlobalContext&&!GlobalContext.includes(({atlas:'orbit',borealis:'feedback'})[id]||id))throw Error('请选择当前范围内的产品。');let p=M.project(id);if(!p){p={id,name:GlobalContext.projects.find(p=>p.id===id).name,ready:false};M.state.projects.push(p);}p.path = path; p.ready = true; if (!s) M.owner().project = p.id;
       }
       close(); render({ capturePosition: form.dataset.chatForm !== 'delete' });
     } catch (error) { form.querySelector('[role=alert]').textContent = error.message; }

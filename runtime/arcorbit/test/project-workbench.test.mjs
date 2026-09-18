@@ -167,3 +167,16 @@ test('workbench resolves runtime modes once for the whole task list',()=>{
  assert.equal(taskMode(tasks[1],snapshot,{current_turn_owner:'auto:run'},modes),'正在暂停');
  assert.equal(taskMode(tasks[1],snapshot,null,modes),'已暂停');
 });
+
+
+test('global runtime remains canonical when Thing filters its automatic queue', async t => {
+ const f=await fixture(t);
+ await f.db.updateStore(s=>{s.automation.enabled=false;s.automation.requested_tasks={};return s;});
+ Object.assign(f.runtime,{enabled:false,queue_paused:true,queue:[{id:'1'}],active_executions:[{task_id:'2'}]});
+ const snapshot=await f.c.snapshot();
+ assert.deepEqual(snapshot.runtime.queue,[]);
+ assert.deepEqual(snapshot.global_runtime.queue,[{id:'1'}]);
+ assert.deepEqual(snapshot.global_runtime.active_executions,[{task_id:'2'}]);
+ assert.equal(snapshot.global_runtime.queue_paused,true);
+ assert.equal(snapshot.global_runtime.enabled,false);
+});

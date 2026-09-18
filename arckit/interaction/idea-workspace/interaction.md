@@ -20,4 +20,8 @@
 
 ## 投影
 
-`default.html` 中的独立状态块覆盖上述主路径、决定与恢复；控件沿用 Desktop 视觉规范。
+`page-states.html` 中的辅助状态块覆盖上述主路径、决定与恢复；控件沿用 Desktop 视觉规范。
+
+## 全局上下文原型
+
+`default.html` 使用 `_shared/global-context.js`、`global-shell.js` 与 `context-pages.js`，连续演示 CONVENTIONS.md 定义的产品范围、对象选择、草稿和统一顶部能力；页面专项状态图保留在 `page-states.html`，其旧窗口壳仅作历史示意。原型保存及运行状态均为浏览器本地模拟，服务调用和页面专项深层操作的验证边界沿用各自说明。

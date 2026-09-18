@@ -1,0 +1,75 @@
+/* A single product-wide control surface, independent of the active page. */
+body, body.project-workbench-active { --commandbar-height:var(--layout-commandbar-height); }
+.app-stage, .chat-active .app-stage, .project-workbench-active .app-stage { grid-template-rows:var(--layout-commandbar-height) minmax(0,1fr); }
+.commandbar, .chat-active .commandbar, .project-workbench-active .commandbar { display:flex; height:var(--layout-commandbar-height); padding:0 18px; z-index:50; }
+.commandbar-actions { flex:1; min-width:0; width:100%; gap:8px; }
+.commandbar .product-set-cluster, .project-workbench-active .commandbar #productSetCluster { display:flex; margin-right:auto; min-width:0; }
+.commandbar .workset-control, .commandbar .product-scope-control { min-width:0; }
+.commandbar select { max-width:180px; min-width:0; text-overflow:ellipsis; }
+.commandbar .automation-toggle, .project-workbench-active .commandbar .automation-toggle { display:flex; }
+.global-status-menu { position:relative; flex:none; -webkit-app-region:no-drag; }
+.global-status-menu > summary { display:flex; align-items:center; min-height:36px; cursor:pointer; color:var(--semantic-text); list-style:none; font-size:var(--type-label); white-space:nowrap; }
+.global-status-menu > summary { gap:8px; padding:0 9px; border:1px solid var(--semantic-control-border); border-radius:6px; background:var(--semantic-elevated); box-sizing:border-box; }
+.global-status-menu > summary::after { content:""; width:6px; height:6px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(45deg); margin:0 2px 3px; flex:none; }
+.global-status-menu > summary:hover { background:var(--semantic-chrome); }
+.global-status-menu[open] > summary { background:var(--semantic-nav-selected); }
+.global-status-menu[open] > summary::after { transform:rotate(225deg); margin-top:5px; margin-bottom:0; }
+.global-status-menu > summary:focus-visible { outline:2px solid var(--semantic-focus); outline-offset:2px; }
+.global-status-menu > summary::-webkit-details-marker { display:none; }
+.global-status-menu .sync-state { display:flex; gap:6px; font-size:var(--type-label); }
+.global-popover { position:absolute; top:calc(100% + 8px); right:0; width:320px; max-width:calc(100vw - 24px); padding:16px; border:1px solid var(--semantic-divider); border-radius:10px; background:var(--semantic-elevated); box-shadow:var(--shadows-small); white-space:normal; -webkit-app-region:no-drag; }
+.global-popover p { line-height:1.5; white-space:pre-line; font-size:var(--type-body); }
+.global-popover small { color:var(--semantic-muted); font-size:var(--type-caption); }
+.global-popover button { margin-top:8px; }
+.commandbar summary,.commandbar details,.commandbar a { -webkit-app-region:no-drag; }
+.pw-shell { grid-template-rows:minmax(0,1fr); }
+.pw-top { display:none; }
+.pw-shell .pw-list { top:0; }
+.pw-composer-head > .pw-list-toggle { margin-left:auto; }
+.profile-button > .account-avatar { grid-row:1 / 3; }
+:root[data-window-control-mode="custom"] .commandbar { padding-right:154px; }
+@media(max-width:1100px) {
+ .commandbar select { max-width:125px; }
+ .commandbar .workset-control > span,.commandbar .product-scope-control > span { display:none; }
+ .commandbar #productFeedbackButton strong { display:none; }
+ .commandbar #accountSync span { max-width:125px; overflow:hidden; text-overflow:ellipsis; }
+}
+@media(max-width:760px) {
+ body,body.project-workbench-active,body.chat-active { --sidebar-width:0px; min-width:0; }
+ .desktop-app > .sidebar { display:none; }
+ .page-navigation-toggle { display:flex; align-items:center; justify-content:center; width:36px; }
+ body.page-navigation-open .desktop-app > .sidebar { display:flex; position:fixed; inset:0 auto 0 0; width:220px; padding-top:54px; z-index:80; box-shadow:var(--shadows-small); }
+ .commandbar,.chat-active .commandbar,.project-workbench-active .commandbar { padding-left:50px; padding-right:8px; }
+ :root[data-window-control-mode="native-macos"] .commandbar { padding-left:124px; }
+ :root[data-window-control-mode="custom"] .commandbar { padding-right:146px; }
+ .commandbar-actions { gap:4px; overflow-x:auto; scrollbar-width:thin; }
+ .commandbar .product-set-cluster { gap:4px; flex:none; }
+ .commandbar select { width:90px; }
+ .commandbar #accountSync span { max-width:75px; }
+ .global-status-menu[open] .global-popover { position:fixed; top:54px; right:12px; }
+ .commandbar #productFeedbackButton,.commandbar #settingsButton,.commandbar #syncButton { flex:none; }
+}
+/* Explicit grid track prevents a dense header's intrinsic width expanding the content. */
+.app-stage { grid-template-columns:minmax(0,1fr); }
+.global-scope-menu,.global-controls-menu,.global-controls-content { display:contents; }
+.global-scope-menu > summary,.global-controls-menu > summary { display:none; }
+.page-navigation-toggle { z-index:70; }
+@media(max-width:760px) {
+ .commandbar-actions { overflow:visible; }
+ .global-scope-menu,.global-controls-menu { display:block; min-width:0; -webkit-app-region:no-drag; }
+ .global-scope-menu { flex:1; }
+ .global-controls-menu { flex:none; }
+ .global-scope-menu > summary,.global-controls-menu > summary { display:block; cursor:pointer; min-height:36px; line-height:36px; list-style:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--type-label); }
+ .global-scope-menu > summary::-webkit-details-marker,.global-controls-menu > summary::-webkit-details-marker { display:none; }
+ .global-controls-menu > summary { max-width:86px; }
+ .commandbar .global-scope-menu:not([open]) #productSetCluster,.commandbar .global-controls-menu:not([open]) .global-controls-content { display:none; }
+ .commandbar .global-scope-menu[open] #productSetCluster,.global-controls-menu[open] .global-controls-content { display:flex; flex-direction:column; align-items:stretch; position:fixed; top:54px; left:12px; right:12px; width:auto; margin:0; padding:16px; border:1px solid var(--semantic-divider); border-radius:10px; background:var(--semantic-elevated); box-shadow:var(--shadows-small); }
+ .commandbar .global-scope-menu select { max-width:none; width:100%; }
+ .commandbar .global-scope-menu .workset-control > span,.commandbar .global-scope-menu .product-scope-control > span { display:block; }
+ .commandbar #productFeedbackButton strong { display:block; }
+ .global-status-menu[open] .global-popover { position:static; width:auto; max-width:none; box-shadow:none; }
+ .commandbar #accountSync span { max-width:none; }
+ #chatView .chat-header-actions { flex-wrap:wrap; justify-content:flex-end; }
+}
+#globalRuntimeObjects { display:grid; gap:6px; max-height:40vh; overflow:auto; margin:8px 0; }
+#globalRuntimeObjects button { white-space:normal; text-align:left; overflow-wrap:anywhere; }

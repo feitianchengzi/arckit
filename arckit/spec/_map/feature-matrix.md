@@ -13,7 +13,7 @@
 | `agentic-software-development/runtime-automation-workspace.md` | 🟡 | Runtime 自动化工作区，定义 Work 本地任务状态输入、双队列、人工 Gate、同待办 thread、Chat 共享消息面和逐 Gap 执行全貌。 |
 | `agentic-software-development/arcorbit-platform-capabilities.md` | 🟡 | ArcOrbit 多产品研发平台，定义 Work-owned 同步、本地 Task Projection、自动执行、Workshop 用户反馈、产品反馈中心、多产品工作集和服务契约边界。 |
 | `agentic-software-development/arcorbit-work-management.md` | 🟡 | ArcOrbit Work 待办管理，定义本地多维筛选、Work Sync、任务树、完整详情、评论附件、新建/编辑七状态兜底、Inspector 引导动作及 Automation 消费边界。 |
-| `agentic-software-development/arcorbit-planned-workspaces.md` | 🟡 | ArcOrbit Chat 与计划工作空间，定义按 Product Workspace 分组、每组最近 10 条与历史入口、新会话显式项目归属、共享 Conversation Surface 与 Automation 数据隔离。 |
+| `agentic-software-development/arcorbit-planned-workspaces.md` | 🟡 | ArcOrbit Chat 与计划工作空间，定义按 Product Workspace 分组、每组 5 条递增、折叠重置及稳定单行列表、新会话显式项目归属、共享 Conversation Surface 与 Automation 数据隔离。 |
 | `agentic-software-development/arcorbit-organization-management.md` | ✅ | 组织治理、项目 owner/admin 从同组织直接添加成员、独立邀请与完整分页；服务端保持原样；客户端响应身份核验及恢复定向回归通过，线上与安装包未验证。 |
 | `agentic-software-development/loop-engineering-research.md` | ⚪ | Loop Engineering 研究输入，保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。 |
 

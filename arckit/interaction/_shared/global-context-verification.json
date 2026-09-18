@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "checks": [
+    "Status entries visibly indicate disclosure; popover surfaces are opaque",
+    "Chat product scope, selected session drafts, empty/unbound scope, shared header identity",
+    "Thing scope, task drafts and empty scope",
+    "13 further page entries share scope and all global capabilities",
+    "Product detail follows single scope; all returns list; drafts retain ownership",
+    "New objects inherit scope; failure/retry truthful sync; pause preserves running task",
+    "1440/760/390px single row, no horizontal overflow, nested Escape focus"
+  ],
+  "errors": [],
+  "boundary": "Browser-local fixtures, no real business calls or native window controls."
+}

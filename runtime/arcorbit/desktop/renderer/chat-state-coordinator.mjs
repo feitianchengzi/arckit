@@ -412,12 +412,21 @@ export function createChatStateCoordinator({
     }
   }
 
+  async function clearScopeSelection() {
+    const epoch = beginOwnerTransition();
+    await flushDraft();
+    if (!isCurrent(epoch)) return;
+    value = {...value, owner: normalizeOwner(), draft: "", error: ""};
+    draftRevision += 1;
+  }
+
   function getState() {
     return value;
   }
 
   return {
     getState,
+    clearScopeSelection,
     initialize,
     newDraft,
     changeDraftWorkspace,

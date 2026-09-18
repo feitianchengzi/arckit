@@ -36,7 +36,7 @@ Organization 保留组织治理职责。Engineering 位于其下方，是本机 
 - 未建立真实写入合约的计划动作以“计划动作”“示意”或不可用状态表达，不产生远端记录、Runtime Run、Project State transition 或发布授权。
 - Chat 与 Idea、Work 等正式形态之间没有转换、关联或来源写入；自由对话只保留为独立 Chat 会话。
 - Work、Automation、Feedback、Organization 和产品反馈中心的既有真实行为不因这些计划页面而改变。
-- 顶部产品范围可以为其他计划页面提供上下文，但不筛选 Chat 会话或替 Chat 决定新会话工作区；它不得改变自动领取资格、成员关系、状态真相源或发布授权。
+- 顶部产品范围统一筛选 Chat 会话及新建可选工作区，单产品时继承归属；它不得改变自动领取资格、成员关系、状态真相源或发布授权。
 
 ## Chat
 
@@ -136,7 +136,7 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 - `Release` 与 `Operations` 在英文界面使用英文，在中文说明中分别对应“发布”和“运营”。
 - 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，Idea 遵守 Product 管理规格，Engineering 提供真实内置 Skills 安装后管理；Operations 展示计划内容。
 - 页面明确区分真实 Chat 状态、真实项目事实、计划示例和未接入动作。
-- Chat 会话列表不依赖预先选择项目，直接按 Product Workspace 分组；每组默认最多显示 5 条，查看更多每次增加 5 条，项目收起再展开恢复 5 条。
+- Chat 会话列表在全局产品范围内按 Product Workspace 分组；每组默认最多显示 5 条，查看更多每次增加 5 条，项目收起再展开恢复 5 条。
 - Chat 新对话在首条消息发送前显式显示目标 Product Workspace，允许保留草稿快速切换；发送后项目归属固定，不能迁移既有 thread。
 - Chat 支持工作区绑定、新建/切换/重命名/删除会话、持久 thread、流式消息、工具活动、停止、重试、错误恢复和重启恢复。
 - Chat 与 Automation Intervention 的消息列表由同一 Conversation Surface 呈现；对 Markdown、代码复制、reasoning、工具/权限状态、流式消息和滚动行为的修改不需要在两处重复实现或验收。

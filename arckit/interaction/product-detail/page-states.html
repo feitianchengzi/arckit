@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Product 详情</title><link rel="stylesheet" href="../wireframe-style.css"></head>
+<body><div class="wireframe-container">
+<header><h1>Product 详情</h1></header>
+<details open>
+<summary>产品总览</summary>
+<div class="state-content">
+<p><strong>触发条件：</strong>从目录选择产品</p>
+<div class="wireframe-canvas">
+<div class="device-frame desktop">
+<div class="desktop-titlebar"><strong>ArcOrbit · Product 详情</strong></div>
+<div class="pane-toolbar"><strong>产品名 · 尚未设置 · 仅本机</strong></div>
+<div class="pane-body">
+<section class="form-section"><p>总览｜理念｜核心资产｜项目关系</p></section>
+<section class="form-section"><p>Work｜Feedback｜Automation｜Organization</p></section>
+<button class="compact-action">导航携带项目身份，返回保留产品选择。</button>
+</div>
+</div>
+</div>
+<div class="component-list"><h3>组件清单</h3><p>产品名 · 尚未设置 · 仅本机；内容与来源；操作及状态反馈。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>导航携带项目身份，返回保留产品选择。</p></div>
+</div>
+</details>
+<details>
+<summary>编辑资料</summary>
+<div class="state-content">
+<p><strong>触发条件：</strong>用户直接编辑或采纳 Agent 建议</p>
+<div class="wireframe-canvas">
+<div class="device-frame desktop">
+<div class="desktop-titlebar"><strong>ArcOrbit · Product 详情</strong></div>
+<div class="pane-toolbar"><strong>保存产品资料</strong></div>
+<div class="pane-body">
+<section class="form-section"><p>说明｜目标用户｜理念｜原则｜核心资产引用</p></section>
+<section class="form-section"><p>状态：尚未设置 / 探索中 / 推进中 / 暂停 / 归档</p></section>
+<button class="compact-action">保存校验修订号</button>
+</div>
+</div>
+</div>
+<div class="component-list"><h3>组件清单</h3><p>保存产品资料；内容与来源；操作及状态反馈。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>保存校验修订号；不改变任务或执行状态。</p></div>
+</div>
+</details>
+<details>
+<summary>共享确认</summary>
+<div class="state-content">
+<p><strong>触发条件：</strong>本机资料已修改</p>
+<div class="wireframe-canvas">
+<div class="device-frame desktop">
+<div class="desktop-titlebar"><strong>ArcOrbit · Product 详情</strong></div>
+<div class="pane-toolbar"><strong>共享到 GitHub</strong></div>
+<div class="pane-body">
+<section class="form-section"><p>管理记录差异｜资料分支｜仅共享此记录</p></section>
+<section class="form-section"><p>资产正文需要原仓库流程共享</p></section>
+<button class="compact-action">确认后显示实际 Git 结果。</button>
+</div>
+</div>
+</div>
+<div class="component-list"><h3>组件清单</h3><p>共享到 GitHub；内容与来源；操作及状态反馈。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>确认后显示实际 Git 结果。</p></div>
+</div>
+</details>
+<details>
+<summary>共享冲突</summary>
+<div class="state-content">
+<p><strong>触发条件：</strong>本机与远端都修改</p>
+<div class="wireframe-canvas">
+<div class="device-frame desktop">
+<div class="desktop-titlebar"><strong>ArcOrbit · Product 详情</strong></div>
+<div class="pane-toolbar"><strong>两份资料都已保留</strong></div>
+<div class="pane-body">
+<section class="form-section"><p>本机版本｜远端版本</p></section>
+<section class="form-section"><p>采用远端｜保留本机并重新确认</p></section>
+<button class="compact-action">未选择不覆盖，不强推。</button>
+</div>
+</div>
+</div>
+<div class="component-list"><h3>组件清单</h3><p>两份资料都已保留；内容与来源；操作及状态反馈。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>未选择不覆盖，不强推。</p></div>
+</div>
+</details>
+<details>
+<summary>来源或权限失败</summary>
+<div class="state-content">
+<p><strong>触发条件：</strong>记录损坏或 Git 不可访问</p>
+<div class="wireframe-canvas">
+<div class="device-frame desktop">
+<div class="desktop-titlebar"><strong>ArcOrbit · Product 详情</strong></div>
+<div class="pane-toolbar"><strong>产品资料暂时无法读取</strong></div>
+<div class="pane-body">
+<section class="form-section"><p>原因｜重试｜仍可进入 Work 与 Feedback</p></section>
+<button class="compact-action">不以空白记录覆盖原资料。</button>
+</div>
+</div>
+</div>
+<div class="component-list"><h3>组件清单</h3><p>产品资料暂时无法读取；内容与来源；操作及状态反馈。</p></div>
+<div class="interactions"><h3>交互行为</h3><p>不以空白记录覆盖原资料。</p></div>
+</div>
+</details>
+</div></body>
+</html>

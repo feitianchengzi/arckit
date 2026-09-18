@@ -73,7 +73,7 @@ window.visualData = {
     "layout.workbench_search_height": 31,
     "layout.readable_width": 760,
     "layout.list_drawer_breakpoint": 760,
-    "layout.commandbar_height": 58,
+    "layout.commandbar_height": 54,
     "layout.inspector_width": 312,
     "layout.compact_control_height": 32,
     "layout.control_height": 36,
@@ -129,7 +129,7 @@ window.visualData = {
           "sidebar": "{semantic.sidebar}",
           "workspace": "{semantic.canvas}",
           "topbar": "{layout.workbench_topbar_height}",
-          "legacy_commandbar": "hidden"
+          "legacy_commandbar": "shared_global_context"
         },
         "command_center": {
           "sidebar": "{semantic.sidebar}",

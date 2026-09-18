@@ -62,7 +62,7 @@ Codex adapter 将工具声明与现有 scene skills 工具组合。已有 thread
 
 Thing 将连接状态通知与内容失效分开：`work.sync`、`work.syncing` 不触发 snapshot/detail 读取。内容通知在 180ms 窗口合并；不同项目的变化刷新跨项目列表并复用当前事情详情。当前事情所在项目的内容变化、无范围通知、用户操作和周期校验仍确认详情及附件。Automation 通知通过当前事情、账号、工作区绑定、场景 revision、相关运行及子事情依赖判断详情是否失效，连接健康和其他项目运行变化不使详情失效。附件响应不另设跨账号缓存。
 
-刷新采用 single-flight；读取期间的内容失效保留到下一轮，用户显式刷新消费已有排队通知。详情请求失败不推进复用标识，任务切换使用 selection epoch 拒绝旧详情；账号范围切换清除旧详情，已移除事情不保留原详情。没有首次加载状态时不先重绘一遍旧内容，未变化详情复用已渲染内容。snapshot 携带轻量同步健康，主壳据此更新导航底部用户设置入口的同步状态与时间戳而不读取旧页面全量数据。
+刷新采用 single-flight；读取期间的内容失效保留到下一轮，用户显式刷新消费已有排队通知。详情请求失败不推进复用标识，任务切换使用 selection epoch 拒绝旧详情；账号范围切换清除旧详情，已移除事情不保留原详情。没有首次加载状态时不先重绘一遍旧内容，未变化详情复用已渲染内容。snapshot 携带轻量同步健康，主壳据此更新全局顶部栏的同步状态与时间戳而不读取旧页面全量数据。
 
 旧页面访问时恢复原最小窗口边界；新事情台允许窄窗口布局。场景 HTML 由注册组件渲染，文本按受限 Markdown 转义，Agent 不生成任意 HTML 或操纵 DOM。
 
@@ -70,5 +70,8 @@ Thing 将连接状态通知与内容失效分开：`work.sync`、`work.syncing` 
 
 Chat 使用独立 `chat-layout.css` 调整中央对话、右侧分组会话及窄窗抽屉，保留既有 Chat State Coordinator、Conversation Surface 与 IPC。页面控制器统一设置 workspace surface：Thing/Chat 最小 390×640，其他页面恢复 1100×720；Thing 子视图不再异步覆盖窗口模式。抽屉打开时正文 inert，选择、新建、离页与跨断点关闭抽屉；Esc 恢复按钮焦点。原型模型与样本不进入产品代码。
 
+## 统一全局上下文
+
+Renderer 持有产品集与产品观察范围的唯一状态。Chat 使用已关联的远端 project id 或匹配的本地 project id 建立范围映射；Thing 与业务列表直接使用 project_id。各 surface 消费同一范围，不另持独立产品筛选。选择记忆按用户、产品集、产品范围和页面隔离，对象草稿仍按对象身份保存。范围切换递增请求代际，迟到结果不得恢复旧范围对象；后台执行生命周期不因选择变化而停止。公共顶部只绑定现有受限 IPC，不新增权限或任意系统能力。同步摘要分别消费 Runtime task source、Work Sync 与平台错误；手动同步复用已有同步协调器，Git 产品资料发布保持显式独立动作。
 
 Chat 布局以剩余列满宽呈现，`chat-resize.mjs` 用 Pointer Capture 与键盘分隔线维护右栏宽度和输入高度；尺寸保存至本机 localStorage，ResizeObserver 在容器变化时限制尺寸，存储不可用不阻止编辑。分组视图按项目稳定 id 与会话 created_at/id 排序，不使用 updated_at；Renderer 独立保存项目折叠和五条递增额度，收起清除额度。以上 UI 状态不写入会话或 Runtime，刷新不强制展开选中会话。

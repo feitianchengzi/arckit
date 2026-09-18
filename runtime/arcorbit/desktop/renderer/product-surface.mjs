@@ -10,8 +10,8 @@ const active=s=>['starting','running','waiting_approval','interrupting'].include
 const button=(action,label,extra='')=>`<button type="button" class="${extra.includes('class="primary-button"')?'primary-button':'secondary-button'}" data-product-action="${action}" ${extra.replace('class="primary-button"','')}>${label}</button>`;
 const field=(label,name,value,type='text')=>`<label class="product-field"><span>${label}</span>${type==='textarea'?`<textarea data-field="${name}" rows="3">${esc(value)}</textarea>`:`<input data-field="${name}" value="${esc(value)}">`}</label>`;
 const select=(label,name,value,options)=>`<label class="product-field"><span>${label}</span><select data-field="${name}">${options.map(([id,title])=>`<option value="${esc(id)}" ${String(value)===String(id)?'selected':''}>${esc(title)}</option>`).join('')}</select></label>`;
-export function createProductSurface({api,normalizeChatSnapshot,formatTime,performAction,navigate,getPlatform,isAuthenticated=()=>true}) {
-  const el=id=>document.getElementById(id);let snapshot={ideas:[],records:[],projects:[],organizations:[],errors:[]};let current=null;let page='';let search='';let filter='all';let tab='overview';let error='';let loading=false;let loaded=false;let chat=null;let epoch=0;let eventTimer;let listPromise;
+export function createProductSurface({api,normalizeChatSnapshot,formatTime,performAction,navigate,getPlatform,getScope=()=>null,isAuthenticated=()=>true}) {
+  const el=id=>document.getElementById(id);let snapshot={ideas:[],records:[],projects:[],organizations:[],errors:[]};let current=null;let page='';let search='';let filter='all';let tab='overview';let error='';let loading=false;let loaded=false;let chat=null;let epoch=0;let eventTimer;let listPromise;let contextKey='';const scopeSelections=new Map();
   const chats=new Map();const drafts=new Map();let manual=false;let confirming=false;let confirmationBinding=null;
   const draftKey=id=>`arcorbit:product-editor:${id}`;
   function draft(p) {
@@ -40,11 +40,36 @@ export function createProductSurface({api,normalizeChatSnapshot,formatTime,perfo
     listPromise=(async()=>{const next=await api.productSnapshot({refresh});if(!isAuthenticated())return;snapshot=next;loaded=true;renderToday();})();
     try{await listPromise;}finally{listPromise=null;}
   }
+  function inScope(p) {
+    const scope=getScope();if(!scope)return true;
+    const id=String(p?.remote_project_id || p?.project_id || '');
+    return id ? scope.projectIds.includes(id) : scope.projectId==='all';
+  }
+  async function scopeChanged(force=false) {
+    const scope=getScope();if(!scope)return;
+    if(contextKey===scope.key&&!force&&(!current||inScope(current))){renderCurrent();return;}
+    if(contextKey&&current)scopeSelections.set(contextKey,current.id);
+    contextKey=scope.key; const token=++epoch;
+    if(!['product','product-detail','idea','idea-add'].includes(page))return;
+    await load();if(token!==epoch)return;
+    if(page==='product-detail') {
+      if(scope.projectId==='all'){current=null;chat=null;page='product';await navigate('product');return;}
+      let p=snapshot.records.find(p=>String(p.remote_project_id)===scope.projectId);
+      if(!p){p=await api.productCommand('attach',{project_id:scope.projectId});if(token!==epoch)return;await load();}
+      const detail=await api.productDetail(p.id);if(token!==epoch)return;current=detail;
+    } else if(current&&!inScope(current)) {
+      const remembered=snapshot.records.find(p=>p.id===scopeSelections.get(scope.key)&&inScope(p));
+      current=null;chat=null;
+      if(remembered){const detail=await api.productDetail(remembered.id);if(token!==epoch)return;current=detail;}
+      else if(page==='idea-add'){page='idea';await navigate('idea');return;}
+    }
+    renderCurrent();if(page==='idea-add'&&current)await loadChat();
+  }
   function projectFor(p){return snapshot.projects.find(r=>String(r.id)===p?.remote_project_id);}
   function label(p){return p.kind==='formal'?`${p.record.idea?'已录入':'产品资料'} · ${syncLabels[p.sync.status]||'待共享'}`:p.kind==='product'?'产品资料草稿 · 仅本机':'录入未完成 · 仅本机';}
   async function open(id,where='idea-add') {
     const token=++epoch;const p=await api.productDetail(id);if(token!==epoch)return;
-    current=p;manual=Boolean(p.plan);confirming=false;page=where;await navigate(where);if(token!==epoch||current?.id!==id)return;if(where==='idea-add')await loadChat();
+    current=p;manual=Boolean(p.plan);confirming=false;page=where;contextKey='';await navigate(where,p.remote_project_id || 'all');if(token!==epoch||current?.id!==id)return;if(where==='idea-add')await loadChat();
   }
   async function loadChat() {
     if(!current)return;const id=current.id,o=owner();
@@ -75,7 +100,7 @@ export function createProductSurface({api,normalizeChatSnapshot,formatTime,perfo
     const host=el(ideasOnly?'ideaListHost':'productListHost');
     const rows=ideasOnly?snapshot.ideas:[...snapshot.projects.map(r=>({remote:r,p:snapshot.records.find(p=>p.remote_project_id===String(r.id))})),...snapshot.records.filter(p=>!p.remote_project_id).map(p=>({p}))];
     const normalized=ideasOnly?rows.map(p=>({p})):rows;
-    const visible=normalized.filter(({p,remote})=>String(remote?.name||p?.name).toLowerCase().includes(search.toLowerCase()) && (filter==='all'||(p?.record.status||'')===filter));
+    const visible=normalized.filter(({p,remote})=>inScope(p||{remote_project_id:remote?.id}) && String(remote?.name||p?.name).toLowerCase().includes(search.toLowerCase()) && (filter==='all'||(p?.record.status||'')===filter));
     host.innerHTML=header(ideasOnly?'Idea':'你的产品',ideasOnly?'本机未完成录入，以及当前产品集本地目录中的正式 Idea。':'围绕产品保存长期上下文，进入已有的工作页面。')+`<div class="product-toolbar"><input data-search type="search" placeholder="搜索产品" value="${esc(search)}">${select('状态','filter',filter,[['all','全部状态'],...Object.entries(statuses)])}</div>`+errorHtml()+sourceErrors()+`<div class="product-grid">${visible.map(({p,remote})=>`<button class="product-card" data-open="${esc(p?.id||'')}" data-remote="${esc(remote?.id||'')}" type="button"><span class="product-status">${esc(statuses[p?.record.status||''])}</span><h2>${esc(remote?.name||p.name)}</h2><p>${esc(p?.record.description||'尚未整理产品说明')}</p><small>${p?esc(label(p)):'Workshop 项目 · 产品资料尚未设置'}</small>${p?.material_path?`<small class="product-path">${esc(p.material_path)}</small>`:''}</button>`).join('')||'<div class="product-empty"><h2>这里还没有记录</h2><p>添加一个 Idea，或关联产品集的本地项目目录。</p></div>'}</div>`;
     host.querySelector('[data-search]').oninput=e=>{search=e.target.value;renderList(ideasOnly);const input=host.querySelector('[data-search]');input.focus();input.setSelectionRange(search.length,search.length);};
     host.querySelector('[data-field="filter"]').onchange=e=>{filter=e.target.value;renderList(ideasOnly);};
@@ -193,7 +218,7 @@ export function createProductSurface({api,normalizeChatSnapshot,formatTime,perfo
         if(a==='confirm-direct'){await api.productCommand('execute',{id:o.id,approved_digest:approved.approved_digest});clearDraft(o.id);if(isOwner(o))await reloadCurrent();return;}
         await loadChat();if(!isOwner(o))return;const scene=chat;scene.setDraft('我已核对并确认界面显示的接入方案。请读取 product_context 中的确认摘要，使用 product_execute 完成接入并核对结果；失败时保留步骤并说明恢复方法。');await scene.send();if(isOwner(o))await reloadCurrent();return;
       }
-      if(a==='new'){epoch++;current=null;chat=null;return navigate('idea-add');}
+      if(a==='new'){epoch++;current=null;chat=null;return navigate('idea-add','all');}
       if(a==='refresh'){const o=owner();await load(true);if(!isOwner(o))return;if(current)return reloadCurrent();return renderCurrent();}
       if(a==='detail')return open(current.id,'product-detail');
       if(a==='collaborate')return open(current.id,'idea-add');
@@ -217,8 +242,8 @@ export function createProductSurface({api,normalizeChatSnapshot,formatTime,perfo
   function renderToday() {
     const host=el('todayProductContinuity');if(!host)return;
     if(!isAuthenticated()){host.innerHTML='';return;}
-    const platform=getPlatform();const unread=(platform.product_workspaces||[]).filter(w=>Number(w.feedback_management?.unread_count)>0);
-    const pending=(snapshot.records||[]).filter(p=>p.kind==='temporary'||p.kind==='product'&&p.record.revision>0||p.kind==='formal'&&p.sync.status==='local');
+    const platform=getPlatform();const unread=(platform.product_workspaces||[]).filter(w=>inScope({remote_project_id:w.project_id||w.id})).filter(w=>Number(w.feedback_management?.unread_count)>0);
+    const pending=(snapshot.records||[]).filter(inScope).filter(p=>p.kind==='temporary'||p.kind==='product'&&p.record.revision>0||p.kind==='formal'&&p.sync.status==='local');
     host.innerHTML=`<div>${button('new','＋ 添加 Idea')}</div><div><strong>继续整理</strong>${pending.slice(0,5).map(p=>`<button type="button" data-resume="${esc(p.id)}">${esc(p.name)} · ${esc(label(p))}</button>`).join('')||'<span>没有未完成录入</span>'}</div><div><strong>反馈新消息</strong>${unread.map(w=>`<button type="button" data-feedback-project="${esc(w.project_id||w.id)}">${esc(w.name||w.project_name||'项目')} · ${Number(w.feedback_management.unread_count)} 条未读</button>`).join('')||'<span>查看 Feedback 来源消息</span>'}</div>`;
     bind(host);host.querySelectorAll('[data-resume]').forEach(b=>b.onclick=()=>action(()=>open(b.dataset.resume)));
     host.querySelectorAll('[data-feedback-project]').forEach(b=>b.onclick=()=>action(()=>navigate('feedback',b.dataset.feedbackProject)));
@@ -236,5 +261,5 @@ export function createProductSurface({api,normalizeChatSnapshot,formatTime,perfo
       }).catch(()=>{});
     },100);
   });
-  return {reset(){epoch++;current=null;chat=null;loaded=false;snapshot={ideas:[],records:[],projects:[],organizations:[],errors:[]};for(const id of ['productListHost','productDetailHost','ideaListHost','ideaEditor','ideaTranscript','todayProductContinuity'])el(id).innerHTML='';},async show(next){if(page!==next)epoch++;page=next;if(!isAuthenticated()||!api.productSnapshot)return;await load(!loaded||['product','idea'].includes(next));if(current && !snapshot.records.some(p=>p.id===current.id)){current=null;chat=null;}renderCurrent();if(next==='idea-add'&&current)await loadChat();},renderToday};
+  return {reset(){epoch++;contextKey='';scopeSelections.clear();current=null;chat=null;loaded=false;snapshot={ideas:[],records:[],projects:[],organizations:[],errors:[]};for(const id of ['productListHost','productDetailHost','ideaListHost','ideaEditor','ideaTranscript','todayProductContinuity'])el(id).innerHTML='';},async show(next){if(page!==next)epoch++;page=next;if(!isAuthenticated()||!api.productSnapshot)return;await load(!loaded||['product','idea'].includes(next));if(current && !snapshot.records.some(p=>p.id===current.id)){current=null;chat=null;}await scopeChanged(next==='product-detail');renderCurrent();if(page==='idea-add'&&current)await loadChat();},scopeChanged,renderToday};
 }

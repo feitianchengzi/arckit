@@ -55,6 +55,7 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     const ids = new Set(projects.map(p => p.id));
     return { account_scope:scope, user:work.user, projects, local_projects:local.map(({id,name})=>({id,name})), tasks:work.tasks.filter(task => ids.has(String(task.project_id))),
       runtime:{...runtime,queue:store.automation.enabled?runtime.queue:list(runtime.queue).filter(t=>store.automation.requested_tasks?.[t.id])}, scenes:Object.fromEntries(Object.entries(db.scenes).filter(([id])=>work.tasks.some(task=>String(task.id)===id)).map(([id,s])=>[id,{revision:s.revision,pause_requested:s.pause_requested}])),
+      global_runtime:Object.fromEntries(['enabled','queue_paused','queue','active_executions','attention_items','recovery_items'].map(key=>[key,runtime[key]])),
       source_status:work.source_status, synced_at:work.synced_at, realtime:work.realtime, errors:work.errors, settings:await runManager.getSettings() };
   }
   async function taskContext(taskId) {

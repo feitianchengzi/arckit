@@ -6,7 +6,7 @@
 | `setup-readiness/` | ✅ | 先校验全局受信资源，在无默认选择和无凭证管理的边界内恢复 Codex standalone 安装/更新与官方认证，再以可见项目写入摘要引导 skills 安装 | 全局检查、Codex 缺失/安装/更新、两级认证选择、官方登录与 status 复核、外部安装/活动任务阻断、项目安装计划、managed-stale 清理、执行中、项目已准备、升级迁移、阻塞恢复 |
 | `platform-workspace/` | ✅ | 通过四组主导航连接个人协作、产品全生命周期和组织能力，并让 Organization Project Detail 与 Feedback 承载各自真实处理行为 | Personal/Product/Product Lifecycle/Organization 导航、Workset 多选、组织概览、项目连接缺口、Feedback 主工作台与窄窗口收敛、转待办与仅重试关联、有限范围与部分失败 |
 | `today-workspace/` | 🟡 | 复用真实主导航，以项目栏、需要你处理/项目配置和来源操作台承载多项目执行前置与明确人工责任 | 添加项目、多项目并行配置、目录/Setup/本机 participation、Chat 权限、Automation 明确人工决定与执行恢复分离、Work 内容纠偏 Sheet 与服务器确认、编辑失败保留草稿/选择/阅读上下文、Work 评审/验收、验收问题原位直显与进展、跨对象部分成功、即时确认后移出、来源未知 |
-| `chat-workspace/` | ✅ | 完整可操作原型，分类导航在左、对话与 Composer 居中、会话列表在右；按 Product Workspace 分组浏览最近与历史会话，在首条消息前显式确认项目归属，并从 Composer 快速调整当前会话 Model/Level | 项目分组、每组最近 10 条、历史展开/收起、新对话项目切换、会话级 Model/Level、turn 配置固定、流式消息、工具/权限、停止、中断/失败恢复、删除确认、工作区阻塞与绑定 Sheet、个人中心、窄窗右抽屉；验证见 chat-workspace/verification.json，仅为本地模拟 |
+| `chat-workspace/` | ✅ | 完整可操作原型，分类导航在左、对话与 Composer 满宽、会话列表在右；按 Product Workspace 分组浏览最近与历史会话，在首条消息前显式确认项目归属，并从 Composer 快速调整当前会话 Model/Level | 项目分组、稳定排序、项目折叠、每组 5 条递增、侧栏调宽、输入调高、新对话项目切换、会话级 Model/Level、turn 配置固定、流式消息、工具/权限、停止、中断/失败恢复、删除确认、工作区阻塞与绑定 Sheet、个人中心、窄窗右抽屉；验证见 chat-workspace/verification.json，仅为本地模拟 |
 | `idea-workspace/` | ✅ | 探索和讨论产品创意，比较问题、用户、证据与风险，并在确认后预览正式项目转换 | 探索中、讨论中、已确认、团队观点、开始项目预览 |
 | `release-workspace/` | ✅ | 已有工作区的终端、Git、源码、任务与共享 Agent | 多项目范围、真实执行、冲突、过期写入、缺少工具、恢复 |
 | `operations-workspace/` | ✅ | 组织对外市场动作、渠道内容和效果信号，并把发现回流到产品生命周期 | 待发布、进行中、已复盘、示意信号、Idea/Work/Feedback 回流 |
@@ -23,6 +23,8 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 
 浅杏橙已采纳：#F4B77D 主操作、无深橙装饰描边、中性链接与选中文字；正式 project-workbench 消费共享 Token 和对应样式。来源：arckit/visual/_explorations/orange-tone/exploration.md。
 
-无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。
+无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和全局顶部同步时间戳。生产无标题栏与顶部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。
+
+| 全局顶部上下文 | ✅ | 所有主入口统一产品集与范围、同步、运行控制、反馈与设置；Chat/Thing/Product 对象和草稿恢复、空范围、窄窗菜单 | `_shared/verify-global-context.cjs` 实际原型验证；专项旧状态图不作为全局壳验证 |
 
 - 本机外观：CONVENTIONS.md → _shared/appearance.js 与 project-workbench/account-settings.js；共享设置消费者加载统一主题模拟。颜色来源为 visual/themes/light.yaml、dark.yaml。生产接入与旧页面全部状态的暗色覆盖尚未验证。

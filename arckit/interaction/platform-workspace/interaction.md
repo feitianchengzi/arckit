@@ -193,3 +193,7 @@ Feedback 按顶部产品集观察范围展示 Workshop 用户反馈，不展示�
 ## 事情台独立入口
 
 主导航在 Chat 旁新增“Thing”，链接到 `../project-workbench/default.html`；既有业务入口保持直接可达，不增加项目列表或事情分组导航，不改变默认启动路由。事情台的列表、详情、交流和成果体验由其页面策略维护。依据：用户 2026-09-17 的原型边界修正。
+
+## 全局上下文原型
+
+`default.html` 使用 `_shared/global-context.js`、`global-shell.js` 与 `context-pages.js`，连续演示 CONVENTIONS.md 定义的产品范围、对象选择、草稿和统一顶部能力；页面专项状态图保留在 `page-states.html`，其旧窗口壳仅作历史示意。原型保存及运行状态均为浏览器本地模拟，服务调用和页面专项深层操作的验证边界沿用各自说明。

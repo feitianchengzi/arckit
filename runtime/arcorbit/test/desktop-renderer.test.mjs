@@ -746,23 +746,23 @@ test("Chat project selector changes only the new draft owner and persisted sessi
     readFile(rendererHtmlPath, "utf8")
   ]);
 
-  assert.match(source, /els\.chatProjectSelect\.disabled = Boolean\(session\) \|\| chat\.snapshot\.projects\.length === 0;/);
+  assert.match(source, /els\.chatProjectSelect\.disabled = Boolean\(session\) \|\| chatProjectsInScope\(\)\.length === 0;/);
   assert.match(source, /chatStateCoordinator\.changeDraftWorkspace\(projectId\)/);
   assert.match(source, /const projectId = defaultChatDraftProject\(\)\?\.id \|\| ""/);
-  assert.match(source, /if \(session\) return chat\.snapshot\.projects\.find\(\(project\) => project\.id === session\.project_id\) \|\| null/);
+  assert.match(source, /projects.find\(p=>p.id===chat.owner.project_id\)/);
   assert.match(source, /session\.project_id\)}（不可用）/);
   assert.match(source, /els\.chatWorkspacePickerLabel\.textContent = session \? "固定归属" : "新对话属于"/);
   assert.match(html, /id="chatWorkspacePickerLabel">新对话属于/);
   assert.ok(html.indexOf('id="chatProjectSelect"') > html.indexOf('<header class="chat-header">'));
 });
 
-test("Chat Renderer groups all snapshot sessions by Product Workspace with bounded inline history", async () => {
+test("Chat Renderer groups scoped sessions by Product Workspace with bounded inline history", async () => {
   const [source, styles] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererStylesPath, "utf8")
   ]);
 
-  assert.match(source, /groupChatSessions\(\{ sessions: chat\.snapshot\.sessions, projects: chat\.snapshot\.projects \}\)/);
+  assert.match(source, /groupChatSessions\(\{ sessions: chat\.snapshot\.sessions.filter/);
   assert.match(source, /limit: chatProjectLimits\.get/);
   assert.match(source, /查看更多（剩余 \$\{visibility\.hidden_count\} 个）/);
   assert.match(source, /data-chat-history-project-id/);
@@ -851,7 +851,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(html, /data-page-view="work"/);
   assert.match(html, /data-page-view="feedback"/);
   assert.match(html, /id="worksetSelect"/);
-  assert.match(html, /不受当前产品集过滤/);
+  assert.match(html, /项目遵循顶部产品范围/);
   assert.match(source, /page: "command"/);
   assert.match(source, /api\.platformSnapshot/);
   assert.match(source, /api\.setActiveWorkset/);
@@ -1045,7 +1045,8 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   assert.match(source, /createReleaseSurface/);
   assert.match(html, /id="releaseView"[^>]+data-page-view="release"/);
   assert.match(html, /PRODUCT LIFECYCLE · OPERATIONS/);
-  assert.match(html, /Operations 是“运营”的统一英文入口/);
+  assert.match(html, /id="operationsScope"/);
+  assert.match(html, /id="operationsEmpty"/);
   assert.match(source, /createEngineeringSurface/);
   assert.match(html, /id="engineeringView"[^>]+data-page-view="engineering"/);
   assert.match(html, /id="chatSkillsButton"/);
@@ -1054,7 +1055,8 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   assert.doesNotMatch(html, /data-page-view="state"|data-page-view="skills"/);
   assert.doesNotMatch(html, /using-arckit|using-arckit|Trusted entrypoints/);
   assert.match(html, /id="ideaBlank"/);
-  assert.match(html, /PLAN VIEW · 不调用外部平台/);
+  assert.match(html, /运营记录/);
+  assert.match(html, /尚未接入，不调用外部平台/);
   assert.doesNotMatch(html, /data-plan-action|id="createIdeaButton"|id="publishReleaseButton"/);
   assert.match(source, /\["organization", "engineering"\]\.includes\(state\.page\)/);
   assert.match(source, /"idea-add": "添加 Idea", idea: "Idea"/);
@@ -2345,8 +2347,8 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(source, /补充说明并继续/);
   assert.match(source, /data-recovery-feedback/);
   assert.match(source, /openWorkbench\("review"\)/);
-  assert.match(html, /id="automationRefreshButton"[^>]*>立即同步<\/button>/);
-  assert.match(source, /automationRefreshButton\.addEventListener\("click", \(\) => runAction\(syncAutomationNow\)\)/);
+  assert.match(html, /id="syncButton"/);
+  assert.match(source, /syncButton\.addEventListener\("click", \(\) => runAction\(syncAutomationNow\)\)/);
   assert.match(main, /syncTimer = setInterval[\s\S]+15 \* 60_000/);
   assert.doesNotMatch(main, /fallbackSyncTimer/);
   assert.doesNotMatch(preload, /fetch|httpRequest|requestUrl/);

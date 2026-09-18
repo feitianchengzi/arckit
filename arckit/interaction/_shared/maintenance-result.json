@@ -1,0 +1,446 @@
+{
+  "document_scope": {
+    "scope_kind": "change",
+    "root": "arckit/interaction/",
+    "created": [
+      {
+        "path": "_map/global-context-verification.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "_shared/context-pages.js",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "_shared/global-context-verification.json",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "_shared/global-context.css",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "_shared/global-context.js",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "_shared/global-shell.js",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "_shared/verify-global-context.cjs",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "automation-workspace/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "engineering-profile/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "idea-add/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "idea-workspace/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "operations-workspace/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "platform-workspace/governance-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "platform-workspace/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "product-detail/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "product-feedback-center/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "product-list/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "release-workspace/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "task-browser/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      },
+      {
+        "path": "today-workspace/page-states.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "全局上下文原型资源或保留的专项辅助状态图"
+      }
+    ],
+    "updated": [
+      {
+        "path": "CONVENTIONS.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "INDEX.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "_map/RELATIONS.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "_map/feature-matrix.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "automation-workspace/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "automation-workspace/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "chat-workspace/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "chat-workspace/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "chat-workspace/model.js",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "chat-workspace/views.js",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "engineering-profile/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "engineering-profile/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "idea-add/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "idea-add/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "idea-workspace/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "idea-workspace/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "operations-workspace/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "operations-workspace/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "platform-workspace/collaboration-views.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "platform-workspace/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "platform-workspace/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "product-detail/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "product-detail/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "product-feedback-center/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "product-feedback-center/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "product-list/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "product-list/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "project-workbench/app.js",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "project-workbench/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "project-workbench/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "project-workbench/model.js",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "project-workbench/verify.cjs",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "release-workspace/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "release-workspace/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "task-browser/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "task-browser/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "today-workspace/default.html",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      },
+      {
+        "path": "today-workspace/interaction.md",
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "接入共享顶部上下文并同步说明或验证"
+      }
+    ],
+    "deleted": [],
+    "reorganized": [
+      {
+        "from_paths": [
+          "operations-workspace/default.html"
+        ],
+        "to_paths": [
+          "operations-workspace/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "engineering-profile/default.html"
+        ],
+        "to_paths": [
+          "engineering-profile/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "platform-workspace/default.html"
+        ],
+        "to_paths": [
+          "platform-workspace/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "product-detail/default.html"
+        ],
+        "to_paths": [
+          "product-detail/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "release-workspace/default.html"
+        ],
+        "to_paths": [
+          "release-workspace/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "task-browser/default.html"
+        ],
+        "to_paths": [
+          "task-browser/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "today-workspace/default.html"
+        ],
+        "to_paths": [
+          "today-workspace/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "idea-workspace/default.html"
+        ],
+        "to_paths": [
+          "idea-workspace/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "idea-add/default.html"
+        ],
+        "to_paths": [
+          "idea-add/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "product-feedback-center/default.html"
+        ],
+        "to_paths": [
+          "product-feedback-center/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "automation-workspace/default.html"
+        ],
+        "to_paths": [
+          "automation-workspace/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      },
+      {
+        "from_paths": [
+          "product-list/default.html"
+        ],
+        "to_paths": [
+          "product-list/page-states.html"
+        ],
+        "source_basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "summary": "专项静态图移为辅助，主入口使用可操作共享上下文"
+      }
+    ]
+  },
+  "fact_result": {
+    "schema_version": "arckit-fact-result/v2",
+    "mode": "managed_case",
+    "case_id": "CASE-20260918-002",
+    "gap_id": "GAP-20260918-002-001",
+    "outcome": "updated",
+    "facts": [
+      {
+        "statement": "主页面原型呈现同一全局范围、同步和运行能力，Chat、Thing 与 Product 对象及草稿恢复通过本地浏览器验证。",
+        "basis": "用户授权补齐统一顶部交互原型；CONVENTIONS.md 的已接受全局上下文规则",
+        "source_refs": [
+          "arckit/interaction/CONVENTIONS.md"
+        ],
+        "evidence": [
+          "arckit/interaction/_shared/global-context-verification.json",
+          "arckit/interaction/_map/global-context-verification.md"
+        ]
+      }
+    ],
+    "unresolved": [],
+    "human_decision_required": false
+  },
+  "exploration_result": null
+}

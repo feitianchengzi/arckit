@@ -232,10 +232,11 @@ export function deriveTodayWorkspace({
   chat = {},
   feedbackLinkRecoveries = {},
   selectedProjectId = "all",
+  projectScopeIds = null,
   selectedMode = "",
   selectedItemId = ""
 } = {}) {
-  const allProjects = mergeProjects(platform).map((project) => ({
+  const allProjects = mergeProjects(platform).filter(project=>!projectScopeIds || projectScopeIds.includes(text(project.id))).map((project) => ({
     ...project,
     current_user_id: project.current_user_id || platform.user?.id || ""
   }));
@@ -246,7 +247,7 @@ export function deriveTodayWorkspace({
     ...workReplacementInterventions(platform.task_replacements || []),
     ...workInterventions(platform.today_tasks || platform.tasks || automation.tasks || [], projectIndex),
     ...feedbackInterventions(feedbackLinkRecoveries)
-  ]);
+  ]).filter(item=>!projectScopeIds || projectScopeIds.includes(sourceProjectId(item)));
   const hasExplicitTodayScope = Array.isArray(platform.today_project_ids);
   const configuredProjectIds = new Set(hasExplicitTodayScope ? platform.today_project_ids.map(text) : allProjects.map((project) => project.id));
   const visibleProjectIds = new Set([

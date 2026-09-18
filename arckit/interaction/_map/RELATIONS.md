@@ -12,7 +12,7 @@ Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-pla
 
 Today 不重新定义来源状态机，但在本页内直接承载来源声明的人工作业面：项目目录与 Setup Readiness 提供目录、项目能力和本机 participation 操作；Chat 提供 waiting_approval；Automation 提供 human handoff、external dependency 和 Recovery Center；Work 提供不依赖 Workset 辅助目录的内容纠偏 Sheet、pending_review、completed、blocked 与跨产品移动恢复，所有修改仍走 Work-owned 服务器确认路径；Feedback 提供已创建 Task 的仅重试关联。Automation 的复杂责任项在 Today 操作台中投影从自动执行到人再回到同一 task session/thread/Case 的有界接力时间线，不复制完整运行日志。
 
-Workset 不裁剪 Today 的人工责任范围。每个项目独立计算可访问、本地目录、项目 Setup 和当前用户当前设备 Automation participation 四项完成事实；一个项目的配置阻塞不影响其他 ready 项目检查、运行或进入 Work。新建待办不属于 Today，任意项目 ready 后只提供前往 Work 新建待办的跨页引导。当前用户可直接选择本机 participation，该选择不修改组织角色、项目成员、其他用户或其他设备。
+Workset 与顶部产品选择共同限定 Today 的人工责任观察范围。每个项目独立计算可访问、本地目录、项目 Setup 和当前用户当前设备 Automation participation 四项完成事实；一个项目的配置阻塞不影响其他 ready 项目检查、运行或进入 Work。新建待办不属于 Today，任意项目 ready 后只提供前往 Work 新建待办的跨页引导。当前用户可直接选择本机 participation，该选择不修改组织角色、项目成员、其他用户或其他设备。
 
 来源确认后，操作台原地展示即时结果，对象随即移出 Today 并选择相邻责任项；Today 不保存已完成操作历史，完整历史和审计继续归属来源页面。
 
@@ -81,7 +81,7 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 - 视觉输入：arckit/visual/_library/brief.md、design-tokens.yaml、component-catalog.yaml、state-contract.md 与 themes/light.yaml；入口直接消费 generated-tokens.css。重建命令见 project-workbench/README.md。
 - 采纳记录：_explorations/project-workbench-v2/exploration.md；采纳前稿保留在 options/original/，使用独立存储与旧视觉。正式升级不回写候选样本。
 - 其他探索：unified-work-exploration、product-continuity-concept、release-workbench；仅迁移，不改变正式页面覆盖状态。
-- 平台主导航在 PERSONAL 的 Chat 旁新增独立 Thing 入口，恢复 PERSONAL / PRODUCT / PRODUCT LIFECYCLE / ORGANIZATION 分类；事情台侧栏直接呈现各业务页面，不再承担项目列表、关注分组和资源导航。窄窗页面导航菜单保留所有目的地；其他页面原型在独立标签页打开，当前事情与草稿保留。生产路由与 spec/tech 中旧主体入口描述尚待后续同步。
+- 平台主导航在 PERSONAL 的 Chat 旁新增独立 Thing 入口，恢复 PERSONAL / PRODUCT / PRODUCT LIFECYCLE / ORGANIZATION 分类；事情台侧栏直接呈现各业务页面，不再承担项目列表、关注分组和资源导航。窄窗页面导航菜单保留所有目的地；其他主页面原型在同一标签页打开，沿用全局范围并按对象保留草稿。生产路由与共享上下文已同步。
 - 异常场景：project-workbench/scenarios.html → default.html?autoplay=off&scenarioTools=on，场景存储与正式原型隔离，禁止真实服务连接。
 - 历史 intake/Case 中的 runtime/arcorbit/design 路径作为原始证据保留；当前地址从 _explorations/migration-baseline.json 的 moves 映射定位。当前 spec 入口已指向正式目录。
 - Renderer 尚未消费本轮视觉应用与本地异常演示代码；此迁移不代表生产界面同步完成。
@@ -98,6 +98,14 @@ chat-workspace/default.html 已迁移为分类应用导航、中央对话与右�
 
 验证：chat-workspace/verification.json；共用导航回归：project-workbench/verification-states.json。生产 Chat renderer 与产品规格中的旧左右栏描述尚未迁移，本轮不宣称生产同步。
 
-无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。
+无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和全局顶部同步时间戳。生产无标题栏与顶部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。
+
+- 全局顶部上下文：interaction/CONVENTIONS.md → visual/_library/brief.md、design-tokens.yaml → runtime/arcorbit/desktop/renderer/global-context.*；Chat、Thing、Product、Today 消费共享范围。生产验证见 interaction/_map/global-context-verification.md。
+
+## 全局顶部原型
+
+所有主入口共用 `_shared/global-context.js` 与 `global-shell.js`。Chat、Thing 通过原有模型接入；其余入口由 `context-pages.js` 提供范围及对象恢复路径，原静态状态图迁入页面内 `page-states.html`（组织治理为 `governance-states.html`）。这些辅助图保留专项行为说明，旧窗口壳不再定义全局顶部。验证见 `_shared/global-context-verification.json`。
 
 - 本机外观：CONVENTIONS.md → _shared/appearance.js 与 project-workbench/account-settings.js；共享设置消费者加载统一主题模拟。颜色来源为 visual/themes/light.yaml、dark.yaml。生产接入与旧页面全部状态的暗色覆盖尚未验证。
+
+Chat 的会话列表稳定定位、五条递增与折叠重置，以及双向尺寸调整和配置下拉选择，由 chat-workspace 原型与 ArcOrbit Chat renderer 共同维护；布局偏好不改变会话或 turn 生命周期。
