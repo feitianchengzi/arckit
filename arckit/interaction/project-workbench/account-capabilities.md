@@ -43,3 +43,7 @@ Thing 左下角完整个人中心按钮打开“账户与 Runtime”模态弹出
 `scenarios.html` 可触达账户过期、清单不可用、离线、下一次提交失败及恢复；切换场景不替换个人中心中未提交的输入。重置样本后可重新体验。
 
 `verify-account.cjs` 从生产 HTML 提取设置区全部带 ID 的 input/select/button，检查原型中 26 个对应控件均存在；实际操作两种认证类型、三种任务源模式、两类保存、失败恢复、退出确认、模型清单、焦点和窄窗。报告见 `verification-account.json`。该验证只证明原型覆盖与模拟行为，不证明生产服务可用。
+
+## 外观
+
+设置内的外观选择遵循 ../CONVENTIONS.md 的本机外观契约；选择立即生效并独立保存，不提交账户和 Codex 表单草稿。使用 visual/themes/dark.yaml 与 light.yaml。原型以独立 localStorage 保存模拟偏好，系统模式读取浏览器媒体查询；保存失败恢复原值并显示错误。生产由本机偏好 owner 维护，原型存储不复用生产键。

@@ -69,6 +69,9 @@ def build():
     pairs += [('colors.accent.on','colors.accent.'+s,4.5) for s in ('base','hover','pressed')]
     pairs += [('colors.'+x+'.'+f,'colors.'+x+'.soft',4.5) for x,f in [('success','base'),('accepted','base'),('warning','strong'),('danger','base'),('info','base'),('accent','strong')]]
     pairs += [('colors.ink.600','colors.ink.100',4.5),('colors.paper','colors.danger.base',4.5),('semantic.disabled_text','semantic.disabled_bg',4.5)]
+    pairs += [('semantic.text','semantic.elevated',4.5),('semantic.muted','semantic.canvas',4.5),
+              ('semantic.muted','semantic.elevated',4.5),('semantic.focus','semantic.elevated',3),
+              ('semantic.control_border','semantic.elevated',3),('semantic.nav_text','semantic.nav_selected',4.5)]
     results=[]
     for theme,vals in themes.items():
         for fg,bg,threshold in pairs:

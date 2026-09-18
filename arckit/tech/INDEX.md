@@ -3,7 +3,7 @@
 ✅ 已采用 | 🔬 调研中 | 📋 调研完成 | ❌ 已废弃 | ⚪ 待定
 
 - arcorbit/ ArcOrbit：Runtime Kernel、workspace lane 并行与项目内串行、持久单 thread、交互式 CLI 接力、Gate 与自动账本回写。✅
-  - solution.md ArcOrbit 技术方案：定义 Desktop State Kernel、分层状态所有权、无标题栏及受限窗口 IPC、认证、Work-owned Task Source、workspace 仲裁与 trusted ledger。✅ (472行)
+  - solution.md ArcOrbit 技术方案：定义 Desktop State Kernel、分层状态所有权、无标题栏、主题偏好及受限窗口 IPC、认证、Work-owned Task Source、workspace 仲裁与 trusted ledger。✅ (480行)
   - scene-skills-solution.md 内置 Skills 管理：可信 inventory、受限 mutation、场景绑定与 Codex 原生用户 Skills 隔离。✅ (56行)
   - installer-supply-chain.md ArcOrbit 安装包供应链：定义 Codex inventory、owner adapters、安装建议、来源感知更新、代理、官方认证与供应链回滚。✅ (447行)
   - state-condition-ledger-solution.md Software Definition Ledger：定义 Project/Case 与场景边界、Gap 选择语义承载、stable candidate identity、invariant assessment、Transition v8 与 Closeout v2。✅ (328行)

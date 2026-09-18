@@ -117,12 +117,13 @@ window.visualData = {
     "layer.dialog": 40
   },
   "themes": [
+    "dark",
     "legacy-mixed",
     "light"
   ],
   "components": {
     "AppShell": {
-      "role": "建立浅色事情台与兼容控制台外壳；业务内容的优先级保持一致",
+      "role": "建立明暗事情台与兼容控制台外壳；业务内容的优先级保持一致",
       "variants": {
         "project_workbench": {
           "sidebar": "{semantic.sidebar}",
@@ -1071,6 +1072,181 @@ window.visualData = {
   },
   "contrast": [
     {
+      "theme": "dark",
+      "foreground": "semantic.text",
+      "background": "semantic.canvas",
+      "ratio": 14.64,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.muted",
+      "background": "colors.ink.50",
+      "ratio": 8.23,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.nav_text",
+      "background": "semantic.sidebar",
+      "ratio": 9.48,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.nav_selected_text",
+      "background": "semantic.nav_selected",
+      "ratio": 11.21,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.control_border",
+      "background": "semantic.canvas",
+      "ratio": 4.57,
+      "minimum": 3
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.focus",
+      "background": "semantic.canvas",
+      "ratio": 9.82,
+      "minimum": 3
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.focus",
+      "background": "semantic.sidebar",
+      "ratio": 10.17,
+      "minimum": 3
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.accent.on",
+      "background": "colors.accent.base",
+      "ratio": 7.79,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.accent.on",
+      "background": "colors.accent.hover",
+      "ratio": 7.05,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.accent.on",
+      "background": "colors.accent.pressed",
+      "ratio": 6.3,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.success.base",
+      "background": "colors.success.soft",
+      "ratio": 7.51,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.accepted.base",
+      "background": "colors.accepted.soft",
+      "ratio": 7.09,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.warning.strong",
+      "background": "colors.warning.soft",
+      "ratio": 7.92,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.danger.base",
+      "background": "colors.danger.soft",
+      "ratio": 6.55,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.info.base",
+      "background": "colors.info.soft",
+      "ratio": 6.78,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.accent.strong",
+      "background": "colors.accent.soft",
+      "ratio": 7.52,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.ink.600",
+      "background": "colors.ink.100",
+      "ratio": 6.82,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "colors.paper",
+      "background": "colors.danger.base",
+      "ratio": 8.24,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.disabled_text",
+      "background": "semantic.disabled_bg",
+      "ratio": 6.82,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.text",
+      "background": "semantic.elevated",
+      "ratio": 12.25,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.muted",
+      "background": "semantic.canvas",
+      "ratio": 9.15,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.muted",
+      "background": "semantic.elevated",
+      "ratio": 7.65,
+      "minimum": 4.5
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.focus",
+      "background": "semantic.elevated",
+      "ratio": 8.21,
+      "minimum": 3
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.control_border",
+      "background": "semantic.elevated",
+      "ratio": 3.82,
+      "minimum": 3
+    },
+    {
+      "theme": "dark",
+      "foreground": "semantic.nav_text",
+      "background": "semantic.nav_selected",
+      "ratio": 7.0,
+      "minimum": 4.5
+    },
+    {
       "theme": "legacy-mixed",
       "foreground": "semantic.text",
       "background": "semantic.canvas",
@@ -1204,6 +1380,48 @@ window.visualData = {
       "minimum": 4.5
     },
     {
+      "theme": "legacy-mixed",
+      "foreground": "semantic.text",
+      "background": "semantic.elevated",
+      "ratio": 17.93,
+      "minimum": 4.5
+    },
+    {
+      "theme": "legacy-mixed",
+      "foreground": "semantic.muted",
+      "background": "semantic.canvas",
+      "ratio": 7.89,
+      "minimum": 4.5
+    },
+    {
+      "theme": "legacy-mixed",
+      "foreground": "semantic.muted",
+      "background": "semantic.elevated",
+      "ratio": 7.89,
+      "minimum": 4.5
+    },
+    {
+      "theme": "legacy-mixed",
+      "foreground": "semantic.focus",
+      "background": "semantic.elevated",
+      "ratio": 4.64,
+      "minimum": 3
+    },
+    {
+      "theme": "legacy-mixed",
+      "foreground": "semantic.control_border",
+      "background": "semantic.elevated",
+      "ratio": 3.79,
+      "minimum": 3
+    },
+    {
+      "theme": "legacy-mixed",
+      "foreground": "semantic.nav_text",
+      "background": "semantic.nav_selected",
+      "ratio": 8.23,
+      "minimum": 4.5
+    },
+    {
       "theme": "light",
       "foreground": "semantic.text",
       "background": "semantic.canvas",
@@ -1334,6 +1552,48 @@ window.visualData = {
       "foreground": "semantic.disabled_text",
       "background": "semantic.disabled_bg",
       "ratio": 5.42,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "foreground": "semantic.text",
+      "background": "semantic.elevated",
+      "ratio": 17.93,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "foreground": "semantic.muted",
+      "background": "semantic.canvas",
+      "ratio": 7.89,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "foreground": "semantic.muted",
+      "background": "semantic.elevated",
+      "ratio": 7.89,
+      "minimum": 4.5
+    },
+    {
+      "theme": "light",
+      "foreground": "semantic.focus",
+      "background": "semantic.elevated",
+      "ratio": 5.53,
+      "minimum": 3
+    },
+    {
+      "theme": "light",
+      "foreground": "semantic.control_border",
+      "background": "semantic.elevated",
+      "ratio": 3.79,
+      "minimum": 3
+    },
+    {
+      "theme": "light",
+      "foreground": "semantic.nav_text",
+      "background": "semantic.nav_selected",
+      "ratio": 7.27,
       "minimum": 4.5
     }
   ]

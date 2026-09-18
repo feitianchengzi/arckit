@@ -1,7 +1,8 @@
+import { createAppearance, appearanceBackground, registerAppearanceIpc } from '../src/desktop/appearance.mjs';
 import { createSoftwareCapabilities } from '../src/workbench/software-capabilities.mjs';
 import { createProjectWorkbench } from '../src/workbench/coordinator.mjs';
 import { createWorkbenchAgentBridge } from '../src/workbench/agent-bridge.mjs';
-import { app, BrowserWindow, dialog, ipcMain, powerMonitor, session, shell, utilityProcess, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, powerMonitor, session, shell, utilityProcess, WebContentsView } from "electron";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -64,6 +65,7 @@ if (rendererLoadSmoke && rendererSmokeUserData) {
 }
 
 let mainWindow;
+let appearance;
 let runManager;
 let automationCoordinator;
 let chatCoordinator;
@@ -88,6 +90,13 @@ let automationStarted = false;
 let stopObservingMainWindowState = () => {};
 
 app.whenReady().then(async () => {
+  appearance = await createAppearance({ path: join(app.getPath("userData"), "appearance.json"), nativeTheme });
+  appearance.subscribe(snapshot => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setBackgroundColor(appearanceBackground(snapshot));
+      mainWindow.webContents.send("arckit:appearance-changed", snapshot);
+    }
+  });
   const codexExecutableResolver = createCodexExecutableResolver();
   const runtimeHost = createElectronUtilityRuntimeHost(utilityProcess);
   if (process.argv.includes("--runtime-host-smoke")) {
@@ -323,6 +332,7 @@ app.whenReady().then(async () => {
   });
   skillProvisioningManager.onEvent(() => publishSetupReadiness());
   codexSetupManager.onEvent(() => publishSetupReadiness());
+  registerAppearanceIpc({ ipcMain, appearance, getWindow: () => mainWindow });
   registerIpc();
   await runManager.warmRunSummaryIndex({ limit: 20 });
   await createWindow({ show: !rendererLoadSmoke });
@@ -423,14 +433,14 @@ app.on("activate", () => {
 
 async function createWindow({ show = true } = {}) {
   mainWindow = new BrowserWindow({
-    show,
+    show: false,
     ...mainWindowChromeOptions(process.platform),
     width: 1280,
     height: 820,
     minWidth: 1040,
     minHeight: 700,
     title: "ArcOrbit",
-    backgroundColor: "#f7f8fa",
+    backgroundColor: appearanceBackground(appearance.snapshot()),
     webPreferences: {
       preload: join(desktopDir, "preload.cjs"),
       contextIsolation: true,
@@ -451,6 +461,7 @@ async function createWindow({ show = true } = {}) {
     mainWindow = null;
   });
   await mainWindow.loadFile(rendererEntry);
+  if (show) mainWindow.show();
 }
 
 async function runRendererLoadSmoke() {
@@ -458,9 +469,11 @@ async function runRendererLoadSmoke() {
     title: document.title,
     preload_api: Boolean(window.arckitDesktop?.getSetupReadiness),
     setup_surface: Boolean(document.getElementById("setupReadiness")),
+    theme: document.documentElement.dataset.theme,
+    appearance_preload: window.arckitDesktop?.initialAppearance,
     stylesheet_count: document.styleSheets.length
   })`);
-  if (snapshot.title !== "ArcOrbit" || !snapshot.preload_api || !snapshot.setup_surface || snapshot.stylesheet_count < 1) {
+  if (snapshot.title !== "ArcOrbit" || !snapshot.preload_api || !snapshot.setup_surface || snapshot.stylesheet_count < 1 || snapshot.theme !== appearance.snapshot().resolved || snapshot.appearance_preload?.preference !== appearance.snapshot().preference) {
     throw new Error(`Packaged Renderer load smoke failed: ${JSON.stringify(snapshot)}`);
   }
   process.stdout.write(`${JSON.stringify({ schema_version: "arcorbit-renderer-load-smoke/v1", status: "passed", ...snapshot })}\n`);

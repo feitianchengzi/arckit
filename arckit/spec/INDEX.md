@@ -4,7 +4,7 @@
 
 - arckit-skill-system.md Arckit 技能系统：定义分发能力、默认单包双接口 Runtime policy、原生 Agent skill invocation 和事实边界。🟡 (84行)
 - licensing-and-commercial-use.md Arckit 与 ArcOrbit 许可及商业使用：定义 Apache-2.0、PolyForm Perimeter、商业授权、商标和中英文分发声明边界。🟢 (74行)
-- arcorbit-distribution.md ArcOrbit 分发与安装：定义 Codex installation inventory、来源感知安装/更新、代理恢复、Chat/Automation 独立 Model/Level 默认值与 Chat 会话级选择、私有 catalog 与场景技能、Setup Readiness 与签名边界。🟡 (217行)
+- arcorbit-distribution.md ArcOrbit 分发与安装及本机外观：定义 Codex installation inventory、来源感知安装/更新、代理恢复、Chat/Automation 独立 Model/Level 默认值与 Chat 会话级选择、私有 catalog 与场景技能、Setup Readiness 与签名边界。🟡 (223行)
 - agentic-software-development/ Agent 软件研发协议层：定义 Arckit 面向人类、Codex 类 Agent 和多 Agent 自动化平台的软件研发协作与接力协议。⚪
   - problem-background.md 问题背景：AI 时代软件研发变化、多 Agent 自动化平台、人类接手、prompt 局限、Agent 限制和根问题。⚪ (129行)
   - solution-principles.md 解决思路：从背景推导协作接力、双运行形态、语义材料、阶段区分、多事实源、低承诺沉淀、人类接手和工作方式演化原则。⚪ (119行)

@@ -4,7 +4,7 @@ metadata:
   state_contract: ../state-contract.md
 components:
   AppShell:
-    role: 建立浅色事情台与兼容控制台外壳；业务内容的优先级保持一致
+    role: 建立明暗事情台与兼容控制台外壳；业务内容的优先级保持一致
     variants:
       project_workbench: { sidebar: "{semantic.sidebar}", workspace: "{semantic.canvas}", topbar: "{layout.workbench_topbar_height}", legacy_commandbar: hidden }
       command_center: { sidebar: "{semantic.sidebar}", workspace: "{colors.ink.75}" }

@@ -111,3 +111,6 @@
   - verification-states.json 异常与恢复实际验证结果。✅ (17行)
 
 - _explorations/INDEX.md 探索索引：迁入四组原稿，V2 采纳记录与完整迁移映射；其余候选保持独立。 (21行)
+
+  - appearance.js 本机外观三选项、系统模式与隔离偏好模拟。
+  - verify-appearance.cjs 明暗主题、系统变化、偏好失败恢复与共享设置入口验证。

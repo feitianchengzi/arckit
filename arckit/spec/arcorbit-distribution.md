@@ -215,3 +215,9 @@ Runtime trusted ledger 仍从应用可信能力资源调用；Agent 从场景 bi
 - ArcOrbit 不访问 Codex 凭证文件；API Key 和 Access Token 只进入受控子进程 stdin，不出现在命令参数、日志、错误、普通配置或共享 Renderer state。
 - Setup Readiness 只有在 Codex executable、版本、认证和其它全局/项目检查全部通过时投影 `ready`；Codex 与 Workshop 登录状态保持独立。
 - 构建产物可以追溯到 Runtime commit、Arckit payload commit、ArcForge provider 版本、manifest digest、构建 run 和 release intent tag。
+
+## Desktop 外观
+
+ArcOrbit 支持跟随系统、浅色、深色三种本机外观选项，默认跟随系统。用户在设置中选择后立即生效并独立保存；离线与未登录均可用，不依赖同步成功。偏好不上传、不跟随项目或账户变化，重启后恢复。保存失败恢复原选择并提供重试提示。
+
+系统外观变化只影响跟随系统模式。主题切换不重载页面、不丢弃输入或选择、不打断运行；首个可见窗口内容采用当前有效主题。完整覆盖与例外见 visual/_library/brief.md，交互规则见 interaction/CONVENTIONS.md。验收覆盖三选项、系统变化、重启恢复、保存失败、主页面与浮层可读性、键盘焦点及亮色回归；规范与原型不能替代生产验证。

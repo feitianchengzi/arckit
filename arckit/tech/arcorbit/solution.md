@@ -470,3 +470,11 @@ ArcOrbit 满足方案时表现为：
 - 能把同一活动任务从 Runtime 安全交给用户可参与的交互式 Codex CLI，并以 canonical Case State 而非旧 Run 或终端退出状态完成恢复对账。
 - 能只在 Agent handoff 明确声明 human responsibility 时暂停自动执行，external wait 与结构恢复分别保持独立状态。
 - 能在不改 agent core 的情况下先接 Codex app-server，并保留 opencode、多 agent adapter 的扩展边界。
+
+## Desktop 外观边界
+
+主题偏好由 Electron main 的本机偏好 owner 持久维护，值限 system / light / dark，缺省或非法存量值归一化为 system。主题更新使用独立受限接口，不复用会触发任务源同步的整表单提交；无关设置保存、登录和退出不清除外观偏好。写入成功才发布新状态，失败保留旧值；连续更新按序处理。
+
+main 解析系统外观与偏好，统一原生控件外观和窗口背景；Renderer 接收解析后的 light / dark，应用根元素 data-theme 与 color-scheme，在显示工作面前完成初始化。系统变化仅重算 system 模式并通知已打开的主窗口；更新不重建页面或业务状态。预览原型使用隔离浏览器存储，仅表达行为，不作为生产 owner。
+
+主题来源为 visual/themes/*.yaml，由既有 build-preview.py 与 sync-visual-tokens.mjs 生成、随包分发；生产不读取仓库设计目录。主题值仅影响展示，不进入 Project/Case、Runtime、任务授权或服务器设置。终端保持独立深色阅读面，图片与外部内容不做 CSS 反色。生产验收包含首次显示、系统变化、显式覆盖、重启、失败恢复与草稿连续性。

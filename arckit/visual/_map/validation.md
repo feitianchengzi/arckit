@@ -104,3 +104,12 @@ fact_result:
 - JavaScript 语法与 Token 同步检查通过；临时截图位于运行环境的 /tmp/arcorbit-production-visual，不加入版本库。
 
 限制：安装引导 Electron 测试的 Codex 探测结果全量对象比较失败，因实际结果新增 discovered、executionScope、installAdvice 等字段。使用提交 00122c4 的独立临时副本复测，同样失败；本轮未修改相关探测逻辑或放宽断言。此次浏览器检查使用隔离数据，不代表真实登录、远程业务执行或安装包验收。
+
+## 暗色主题约定与原型验证（2026-09-18）
+
+用户要求 ArcOrbit 暗黑模式；沿用已接受品牌与密度，dark.yaml 定义完整主题消费值。跟随系统/浅色/深色、生效与失败恢复分别由交互和产品规格维护。未宣称用户已审美验收。
+
+- `python3 arckit/visual/_library/build-preview.py --check`：21 组件、三主题共 75 项对比度检查，包含浮层文字、边界与焦点；生成文件一致。
+- `runtime/arcorbit/node_modules/.bin/electron arckit/interaction/_shared/verify-appearance.cjs`：三选项、系统变化/显式覆盖、重新加载、非法值回退、失败恢复、草稿/焦点/任务样本保留通过；全部 15 个共享设置消费者加载和打开外观正常。组件三主题和 Thing 设置在 1440/760/390px 无页面溢出，控制台错误 0。
+- 已实际查看 `dark-mode/components-dark.png` 和 `dark-mode/settings-dark.png`；记录见 `dark-mode/verification.json`。截图是规范投影证据，不代表用户审美认可。
+- 未验证生产持久化、主进程原生主题、首次窗口显示、生产页面和真实服务；共享消费者仅检查加载及设置入口，未穷尽业务状态。生产接入由 CASE-20260918-004 的实现 Gap 承接。

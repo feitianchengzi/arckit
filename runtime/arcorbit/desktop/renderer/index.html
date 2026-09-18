@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ArcOrbit</title>
+    <script src="./appearance.js"></script>
     <link rel="stylesheet" href="./visual-tokens.css">
     <link rel="stylesheet" href="./styles.css">
     <link rel="stylesheet" href="./product.css">
@@ -329,6 +330,7 @@
           <button id="closeSettingsButton" class="icon-button" type="button" aria-label="关闭设置">×</button>
         </div>
         <div class="settings-sections">
+          <section class="appearance-settings-section"><h3>外观</h3><label class="field"><span>主题</span><select id="appearanceTheme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><p class="settings-lead">立即生效，仅保存在此设备。</p><p id="appearanceFeedback" role="status" aria-live="polite"></p></section>
           <section class="codex-settings-section workbench-only"><h3>工作空间</h3><div class="pw-settings-actions"><button id="workbenchSyncSettings" class="secondary-button" type="button">同步项目与事情</button><button id="workbenchFeedbackSettings" class="secondary-button" type="button">产品反馈</button></div></section>
           <section class="account-settings-section">
             <h3>Workshop 账户</h3>
