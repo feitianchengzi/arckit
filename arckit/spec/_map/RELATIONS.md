@@ -14,6 +14,8 @@
 
 ## Agent 软件研发操作层
 
+`agentic-software-development/loop-and-gap-design-intent.md` 是用户关于 State Driven Loop 与 Gap 选择的完整设计意图依据，集中维护相关概念、动机、机制与已确认边界。后续优化或案例分析先对照本文；它不包含具体案例评判，也不由当前实现反向定义预期。现有概念、运行协议、技术方案和 skill 分别承载术语、契约或实现，不能代替对完整意图的理解。
+
 阅读顺序是 `problem-background.md`、`solution-principles.md`、`product-concepts.md`、`product-architecture.md`、`skill-architecture.md`、`controller-worker-loop.md`。`loop-engineering-research.md` 是研究输入，按需在修订 loop、runtime 或外部 adapter 相关规格前读取。
 
 `agentic-software-development/problem-background.md` 定义 Agent 软件研发操作层要解决的根问题，是本模块的决策起点。

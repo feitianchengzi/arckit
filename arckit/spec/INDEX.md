@@ -8,6 +8,7 @@
 - agentic-software-development/ Agent 软件研发协议层：定义 Arckit 面向人类、Codex 类 Agent 和多 Agent 自动化平台的软件研发协作与接力协议。⚪
   - problem-background.md 问题背景：AI 时代软件研发变化、多 Agent 自动化平台、人类接手、prompt 局限、Agent 限制和根问题。⚪ (129行)
   - solution-principles.md 解决思路：从背景推导协作接力、双运行形态、语义材料、阶段区分、多事实源、低承诺沉淀、人类接手和工作方式演化原则。⚪ (119行)
+  - loop-and-gap-design-intent.md Loop 与 Gap 完整设计意图：集中保存概念、动机、选择机制与边界，作为后续优化和案例分析的权威参考。⚪ (361行)
   - product-concepts.md 产品概念：定义 Project/Case/Gap/Loop、通用与场景边界、六个责任方向、探索与正式确立及实现载体。⚪ (390行)
   - product-architecture.md 产品架构：描述单 Agent 默认 Loop、持久 task thread、串行 ledger commit、场景 State 分层，以及 Desktop/Agent/Skill 与事实系统组合。⚪ (244行)
   - skill-architecture.md Skill 架构：定义原生 Agent skill 使用、默认单包双接口 Runtime policy、natural trigger、trusted ledger 与场景/实现载体识别。⚪ (100行)
