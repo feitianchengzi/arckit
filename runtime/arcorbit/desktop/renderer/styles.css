@@ -1380,6 +1380,62 @@ summary { display: flex; align-items: center; }
   .today-facts { grid-template-columns: 1fr; }
 }
 
+/* 智能客服 — 检索卡片 */
+.retrieval-card { margin: 12px 0; padding: 12px 16px; border: 1px solid var(--ink-150); border-radius: var(--radius-md, 10px); background: var(--paper); }
+.retrieval-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.retrieval-head strong { font-size: 13px; color: var(--ink-900); }
+.retrieval-confidence { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.retrieval-confidence.high { background: #e6f9ee; color: #1a7f4a; }
+.retrieval-confidence.medium { background: #fef3cd; color: #856404; }
+.retrieval-confidence.low { background: #fee2e2; color: #991b1b; }
+.retrieval-hits { display: grid; gap: 8px; }
+.retrieval-hit { padding: 8px 12px; border: 1px solid var(--ink-100); border-radius: var(--radius-sm, 6px); background: var(--ink-50, #f8f9fa); }
+.retrieval-hit-head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.retrieval-source { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; }
+.retrieval-source.customer_lib { background: #e0e7ff; color: #3730a3; }
+.retrieval-source.product_lib { background: #dbeafe; color: #1e40af; }
+.retrieval-type { font-size: 10px; color: var(--ink-500); }
+.retrieval-score { font-size: 10px; color: var(--ink-400); margin-left: auto; }
+.retrieval-hit strong { font-size: 12px; display: block; margin-bottom: 2px; }
+.retrieval-hit p { font-size: 12px; color: var(--ink-600); margin: 0; line-height: 1.4; }
+.retrieval-draft { margin-top: 8px; padding: 8px 12px; border-left: 3px solid var(--violet-600, #5c55e6); background: var(--violet-50, #f5f3ff); border-radius: 0 var(--radius-sm, 6px) var(--radius-sm, 6px) 0; }
+.retrieval-draft-label { font-size: 10px; font-weight: 600; color: var(--violet-600, #5c55e6); text-transform: uppercase; }
+.retrieval-draft p { font-size: 12px; margin: 4px 0 0; line-height: 1.5; }
+
+/* 智能客服 — AI 分诊面板 */
+.ai-triage-panel { margin: 12px 0; border: 1px solid var(--ink-150); border-radius: var(--radius-md, 10px); overflow: hidden; }
+.ai-triage-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; cursor: pointer; background: var(--ink-50, #f8f9fa); }
+.ai-triage-head strong { font-size: 13px; }
+.ai-triage-body { padding: 12px 16px; }
+.ai-triage-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.ai-triage-field { display: flex; flex-direction: column; gap: 2px; }
+.ai-triage-field small { font-size: 11px; color: var(--ink-500); }
+.ai-triage-field strong { font-size: 13px; }
+.ai-triage-scores { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.ai-triage-score { display: flex; flex-direction: column; gap: 4px; }
+.ai-triage-score small { font-size: 11px; color: var(--ink-500); }
+.ai-triage-score-bar { height: 6px; background: var(--ink-100); border-radius: 3px; overflow: hidden; }
+.ai-triage-score-bar > div { height: 100%; background: var(--violet-600, #5c55e6); border-radius: 3px; transition: width 0.3s; }
+.ai-triage-reasoning { margin-bottom: 12px; }
+.ai-triage-reasoning small { font-size: 11px; color: var(--ink-500); display: block; margin-bottom: 4px; }
+.ai-triage-reasoning p { font-size: 12px; line-height: 1.5; margin: 0; }
+.ai-triage-actions { display: flex; gap: 8px; }
+
+/* 智能客服 — 客户代码仓库管理 */
+.customer-code-repos { margin: 12px 0; }
+.customer-code-repos .section-title-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; }
+.customer-code-repos .section-title-row h3 { font-size: 13px; margin: 0; }
+.customer-code-repos .section-title-row p { font-size: 12px; color: var(--ink-500); margin: 0; }
+
+/* 智能客服 — 草稿消息增强 */
+.draft-msg { margin: 8px 0; padding: 12px 16px; border: 1px solid #fef3cd; border-radius: var(--radius-md, 10px); background: #fffef5; }
+.draft-msg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.draft-msg-head strong { font-size: 13px; }
+.draft-msg-body { font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+.draft-msg-sources { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.draft-msg-source { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--ink-100); color: var(--ink-600); }
+.draft-msg-actions { display: flex; gap: 8px; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

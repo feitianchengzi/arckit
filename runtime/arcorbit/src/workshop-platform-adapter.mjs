@@ -422,7 +422,7 @@ export function normalizeFeedbackV1(value, fallbackProjectId = "") {
     user_phone: String(value.user_phone || ""),
     user_email: String(value.user_email || ""),
     file: String(value.file || ""),
-    data: String(value.data || ""),
+    data: metadata,
     metadata,
     priority: normalizeFeedbackPriority(metadata),
     ignored: metadata.ignored === true || processingState === "ignored",
@@ -462,6 +462,8 @@ export function normalizeFeedbackV2Message(value) {
     sender_type: senderType,
     message_type: String(value.message_type || "text"),
     content: String(value.content || ""),
+    state: String(value.state || ""),
+    metadata: value.metadata && typeof value.metadata === "object" ? value.metadata : null,
     attachments: Array.isArray(value.attachments) ? value.attachments.map(normalizeFeedbackV2Attachment).filter(Boolean) : [],
     created_at: String(value.created_at || ""),
     updated_at: String(value.updated_at || "")

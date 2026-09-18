@@ -3019,7 +3019,7 @@ function renderFeedbackInspector(feedback) {
     ["提交时间", formatFeedbackDate(feedback.created_at)],
     ["最近更新", formatFeedbackDate(feedback.updated_at)],
     ["关联待办", feedback.linked_task_id ? `${feedback.linked_task_id}${feedback.linked_task_state ? ` · ${STATE_LABELS[feedback.linked_task_state] || feedback.linked_task_state}` : ""}` : "未关联"]
-  ])}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}</div>`;
+  ])}${renderAITriagePanel(feedback)}${renderRetrievalCard(feedback.retrieval)}<div class="customer-code-repos" data-customer-code-repos></div>${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}</div>`;
   els.feedbackInspector.querySelector("[data-feedback-priority]")?.addEventListener("change", (event) => runAction(() => updateFeedbackPriority(feedback.id, event.currentTarget.value)));
   els.feedbackInspector.querySelector("[data-feedback-ignore]")?.addEventListener("click", () => runAction(() => ignoreFeedback(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-restore]")?.addEventListener("click", (event) => runAction(() => restoreFeedback(feedback.id, event.currentTarget)));
@@ -3027,6 +3027,13 @@ function renderFeedbackInspector(feedback) {
   els.feedbackInspector.querySelector("[data-feedback-task]")?.addEventListener("click", () => runAction(() => feedbackToTask(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-link-retry]")?.addEventListener("click", () => runAction(() => retryFeedbackTaskLink(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-delete]")?.addEventListener("click", () => runAction(() => deleteFeedback(feedback.id)));
+  // AI 分诊面板事件
+  els.feedbackInspector.querySelector("[data-ai-triage-accept]")?.addEventListener("click", () => runAction(() => acceptAITriage(feedback)));
+  els.feedbackInspector.querySelector("[data-ai-triage-adjust]")?.addEventListener("click", () => runAction(() => adjustAITriage(feedback)));
+  // 客户代码仓库事件
+  els.feedbackInspector.querySelector("[data-kb-add]")?.addEventListener("click", () => runAction(() => addCustomerCodeRepo(feedback.project_id)));
+  els.feedbackInspector.querySelectorAll("[data-kb-sync]").forEach((btn) => btn.addEventListener("click", () => runAction(() => syncCustomerCodeRepo(btn.dataset.projectId, btn.dataset.repoId))));
+  els.feedbackInspector.querySelectorAll("[data-kb-delete]").forEach((btn) => btn.addEventListener("click", () => runAction(() => deleteCustomerCodeRepo(btn.dataset.projectId, btn.dataset.repoId))));
   wireFeedbackImages(feedback);
   wireFeedbackConversation(feedback, feedbackManagement);
   els.feedbackInspector.querySelector(".feedback-inspector-scroll").scrollTop = previousScrollTop;
@@ -3035,6 +3042,10 @@ function renderFeedbackInspector(feedback) {
       force: Boolean(state.feedbackConversations[String(feedback.id)])
     });
   }
+  if (!feedback.retrieval && feedback.content) {
+    void loadFeedbackRetrieval(feedback);
+  }
+  void loadCustomerCodeRepos(feedback.project_id);
 }
 
 function renderFeedbackFile(feedback) {
@@ -3121,12 +3132,216 @@ function renderFeedbackConversation(feedback, management) {
   const messages = conversation.messages || [];
   const error = conversation.error ? `<div class="feedback-conversation-error"><span>${escapeHtml(conversation.error)}</span><button data-feedback-messages-retry type="button">重试</button></div>` : "";
   const readError = conversation.readError ? `<small class="feedback-read-error">消息已加载，但未读状态保存失败；可稍后重试。</small>` : "";
+  
+  // 分离普通消息和待确认草稿
+  const pendingDrafts = messages.filter(m => m.sender_type === 'system' && m.state === 'pending_review');
+  const regularMessages = messages.filter(m => !(m.sender_type === 'system' && m.state === 'pending_review'));
+  
+  // 渲染待确认草稿
+  const draftPanels = pendingDrafts.length > 0 
+    ? `<div class="draft-list"><div class="draft-list-header"><span class="draft-list-title">待确认草稿 (${pendingDrafts.length})</span></div><div class="draft-list-content">${pendingDrafts.map(draft => renderDraftConfirmPanel(feedback, draft)).join('')}</div></div>`
+    : '';
+  
+  // 渲染普通消息列表
   const timeline = conversation.loading
     ? `<div class="feedback-conversation-loading">正在读取沟通记录…</div>`
-    : messages.length
-      ? `<div class="feedback-message-list">${messages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => feedbackResourceIsImage(attachment) ? renderFeedbackImage({ source: "feedback-v2", project_id: feedback.project_id, feedback_id: feedback.id, attachment_id: attachment.id, object_key: attachment.object_key, file_name: attachment.file_name || feedbackFileName(attachment.object_key), mime_type: attachment.mime_type, resource_version: attachment.id || attachment.object_key }) : `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
+    : regularMessages.length
+      ? `<div class="feedback-message-list">${regularMessages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => feedbackResourceIsImage(attachment) ? renderFeedbackImage({ source: "feedback-v2", project_id: feedback.project_id, feedback_id: feedback.id, attachment_id: attachment.id, object_key: attachment.object_key, file_name: attachment.file_name || feedbackFileName(attachment.object_key), mime_type: attachment.mime_type, resource_version: attachment.id || attachment.object_key }) : `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
       : `<div class="empty-state compact">尚无沟通记录。</div>`;
-  return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div><button class="secondary-button" data-feedback-conversation-refresh type="button" ${conversation.loading ? "disabled" : ""}>刷新</button></div>${error}${readError}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><label><span>回复附件</span><input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}><small>${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small></label><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></section>`;
+  
+  return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div><button class="secondary-button" data-feedback-conversation-refresh type="button" ${conversation.loading ? "disabled" : ""}>刷新</button></div>${error}${readError}${draftPanels}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><label><span>回复附件</span><input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}><small>${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small></label><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></section>`;
+}
+
+/**
+ * 渲染草稿确认面板
+ */
+function renderDraftConfirmPanel(feedback, message) {
+  if (!feedback || !message) {
+    return '';
+  }
+
+  const metadata = parseMetadata(message.metadata);
+  const sourceFiles = metadata?.source_files || [];
+
+  return `
+    <div class="draft-confirm-panel" data-message-id="${message.id}">
+      <div class="draft-confirm-header">
+        <span class="draft-confirm-title">草稿确认</span>
+        <span class="draft-confirm-status">${message.state === 'pending_review' ? '待确认' : '已发送'}</span>
+      </div>
+      
+      <div class="draft-confirm-content">
+        <div class="draft-confirm-reply">
+          <div class="draft-confirm-label">草稿回复</div>
+          <div class="draft-confirm-text">${escapeHtml(message.content || '')}</div>
+        </div>
+        
+        ${sourceFiles.length > 0 ? `
+          <div class="draft-confirm-sources">
+            <div class="draft-confirm-label">引用的源文件</div>
+            <ul class="draft-confirm-source-list">
+              ${sourceFiles.map(file => `
+                <li class="draft-confirm-source-item">${escapeHtml(file)}</li>
+              `).join('')}
+            </ul>
+          </div>
+        ` : ''}
+      </div>
+      
+      <div class="draft-confirm-actions">
+        ${message.state === 'pending_review' ? `
+          <button class="draft-confirm-btn draft-confirm-approve" data-action="confirm" data-message-id="${message.id}">
+            批准发送
+          </button>
+          <button class="draft-confirm-btn draft-confirm-reject" data-action="reject" data-message-id="${message.id}">
+            驳回重试
+          </button>
+          <button class="draft-confirm-btn draft-confirm-manual" data-action="manual">
+            转人工回复
+          </button>
+        ` : `
+          <span class="draft-confirm-sent">已发送</span>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 解析 metadata
+ */
+function parseMetadata(metadata) {
+  if (!metadata) return null;
+  if (typeof metadata === 'string') {
+    try {
+      return JSON.parse(metadata);
+    } catch {
+      return null;
+    }
+  }
+  return metadata;
+}
+
+/**
+ * AI 分诊面板
+ * 渲染 AI 对反馈的初步判断（类型/优先级/可行动性/置信度）
+ */
+function renderAITriagePanel(feedback) {
+  const triage = feedback?.data?.triage;
+  if (!triage) return "";
+  const confidence = triage.confidence ?? 0;
+  const confidenceClass = confidence >= 0.75 ? "high" : confidence >= 0.5 ? "medium" : "low";
+  return `
+    <details class="ai-triage-panel">
+      <summary class="ai-triage-head">
+        <strong>AI 分诊初判</strong>
+        <span class="retrieval-confidence ${confidenceClass}">${Math.round(confidence * 100)}%</span>
+      </summary>
+      <div class="ai-triage-body">
+        <div class="ai-triage-fields">
+          <div class="ai-triage-field"><small>类型</small><strong>${escapeHtml(triage.type || "未判断")}</strong></div>
+          <div class="ai-triage-field"><small>优先级</small><strong>${escapeHtml(triage.priority || "P2")}</strong></div>
+          <div class="ai-triage-field"><small>可行动性</small><strong>${escapeHtml(triage.actionability || "待确认")}</strong></div>
+          <div class="ai-triage-field"><small>需补问</small><strong>${triage.needs_clarification ? "是" : "否"}</strong></div>
+        </div>
+        <div class="ai-triage-scores">
+          <div class="ai-triage-score"><small>表达清晰</small><div class="ai-triage-score-bar"><div style="width:${Math.round((triage.clarity || 0) * 100)}%"></div></div></div>
+          <div class="ai-triage-score"><small>影响面</small><div class="ai-triage-score-bar"><div style="width:${Math.round((triage.impact || 0) * 100)}%"></div></div></div>
+          <div class="ai-triage-score"><small>紧急度</small><div class="ai-triage-score-bar"><div style="width:${Math.round((triage.urgency || 0) * 100)}%"></div></div></div>
+        </div>
+        ${triage.reasoning ? `<div class="ai-triage-reasoning"><small>推理说明</small><p>${escapeHtml(triage.reasoning)}</p></div>` : ""}
+        <div class="ai-triage-actions">
+          <button class="secondary-button" data-ai-triage-accept type="button">采纳初判</button>
+          <button class="secondary-button" data-ai-triage-adjust type="button">人工调整</button>
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+/**
+ * 知识库检索卡片
+ * 渲染 OpenHands Agent 检索结果
+ */
+function renderRetrievalCard(retrieval) {
+  if (!retrieval) return "";
+  const hits = retrieval.hits || [];
+  const confidence = retrieval.confidence ?? 0;
+  const confidenceClass = confidence >= 0.75 ? "high" : confidence >= 0.5 ? "medium" : "low";
+  return `
+    <div class="retrieval-card">
+      <div class="retrieval-head">
+        <strong>知识库检索</strong>
+        <span class="retrieval-confidence ${confidenceClass}">${Math.round(confidence * 100)}%</span>
+      </div>
+      ${hits.length > 0 ? `
+        <div class="retrieval-hits">
+          ${hits.map(hit => `
+            <div class="retrieval-hit">
+              <div class="retrieval-hit-head">
+                <span class="retrieval-source ${escapeHtml(hit.source || "")}">${escapeHtml(hit.source === "customer_lib" ? "客户库" : hit.source === "product_lib" ? "产品库" : hit.source || "未知")}</span>
+                <span class="retrieval-type">${escapeHtml(hit.type || "")}</span>
+                <span class="retrieval-score">${Math.round((hit.score || 0) * 100)}%</span>
+              </div>
+              <strong>${escapeHtml(hit.title || "")}</strong>
+              <p>${escapeHtml(hit.snippet || "")}</p>
+            </div>
+          `).join("")}
+        </div>
+      ` : `<p class="muted-copy">未命中知识库</p>`}
+      ${retrieval.draft_reply ? `
+        <div class="retrieval-draft">
+          <span class="retrieval-draft-label">拟回复</span>
+          <p>${escapeHtml(retrieval.draft_reply)}</p>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+/**
+ * 客户代码仓库管理
+ * 渲染项目关联的客户代码仓库列表
+ */
+function renderCustomerCodeRepos(repos, projectId) {
+  if (!repos || repos.length === 0) {
+    return `
+      <div class="customer-code-repos">
+        <div class="section-title-row">
+          <div><span class="section-icon">⚙</span><div><h3>客户代码仓库</h3><p>尚未关联任何客户代码仓库</p></div></div>
+          <button class="secondary-button" data-kb-add data-project-id="${escapeHtml(projectId)}" type="button">添加仓库</button>
+        </div>
+      </div>
+    `;
+  }
+    return `
+    <div class="customer-code-repos">
+      <div class="section-title-row">
+        <div><span class="section-icon">⚙</span><div><h3>客户代码仓库</h3><p>${repos.length} 个仓库</p></div></div>
+        <button class="secondary-button" data-kb-add data-project-id="${escapeHtml(projectId)}" type="button">添加仓库</button>
+      </div>
+      <div class="data-table">
+        <table>
+          <thead><tr><th>客户</th><th>仓库地址</th><th>分支</th><th>自动同步</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody>
+            ${repos.map(repo => `
+              <tr data-repo-id="${escapeHtml(repo.id)}">
+                <td>${escapeHtml(repo.customer_id || "")}</td>
+                <td><code>${escapeHtml(repo.repo_url || repo.repo_path || "")}</code></td>
+                <td>${escapeHtml(repo.branch || "main")}</td>
+                <td>${repo.auto_sync ? '<span class="status-pill ready">开启</span>' : '<span class="status-pill">关闭</span>'}</td>
+                <td><span class="status-pill ${escapeHtml(repo.status || "ready")}">${escapeHtml(repo.status === "syncing" ? "同步中" : repo.status === "error" ? "错误" : "就绪")}</span></td>
+                <td>
+                  <button class="secondary-button" data-kb-sync data-repo-id="${escapeHtml(repo.id)}" data-project-id="${escapeHtml(projectId)}" type="button" ${repo.status === "syncing" ? "disabled" : ""}>同步</button>
+                  <button class="secondary-button danger-action" data-kb-delete data-repo-id="${escapeHtml(repo.id)}" data-project-id="${escapeHtml(projectId)}" type="button">删除</button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function wireFeedbackConversation(feedback, management) {
@@ -3143,6 +3358,31 @@ function wireFeedbackConversation(feedback, management) {
     renderFeedbackInspector(feedback);
   });
   els.feedbackInspector.querySelector("[data-feedback-reply-send]")?.addEventListener("click", () => runAction(() => sendFeedbackReply(feedback)));
+  
+  // 草稿确认按钮事件
+  els.feedbackInspector.querySelectorAll('[data-action="confirm"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const messageId = btn.dataset.messageId;
+      await handleConfirmDraft(messageId);
+    });
+  });
+  
+  els.feedbackInspector.querySelectorAll('[data-action="reject"]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const messageId = btn.dataset.messageId;
+      await handleRejectDraft(messageId);
+    });
+  });
+  
+  els.feedbackInspector.querySelectorAll('[data-action="manual"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleManualReply();
+    });
+  });
+  
   els.feedbackInspector.querySelectorAll("[data-feedback-message-attachment]").forEach((button) => button.addEventListener("click", () => {
     void runAction(() => runFeedbackV2Request(() => api.openFeedbackV2Attachment({
       project_id: feedback.project_id,
@@ -3151,6 +3391,215 @@ function wireFeedbackConversation(feedback, management) {
       object_key: button.dataset.objectKey
     })));
   }));
+}
+
+/**
+ * 处理确认草稿
+ */
+async function handleConfirmDraft(messageId) {
+  try {
+    const feedbackId = state.selectedFeedbackId;
+    if (!feedbackId) {
+      console.error('[DraftConfirm] 未选中反馈');
+      return;
+    }
+
+    // 调用 API 确认草稿
+    await api.confirmFeedbackDraft({
+      project_id: state.platform?.active_workset_id,
+      feedback_id: feedbackId,
+      message_id: messageId,
+    });
+
+    // 刷新反馈对话
+    renderPlatformFeedback();
+    
+    console.log(`[DraftConfirm] 草稿已确认发送: ${messageId}`);
+  } catch (error) {
+    console.error(`[DraftConfirm] 确认草稿失败:`, error);
+  }
+}
+
+/**
+ * 处理驳回草稿
+ */
+async function handleRejectDraft(messageId) {
+  try {
+    const feedbackId = state.selectedFeedbackId;
+    if (!feedbackId) {
+      console.error('[DraftConfirm] 未选中反馈');
+      return;
+    }
+
+    // 调用 API 驳回草稿
+    await api.rejectFeedbackDraft({
+      project_id: state.platform?.active_workset_id,
+      feedback_id: feedbackId,
+      message_id: messageId,
+    });
+
+    // 刷新反馈对话
+    renderPlatformFeedback();
+    
+    console.log(`[DraftConfirm] 草稿已驳回: ${messageId}`);
+  } catch (error) {
+    console.error(`[DraftConfirm] 驳回草稿失败:`, error);
+  }
+}
+
+/**
+ * 处理转人工回复
+ */
+function handleManualReply() {
+  // 切换到人工回复模式
+  const textarea = document.querySelector('[data-feedback-reply]');
+  if (textarea) {
+    textarea.focus();
+    textarea.placeholder = '请输入回复内容...';
+  }
+}
+
+/**
+ * 采纳 AI 分诊初判
+ */
+async function acceptAITriage(feedback) {
+  try {
+    const triage = feedback?.data?.triage;
+    if (!triage) return;
+    // 将 AI 初判应用到反馈
+    await api.updateFeedbackV2({
+      project_id: feedback.project_id,
+      feedback_id: feedback.id,
+      data: { ...feedback.data, triage_applied: true }
+    });
+    renderPlatformFeedback();
+    console.log(`[AITriage] 已采纳 AI 分诊: ${feedback.id}`);
+  } catch (error) {
+    console.error(`[AITriage] 采纳失败:`, error);
+  }
+}
+
+/**
+ * 人工调整 AI 分诊
+ */
+async function adjustAITriage(feedback) {
+  // 切换到人工调整模式（聚焦优先级选择器）
+  const prioritySelect = document.querySelector(`[data-feedback-priority="${feedback.id}"]`);
+  if (prioritySelect) {
+    prioritySelect.focus();
+  }
+}
+
+/**
+ * 添加客户代码仓库（模态表单对话框）
+ */
+async function addCustomerCodeRepo(projectId) {
+  const result = await showAddCodeRepoModal(projectId);
+  if (!result) return;
+  try {
+    await api.createCustomerCodeRepo({
+      project_id: projectId,
+      customer_id: result.customer_id,
+      repo_url: result.repo_url,
+      branch: result.branch,
+      auto_sync: result.auto_sync
+    });
+    renderPlatformFeedback();
+    console.log(`[CustomerCodeRepo] 已添加仓库: ${result.customer_id}`);
+  } catch (error) {
+    console.error(`[CustomerCodeRepo] 添加失败:`, error);
+  }
+}
+
+/**
+ * 显示添加代码仓库的模态表单
+ */
+function showAddCodeRepoModal(projectId) {
+  return new Promise(resolve => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'release-dialog';
+    dialog.innerHTML = `
+      <form method="dialog">
+        <h2>添加代码仓库</h2>
+        <div style="display: flex; flex-direction: column; gap: 12px; min-width: 400px;">
+          <label style="display: flex; flex-direction: column; gap: 4px;">
+            <span>客户标识 *</span>
+            <input name="customer_id" required placeholder="如: customer-001" autofocus />
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 4px;">
+            <span>Git仓库地址 *</span>
+            <input name="repo_url" type="url" required placeholder="https://github.com/user/repo.git" />
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 4px;">
+            <span>分支</span>
+            <input name="branch" value="main" placeholder="main" />
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" name="auto_sync" checked />
+            <span>自动同步（定期拉取最新代码）</span>
+          </label>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+          <button value="cancel" class="secondary-button">取消</button>
+          <button value="ok" class="primary-button">添加</button>
+        </div>
+      </form>
+    `;
+    
+    document.body.append(dialog);
+    
+    dialog.addEventListener('close', () => {
+      if (dialog.returnValue === 'ok') {
+        const formData = new FormData(dialog.querySelector('form'));
+        const data = {
+          customer_id: formData.get('customer_id'),
+          repo_url: formData.get('repo_url'),
+          branch: formData.get('branch') || 'main',
+          auto_sync: formData.get('auto_sync') === 'on'
+        };
+        dialog.remove();
+        resolve(data);
+      } else {
+        dialog.remove();
+        resolve(null);
+      }
+    });
+    
+    dialog.showModal();
+  });
+}
+
+/**
+ * 同步客户代码仓库
+ */
+async function syncCustomerCodeRepo(projectId, repoId) {
+  try {
+    await api.syncCustomerCodeRepo({
+      project_id: projectId,
+      repo_id: repoId
+    });
+    renderPlatformFeedback();
+    console.log(`[CustomerCodeRepo] 已触发同步: ${repoId}`);
+  } catch (error) {
+    console.error(`[CustomerCodeRepo] 同步失败:`, error);
+  }
+}
+
+/**
+ * 删除客户代码仓库
+ */
+async function deleteCustomerCodeRepo(projectId, repoId) {
+  if (!confirm("确定要删除此代码仓库吗？")) return;
+  try {
+    await api.deleteCustomerCodeRepo({
+      project_id: projectId,
+      repo_id: repoId
+    });
+    renderPlatformFeedback();
+    console.log(`[CustomerCodeRepo] 已删除仓库: ${repoId}`);
+  } catch (error) {
+    console.error(`[CustomerCodeRepo] 删除失败:`, error);
+  }
 }
 
 function feedbackResourceIsImage(value = {}) {
@@ -3197,6 +3646,40 @@ function pumpFeedbackImagePreviewQueue() {
       }
       pumpFeedbackImagePreviewQueue();
     });
+  }
+}
+
+async function loadFeedbackRetrieval(feedback) {
+  const id = String(feedback.id);
+  try {
+    const result = await api.retrieveFeedback({ project_id: feedback.project_id, query: feedback.content, conversation_id: "" });
+    if (!result) return;
+    const hits = result.hits || result.data?.hits || [];
+    const confidence = result.confidence ?? result.data?.confidence ?? 0;
+    const draftReply = result.draft_reply || result.data?.draft_reply || "";
+    feedback.retrieval = { hits, confidence, draft_reply: draftReply };
+    const card = renderRetrievalCard(feedback.retrieval);
+    const existing = els.feedbackInspector.querySelector(".retrieval-card");
+    if (existing) {
+      existing.outerHTML = card;
+    } else {
+      const factSection = els.feedbackInspector.querySelector(".feedback-content-card");
+      if (factSection) factSection.insertAdjacentHTML("afterend", card);
+    }
+  } catch (_) {
+    feedback.retrieval = { hits: [], confidence: 0, draft_reply: "" };
+  }
+}
+
+async function loadCustomerCodeRepos(projectId) {
+  const container = els.feedbackInspector?.querySelector("[data-customer-code-repos]");
+  if (!container || !projectId) return;
+  try {
+    const result = await api.listCustomerCodeRepos(projectId);
+    const repos = result?.data || result || [];
+    container.innerHTML = renderCustomerCodeRepos(Array.isArray(repos) ? repos : [], projectId);
+  } catch (_) {
+    container.innerHTML = "";
   }
 }
 

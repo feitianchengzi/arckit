@@ -21,6 +21,8 @@ type Task struct {
 	DeletedAt    gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`                                                                       // 软删除时间
 	Priority     *int           `json:"priority,omitempty" gorm:"type:int"`                                                                                       // 优先级（可为空，0为最高，数值越大优先级越低）
 	Tags         *string        `json:"tags,omitempty" gorm:"type:text"`                                                                                          // 标签（用逗号分割，可为空）
+	SourceFeedbackID *uint      `json:"source_feedback_id,omitempty" gorm:"index"`                                                                                // 来源反馈ID（桥1：Task→Feedback 追溯）
+	ArtifactURL *string         `json:"artifact_url,omitempty" gorm:"type:varchar(500)"`                                                                          // 产物交付地址
 
 	// belongs to：由fixForeignKeyConstraints函数创建正确的外键约束
 	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`

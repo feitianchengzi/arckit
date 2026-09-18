@@ -164,6 +164,32 @@ func requireFeedbackProjectMember(c *gin.Context, db *gorm.DB, projectID uint, a
 	return userID, true
 }
 
+// requireFeedbackTriagePermission 检查用户是否有反馈分诊权限（仅 owner/admin 角色）
+func requireFeedbackTriagePermission(c *gin.Context, db *gorm.DB, projectID uint, action string) (uint, bool) {
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return 0, false
+	}
+
+	var member models.ProjectMember
+	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNotMember, "您不是该项目的成员，无法"+action, nil))
+			return 0, false
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "验证项目成员身份失败: "+err.Error(), nil))
+		return 0, false
+	}
+
+	// 检查角色权限：只有 owner 和 admin 可以进行分诊操作
+	if member.Role != models.ProjectRoleOwner && member.Role != models.ProjectRoleAdmin {
+		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, "需要项目管理员或所有者确认", nil))
+		return 0, false
+	}
+
+	return userID, true
+}
+
 func trimStringPtr(value *string) *string {
 	if value == nil {
 		return nil
@@ -1248,7 +1274,7 @@ func IgnoreFeedback(c *gin.Context) {
 	if !ok {
 		return
 	}
-	userID, ok := requireFeedbackProjectMember(c, db, feedback.ProjectID, "忽略反馈")
+	userID, ok := requireFeedbackTriagePermission(c, db, feedback.ProjectID, "忽略反馈")
 	if !ok {
 		return
 	}
@@ -1342,7 +1368,7 @@ func RestoreFeedback(c *gin.Context) {
 	if !ok {
 		return
 	}
-	userID, ok := requireFeedbackProjectMember(c, db, feedback.ProjectID, "恢复反馈")
+	userID, ok := requireFeedbackTriagePermission(c, db, feedback.ProjectID, "恢复反馈")
 	if !ok {
 		return
 	}
@@ -1443,7 +1469,7 @@ func ConvertFeedbackToTask(c *gin.Context) {
 		return
 	}
 
-	userID, ok := requireFeedbackProjectMember(c, db, feedback.ProjectID, "流转反馈")
+	userID, ok := requireFeedbackTriagePermission(c, db, feedback.ProjectID, "流转反馈")
 	if !ok {
 		return
 	}
@@ -1487,14 +1513,15 @@ func ConvertFeedbackToTask(c *gin.Context) {
 		}
 
 		task = models.Task{
-			ProjectID:  feedback.ProjectID,
-			FatherID:   req.FatherID,
-			Content:    content,
-			State:      state,
-			CreatorID:  userID,
-			ExecutorID: req.ExecutorID,
-			Priority:   req.Priority,
-			Tags:       req.Tags,
+			ProjectID:         feedback.ProjectID,
+			FatherID:          req.FatherID,
+			Content:           content,
+			State:             state,
+			CreatorID:         userID,
+			ExecutorID:        req.ExecutorID,
+			Priority:          req.Priority,
+			Tags:              req.Tags,
+			SourceFeedbackID:  &feedbackID,
 		}
 		if models.IsDoneState(state) {
 			now := time.Now()

@@ -705,6 +705,41 @@ function registerIpc() {
       return { opened: true };
     });
   });
+  // 智能客服 — 检索（OpenHands Agent 调用）
+  ipcMain.handle("arckit:feedback-retrieve", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.retrieveFeedback(input));
+  });
+  // 智能客服 — 草稿确认/驳回/创建
+  ipcMain.handle("arckit:feedback-draft-confirm", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.confirmFeedbackDraft(input));
+  });
+  ipcMain.handle("arckit:feedback-draft-reject", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.rejectFeedbackDraft(input));
+  });
+  ipcMain.handle("arckit:feedback-draft-create", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.createFeedbackDraft(input));
+  });
+  // 客户代码仓库管理
+  ipcMain.handle("arckit:customer-code-repos-list", async (event, projectId) => {
+    assertMainRenderer(event);
+    return platformCoordinator.listCustomerCodeRepos(projectId);
+  });
+  ipcMain.handle("arckit:customer-code-repo-create", async (event, input) => {
+    assertMainRenderer(event);
+    return platformCoordinator.createCustomerCodeRepo(input);
+  });
+  ipcMain.handle("arckit:customer-code-repo-sync", async (event, input) => {
+    assertMainRenderer(event);
+    return platformCoordinator.syncCustomerCodeRepo(input);
+  });
+  ipcMain.handle("arckit:customer-code-repo-delete", async (event, input) => {
+    assertMainRenderer(event);
+    return platformCoordinator.deleteCustomerCodeRepo(input);
+  });
   ipcMain.handle("arckit:feedback-attachment-open", async (event, value) => {
     assertMainRenderer(event);
     const url = requireFeedbackAttachmentUrl(value);

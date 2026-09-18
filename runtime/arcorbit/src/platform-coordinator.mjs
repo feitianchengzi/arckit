@@ -708,6 +708,84 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     return runFeedbackV2Action(input.project_id, "convert_to_task", () => platformSource.convertFeedbackV2ToTask(input.project_id, input));
   }
 
+  // 智能客服 — 检索（OpenHands Agent 调用）
+  async function retrieveFeedback(input = {}) {
+    return runFeedbackV2Action(input.project_id, "retrieve", () =>
+      platformSource.request(`/feedbacks/retrieve`, {
+        method: "POST",
+        body: { query: input.query, conversation_id: input.conversation_id }
+      })
+    );
+  }
+
+  // 智能客服 — 确认草稿
+  async function confirmFeedbackDraft(input = {}) {
+    return runFeedbackV2Action(input.project_id, "draft_confirm", () =>
+      platformSource.request(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/messages/${encodeURIComponent(requiredId(input.message_id, "Message"))}/confirm`, {
+        method: "POST",
+        body: { content: input.content }
+      })
+    );
+  }
+
+  // 智能客服 — 驳回草稿
+  async function rejectFeedbackDraft(input = {}) {
+    return runFeedbackV2Action(input.project_id, "draft_reject", () =>
+      platformSource.request(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/messages/${encodeURIComponent(requiredId(input.message_id, "Message"))}/reject`, {
+        method: "POST"
+      })
+    );
+  }
+
+  // 智能客服 — 创建草稿（runtime 回写）
+  async function createFeedbackDraft(input = {}) {
+    return runFeedbackV2Action(input.project_id, "draft_create", () =>
+      platformSource.request(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/drafts`, {
+        method: "POST",
+        body: { content: input.content, task_id: input.task_id, source_files: input.source_files }
+      })
+    );
+  }
+
+  // 客户代码仓库 — 列表
+  async function listCustomerCodeRepos(projectId) {
+    const id = requiredText(projectId, "Project id", 120);
+    return platformSource.request(`/projects/${encodeURIComponent(id)}/code-repos`);
+  }
+
+  // 客户代码仓库 — 创建
+  async function createCustomerCodeRepo(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    return platformSource.request(`/projects/${encodeURIComponent(projectId)}/code-repos`, {
+      method: "POST",
+      body: { 
+        customer_id: input.customer_id, 
+        repo_path: input.repo_path,
+        repo_url: input.repo_url,
+        branch: input.branch,
+        auto_sync: input.auto_sync
+      }
+    });
+  }
+
+  // 客户代码仓库 — 同步
+  async function syncCustomerCodeRepo(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const repoId = requiredText(input.repo_id, "Repo id", 120);
+    return platformSource.request(`/projects/${encodeURIComponent(projectId)}/code-repos/${encodeURIComponent(repoId)}/sync`, {
+      method: "POST"
+    });
+  }
+
+  // 客户代码仓库 — 删除
+  async function deleteCustomerCodeRepo(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const repoId = requiredText(input.repo_id, "Repo id", 120);
+    return platformSource.request(`/projects/${encodeURIComponent(projectId)}/code-repos/${encodeURIComponent(repoId)}`, {
+      method: "DELETE"
+    });
+  }
+
   async function getFeedbackV2AttachmentUrl(input = {}) {
     return runFeedbackV2Action(input.project_id, "attachments", () => platformSource.getFeedbackV2AttachmentUrl(input.project_id, input));
   }
@@ -792,6 +870,14 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     updateFeedbackV2,
     deleteFeedbackV2,
     convertFeedbackV2ToTask,
+    retrieveFeedback,
+    confirmFeedbackDraft,
+    rejectFeedbackDraft,
+    createFeedbackDraft,
+    listCustomerCodeRepos,
+    createCustomerCodeRepo,
+    syncCustomerCodeRepo,
+    deleteCustomerCodeRepo,
     getFeedbackAttachmentUrl,
     getFeedbackV2AttachmentUrl,
     uploadTaskAttachmentResource,
@@ -1060,6 +1146,12 @@ function requireWorkset(value) {
   const workset = normalizeWorkset(value);
   if (!workset) throw new TypeError("Workset requires a non-empty name and id.");
   return workset;
+}
+
+function requiredId(value, label) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "0" || text === "undefined" || text === "null") throw new TypeError(`${label} id is required.`);
+  return text;
 }
 
 function requiredText(value, label, maxLength) {

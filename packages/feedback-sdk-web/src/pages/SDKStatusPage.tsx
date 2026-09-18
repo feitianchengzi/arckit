@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { FeedbackListStep } from '@/components/sdk/FeedbackListStep'
 import { FeedbackConversationPanel } from '@/components/sdk/FeedbackConversationPanel'
 import { FeedbackShell } from '@/components/sdk/FeedbackShell'
 import type { FeedbackItem } from '@/lib/feedback/types'
 import { fetchFeedbackItemsByApiKey, getOrPersistApiKey, getOrPersistCustomUserId, resolveProjectId } from '@/lib/feedback/api'
 import { fetchFeedbackItemsV2, fetchFeedbackNotificationsV2 } from '@/lib/feedback/v2'
+import { useFeedbackRealtime } from '@/lib/feedback/realtime'
+import type { FeedbackRealtimeEvent } from '@/lib/feedback/realtime'
 import {
   FEEDBACK_SDK_CONFIGURED_EVENT,
   getFeedbackSDKConfig,
@@ -21,6 +23,21 @@ export function SDKStatusPage() {
   const [, setUnreadCount] = useState(0)
   const [retryCount, setRetryCount] = useState(0)
   const silentRefreshRef = useRef(false)
+
+  const handleRealtimeEvent = useCallback((event: FeedbackRealtimeEvent) => {
+    silentRefreshRef.current = true
+    setRetryCount((prev) => prev + 1)
+  }, [])
+
+  const projectId = getFeedbackSDKConfig().projectId
+    ? Number(getFeedbackSDKConfig().projectId)
+    : undefined
+
+  const { connected } = useFeedbackRealtime({
+    projectId,
+    onEvent: handleRealtimeEvent,
+    enabled: !!projectId && isFeedbackSDKV2Enabled(),
+  })
 
   useEffect(() => {
     const handleConfigured = () => {
@@ -139,6 +156,9 @@ export function SDKStatusPage() {
         <FeedbackShell mode="embed">
           <div className={innerWrapClass}>
             {loading ? <p className="mb-3 text-sm text-foreground-secondary">正在加载反馈状态...</p> : null}
+            {connected && isFeedbackSDKV2Enabled() ? (
+              <p className="mb-2 text-xs text-success">已连接实时推送</p>
+            ) : null}
             {error ? (
               <div className="mb-3 rounded-lg bg-warning-lighter px-3 py-2 text-xs text-warning">
                 {error}

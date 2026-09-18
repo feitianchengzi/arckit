@@ -3,6 +3,7 @@ import { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
 export { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
 import { checkpointFromRun, isExecutionCheckpoint } from './automation/execution-checkpoint.mjs';
 import { executionOutcome, executionHandoff } from './automation/execution-outcome.mjs';
+import { createWorkshopDraftAdapter } from './workshop-draft-adapter.mjs';
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -2346,6 +2347,31 @@ function createLaneAutomationCoordinator({
         || !["closeout_failed", "closeout_start_failed", "runtime_process_missing"].includes(item.type)
       ));
     });
+    
+    // 如果有关联的反馈，创建草稿回写到 workshop-api
+    if (active.feedback_id && active.local_project_id) {
+      try {
+        const draftAdapter = createWorkshopDraftAdapter({
+          taskSource: runManager.getTaskSource?.(),
+          settings: runManager.getSettings?.() || {},
+        });
+        
+        const draftResult = await draftAdapter.createDraftFromCloseout({
+          closeoutResult: result,
+          projectId: active.local_project_id,
+          feedbackId: active.feedback_id,
+          taskId: active.task_id,
+        });
+        
+        if (draftResult.success) {
+          console.log(`[AutomationCoordinator] 草稿回写成功: feedback_id=${active.feedback_id}, message_id=${draftResult.messageId}`);
+        } else {
+          console.error(`[AutomationCoordinator] 草稿回写失败: ${draftResult.error}`);
+        }
+      } catch (error) {
+        console.error(`[AutomationCoordinator] 草稿回写异常: ${error.message}`);
+      }
+    }
   }
 
   async function addRecovery({ type, task, message, actions, freezeScope = "lane", replaceRecoveryIds = [], responsibility = "runtime" }) {

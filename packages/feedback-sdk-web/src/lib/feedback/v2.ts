@@ -361,3 +361,125 @@ export async function markFeedbackNotificationsReadV2(params: {
   )
   return { markedCount: typeof envelope.data?.marked_count === 'number' ? envelope.data.marked_count : 0 }
 }
+
+// ==================== Agent 智能客服 ====================
+
+export interface AgentMessage {
+  id: number
+  conversation_id: string
+  feedback_id: number
+  project_id: number
+  sender_type: 'customer' | 'agent' | 'system'
+  content: string
+  tool_calls?: ToolCall[]
+  tool_results?: ToolResult[]
+  confidence?: number
+  metadata?: unknown
+  created_at: string
+}
+
+export interface ToolCall {
+  tool: string
+  params: Record<string, unknown>
+  results_count?: number
+}
+
+export interface ToolResult {
+  tool: string
+  content: string
+  success: boolean
+}
+
+export interface AgentConversation {
+  id: string
+  feedback_id: number
+  project_id: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentMessageResponse {
+  message_id: number
+  conversation_id: string
+  content: string
+  sender_type: 'agent'
+  tool_calls?: ToolCall[]
+  confidence: number
+}
+
+/**
+ * 发送消息给 Agent 智能客服
+ */
+export async function sendAgentMessage(params: {
+  feedbackId: number
+  content: string
+  conversationId?: string
+}): Promise<AgentMessageResponse> {
+  const { apiKey, projectId } = currentDirectAPIKeyContext()
+  
+  const body: Record<string, unknown> = {
+    content: params.content,
+  }
+  if (params.conversationId) {
+    body.conversation_id = params.conversationId
+  }
+
+  const envelope = await requestJson<AgentMessageResponse>(
+    `/feedbacks/${params.feedbackId}/agent-message`,
+    `/feedbacks/${params.feedbackId}/agent-message`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    },
+  )
+
+  if (!envelope.data) {
+    throw new Error('Agent 响应失败')
+  }
+
+  return envelope.data
+}
+
+/**
+ * 获取反馈关联的 Agent 对话列表
+ */
+export async function getAgentConversations(feedbackId: number): Promise<AgentConversation[]> {
+  const { apiKey } = currentDirectAPIKeyContext()
+  
+  const envelope = await requestJson<AgentConversation[]>(
+    `/feedbacks/${feedbackId}/agent-conversations`,
+    `/feedbacks/${feedbackId}/agent-conversations`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    },
+  )
+
+  return envelope.data || []
+}
+
+/**
+ * 获取 Agent 对话消息列表
+ */
+export async function getAgentConversationMessages(conversationId: string): Promise<AgentMessage[]> {
+  const { apiKey } = currentDirectAPIKeyContext()
+  
+  const envelope = await requestJson<AgentMessage[]>(
+    `/agent-conversations/${conversationId}/messages`,
+    `/agent-conversations/${conversationId}/messages`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    },
+  )
+
+  return envelope.data || []
+}

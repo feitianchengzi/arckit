@@ -3,7 +3,11 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"todo/database"
 	"todo/feedbackemail"
@@ -35,7 +39,9 @@ func main() {
 
 	realtime.ConfigureStore(database.GetDB())
 	broker := realtime.NewBroker(database.GetDB(), database.ConnectionString(), realtime.DefaultHub)
-	if err := broker.Start(context.Background()); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := broker.Start(ctx); err != nil {
 		log.Fatal("实时事件 Broker 初始化失败:", err)
 	}
 	handler.ConfigureHealthReadiness(broker.Ready)
@@ -46,7 +52,7 @@ func main() {
 	}
 	if emailConfig.Enabled {
 		emailWorker := feedbackemail.NewWorker(database.GetDB(), emailConfig)
-		go emailWorker.Run(context.Background())
+		go emailWorker.Run(ctx)
 	}
 
 	// 从环境变量读取端口，如果不存在则报错退出
@@ -72,7 +78,34 @@ func main() {
 	log.Printf("Gateway route format: /{service}/{version}/{auth_level}/{path}")
 	log.Printf("Available auth levels: public, user, apikey")
 
-	if err := r.Run(addr); err != nil {
-		log.Fatal("Server failed to start:", err)
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      r,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
+
+	// 优雅关闭：监听 SIGTERM/SIGINT
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	sig := <-quit
+	log.Printf("Received signal %v, shutting down gracefully...", sig)
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer shutdownCancel()
+
+	cancel() // 停止后台 goroutine
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Server forced shutdown: %v", err)
+	}
+
+	log.Println("Server exited cleanly")
 }
