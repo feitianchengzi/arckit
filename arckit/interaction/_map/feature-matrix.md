@@ -6,7 +6,7 @@
 | `setup-readiness/` | ✅ | 先校验全局受信资源，在无默认选择和无凭证管理的边界内恢复 Codex standalone 安装/更新与官方认证，再以可见项目写入摘要引导 skills 安装 | 全局检查、Codex 缺失/安装/更新、两级认证选择、官方登录与 status 复核、外部安装/活动任务阻断、项目安装计划、managed-stale 清理、执行中、项目已准备、升级迁移、阻塞恢复 |
 | `platform-workspace/` | ✅ | 通过四组主导航连接个人协作、产品全生命周期和组织能力，并让 Organization Project Detail 与 Feedback 承载各自真实处理行为 | Personal/Product/Product Lifecycle/Organization 导航、Workset 多选、组织概览、项目连接缺口、Feedback 主工作台与窄窗口收敛、转待办与仅重试关联、有限范围与部分失败 |
 | `today-workspace/` | 🟡 | 复用真实主导航，以项目栏、需要你处理/项目配置和来源操作台承载多项目执行前置与明确人工责任 | 产品集成员列表、局部选择不回写顶部、点击初始化及失败重试、多项目并行配置、目录/Setup/本机 participation、Chat 权限、Automation 明确人工决定与执行恢复分离、Work 内容纠偏 Sheet 与服务器确认、编辑失败保留草稿/选择/阅读上下文、Work 评审/验收、验收问题原位直显与进展、跨对象部分成功、即时确认后移出、来源未知 |
-| `chat-workspace/` | ✅ | 完整可操作原型，分类导航在左、对话与 Composer 满宽、会话列表在右；按 Product Workspace 分组浏览最近与历史会话，在首条消息前显式确认项目归属，并从 Composer 快速调整当前会话 Model/Level | 项目分组、稳定排序、项目折叠、每组 5 条递增、侧栏调宽、输入调高、新对话项目切换、会话级 Model/Level、turn 配置固定、流式消息、工具/权限、停止、中断/失败恢复、删除确认、工作区阻塞与绑定 Sheet、个人中心、窄窗右抽屉；验证见 chat-workspace/verification.json，仅为本地模拟 |
+| `chat-workspace/` | ✅ | 原 Chat 完整页面整合 Agent 原生待办能力：仅会话列表与待办双向关联能力，会话创建时间倒序、待办列表及筛选保留在 Work，当前项目整理/创建/读写/执行，统一能力/Skill 与文件/待办引用 | 保留项目分组、历史、Model/Level、大小调整、账户、权限与恢复；新增来源/对应关系、/ 与 @、草稿标签、原生回执、版本冲突、占用、失权、失败重试、停止、暗色与窄窗；verification.json + verification-native.json 仅证明本地原型 |
 | `idea-workspace/` | ✅ | 探索和讨论产品创意，比较问题、用户、证据与风险，并在确认后预览正式项目转换 | 探索中、讨论中、已确认、团队观点、开始项目预览 |
 | `release-workspace/` | ✅ | 已有工作区的终端、Git、源码、任务与共享 Agent | 多项目范围、真实执行、冲突、过期写入、缺少工具、恢复 |
 | `operations-workspace/` | ✅ | 组织对外市场动作、渠道内容和效果信号，并把发现回流到产品生命周期 | 待发布、进行中、已复盘、示意信号、Idea/Work/Feedback 回流 |

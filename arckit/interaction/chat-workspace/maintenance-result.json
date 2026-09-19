@@ -4,117 +4,165 @@
     "root": "arckit/interaction/",
     "created": [
       {
-        "path": "chat-workspace/README.md",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "预览、模拟边界、视觉与验证依据"
+        "path": "chat-workspace/native-model.js",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "当前项目待办、同一 thread、原生意图/回执与恢复的隔离样本"
       },
       {
-        "path": "chat-workspace/model.js",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "独立本地会话、工作区、草稿、turn 与恢复样本"
+        "path": "chat-workspace/native-views.js",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "将双列表、标签、身份与结果卡片整合到现有 Chat"
       },
       {
-        "path": "chat-workspace/views.js",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "右侧项目会话分组、中央消息与 Composer"
+        "path": "chat-workspace/native-input.js",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "统一能力/引用选择、对象导航、焦点与异常入口"
       },
       {
-        "path": "chat-workspace/app.js",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "会话操作、焦点、滚动、输入法、场景与逐段回复"
+        "path": "chat-workspace/native.css",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "使用正式 Token 的新增交互组件样式"
       },
       {
-        "path": "chat-workspace/chat.css",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "中央阅读宽度、右侧列表与窄窗抽屉"
+        "path": "chat-workspace/verify-native.cjs",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "新增路径、冲突/占用/失权、范围与响应式验证"
       },
       {
-        "path": "chat-workspace/markdown.js",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "受限 Markdown、代码和表格呈现"
+        "path": "chat-workspace/verification-native.json",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "实际新增原型验证结果"
       },
       {
-        "path": "chat-workspace/scenarios.html",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "独立本地异常工具"
+        "path": "chat-workspace/model-settings.js",
+        "source_basis": "用户要求将 Model/Level 合并为模型能力弹出菜单，技能设置移入能力与引用，发送按钮靠右",
+        "summary": "模型与推理级别弹出配置和焦点恢复"
       },
       {
-        "path": "chat-workspace/scenario-controls.js",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "场景工具消息转发"
+        "path": "chat-workspace/popup-position.js",
+        "source_basis": "用户要求菜单紧贴各自入口向上展开，并修正原型顶部栏与现有实现的布局偏差",
+        "summary": "共用入口锚定、向上展开和窗口尺寸变化重定位"
       },
       {
-        "path": "chat-workspace/states.html",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "从旧主稿迁移的右侧列表状态辅助说明"
+        "path": "chat-workspace/verify-layout.cjs",
+        "source_basis": "用户反馈顶部产品反馈等入口竖排、能力与引用菜单高度缩小并遮挡入口",
+        "summary": "按真实元素几何与命中区域验证同排和每个候选可达"
       },
       {
-        "path": "chat-workspace/verify.cjs",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "主路径、恢复、滚动与响应式浏览器验证"
+        "path": "chat-workspace/verification-layout.json",
+        "source_basis": "用户反馈顶部产品反馈等入口竖排、能力与引用菜单高度缩小并遮挡入口",
+        "summary": "七组宽高组合的布局验证结果"
       },
       {
-        "path": "chat-workspace/verification.json",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "实际本地交互验证结果"
+        "path": "chat-workspace/verify-layout-webkit.swift",
+        "source_basis": "复核用户报告的渲染问题",
+        "summary": "独立 macOS WKWebView 桌面布局检查与证据"
       },
       {
-        "path": "chat-workspace/maintenance-result.json",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "本轮文件范围与正式交互事实结果"
+        "path": "chat-workspace/verification-layout-webkit.json",
+        "source_basis": "复核用户报告的渲染问题",
+        "summary": "独立 macOS WKWebView 桌面布局检查与证据"
       }
     ],
     "updated": [
       {
         "path": "chat-workspace/default.html",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "正式完整入口加载本页能力资源，保持共享壳"
+      },
+      {
+        "path": "chat-workspace/app.js",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "选择器焦点与现有发送反馈衔接"
       },
       {
         "path": "chat-workspace/interaction.md",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "正式化 Agent 能力、同一会话、来源与统一输入规则"
       },
       {
-        "path": "project-workbench/navigation.js",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+        "path": "chat-workspace/README.md",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "完整预览、验证方式与模拟/生产边界"
       },
       {
-        "path": "project-workbench/account-settings.js",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+        "path": "chat-workspace/scenarios.html",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "新增原生失败、冲突、占用、失权和恢复入口"
+      },
+      {
+        "path": "chat-workspace/scenario-controls.js",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "转发有界原生模拟场景"
+      },
+      {
+        "path": "chat-workspace/maintenance-result.json",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "正式采纳事实、范围与证据"
       },
       {
         "path": "INDEX.md",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "更新 Chat 页面资源与说明"
       },
       {
         "path": "_map/RELATIONS.md",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "更新 Chat/Thing/Work/Engineering 关系及下游交接"
       },
       {
         "path": "_map/feature-matrix.md",
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "同步 Chat 完整原型、布局策略、共享组件适配或导航覆盖"
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "登记正式交互覆盖和验证范围"
+      },
+      {
+        "path": "_explorations/INDEX.md",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "标记 V4 已采纳及正式入口"
+      },
+      {
+        "path": "_explorations/chat-todo/exploration.md",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "记录采纳范围、基线和正式目标"
+      },
+      {
+        "path": "_explorations/chat-todo/design-result.json",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "回链本轮正式采纳结果"
+      },
+      {
+        "path": "chat-workspace/verify.cjs",
+        "source_basis": "用户要求将 Model/Level 合并为模型能力弹出菜单，技能设置移入能力与引用，发送按钮靠右",
+        "summary": "模型菜单、技能设置归位与靠右发送及验证"
+      },
+      {
+        "path": "_shared/global-shell.js",
+        "source_basis": "用户要求菜单紧贴各自入口向上展开，并修正原型顶部栏与现有实现的布局偏差",
+        "summary": "按生产实现校准范围组合与全局操作顺序，补齐本地管理入口"
+      },
+      {
+        "path": "_shared/global-context.css",
+        "source_basis": "用户要求菜单紧贴各自入口向上展开，并修正原型顶部栏与现有实现的布局偏差",
+        "summary": "匹配桌面布局、图标操作与 760px 折叠"
+      },
+      {
+        "path": "_shared/global-context.js",
+        "source_basis": "用户要求菜单紧贴各自入口向上展开，并修正原型顶部栏与现有实现的布局偏差",
+        "summary": "本地产品集样本成员恢复"
+      },
+      {
+        "path": "_shared/verify-global-context.cjs",
+        "source_basis": "用户要求菜单紧贴各自入口向上展开，并修正原型顶部栏与现有实现的布局偏差",
+        "summary": "共享顶部栏布局及其他页面回归"
+      },
+      {
+        "path": "_shared/global-context-verification.json",
+        "source_basis": "用户要求菜单紧贴各自入口向上展开，并修正原型顶部栏与现有实现的布局偏差",
+        "summary": "共享顶部栏回归证据"
       }
     ],
     "deleted": [],
-    "reorganized": [
-      {
-        "from_paths": [
-          "chat-workspace/default.html"
-        ],
-        "to_paths": [
-          "chat-workspace/default.html",
-          "chat-workspace/states.html"
-        ],
-        "source_basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
-        "summary": "原静态主稿保留为状态辅助稿，主入口替换为完整可操作 Chat。"
-      }
-    ]
+    "reorganized": []
   },
   "fact_result": {
     "schema_version": "arckit-fact-result/v2",
@@ -124,31 +172,432 @@
     "outcome": "updated",
     "facts": [
       {
-        "statement": "Chat 使用左侧四组应用导航、居中对话及 Composer、右侧项目会话列表；窄窗右侧抽屉保持会话选择和恢复。",
-        "basis": "用户明确要求会话列表放右侧、Chat 居中，并按 arckit-interaction 迁移为完整可操作原型。",
+        "statement": "会话与对应待办从不同列表进入同一 Chat thread；其他待办创建来源独立呈现。",
+        "basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
         "source_refs": [
-          "arckit/interaction/chat-workspace/interaction.md",
-          "arckit/visual/_library/components/conversation.yaml"
-        ],
-        "evidence": [
-          "arckit/interaction/chat-workspace/verification.json"
-        ]
-      },
-      {
-        "statement": "Chat 主入口迁移为完整可操作原型，保留独立会话、工作区、草稿、配置、停止与恢复边界；旧状态稿仅作辅助。",
-        "basis": "既有 Chat 交互策略与用户要求；本地模拟不代表生产 Codex 或目录操作成立。",
-        "source_refs": [
-          "arckit/interaction/chat-workspace/README.md",
-          "arckit/interaction/chat-workspace/states.html"
+          "arckit/interaction/chat-workspace/interaction.md"
         ],
         "evidence": [
           "arckit/interaction/chat-workspace/verification.json",
-          "arckit/interaction/project-workbench/verification-states.json"
+          "arckit/interaction/chat-workspace/verification-native.json"
         ]
+      },
+      {
+        "statement": "当前项目待办的整理、创建、读取、写回与执行请求由 Chat 内 Agent 发起；能力/Skill 与文件/待办引用先入草稿，发送后才调用。",
+        "basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "source_refs": [
+          "arckit/interaction/chat-workspace/interaction.md",
+          "arckit/interaction/chat-workspace/default.html"
+        ],
+        "evidence": [
+          "arckit/interaction/chat-workspace/verification.json",
+          "arckit/interaction/chat-workspace/verification-native.json"
+        ]
+      },
+      {
+        "statement": "Composer 将 Model/Level 合并到模型能力弹出菜单，技能设置置于能力与引用菜单，发送/停止固定靠右；配置仍按会话自动保存并从下一 turn 生效。",
+        "basis": "用户要求将 Model/Level 合并为模型能力弹出菜单，技能设置移入能力与引用，发送按钮靠右",
+        "source_refs": [
+          "arckit/interaction/chat-workspace/interaction.md"
+        ],
+        "evidence": [
+          "arckit/interaction/chat-workspace/verification.json",
+          "arckit/interaction/chat-workspace/verification-native.json"
+        ]
+      },
+      {
+        "statement": "两个 Composer 菜单分别以自身入口为锚点向上展开；共享顶部栏按现有生产布局校准，不引入新的顶部栏设计。",
+        "basis": "用户要求菜单紧贴各自入口向上展开，并修正原型顶部栏与现有实现的布局偏差"
+      },
+      {
+        "statement": "顶部操作改用显式横向容器；能力与引用菜单上限 640px、仅候选列表滚动，搜索与技能设置不被挤出。",
+        "basis": "用户反馈顶部产品反馈等入口竖排、能力与引用菜单高度缩小并遮挡入口"
       }
     ],
     "unresolved": [],
     "human_decision_required": false
   },
-  "exploration_result": null
+  "exploration_result": {
+    "mode": "standalone",
+    "case_id": null,
+    "gap_id": null,
+    "objective": "将已认可 V4 探索整合为正式 Chat 交互说明与完整可操作原型",
+    "artifact_status": "complete",
+    "formal_fact_effect": "updated",
+    "artifacts": [
+      {
+        "path": "arckit/interaction/chat-workspace/default.html",
+        "status": "已采纳",
+        "basis_refs": [
+          "arckit/interaction/_explorations/chat-todo/exploration.md",
+          "arckit/interaction/_explorations/chat-todo/options/agent-native/default.html"
+        ],
+        "baseline": "5d75efe40c801e4f5bf4566522827e46c2c6f5da；保留正式 Chat 已有全局范围/账户/主题/模型/恢复；未修改预存 spec 变更",
+        "evidence": "基础 Chat 与新增能力验证均通过，报告见 verification*.json；仅本地原型"
+      }
+    ],
+    "decision": {
+      "required_for_current_objective": false,
+      "question": null,
+      "basis": "用户明确授权基于当前探索制作正式原型，无需再次确认"
+    },
+    "adoption": [
+      {
+        "source_refs": [
+          "arckit/interaction/_explorations/chat-todo/options/agent-native/default.html"
+        ],
+        "adopted_parts": [
+          "同一 thread 与双列表入口",
+          "当前项目原生待办能力及创建来源",
+          "统一能力/Skill/上下文引用选择",
+          "消息正文、工具事件、业务回执分层与自然语言交互"
+        ],
+        "excluded_parts": [
+          "独立探索页面壳和测试控件",
+          "探索 localStorage 状态",
+          "未采纳的旧表单方案"
+        ],
+        "decision_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "target_paths": [
+          "arckit/interaction/chat-workspace/default.html",
+          "arckit/interaction/chat-workspace/interaction.md"
+        ]
+      }
+    ],
+    "remaining_work": []
+  },
+  "validation": {
+    "reports": [
+      "arckit/interaction/chat-workspace/verification.json",
+      "arckit/interaction/chat-workspace/verification-native.json",
+      "arckit/interaction/_shared/global-context-verification.json",
+      "arckit/interaction/chat-workspace/verification-layout.json",
+      "arckit/interaction/chat-workspace/verification-layout-webkit.json"
+    ],
+    "passed": [
+      "既有会话/权限/账户/尺寸与恢复回归",
+      "待办身份、能力/引用、读写、错误/冲突/占用/失权、全局范围、键盘、明暗主题与响应式",
+      "顶部操作同排；菜单可用高度、固定底部入口、所有能力和引用逐项可达",
+      "独立 macOS WKWebView 1500×800：五个顶部入口同排、菜单高 640px、候选区高 446px、全部候选可达"
+    ],
+    "not_verified": [
+      "真实 Agent/Skill/文件读取与待办 API",
+      "真实权限、跨进程 thread 和幂等",
+      "部分成功/未知结果恢复与原生窗口/辅助技术完整验证"
+    ]
+  },
+  "handoffs": [
+    {
+      "domain": "spec/tech",
+      "summary": "按正式交互同步 Chat 原生能力、项目级独立待办及 thread 归属/恢复契约；生产接入不在本轮原型范围。"
+    },
+    {
+      "domain": "visual",
+      "summary": "选择器、能力/引用标签和回执卡片复用现有正式角色；组件目录可按明确接口补充登记。"
+    }
+  ],
+  "session_list_correction": {
+    "document_scope": {
+      "scope_kind": "change",
+      "root": "arckit/interaction/",
+      "updated": [
+        {
+          "path": "chat-workspace/interaction.md",
+          "source_basis": "用户 2026-09-19 明确要求会话列表独立与创建时间倒序",
+          "summary": "只列会话、组内新创建在上；保留待办关联和引用"
+        },
+        {
+          "path": "chat-workspace/native-views.js",
+          "source_basis": "用户 2026-09-19 明确要求会话列表独立与创建时间倒序",
+          "summary": "只列会话、组内新创建在上；保留待办关联和引用"
+        },
+        {
+          "path": "chat-workspace/native-input.js",
+          "source_basis": "用户 2026-09-19 明确要求会话列表独立与创建时间倒序",
+          "summary": "只列会话、组内新创建在上；保留待办关联和引用"
+        },
+        {
+          "path": "chat-workspace/views.js",
+          "source_basis": "用户 2026-09-19 明确要求会话列表独立与创建时间倒序",
+          "summary": "只列会话、组内新创建在上；保留待办关联和引用"
+        },
+        {
+          "path": "chat-workspace/verify-native.cjs",
+          "source_basis": "用户 2026-09-19 明确要求会话列表独立与创建时间倒序",
+          "summary": "只列会话、组内新创建在上；保留待办关联和引用"
+        },
+        {
+          "path": "INDEX.md",
+          "source_basis": "用户 2026-09-19 明确要求会话列表独立与创建时间倒序",
+          "summary": "只列会话、组内新创建在上；保留待办关联和引用"
+        },
+        {
+          "path": "_map/RELATIONS.md",
+          "source_basis": "用户 2026-09-19 明确要求会话列表独立与创建时间倒序",
+          "summary": "只列会话、组内新创建在上；保留待办关联和引用"
+        },
+        {
+          "path": "_map/feature-matrix.md",
+          "source_basis": "用户 2026-09-19 明确要求会话列表独立与创建时间倒序",
+          "summary": "只列会话、组内新创建在上；保留待办关联和引用"
+        }
+      ]
+    },
+    "fact_result": {
+      "schema_version": "arckit-fact-result/v2",
+      "mode": "managed_case",
+      "case_id": "CASE-20260919-001",
+      "gap_id": "GAP-20260919-001-001",
+      "outcome": "updated",
+      "facts": [
+        {
+          "statement": "Chat 仅列 session，按会话创建时间倒序；待办列表以待办为准。",
+          "basis": "用户两次明确要求",
+          "source_refs": [
+            "user:49473b39-d6dd-4d1d-a2f0-805e1822eaca",
+            "user:57b049fd-1a70-447a-b532-ef768bdb06c2"
+          ],
+          "evidence": [
+            "arckit/interaction/chat-workspace/interaction.md",
+            "arckit/interaction/chat-workspace/verification-native.json"
+          ]
+        }
+      ],
+      "unresolved": [],
+      "human_decision_required": false
+    },
+    "exploration_result": null,
+    "status": "superseded_by_user_clarification_6ffbe69c"
+  },
+  "dual_list_and_filters": {
+    "document_scope": {
+      "scope_kind": "change",
+      "root": "arckit/interaction/",
+      "created": [
+        {
+          "path": "chat-workspace/native-filters.js",
+          "source_basis": "用户要求 Work 一致筛选及 Chat 入口适配",
+          "summary": "可操作筛选样本"
+        }
+      ],
+      "updated": [
+        {
+          "path": "chat-workspace/interaction.md",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        },
+        {
+          "path": "chat-workspace/native-views.js",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        },
+        {
+          "path": "chat-workspace/native-input.js",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        },
+        {
+          "path": "chat-workspace/default.html",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        },
+        {
+          "path": "chat-workspace/native.css",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        },
+        {
+          "path": "chat-workspace/verify-native.cjs",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        },
+        {
+          "path": "INDEX.md",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        },
+        {
+          "path": "_map/RELATIONS.md",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        },
+        {
+          "path": "_map/feature-matrix.md",
+          "source_basis": "用户纠正双列表边界并追加筛选要求",
+          "summary": "双列表独立对象、关联状态与 Work 一致筛选"
+        }
+      ]
+    },
+    "fact_result": {
+      "schema_version": "arckit-fact-result/v2",
+      "mode": "managed_case",
+      "case_id": "CASE-20260919-002",
+      "gap_id": "GAP-20260919-002-003",
+      "outcome": "updated",
+      "facts": [
+        {
+          "statement": "Chat 双列表各自展示独立对象与关联状态，待办筛选覆盖 Work 全部既有维度，筛选不改变会话或草稿。",
+          "basis": "用户澄清、追加要求与 Work 现有行为",
+          "source_refs": [
+            "user:6ffbe69c-7970-447a-bfd6-821e1fdcfb14",
+            "user:b2fa3bbb-2b12-4850-85ac-dad278b36e03"
+          ],
+          "evidence": [
+            "arckit/interaction/chat-workspace/interaction.md",
+            "arckit/interaction/chat-workspace/verification-native.json"
+          ]
+        }
+      ],
+      "unresolved": [],
+      "human_decision_required": false
+    },
+    "exploration_result": null
+  },
+  "list_layout_update": {
+    "document_scope": {
+      "scope_kind": "change",
+      "root": "arckit/interaction/",
+      "updated": [
+        {
+          "path": "chat-workspace/interaction.md",
+          "source_basis": "用户三点明确的列表展示与滚动反馈",
+          "summary": "会话状态图标、待办单行标题、固定搜索与外露状态筛选"
+        },
+        {
+          "path": "chat-workspace/native-views.js",
+          "source_basis": "用户三点明确的列表展示与滚动反馈",
+          "summary": "会话状态图标、待办单行标题、固定搜索与外露状态筛选"
+        },
+        {
+          "path": "chat-workspace/native-filters.js",
+          "source_basis": "用户三点明确的列表展示与滚动反馈",
+          "summary": "会话状态图标、待办单行标题、固定搜索与外露状态筛选"
+        },
+        {
+          "path": "chat-workspace/native.css",
+          "source_basis": "用户三点明确的列表展示与滚动反馈",
+          "summary": "会话状态图标、待办单行标题、固定搜索与外露状态筛选"
+        },
+        {
+          "path": "chat-workspace/verify-native.cjs",
+          "source_basis": "用户三点明确的列表展示与滚动反馈",
+          "summary": "会话状态图标、待办单行标题、固定搜索与外露状态筛选"
+        },
+        {
+          "path": "INDEX.md",
+          "source_basis": "用户三点明确的列表展示与滚动反馈",
+          "summary": "会话状态图标、待办单行标题、固定搜索与外露状态筛选"
+        },
+        {
+          "path": "_map/RELATIONS.md",
+          "source_basis": "用户三点明确的列表展示与滚动反馈",
+          "summary": "会话状态图标、待办单行标题、固定搜索与外露状态筛选"
+        },
+        {
+          "path": "_map/feature-matrix.md",
+          "source_basis": "用户三点明确的列表展示与滚动反馈",
+          "summary": "会话状态图标、待办单行标题、固定搜索与外露状态筛选"
+        }
+      ]
+    },
+    "fact_result": {
+      "schema_version": "arckit-fact-result/v2",
+      "mode": "managed_case",
+      "case_id": "CASE-20260919-003",
+      "gap_id": "GAP-20260919-003-001",
+      "outcome": "updated",
+      "facts": [
+        {
+          "statement": "列表不重复关联提示；待办单行满宽标题无横向滚动，搜索与独立状态筛选固定，下方列表纵向滚动。",
+          "basis": "当前用户明确要求",
+          "source_refs": [
+            "user:4b654e09-7ca3-4f79-bc25-dc7c52e03597"
+          ],
+          "evidence": [
+            "arckit/interaction/chat-workspace/interaction.md",
+            "arckit/interaction/chat-workspace/verification-native.json"
+          ]
+        }
+      ],
+      "unresolved": [],
+      "human_decision_required": false
+    },
+    "exploration_result": null
+  },
+  "session_only_update": {
+    "document_scope": {
+      "scope_kind": "change",
+      "root": "arckit/interaction/",
+      "updated": [
+        {
+          "path": "chat-workspace/interaction.md",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        },
+        {
+          "path": "chat-workspace/native-views.js",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        },
+        {
+          "path": "chat-workspace/native-input.js",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        },
+        {
+          "path": "chat-workspace/native.css",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        },
+        {
+          "path": "chat-workspace/default.html",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        },
+        {
+          "path": "chat-workspace/verify-native.cjs",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        },
+        {
+          "path": "INDEX.md",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        },
+        {
+          "path": "_map/RELATIONS.md",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        },
+        {
+          "path": "_map/feature-matrix.md",
+          "source_basis": "user:430bceff-6fdd-433f-b65c-444e249bf7dc",
+          "summary": "仅会话侧栏，保留待办关联及读写能力；取代此前双列表及筛选要求"
+        }
+      ]
+    },
+    "fact_result": {
+      "schema_version": "arckit-fact-result/v2",
+      "mode": "managed_case",
+      "case_id": "CASE-20260919-006",
+      "gap_id": "GAP-20260919-006-001",
+      "outcome": "updated",
+      "facts": [
+        {
+          "statement": "Chat 仅展示会话列表，保留待办关联、整理、引用和读写能力。此前维护记录为历史决策。",
+          "basis": "用户体验后明确修改",
+          "source_refs": [
+            "user:430bceff-6fdd-433f-b65c-444e249bf7dc"
+          ],
+          "evidence": [
+            "arckit/interaction/chat-workspace/interaction.md",
+            "arckit/interaction/chat-workspace/verification-native.json"
+          ]
+        }
+      ],
+      "unresolved": [],
+      "human_decision_required": false
+    },
+    "exploration_result": null
+  }
 }

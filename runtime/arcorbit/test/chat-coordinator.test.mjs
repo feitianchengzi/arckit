@@ -847,3 +847,30 @@ for (const sessionKind of ['chat', 'automation-task']) {
   } finally { release?.(); await coordinator.close(); await fixture.cleanup(); }
  });
 }
+
+test('Chat removes unused Automation defaults but preserves conversations and runtime evidence', async () => {
+  const fixture = await chatFixture();
+  const manager = fixture.options.runManager;
+  const make = (id, extra = {}) => ({ id: `SESSION-${id}-default`, project_id: id, title: 'Automation', kind: 'automation-task', ...extra });
+  await manager.updateDesktopStore(store => {
+    for (const id of ['EMPTY', 'MESSAGES', 'THREAD', 'RUN', 'TASK', 'DRAFT']) {
+      store.projects.push({ id });
+      store.sessions[id] = [make(id)];
+    }
+    store.messages['SESSION-MESSAGES-default'] = [{ id: 'M', role: 'user', content: 'Keep me' }];
+    store.sessions.THREAD[0].thread_id = 'thread';
+    store.sessions.TASK[0].task_id = 'task';
+    store.sessions.DRAFT[0].draft = 'unsent';
+    store.runs.push({ id: 'R', project_id: 'RUN', session_id: 'SESSION-RUN-default' });
+    store.chat.selected_session_id = 'SESSION-EMPTY-default';
+  });
+  const coordinator = createChatCoordinator({ ...fixture.options, acceptedSessionKinds: ['chat', 'automation-task'] });
+  try {
+    const snapshot = await coordinator.getSnapshot();
+    assert.equal(snapshot.sessions.some(s => s.project_id === 'EMPTY'), false);
+    const store = await manager.readDesktopStore();
+    assert.deepEqual(store.sessions.EMPTY, []);
+    assert.equal(store.chat.selected_session_id, '');
+    for (const id of ['MESSAGES', 'THREAD', 'RUN', 'TASK', 'DRAFT']) assert.equal(store.sessions[id].length, 1, id);
+  } finally { await coordinator.close(); await fixture.cleanup(); }
+});

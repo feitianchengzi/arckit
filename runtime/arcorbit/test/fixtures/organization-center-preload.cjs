@@ -30,6 +30,8 @@ const chatContentOverflowTest = process.env.ARCORBIT_CHAT_CONTENT_OVERFLOW_FIXTU
 const codexSettingsFixture = process.env.ARCORBIT_CODEX_SETTINGS_FIXTURE === "1";
 const chatFixtureEnabled = chatStreamPerformanceTest || chatContentOverflowTest || codexSettingsFixture;
 let chatSnapshotDelayMs = 0;
+let chatNativeDelayMs = 0;
+let chatNativeTaskCount = 1;
 let chatStreamEmitted = 0;
 let chatStreamTimer = null;
 const chatSessions = chatStreamPerformanceTest ? [
@@ -205,6 +207,7 @@ const testChatSnapshotValue = (requested = selectedChatSessionId) => ({
 });
 const testChatSnapshot = async (input = {}) => {
   calls.push(["chatSnapshot", input]);
+  if (process.env.ARCORBIT_CHAT_SWITCH_STORAGE_FIXTURE === "1") return ipcRenderer.invoke("test:chat-switch-snapshot", input);
   if (chatSnapshotDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, chatSnapshotDelayMs));
   const requested = String(input.session_id || selectedChatSessionId || "");
   return testChatSnapshotValue(requested);
@@ -248,14 +251,21 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   openProductFeedback: async () => ({ status: "opened", mode: "submit" }),
   refreshProductFeedbackUnread: async () => ({ status: "ready", unread_count: 0 }),
   getAuthStatus: async () => ({ status: "authenticated", authenticated: true, identity: "glare@example.test", masked_identity: "g***@example.test" }),
+  setTestChatNativeTaskCount: async count => { chatNativeTaskCount = count; },
+  setTestChatNativeDelay: async ms => { chatNativeDelayMs = ms; },
+  chatNativeCatalog: async input => { calls.push(['chatNativeCatalog', input]); if(chatNativeDelayMs)await new Promise(resolve=>setTimeout(resolve,chatNativeDelayMs)); const value={project_id:input.project_id,capabilities:[{id:'create',kind:'native',label:'创建待办'},{id:'summarize',kind:'native',label:'整理为待办'}],skills:[{id:'fixture-skill',kind:'skill',label:'测试已启用技能',project_id:input.project_id}],files:[{id:'README.md',path:'README.md',kind:'file',label:'README.md',project_id:input.project_id}],tasks:[{id:'TASK-1',title:'待办上下文',content:'待办上下文',state:'pending_review',project_id:input.project_id,session_id:'CHAT-B'}]};if(chatNativeTaskCount>1)value.tasks=Array.from({length:chatNativeTaskCount},(_,i)=>({...value.tasks[0],id:'TASK-'+i,title:'待办上下文 '+i}));value.filter_members=[{user_id:'7',username:'成员甲'},{user_id:'8',username:'成员乙'}];value.filter_tags=[{id:'ui',name:'界面'}];const f=input.task_filters||{};value.task_list=value.tasks.filter(t=>(!f.states?.length||f.states.includes(t.state))&&(!f.search_key||t.content.includes(f.search_key))&&(!f.priorities?.length||f.priorities.includes('1')));return value;},
+  chatNativeOpen: async input => {calls.push(['chatNativeOpen',input]);return {session_id:'CHAT-B'}},
   chatSnapshot: testChatSnapshot,
   createChat: async (input = {}) => {
     calls.push(["createChat", input]);
+    if (process.env.ARCORBIT_CHAT_SWITCH_STORAGE_FIXTURE === "1") return ipcRenderer.invoke("test:chat-switch-draft", input);
+    if (process.env.ARCORBIT_CHAT_DRAFT_STORAGE_FIXTURE === "1") return ipcRenderer.invoke("test:chat-draft-save", input);
     return codexSettingsFixture ? testChatSnapshotValue("") : {};
   },
   selectChat: async ({ session_id: sessionId }) => {
     selectedChatSessionId = String(sessionId || "");
     calls.push(["selectChat", { session_id: selectedChatSessionId }]);
+    if (process.env.ARCORBIT_CHAT_SWITCH_STORAGE_FIXTURE === "1") return ipcRenderer.invoke("test:chat-switch-select", { session_id: selectedChatSessionId });
     return testChatSnapshotValue(selectedChatSessionId);
   },
   deleteChat: noOp, renameChat: noOp,

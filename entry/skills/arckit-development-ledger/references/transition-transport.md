@@ -14,6 +14,8 @@
 - 不在项目仓库中保存一次性 transition，不把 `/tmp`、`/private/tmp`、`/var/folders` 或其他临时路径写入 evidence、Case、Project、Iteration 或 handoff。
 - 需要过程审计时使用 Runtime 宿主在项目目录外管理的 run result/activity/events。Desktop 只向 Case round 写入 `arckit-runtime://runs/RUN-...` opaque ref；不要把宿主绝对路径或临时输入提升为 evidence。
 
+新增持久文件证据时按 [case-evidence.md](case-evidence.md) 选择已有载体或 Case 证据目录；提交用的临时载荷不进入证据目录。
+
 ## 内容透明性
 
 transition 中的命令、正则、路径、引号、反斜杠、换行、Unicode 和 `$` 序列都是不透明数据。renderer 必须原样保存，不能把它们解释为模板、replacement string、shell 或 Markdown 控制语义。

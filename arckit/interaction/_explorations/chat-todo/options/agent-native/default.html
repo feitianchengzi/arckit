@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat · Agent 原生待办能力探索</title><link rel="stylesheet" href="../../../../../visual/_library/generated-tokens.css"><link rel="stylesheet" href="prototype.css"></head>
+<body>
+<nav class="navigation" aria-label="页面定位背景"><strong>ArcOrbit</strong><small>PERSONAL</small><span>Today</span><b>Chat</b><span>Thing</span><small>PRODUCT</small><span>Product</span><small>PRODUCT LIFECYCLE</small><span>Idea</span><span>Work</span><span>Automation</span><span>Release</span><span>Operations</span><span>Feedback</span><small>ORGANIZATION</small><span>Organization</span><span>Engineering</span></nav>
+<div class="workspace">
+<header><span>ArcOrbit</span><span class="muted">本地交互样本</span></header>
+<div class="layout">
+<main>
+<div class="titlebar"><div><h1 id="title"></h1><div id="context"></div></div><button id="convert">整理为待办</button><button id="list-toggle" aria-expanded="false">列表</button></div>
+<section id="messages" aria-label="Chat 对话"></section>
+<div id="notice" role="status" aria-live="polite"></div>
+<form id="composer">
+<div id="composer-context" aria-label="本条消息的能力与引用"></div>
+<textarea id="draft" aria-label="给 Agent 的消息" placeholder="发送消息；/ 调用能力，@ 引用上下文…"></textarea>
+<div class="compose-bar"><button type="button" id="invoke" aria-haspopup="dialog">＋ 能力与引用</button><span id="workspace-label" class="muted"></span><button class="primary" id="send">发送</button></div>
+</form>
+</main>
+<aside id="sidebar" aria-label="会话与待办">
+<button id="close-list" class="drawer-close">关闭列表</button>
+<div class="tabs" role="tablist"><button id="sessions-tab" role="tab" aria-controls="list" aria-selected="true">会话</button><button id="tasks-tab" role="tab" aria-controls="list" aria-selected="false">待办</button></div>
+<div class="list-controls"><input id="search" aria-label="搜索列表" placeholder="搜索会话"><button id="new-chat" aria-label="新建对话">＋</button></div>
+<div id="list" role="tabpanel" aria-labelledby="sessions-tab"></div>
+</aside>
+</div>
+<details class="preview"><summary>探索工具 · V4 能力与引用交互（本地脚本模拟）</summary>
+<div class="tools"><button data-example="other">试填：创建其他待办</button><button data-example="update">试填：读写当前待办</button><button data-example="execute">试填：执行当前待办</button><button data-example="suggest">试填：Agent 发现旁支</button><label><input id="fail-next" type="checkbox">下次写入失败</label><button id="reset">重置样本</button></div>
+<p><b>能力边界：</b>正文与工具活动沿用已有表现；能力选择器、引用标签、待办回执卡片为新增候选。Agent/工具均为脚本模拟，消息不生成快捷回复按钮。</p>
+<p>试填仅放入草稿，发送后运行预设场景。其他自由输入不会连接真实 Agent。会话与待办是进入同一 Chat 的两种索引。</p><output id="trace"></output>
+</details>
+</div>
+<dialog id="context-picker" aria-labelledby="picker-title"><div class="picker-head"><strong id="picker-title">能力与引用</strong><button id="picker-close" aria-label="关闭能力与引用">关闭</button></div><input id="picker-search" aria-label="搜索能力或上下文" placeholder="搜索能力、Skill、文件或待办"><div id="picker-results"></div><p class="muted">选择后放入输入框，发送时交给 Agent。</p></dialog>
+<script src="model.js"></script><script src="prototype.js"></script><script src="composer.js"></script>
+</body></html>

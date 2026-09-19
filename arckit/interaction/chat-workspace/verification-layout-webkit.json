@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "engine": "macOS WKWebView",
+  "viewport": {
+    "width": 1500,
+    "height": 800
+  },
+  "buttons": [
+    {
+      "y": 8.5,
+      "bottom": 44.5,
+      "height": 36
+    },
+    {
+      "y": 8.5,
+      "bottom": 44.5,
+      "height": 36
+    },
+    {
+      "y": 8.5,
+      "bottom": 44.5,
+      "height": 36
+    },
+    {
+      "y": 8.5,
+      "bottom": 44.5,
+      "height": 36
+    },
+    {
+      "y": 8.5,
+      "bottom": 44.5,
+      "height": 36
+    }
+  ],
+  "menuHeight": 640,
+  "listHeight": 446,
+  "allEntriesReachable": true,
+  "boundary": "Standalone WKWebView loading local prototype; not the ArcOrbit host or real business APIs."
+}

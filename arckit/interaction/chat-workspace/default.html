@@ -10,14 +10,19 @@
   <link rel="stylesheet" href="../project-workbench/desk.css">
   <link rel="stylesheet" href="../project-workbench/visual.css">
   <link rel="stylesheet" href="chat.css">
+  <link rel="stylesheet" href="native.css">
   <link rel="stylesheet" href="../_shared/global-context.css">
   <script src="../_shared/global-context.js"></script>
 </head>
 <body class="app-body">
   <div id="chat-app"></div><dialog id="chat-dialog" aria-labelledby="chat-dialog-title"></dialog>
+  <dialog id="model-settings" aria-labelledby="model-settings-title"></dialog>
+  <dialog id="native-picker" aria-labelledby="native-picker-title"></dialog>
   <div id="chat-notice" role="status" aria-live="polite"></div>
   <script src="markdown.js"></script>
-  <script src="model.js"></script><script src="views.js"></script><script src="app.js"></script>
+  <script src="model.js"></script><script src="views.js"></script>
+  <script src="native-model.js"></script><script src="native-views.js"></script>
+  <script src="app.js"></script><script src="popup-position.js"></script><script src="native-input.js"></script><script src="model-settings.js"></script>
   <script src="../project-workbench/navigation.js"></script>
   <script src="../project-workbench/account-settings.js"></script>
   <script src="../_shared/global-shell.js"></script>

@@ -45,6 +45,8 @@ description: "查询、创建、更新或审计 arckit/interaction/ 的交互策
 
 ### 5. 验证与同步
 
+生成验证文件前读取 [验证产物与证据](../_arckit_shared/verification-evidence.md)，先确定输出目录，再运行并读取核验；沿用当前执行上下文，standalone 使用临时目录。
+
 按 [操作步骤中的验收清单](references/operations.md) 在更新后的原型中实际操作主路径、恢复路径、键盘和窄窗，对照策略与说明检查行为、视觉引用、草稿/焦点/阅读位置连续性及模拟边界。未运行的检查明确报告，不凭截图宣称行为通过。
 更新 INDEX、受影响的 `_map/RELATIONS.md` 和 feature-matrix；纯探索只登记探索索引，不把候选写成正式覆盖。视觉缺口或变更影响通过明确引用交接给 visual，不隐式调用另一 skill。
 

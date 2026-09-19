@@ -1,6 +1,7 @@
 {
   "ok": true,
   "checks": [
+    "Desktop header matches implemented scope cluster, management and action order; navigation is compact-only",
     "Status entries visibly indicate disclosure; popover surfaces are opaque",
     "Chat product scope, selected session drafts, empty/unbound scope, shared header identity",
     "Thing scope, task drafts and empty scope",

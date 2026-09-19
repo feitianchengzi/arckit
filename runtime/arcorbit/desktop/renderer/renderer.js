@@ -1,3 +1,6 @@
+import { defaultWorkFilters } from './task-filter-defaults.mjs';
+import { createChatNativeSurface } from './chat-native-surface.mjs';
+let chatNativeSurface=null;
 import { initializeGlobalTopbarMenus } from './global-topbar-menus.mjs';
 import { productScope, includesProject, scopedChatProjects, syncSummary, createChatScopeController } from './global-context.mjs';
 import { createProjectWorkbenchSurface } from './project-workbench-surface.mjs';
@@ -360,6 +363,7 @@ async function performGlobalScopeChange(projectId, worksetId = '', {skipProduct 
 let chatComposer;
 const chatConversationSurface = createConversationSurface({
   element: els.chatTranscript,
+  deferOffscreenLayout: true,
   jumpButton: els.chatJumpLatestButton,
   formatTime,
   onApproval: (message, decision) => runAction(async () => {
@@ -398,6 +402,7 @@ const projectWorkbenchSurface = createProjectWorkbenchSurface({
   }
 });
 const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
+chatNativeSurface=createChatNativeSurface({api,coordinator:chatStateCoordinator,getProject:selectedChatProject,getSession:selectedChatSession,render:renderChat,performAction:runAction,closeList:()=>setChatSessionsOpen(false)});
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
   jumpButton: els.jumpToLatestButton,
@@ -465,6 +470,7 @@ async function boot() {
       if (state.page === 'command') renderCommandSyncSummary();
       return;
     }
+    if (state.page === "chat") void chatNativeSurface?.refresh(false);
     scheduleRefresh();
   });
   api.onChatEvent((event) => {
@@ -473,6 +479,7 @@ async function boot() {
       if (chatStateCoordinator.applyStreamEvent(event)) renderChat();
       return;
     }
+    if (state.page === "chat") void chatNativeSurface?.refresh(false);
     scheduleChatRefresh();
   });
   api.onEvent((event) => {
@@ -713,7 +720,7 @@ function wireEvents() {
   }));
   chatComposer = createConversationComposer({
     input: els.chatInput, sendButton: els.chatSendButton, stopButton: els.chatStopButton, hint: els.chatComposerHint,
-    onInput: text => { chatStateCoordinator.setDraft(text); renderChatComposer(); },
+    onInput: text => { chatStateCoordinator.setDraft(text); renderChatComposer({ inputOnly: true }); },
     onSend: sendChat,
     onStop: async () => { if (selectedChatSession()) await chatStateCoordinator.interruptCurrentSession(); renderChat(); },
     performAction: runAction
@@ -1530,15 +1537,6 @@ function scheduleWorkFilterRefresh(delay = 280) {
   }, delay);
 }
 
-function defaultWorkFilters() {
-  const end = new Date();
-  const start = new Date(end.getTime() - 99 * 24 * 60 * 60 * 1000);
-  return {
-    creator_ids: [], executor_ids: [], tag_ids: [], priorities: [],
-    start_time: dateInputValue(start), end_time: dateInputValue(end)
-  };
-}
-
 function dateInputValue(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -1665,7 +1663,7 @@ function renderChatSessionGroups(chat) {
     const id = escapeHtml(group.project_id);
     const history = !visibility.collapsed && visibility.hidden_count
       ? `<button class="chat-history-toggle" data-chat-history-project-id="${id}" type="button">查看更多（剩余 ${visibility.hidden_count} 个）</button>` : "";
-    return `<section class="chat-project-group" data-chat-project-group="${id}"><button type="button" class="chat-project-group-head" data-chat-project-toggle="${id}" aria-expanded="${!visibility.collapsed}"><span aria-hidden="true">${visibility.collapsed ? "▸" : "▾"}</span><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length}</span></button><div class="chat-project-sessions" ${visibility.collapsed ? "hidden" : ""}>${visibility.sessions.map(item => renderChatSession(item, chat.owner.session_id)).join("")}</div>${history}</section>`;
+    return `<section class="chat-project-group" data-chat-project-group="${id}"><button type="button" class="chat-project-group-head" data-chat-project-toggle="${id}" aria-expanded="${!visibility.collapsed}"><span aria-hidden="true">${visibility.collapsed ? "▸" : "▾"}</span><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length}</span></button><div class="chat-project-sessions" ${visibility.collapsed ? "hidden" : ""}>${group.sessions.length ? visibility.sessions.map(item => renderChatSession(item, chat.owner.session_id)).join("") : `<button class="chat-session" data-chat-new-project-id="${id}" type="button" aria-label="在 ${escapeHtml(group.project_name)} 新建对话"><strong>＋ 新建对话</strong></button>`}</div>${history}</section>`;
   }).join("");
 }
 
@@ -1688,7 +1686,7 @@ function renderChat() {
   els.chatProjectSelect.disabled = Boolean(session) || chatProjectsInScope().length === 0;
   els.chatWorkspacePickerLabel.textContent = session ? "固定归属" : "新对话属于";
   els.newChatButton.disabled = chatProjectsInScope().length === 0;
-  const sessionList = chat.snapshot.sessions.length
+  const sessionList = chatProjectsInScope().length
     ? renderChatSessionGroups(chat)
     : `<div class="chat-empty-list">还没有对话。发送第一条消息时才会创建会话。</div>`;
   if (sessionList !== renderedChatSessionList) {
@@ -1711,6 +1709,16 @@ function renderChat() {
       setChatSessionsOpen(false);
       els.chatInput.focus();
       renderChat();
+    })));
+    els.chatSessionList.querySelectorAll("[data-chat-new-project-id]").forEach(button => button.addEventListener("click", () => runAction(async () => {
+      const projectId = button.dataset.chatNewProjectId;
+      if (!chatProjectsInScope().some(project => project.id === projectId)) return;
+      chatScopeController.capture();
+      await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
+      chatScopeController.capture();
+      setChatSessionsOpen(false);
+      renderChat();
+      els.chatInput.focus();
     })));
     els.chatSessionList.querySelectorAll("[data-chat-project-toggle]").forEach(button => button.addEventListener("click", () => {
       const id = button.dataset.chatProjectToggle;
@@ -1781,18 +1789,21 @@ async function openChatWorkspaceSetup() {
   });
 }
 
-function renderChatComposer() {
+function renderChatComposer({ inputOnly = false } = {}) {
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
   const active = isChatActive(session?.status);
-  const configuration = normalizeCodexExecutionSettings(chat.configuration, state.settings.codex.chat);
-  setChatSelectOptions(els.chatCodexModel, chatCodexModels.map(item => ({ value: item.model, label: item.displayName || item.model })), configuration.model);
-  updateChatCodexEffortOptions(false, configuration.reasoning_effort);
-  els.chatCodexModel.disabled = els.chatCodexEffort.disabled = !project;
-  chatComposer?.render({draft:chat.draft,available:Boolean(project),active,sending:chat.sending,
+  if (!inputOnly) {
+    const configuration = normalizeCodexExecutionSettings(chat.configuration, state.settings.codex.chat);
+    setChatSelectOptions(els.chatCodexModel, chatCodexModels.map(item => ({ value: item.model, label: item.displayName || item.model })), configuration.model);
+    updateChatCodexEffortOptions(false, configuration.reasoning_effort);
+    els.chatCodexModel.disabled = els.chatCodexEffort.disabled = !project;
+  }
+  chatComposer?.render({draft:chat.draft,hasContext:Boolean(chat.native_context?.capability || chat.native_context?.refs?.length),available:Boolean(project),active,sending:chat.sending,
     stopping:session?.status === "interrupting",waiting:session?.status === "waiting_approval",
     placeholder:project ? "向 Codex 提问或说明希望它在当前项目中完成什么…" : "先配置本地 Product Workspace…"});
+  if (!inputOnly) chatNativeSurface?.render();
 }
 
 function setDatalistOptions(list, values) {
@@ -5111,6 +5122,7 @@ function showPage(page) {
     renderNavigation();
     renderCommandBar();
     renderChat();
+    void chatNativeSurface?.refresh(false);
     refreshChat().catch((error) => showToast(error.message));
     return;
   }
@@ -5795,6 +5807,8 @@ function normalizeChatSnapshot(value = {}) {
     sessions: Array.isArray(value.sessions) ? value.sessions.map((session) => ({
       id: String(session.id || ""),
       project_id: String(session.project_id || ""),
+      task_id:session.task_id || "",remote_project_id:session.remote_project_id || "",source_session_id:session.source_session_id || "",
+      native_context:session.native_context,
       title: String(session.title || "新对话"),
       status: String(session.status || "completed"),
       error: String(session.error || ""),
@@ -5808,6 +5822,7 @@ function normalizeChatSnapshot(value = {}) {
     messages: Array.isArray(value.messages) ? value.messages.map((message) => ({
       id: String(message.id || ""),
       role: String(message.role || "system"),
+      native_context:message.native_context,native_result:message.native_result,
       kind: String(message.kind || "text"),
       content: String(message.content || ""),
       status: String(message.status || "completed"),

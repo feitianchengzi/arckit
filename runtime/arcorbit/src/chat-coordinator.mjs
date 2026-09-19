@@ -1,3 +1,4 @@
+import { normalizeChatContext } from './chat-context.mjs';
 import {
   normalizeCodexExecutionSettings,
   normalizeCodexSettings,
@@ -18,6 +19,8 @@ export function createChatCoordinator({
   createAdapter = createCodexAppServerAdapter,
   getTurnContext = async () => ({}),
   sessionKind = "chat",
+  acceptedSessionKinds = [sessionKind],
+  authorizeSession = async () => true,
   onTurnSettled = async () => {},
   approvalTimeoutMs = 5 * 60_000,
   streamNotifyMs = 32,
@@ -25,6 +28,7 @@ export function createChatCoordinator({
   idFactory = () => randomUUID()
 }) {
   if (!runManager) throw new TypeError("ChatCoordinator requires a Desktop Run Manager.");
+  const accepts = session => acceptedSessionKinds.includes(session.kind);
   const emitter = new EventEmitter();
   const owners = new Map();
   const pendingApprovals = new Map();
@@ -42,12 +46,34 @@ export function createChatCoordinator({
       : runManager.updateDesktopStore(updater)
   );
 
+  const readChatMetadata = () => runManager.readDesktopChatMetadata?.() || runManager.readDesktopStore();
+  const updateChatMetadata = updater => runManager.updateDesktopChatMetadata
+    ? runManager.updateDesktopChatMetadata(updater)
+    : runManager.updateDesktopStore(store => updater(store, store.settings));
+
   async function ensureInitialized() {
     if (initialized) return;
-    await updateChatStore((store) => {
+    const metadata = await readChatMetadata();
+    // Only legacy synthetic sessions require inspecting history during migration.
+    const hasLegacyDefaults = Object.entries(metadata.sessions || {}).some(([projectId, sessions]) =>
+      sessions.some(session => session.id === `SESSION-${projectId}-default` && session.title === "Automation"));
+    const initialize = hasLegacyDefaults ? updateChatStore : updateChatMetadata;
+    await initialize((store) => {
+      // Migrate only unused synthetic defaults, with message partitions loaded.
+      for (const [projectId, sessions] of Object.entries(store.sessions || {})) {
+        for (const session of [...sessions]) {
+          if (session.id !== `SESSION-${projectId}-default` || session.title !== "Automation"
+            || session.task_id || session.thread_id || session.turn_id || session.draft
+            || ACTIVE_STATUSES.has(session.status)
+            || store.messages?.[session.id]?.length
+            || store.runs?.some(run => run.session_id === session.id)) continue;
+          deleteProjectSession(store, projectId, session.id);
+          if (store.chat.selected_session_id === session.id) store.chat.selected_session_id = "";
+        }
+      }
       for (const sessions of Object.values(store.sessions || {})) {
         for (const session of sessions || []) {
-          if (session.kind === sessionKind && ACTIVE_STATUSES.has(session.status)) {
+          if (accepts(session) && ACTIVE_STATUSES.has(session.status)) {
             session.status = "interrupted";
             session.error = "ArcOrbit restarted before this turn reached a terminal state.";
             session.updated_at = now();
@@ -61,10 +87,13 @@ export function createChatCoordinator({
 
   async function getSnapshot(input = {}) {
     await ensureInitialized();
-    const store = await readChatStore();
+    const store = await (runManager.readDesktopChatSnapshotStore?.(input) || readChatStore());
     const sessions = Object.values(store.sessions || {}).flat()
-      .filter((session) => session.kind === sessionKind)
-      .sort((left, right) => String(right.updated_at).localeCompare(String(left.updated_at)));
+      .filter((session) => accepts(session) && !session.chat_hidden)
+      .sort((left, right) => String(right.created_at || "").localeCompare(String(left.created_at || "")) || String(left.id).localeCompare(String(right.id)));
+    const accessContext={store};
+    const allowed = await Promise.all(sessions.map(session => authorizeSession(session,accessContext)));
+    for(let i=sessions.length-1;i>=0;i--)if(!allowed[i])sessions.splice(i,1);
     const explicitSelection = Object.prototype.hasOwnProperty.call(input, "session_id");
     const requestedId = String(explicitSelection ? input.session_id || "" : store.chat?.selected_session_id || "");
     const selected = sessions.find((session) => session.id === requestedId) || null;
@@ -86,6 +115,7 @@ export function createChatCoordinator({
       draft: {
         project_id: String(selected?.project_id || store.chat?.draft?.project_id || ""),
         text: String(selected ? selected.draft || "" : store.chat?.draft?.text || ""),
+        native_context: normalizeChatContext(selected ? selected.native_context : store.chat?.draft?.native_context),
         ...selectedConfiguration
       }
     };
@@ -97,15 +127,24 @@ export function createChatCoordinator({
     const projectId = String(input.project_id || "");
     const text = String(input.text || "").slice(0, 100_000);
     const requestedConfiguration = configurationFromInput(input);
-    const store = await readChatStore();
+    // Drafts are session metadata; never hydrate or clone transcript history here.
+    const store = await readChatMetadata();
+    if (sessionId) {
+      const located = findSessionById(store, sessionId);
+      if (located && !await authorizeSession(located.session, { store })) throw new Error("该会话属于其他账号或不可访问的项目。");
+    }
     if (projectId && !store.projects.some((project) => project.id === projectId)) throw new Error("Select an available local Product Workspace.");
-    await updateChatStore((draft) => {
+    const updateMetadata = runManager.updateDesktopChatMetadata
+      ? (update) => runManager.updateDesktopChatMetadata(update)
+      : (update) => runManager.updateDesktopStore(draft => update(draft, draft.settings));
+    await updateMetadata((draft, settings) => {
       draft.chat ||= {};
-      const chatDefaults = normalizeCodexSettings(draft.settings?.codex).chat;
+      const chatDefaults = normalizeCodexSettings(settings?.codex).chat;
       if (sessionId) {
         const located = findSessionById(draft, sessionId);
-        if (!located || located.session.kind !== sessionKind) throw new Error("Unknown Chat session.");
+        if (!located || !accepts(located.session)) throw new Error("Unknown Chat session.");
         located.session.draft = text;
+        located.session.native_context=normalizeChatContext(input.native_context);
         if (requestedConfiguration) Object.assign(located.session, requestedConfiguration);
         located.session.updated_at = now();
         draft.chat.selected_session_id = sessionId;
@@ -113,21 +152,31 @@ export function createChatCoordinator({
       }
       draft.chat.selected_session_id = "";
       const configuration = requestedConfiguration || normalizeCodexExecutionSettings(draft.chat.draft, chatDefaults);
-      draft.chat.draft = { project_id: projectId, text, ...configuration, updated_at: now() };
+      draft.chat.draft = { project_id: projectId, text, native_context:normalizeChatContext(input.native_context), ...configuration, updated_at: now() };
       return draft;
     });
     changed("chat.draft.changed");
+    // Autosave callers only need persistence acknowledgement. Navigation callers
+    // retain the default snapshot response for adopting the new draft owner.
+    if (input.response === "ack") return { saved: true, session_id: sessionId, project_id: projectId };
     return getSnapshot({ session_id: sessionId });
   }
 
   async function select(input = {}) {
     await ensureInitialized();
     const sessionId = String(input.session_id || "");
-    await updateChatStore((store) => {
+    const metadata = await readChatMetadata();
+    if (sessionId) {
+      const located = findSessionById(metadata, sessionId);
+      if (located && !await authorizeSession(located.session, { store: metadata })) {
+        throw new Error("该会话属于其他账号或不可访问的项目。");
+      }
+    }
+    await updateChatMetadata((store) => {
       store.chat ||= {};
       if (sessionId) {
         const located = findSessionById(store, sessionId);
-        if (!located || located.session.kind !== sessionKind) throw new Error("Unknown Chat session.");
+        if (!located || !accepts(located.session) || located.session.chat_hidden) throw new Error("Unknown Chat session (missing or hidden).");
       }
       store.chat.selected_session_id = sessionId;
       return store;
@@ -137,6 +186,7 @@ export function createChatCoordinator({
 
   async function rename(input = {}) {
     await ensureInitialized();
+    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
     const title = String(input.title || "").trim().slice(0, 80);
     if (!title) throw new Error("Conversation title cannot be empty.");
@@ -150,7 +200,9 @@ export function createChatCoordinator({
 
   async function send(input = {}) {
     await ensureInitialized();
-    const text = String(input.text || "").trim();
+    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
+    const nativeContext=normalizeChatContext(input.native_context);
+    const text = String(input.text || (nativeContext.capability ? `请调用 ${nativeContext.capability.label}` : nativeContext.refs.length ? "请分析引用的上下文。" : "")).trim();
     if (!text) throw new Error("Enter a message before sending.");
     const requestId = requireId(input.client_request_id, "client_request_id");
     let sessionId = String(input.session_id || "");
@@ -163,14 +215,14 @@ export function createChatCoordinator({
 
     await updateChatStore((store) => {
       let located = sessionId ? findSessionById(store, sessionId) : null;
-      const replay = findChatRequest(store, requestId, sessionKind);
+      const replay = findChatRequest(store, requestId, acceptedSessionKinds);
       if (replay) {
         if (sessionId && sessionId !== replay.session.id) throw new Error("Chat request id belongs to another session.");
         sessionId = replay.session.id;
         located = replay;
       }
       if (sessionId && !located) throw new Error("Unknown Chat session.");
-      if (located && located.session.kind !== sessionKind) throw new Error("The selected session does not belong to Chat.");
+      if (located && !accepts(located.session)) throw new Error("The selected session does not belong to Chat.");
       const projectId = located?.project_id || String(input.project_id || store.chat?.draft?.project_id || "");
       project = store.projects.find((item) => item.id === projectId);
       if (!project) throw new Error("Select an available local Product Workspace before sending.");
@@ -221,6 +273,7 @@ export function createChatCoordinator({
           role: "user",
           kind: "text",
           content: text,
+          native_context:nativeContext,
           status: "completed",
           client_request_id: requestId,
           thread_id: located.session.thread_id || "",
@@ -233,7 +286,7 @@ export function createChatCoordinator({
       }
       located.session.status = "starting";
       located.session.error = "";
-      located.session.draft = "";
+      if(!input.preserve_draft){located.session.draft = "";located.session.native_context=normalizeChatContext();}
       located.session.retry_client_request_id = requestId;
       located.session.updated_at = createdAt;
       turnConfiguration = normalizeCodexExecutionSettings(
@@ -252,7 +305,7 @@ export function createChatCoordinator({
     changed("chat.turn.starting", sessionId);
     try {
       const owner = await ownerFor(sessionId, project);
-      owner.completion = consumeTurn({ owner, sessionId, project, text, configuration: { ...turnConfiguration, yoloMode } });
+      owner.completion = consumeTurn({ owner, sessionId, project, text, nativeContext, requestId, configuration: { ...turnConfiguration, yoloMode } });
     } catch (error) {
       await failSession(sessionId, error);
       throw error;
@@ -260,13 +313,13 @@ export function createChatCoordinator({
     return getSnapshot({ session_id: sessionId });
   }
 
-  async function consumeTurn({ owner, sessionId, project, text, configuration }) {
+  async function consumeTurn({ owner, sessionId, project, text, nativeContext, requestId, configuration }) {
     try {
       await setupReadinessPreflight(resolve(project.path));
       if (owner.cancelled) return;
       const store = await readChatStore();
       const located = findSessionById(store, sessionId);
-      if (!located || located.session.kind !== sessionKind) throw new Error("Chat session disappeared before the turn started.");
+      if (!located || !accepts(located.session)) throw new Error("Chat session disappeared before the turn started.");
       const executable = normalizeExecutable(getCodexExecutable());
       const settings = await runManager.getSettings();
       const env = prependPath(buildRuntimeEnv({ ...process.env }, settings), executable.pathEntries);
@@ -274,15 +327,15 @@ export function createChatCoordinator({
         configuration,
         normalizeCodexSettings(settings.codex).chat
       );
-      const context = await getTurnContext({ project, sessionId, text, yoloMode: configuration.yoloMode });
+      const context = await getTurnContext({ project, sessionId, text, nativeContext, requestId, yoloMode: configuration.yoloMode });
       const skillFingerprint = context.options?.sceneSkillBinding?.fingerprint || '';
       if (owner.skillFingerprint && owner.skillFingerprint !== skillFingerprint) {
         await owner.adapter.close();
         owner.adapter = createAdapter();
       }
       owner.skillFingerprint = skillFingerprint;
-      if (context.options?.commandEnvironment) {
-        const signature=createHash('sha256').update(JSON.stringify([executable.command,Object.entries(context.options.commandEnvironment).sort(([a],[b])=>a.localeCompare(b))])).digest('hex');
+      if (context.options?.commandEnvironment || context.options?.extraEnvironment) {
+        const signature=createHash('sha256').update(JSON.stringify([executable.command,Object.entries({...context.options.commandEnvironment,...context.options.extraEnvironment}).sort(([a],[b])=>a.localeCompare(b))])).digest('hex');
         if(owner.commandEnvironmentSignature && owner.commandEnvironmentSignature!==signature){
           await owner.adapter.close();owner.adapter=createAdapter();
         }
@@ -318,12 +371,13 @@ export function createChatCoordinator({
 
   async function interrupt(input = {}) {
     await ensureInitialized();
+    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
     const owner = owners.get(sessionId);
     if (!owner?.completion) throw new Error("This conversation has no active turn.");
     const currentStore = await readChatStore();
     const current = findSessionById(currentStore, sessionId);
-    if (!current || current.session.kind !== sessionKind) throw new Error("Unknown Chat session.");
+    if (!current || !accepts(current.session)) throw new Error("Unknown Chat session.");
     if (!ACTIVE_STATUSES.has(current.session.status)) return getSnapshot({ session_id: sessionId });
     owner.cancelled = true;
     await mutateChatSession(sessionId, (session) => { session.status = "interrupting"; session.updated_at = now(); });
@@ -354,6 +408,7 @@ export function createChatCoordinator({
 
   async function decideApproval(input = {}) {
     await ensureInitialized();
+    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
     const requestId = requireId(input.request_id, "request_id");
     const pending = pendingApprovals.get(approvalKey(sessionId, requestId));
@@ -365,6 +420,7 @@ export function createChatCoordinator({
 
   async function remove(input = {}) {
     await ensureInitialized();
+    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
     const owner = owners.get(sessionId);
     if (owner?.completion) {
@@ -374,8 +430,9 @@ export function createChatCoordinator({
     let removed = null;
     await updateChatStore((store) => {
       const located = findSessionById(store, sessionId);
-      if (!located || located.session.kind !== sessionKind) throw new Error("Unknown Chat session.");
-      removed = deleteProjectSession(store, located.project_id, sessionId);
+      if (!located || !accepts(located.session)) throw new Error("Unknown Chat session.");
+      if(located.session.task_id){located.session.chat_hidden=true;removed=located.session;}
+      else removed = deleteProjectSession(store, located.project_id, sessionId);
       if (store.chat.selected_session_id === sessionId) store.chat.selected_session_id = "";
       return store;
     });
@@ -606,7 +663,7 @@ export function createChatCoordinator({
   async function mutateChatSession(sessionId, mutation) {
     return updateChatStore((store) => {
       const located = findSessionById(store, sessionId);
-      if (!located || located.session.kind !== sessionKind) throw new Error(`Unknown Chat session: ${sessionId}`);
+      if (!located || !accepts(located.session)) throw new Error(`Unknown Chat session: ${sessionId}`);
       mutation(located.session, store);
       return store;
     });
@@ -707,6 +764,7 @@ export function createChatCoordinator({
 
   return {
     getSnapshot,
+    notifyNative:sessionId=>changed("chat.native.updated",sessionId),
     createDraft,
     select,
     rename,
@@ -724,6 +782,8 @@ function publicSession(session, fallback) {
     id: session.id,
     project_id: session.project_id,
     title: session.title,
+    task_id:String(session.task_id || ""),remote_project_id:String(session.remote_project_id || ""),source_session_id:String(session.source_session_id || ""),
+    native_context:normalizeChatContext(session.native_context),
     status: session.status,
     error: session.error || "",
     retry_client_request_id: session.status === "failed" ? String(session.retry_client_request_id || "") : "",
@@ -748,6 +808,8 @@ function publicMessage(message) {
     role: ["user", "assistant", "tool", "system"].includes(message.role) ? message.role : "system",
     kind: ["text", "reasoning", "tool", "approval", "error"].includes(message.kind) ? message.kind : "text",
     content: String(message.content || ""),
+    native_context:normalizeChatContext(message.native_context),
+    native_result:message.native_result || null,
     status: String(message.status || "completed"),
     approval_request_id: String(message.approval_request_id || ""),
     approval_method: String(message.approval_method || ""),
@@ -819,10 +881,10 @@ function requireId(value, name) {
   if (!result || result.length > 200) throw new Error(`${name} is required.`);
   return result;
 }
-function findChatRequest(store, requestId, sessionKind = "chat") {
+function findChatRequest(store, requestId, acceptedSessionKinds = ["chat"]) {
   for (const [projectId, sessions] of Object.entries(store.sessions || {})) {
     for (const session of sessions || []) {
-      if (session.kind !== sessionKind) continue;
+      if (!acceptedSessionKinds.includes(session.kind)) continue;
       const message = (store.messages?.[session.id] || []).find((item) => (
         item.role === "user" && item.client_request_id === requestId
       ));

@@ -19,3 +19,7 @@
 - migration-integrity.json 原始文件完整性与路径维护明细。
 - migration-link-fixes.json 研究链接修复与原稿缺图清单。
 - migration-verification.json 七个迁移入口和场景工具的浏览器加载验证。
+- chat-todo/ Chat 原生 Agent 待办能力：V4 已采纳，正式稿位于 ../chat-workspace/；当前项目创建、读写与执行，会话/待办双入口复用 Chat thread。
+  - exploration.md Thing 能力接入依据、三条主路径、连续性与待采纳取舍。
+  - options/agent-native/default.html 已采纳的 V4 样本：统一能力/引用入口、同一会话身份与来源区分，对话创建、读写和执行。
+  - options/linked-chat/ 旧版表单方案：未采纳，仅保留历史。

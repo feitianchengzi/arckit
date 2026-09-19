@@ -1,0 +1,62 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "width": 1500,
+      "height": 1000,
+      "topbar": "horizontal",
+      "menuHeight": 640,
+      "listHeight": 446,
+      "allEntriesReachable": true
+    },
+    {
+      "width": 1500,
+      "height": 800,
+      "topbar": "horizontal",
+      "menuHeight": 640,
+      "listHeight": 446,
+      "allEntriesReachable": true
+    },
+    {
+      "width": 1024,
+      "height": 800,
+      "topbar": "horizontal",
+      "menuHeight": 640,
+      "listHeight": 446,
+      "allEntriesReachable": true
+    },
+    {
+      "width": 820,
+      "height": 800,
+      "topbar": "horizontal",
+      "menuHeight": 640,
+      "listHeight": 446,
+      "allEntriesReachable": true
+    },
+    {
+      "width": 760,
+      "height": 800,
+      "topbar": "compact",
+      "menuHeight": 640,
+      "listHeight": 446,
+      "allEntriesReachable": true
+    },
+    {
+      "width": 390,
+      "height": 800,
+      "topbar": "compact",
+      "menuHeight": 640,
+      "listHeight": 446,
+      "allEntriesReachable": true
+    },
+    {
+      "width": 390,
+      "height": 640,
+      "topbar": "compact",
+      "menuHeight": 534,
+      "listHeight": 340,
+      "allEntriesReachable": true
+    }
+  ],
+  "boundary": "Electron browser-local prototype; native WebKit host not executed."
+}

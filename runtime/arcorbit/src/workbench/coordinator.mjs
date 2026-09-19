@@ -30,13 +30,13 @@ const capabilities = [
 ].map(([name,description,input]) => ({name,description,input,scope:'current_task',owner: name.startsWith('task.') || name.startsWith('material') || name.startsWith('comment') ? 'workshop' : 'workbench_scene'}));
 
 export function createProjectWorkbench({ dataDir, runManager, workSync, platform, automation, getAccountScope,
-  getCodexExecutable, setupReadinessPreflight, getAgentEnvironment = async () => ({}), revokeAgentEnvironment = () => {}, softwareCapabilities = () => [], callSoftware = async () => { throw new Error("软件能力不可用。"); }, resolveSceneSkills = async () => null, createAdapter, now = () => new Date().toISOString() }) {
+  getCodexExecutable, setupReadinessPreflight, getAgentEnvironment = async () => ({}), revokeAgentEnvironment = () => {}, softwareCapabilities = () => [], callSoftware = async () => { throw new Error("软件能力不可用。"); }, resolveSceneSkills = async () => null, createAdapter, chatCoordinator = null, now = () => new Date().toISOString() }) {
   const scenes = createSceneStore({ dataDir, now });
   const emitter = new EventEmitter();
   const turnLeases = new Map();
   const commandQueues = new Map();
   const changed = () => emitter.emit('event', { type:'workbench.changed' });
-  const chat = createChatCoordinator({ runManager, getCodexExecutable, setupReadinessPreflight, createAdapter,
+  const chat = chatCoordinator || createChatCoordinator({ runManager, getCodexExecutable, setupReadinessPreflight, createAdapter,
     sessionKind:'automation-task', getTurnContext: turnContext,
     onTurnSettled: async ({sessionId}) => { revokeAgentEnvironment(`chat:${sessionId}`); turnLeases.get(sessionId)?.(); turnLeases.delete(sessionId); changed(); await automation.maybeStartNext?.(); }
   });
@@ -218,7 +218,7 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
       if(softwareCapabilities().some(c=>c.name===action)) {
         scene.last_capability_result={action,result:await callSoftware(action,payload,{task,local:ctx.local,scope,actor}),at:now()};
       } else if(action==='task.update') {
-        const changes=actor==='agent'?{...(payload.content!==undefined?{content:payload.content}:{}),...(payload.priority!==undefined?{priority:payload.priority}:{})}:payload;
+        const changes=actor==='agent'?{...(payload.expected?{expected:payload.expected}:{}),...(payload.content!==undefined?{content:payload.content}:{}),...(payload.priority!==undefined?{priority:payload.priority}:{})}:payload;
         if(changes.state==='accepted') throw new Error('请使用验收操作。');
         await platform.executeAction('task.update',{...changes,task_id:task.id,expected_state:task.state});
         if(changes.content!==undefined && changes.content!==task.content) {scene.criteria=scene.criteria.map(c=>({...c,checked:false}));scene.goal_version=goalVersion(changes.content);}
@@ -268,9 +268,11 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
       } else throw new Error(`未知事情操作：${action}`);
     });
   }
-  return {snapshot,detail,command,invokeTool,agentScene,capabilities:()=>capabilities,
+  return {snapshot,detail,command,invokeTool,agentScene,
+    async settleChat(sessionId){revokeAgentEnvironment(`chat:${sessionId}`);turnLeases.get(sessionId)?.();turnLeases.delete(sessionId);changed();await automation.maybeStartNext?.();},
+    capabilities:()=>capabilities,
     async agentEnvironment({projectId,taskId}) {if(!taskId)return null;const ctx=await taskContext(taskId);if(ctx.local?.id!==projectId)throw new Error('Agent 工作区与事情不匹配。');return {taskId:String(taskId),scope:ctx.scope,projectId,workspace:ctx.local.path};},
     async assertAgentGrant(grant){const ctx=await taskContext(grant.taskId);if(ctx.scope!==grant.scope||ctx.local?.id!==grant.projectId||ctx.local?.path!==grant.workspace)throw new Error('事情工作区或账号已变化，原执行不能继续调用能力。');},
-    onEvent(fn){emitter.on('event',fn);return()=>emitter.off('event',fn);},async close(){await chat.close();for(const release of turnLeases.values())release();turnLeases.clear();}};
+    onEvent(fn){emitter.on('event',fn);return()=>emitter.off('event',fn);},async close(){if(!chatCoordinator)await chat.close();for(const release of turnLeases.values())release();turnLeases.clear();}};
 }
 function normalizeReport(input) {return {current:text(input.current,4000),summary:text(input.summary,4000),advances:list(input.advances).map(v=>text(v,1000)),remaining:list(input.remaining).map(v=>text(v,1000)),next:text(input.next,2000),artifacts:list(input.artifacts).slice(0,50).map(a=>({path:text(a.path,2000),summary:text(a.summary,2000),version:text(a.version,200)}))};}

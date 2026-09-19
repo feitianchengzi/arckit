@@ -31,22 +31,34 @@
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
   - interaction.md Today 交互：产品集成员、局部选择与按需初始化、双工作区、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (241行)
   - product-continuity.html 产品续接：添加 Idea、独立新消息和本机草稿。✅ (5行)
-- chat-workspace/ Chat 完整可操作页面：左侧分类导航、中间满宽对话与可调高输入、右侧项目分组会话列表；窄窗抽屉。✅
-  - default.html 四组导航、中央对话与右侧会话列表的完整可操作入口。✅ (24行)
-  - interaction.md 布局策略、会话与工作区边界、草稿、消息和异常恢复。✅ (141行)
-  - README.md 预览、模拟边界、视觉与验证依据。✅ (39行)
-  - model.js 独立本地会话、工作区、草稿、turn 与恢复样本。✅ (54行)
-  - views.js 右侧项目会话分组、中央消息与 Composer。✅ (39行)
-  - app.js 会话操作、焦点、滚动、输入法、场景与逐段回复。✅ (173行)
-  - chat.css 中央阅读宽度、右侧列表与窄窗抽屉。✅ (67行)
+- chat-workspace/ Chat 正式交互：仅显示会话列表，待办关联保留在会话与卡片；会话创建时间倒序，Agent 当前项目待办读写与统一能力/Skill/上下文选择；保留完整会话、账户和响应式行为。✅
+  - default.html 四组导航、中央对话、会话列表与统一能力引用的完整入口。✅ (30行)
+  - interaction.md 正式能力/引用、待办身份与来源、同一 thread、布局与恢复规则。✅ (195行)
+  - README.md 预览、模拟边界、视觉与验证依据。✅ (46行)
+  - model.js 独立本地会话、工作区、草稿、turn 与恢复样本。✅ (56行)
+  - views.js 右侧项目会话分组、中央消息与 Composer。✅ (40行)
+  - app.js 会话操作、焦点、滚动、输入法、场景与逐段回复。✅ (194行)
+  - chat.css 中央阅读宽度、右侧列表与窄窗抽屉。✅ (80行)
   - markdown.js 受限 Markdown、代码和表格呈现。✅ (102行)
   - scenarios.html 独立本地异常工具。✅ (4行)
   - scenario-controls.js 场景工具消息转发。✅ (1行)
   - states.html 从旧主稿迁移的右侧列表状态辅助说明。✅ (55行)
   - workspace-setup.html 原位目录绑定与 Setup Readiness 辅助说明。✅ (12行)
-  - verify.cjs 主路径、恢复、滚动与响应式浏览器验证。✅ (57行)
+  - verify.cjs 主路径、恢复、滚动与响应式浏览器验证。✅ (62行)
   - verification.json 实际本地交互验证结果。✅ (21行)
   - maintenance-result.json 本轮文件范围与正式交互事实结果。✅
+  - native-model.js 当前项目待办、绑定、意图与原生回执本地模型。✅ (104行)
+  - native-views.js 会话/待办独立单行列表、标签、对象卡片与正式视图组合。✅ (37行)
+  - native-input.js 统一能力/引用选择器、对象进入与异常恢复。✅ (77行)
+  - native.css 消费正式 Token 的能力选择、标签与回执样式。✅ (40行)
+  - verify-native.cjs 正式新增主路径、状态恢复、键盘与响应式验证。✅ (57行)
+  - verification-native.json 新增能力原型的实际本地验证结果。✅ (17行)
+
+  - model-settings.js 当前会话模型/推理级别弹出配置、自动保存与焦点恢复。✅
+  - verify-layout-webkit.swift / verification-layout-webkit.json macOS WebKit 桌面布局复核。✅
+  - verify-layout.cjs / verification-layout.json 顶部入口同排、菜单可用高度与全部候选可达检查。✅
+  - popup-position.js 菜单紧贴各自入口向上展开，处理视口避让与窗口尺寸变化。✅
+
 - release-workspace/ Release：真实终端、Git、源码、任务与 Agent 协作。✅
   - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
   - page-states.html Release 状态线框：全部项目、执行、Git、冲突与中断恢复。辅助状态说明 (10行)
@@ -100,11 +112,11 @@
   - default.html 应用 light / dark 主题的完整可操作正式原型。✅ (30行)
   - README.md 打开方式、样本边界与验证命令。✅ (54行)
   - scenarios.html 独立异常场景工具与重置入口。✅ (33行)
-  - model.js 独立存储、事情身份与本地业务样本。✅ (80行)
+  - model.js 独立存储、事情身份与本地业务样本。✅ (56行)
   - work-progress.js 按事情推进的观察记录与可变安排。✅ (56行)
   - detail-content.js 共用标准、资料、成果与详情投影。✅ (68行)
-  - views.js 三栏、消息和运行概况组件。✅ (43行)
-  - app.js 主操作、表单、焦点、草稿与阅读连续性。✅ (148行)
+  - views.js 三栏、消息和运行概况组件。✅ (40行)
+  - app.js 主操作、表单、焦点、草稿与阅读连续性。✅ (194行)
   - navigation.js 四组业务页面及窄窗导航入口。✅ (66行)
   - account-capabilities.md 个人中心代码能力映射、交互优化与本地模拟边界。✅ (45行)
   - account-settings.js 账户与 Runtime 弹出页、任务源、模型与代理操作。✅ (233行)
@@ -112,7 +124,7 @@
   - verification-account.json 个人中心实际验证结果。✅ (42行)
   - maintenance-result.json 本轮文件操作与正式交互事实结果。✅
   - scenarios.js 本地异常注入，与正式存储隔离。✅ (36行)
-  - scenario-controls.js 场景工具到原型的受限本地消息。✅ (5行)
+  - scenario-controls.js 场景工具到原型的受限本地消息。✅ (1行)
   - styles.css 基础布局，全部颜色引用视觉角色。✅ (496行)
   - desk.css 事情台布局、弹层与响应式规则。✅ (338行)
   - detail-content.css 详情内容和状态组织。✅ (154行)

@@ -13,7 +13,7 @@
     if (composing || resizeDrag) return;
     if (capturePosition) capture();
     const active = document.activeElement;
-    const field = active?.matches('#chat-input,#chat-model,#chat-level') ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
+    const field = active?.matches('#chat-input,#chat-model,#chat-level,#native-search') ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
     const action = active?.dataset.chatAction ? { name: active.dataset.chatAction, id: active.dataset.id, project: active.dataset.project } : null;
     const disclosures = [...document.querySelectorAll('[data-disclosure][open]')].map(el => el.dataset.disclosure);
     V.render();
@@ -22,7 +22,7 @@
     document.querySelector('.session-groups').scrollTop = listScroll;
     for (const id of disclosures) document.querySelector(`[data-disclosure="${id}"]`)?.setAttribute('open','');
     if (M.state.listOpen && innerWidth <= 760) document.querySelector('.chat-center').inert = true;
-    if (!dialog.open && !document.getElementById('account-dialog')?.open) {
+    if (!dialog.open && !document.getElementById('native-picker')?.open && !document.getElementById('model-settings')?.open && !document.getElementById('account-dialog')?.open) {
       if (field) { const node = document.getElementById(field.id); node?.focus(); if (node && field.start !== null) node.setSelectionRange(field.start, field.end); }
       else if (action) [...document.querySelectorAll('[data-chat-action]')].find(el => el.dataset.chatAction === action.name && el.dataset.id === action.id && el.dataset.project === action.project)?.focus({ preventScroll: true });
     }
@@ -44,7 +44,7 @@
     dialog.showModal(); (dialog.querySelector('input,select') || dialog.querySelector('button')).focus();
   }
   function send() {
-    try { const s = M.send(); if (s) { s.follow = true; render({ capturePosition: false }); document.getElementById('chat-input').focus(); } }
+    try { const s = M.send(); if (s) { notice(''); s.follow = true; render({ capturePosition: false }); document.getElementById('chat-input').focus(); } }
     catch (error) { notice(error.message); M.save(); }
   }
   function tick() { capture(); if (M.tick()) render({ capturePosition: false }); }
@@ -155,7 +155,7 @@
   document.addEventListener('compositionstart', event => { if (event.target.id === 'chat-input') composing = true; });
   document.addEventListener('compositionend', event => { if (event.target.id === 'chat-input') { composing = false; M.owner().draft = event.target.value; M.save(); } });
   document.addEventListener('keydown', event => {
-    if (document.getElementById('account-dialog')?.open) return;
+    if (document.getElementById('account-dialog')?.open || document.getElementById('native-picker')?.open || document.getElementById('model-settings')?.open) return;
     if (event.key === 'Enter' && event.target.id === 'chat-input' && !event.shiftKey && !event.isComposing && !composing) { event.preventDefault(); if (!M.active(M.current())) send(); }
     if (event.key === 'Escape') {
       if (dialog.open) { event.preventDefault(); if (!dialog.querySelector('[data-busy]')) close(); }

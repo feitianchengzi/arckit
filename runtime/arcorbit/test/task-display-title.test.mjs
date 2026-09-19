@@ -27,3 +27,10 @@ test("task display title never splits combining characters, surrogate pairs, or 
 test("task display title uses a normalized fallback only when the source is empty", () => {
   assert.equal(taskDisplayTitle(" \n ", " Task\n42 "), "Task 42");
 });
+
+test('long task bodies retain the exact Unicode title while bounding segmentation work', () => {
+  const value='👨‍👩‍👧‍👦'.repeat(63)+'e\u0301'+'大段正文'.repeat(50000);
+  const started=performance.now();
+  assert.equal(taskDisplayTitle(value),'👨‍👩‍👧‍👦'.repeat(63)+'…');
+  assert.ok(performance.now()-started<200,'display title must not segment the full long task body');
+});

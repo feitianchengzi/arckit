@@ -75,3 +75,17 @@ Chat 使用独立 `chat-layout.css` 调整中央对话、右侧分组会话及�
 Renderer 持有产品集与产品观察范围的唯一状态。Chat 使用已关联的远端 project id 或匹配的本地 project id 建立范围映射；Thing 与业务列表直接使用 project_id。各 surface 消费同一全局范围；Today 单独维护页内项目选择，项目栏直接投影产品集成员，不从 Today 配置记录反推成员。顶部主动范围变化单向设置 Today 局部选择，Today 点击不调用全局范围更新。成员变化校验局部选择，失效时回到全部项目。Today 必要本机记录按稳定项目身份惰性初始化，已有记录复用，失败可重试；迟到响应不恢复旧选择，初始化不隐式触发目录绑定、Setup 写入或 Automation 授权。选择记忆按用户、产品集、产品范围和页面隔离，对象草稿仍按对象身份保存。范围切换递增请求代际，迟到结果不得恢复旧范围对象；后台执行生命周期不因选择变化而停止。公共顶部只绑定现有受限 IPC，不新增权限或任意系统能力。同步摘要分别消费 Runtime task source、Work Sync 与平台错误；手动同步复用已有同步协调器，Git 产品资料发布保持显式独立动作。
 
 Chat 布局以剩余列满宽呈现，`chat-resize.mjs` 用 Pointer Capture 与键盘分隔线维护右栏宽度和输入高度；尺寸保存至本机 localStorage，ResizeObserver 在容器变化时限制尺寸，存储不可用不阻止编辑。分组视图按项目稳定 id 与会话 created_at/id 排序，不使用 updated_at；Renderer 独立保存项目折叠和五条递增额度，收起清除额度。以上 UI 状态不写入会话或 Runtime，刷新不强制展开选中会话。
+
+## Chat 的原生待办入口
+
+Chat 与 Thing 的交互式讨论共用 Chat coordinator、session、消息存储和 Codex thread。已有 `automation-task` session 由 Chat 直接选择，不复制历史或另建 thread；普通 Chat 整理为待办时，保留 session id/thread id，补入 task_id、remote_project_id 与账号 scope，并登记既有不可替换的 task thread binding。历史 task 绑定优先于创建新 thread。删除任务会话只隐藏本地 Chat 入口，保留可信绑定及消息，再次打开恢复相同会话。
+
+原生待办能力由主进程授予每轮有效的账号 / 本地 workspace / 远端项目 / session scope，沿既有 loopback MCP 与动态工具协议提供。能力不依赖待办已经存在：普通 Chat 可列举、读取和创建当前绑定项目待办。Agent 明确指定将创建结果关联当前会话，其他创建结果只保存来源关系；不会自动成为子任务或更换主待办。创建请求有稳定幂等标识，未知写入结果不盲目重试。
+
+主进程复用 Workshop 项目授权、task 创建命令、Work Sync 和任务执行锁。读取/更新前校验最新账号、项目绑定及对象可见性；更新携带读取版本，不覆盖变化的内容。Desktop 校验读取摘要后，将 `{content,state,priority}` 的 expected 前像传至 Workshop `PUT /tasks/:id`；服务端把前像放入同一 UPDATE 的 WHERE，未命中返回 409。该约束要求包含条件更新支持的服务端，旧服务端部署不作为并发保护已生效的证据。Chat 中旧 `arcorbit_call task.update` 入口不绕过这一版本契约。活动任务 owner 存在时不抢占执行；点击待办不调用 Automation enqueue。执行用户请求仍发生于同一 Chat thread。原生调用回执成为真实对象消息，普通 Agent 文本不是业务成功凭据。
+
+能力 / Skill / 文件 / 待办引用作为会话草稿结构保存，发送时固定为该消息的上下文。原生意图通过明确工具描述交给 Agent，不使用 renderer 关键词模拟执行。Skill 候选来自当前 scene 的可用配置与 Codex 发现；文件候选由主进程在当前工作区内枚举，路径不得越过 realpath 边界。引用只提供定位信息，实际读取结果由工具活动表达。
+
+模型和推理级别仍使用既有配置与 turn 快照接口，Composer 仅合并其交互入口。菜单独立锚定入口向上展开；能力候选区独立滚动，搜索与技能设置常驻。顶部栏沿用生产实现，不复制原型中的共享壳脚本。
+
+接入依据：`src/chat-coordinator.mjs` 的 getTurnContext/onThreadBound 钩子、`src/workbench/agent-bridge.mjs` 的逐授权 MCP、`src/workbench/task-turn-lock.mjs` 的跨讨论/Runtime 锁，以及 `src/desktop-run-manager.mjs` 的不可替换 task thread binding。方案规定需兑现的行为，生产验证由对应实施证据提供。

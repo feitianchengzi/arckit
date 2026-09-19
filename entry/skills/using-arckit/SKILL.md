@@ -63,6 +63,8 @@ Invariant 不规定工作类型、skill、路径或执行顺序，也不等于�
 
 **先判断当前能否推进。** 按场景规则检查局部事实与共享依赖。问：剩余未知的不同答案，是否会改变本次结果、关键约束或验收标准？若会改变重要决定，先选择能区分答案的取证问题；若不影响本范围，说明依据并保留未知。前置未满足的候选先处理前置或交接，优先级不能绕过资格。将选择依据写入 planned_transition.selection_assessment，字段语义见 [references/selection-assessment.md](references/selection-assessment.md)。它区分探索与正式建立，并明确本轮验收及未决义务。
 
+正式确立结论前，按 gap-reasoning 核对其中每项重要决定的来源、成立条件和未决依赖；目标明确不能替代 Agent 补充决定所需的依据。合并前检查内部依赖，不能把尚待取证的问题和依赖其答案的重要决定一起认定为可正式确立。
+
 **明确这一轮要成立什么。** Gap 表达尚未成立的具体结果，说明缺什么、成立后改变什么、何种证据足够。子结果共享目标、前提和验收边界时可以合并；若答案会改变后续方向、影响多个对象或需要独立取舍，则在这个判断处收紧边界。工作量、文件或测试数量不直接决定 Gap 数；大工作可 partial 跨轮，小任务可只有一个普通 Gap。遵守场景中的事实顺序与合并禁区。
 
 **比较候选并展示选择。** 根据本轮 snapshot 比较 ledger 为全部 active Cases 与 Project 派生的 persisted candidates，以及当前上下文刚显露的 fresh candidates，在合格候选中选择最能解除当前目标关键阻塞、减少重大返工或产生直接价值的结果。影响面、不确定性、风险与依赖用于解释判断，不按陌生程度排序。选择前向用户展示独立 round opening：列出全部 persisted candidates、实际发现的 fresh candidates、selected/deferred/excluded 与简短理由；不得声称穷尽了未发现的 fresh work。完整 trace 随 transition 保存，其中 Project 与 selected Case scope 由 Case-scoped selection token 强绑定，以保留无关 Cases 的并发推进。细则见 [references/round-boundary-contract.md](references/round-boundary-contract.md)。
@@ -77,15 +79,21 @@ Invariant 不规定工作类型、skill、路径或执行顺序，也不等于�
 
 **处理新事实。** 新事实用于理解、解决或验证当前选中的缺口时，可以在本轮继续使用；暴露另一个独立缺口时，只记录事实与必要候选，不顺带解决。当前缺口解决后提交并 fresh-read，再独立选择下一 Gap；需要用户决定时交接人工。
 
+新证据涉及已有主张时，按 gap-reasoning 核对具体主张及其条件，区分用户目标与 Agent 补充的决定。说明哪些仍成立、哪些需调整、哪些尚未知，并重审依赖它们的 Gap 资格；“目标没变”不能替代这项核对。
+
 若新事实证明既有 Gap 过宽或前提失效，按 gap-reasoning 的重新界定规则保留未完成义务，通过可信接口记录取消/替代后 fresh-read 重选；不把取消宣称为完成，不为续轮换号。
 
 **维护已建立的结论。** 全面理解相关事实与判断不变量，不等于本轮补齐全部预期事实。只建立解决 selected Gap 所需的新结论；同一有界结论集合可以同步多个事实载体；相关低风险结论可以共同建立，独立重要决策与场景规定不可合并的结论必须分开。
+
+**结果验证前确定证据上下文。** 检查结果是否符合明确预期时，在运行会产生验证文件的工具或脚本前，读取 `arckit-development-ledger` 的 `references/case-evidence.md`，明确待验证主张、已确认的 Case 身份、本次运行输出目录及保留方式，并将其作为当前执行上下文供所选 skills/tools 使用。区分交付物、可复用验证源码与本次运行证据；路径不决定事实角色。当前软件适配器的证据根为 `arckit/cases/evidence/<case-id>/`，具体组织、读取核验、引用和清理由该约定承载。已有事实载体直接引用，不新增重复报告；结果验证工具的默认输出位置与当前上下文冲突时先调整输出配置，不能等产物散落后再决定归档。此上下文由同一 Agent 维护，不新增 Runtime 路由或状态协议。
 
 结论形成或改变的当轮维护对应事实载体，优先更新已有文档。新反证须重审全部实际相关判断，明确哪些旧主张失效或仍有依据；不以文件存在、测试数量或某一问题已修复支持其他未决主张。
 
 ### 5. 提交 Transition
 
 **普通 Gap 提交。** 未完成验收时如实提交 `round_outcome: partial` 和已有证据，普通 Gap 的 resolution 为 `null`，保留原 Gap；不得为满足校验而虚报完成或制造替代 Gap。写回成功不等于原任务有进展：交接中说明实际消除的障碍或新增的验收证据，以及距原任务完成还缺什么。
+
+声明完成前，按 gap-reasoning 将原 Gap 与历轮保留的义务对照本轮验收和证据；验收变化须说明原义务如何处置，不能只证明最新清单。义务未闭合则保留 partial 或按重新界定规则处理。Completion Review 同样复核这一对应关系，不以普通 Gap 已关闭替代判断。
 
 **选择提交接口。** Agent 不直接手改 ledger；只向 trusted entrypoint 提交 Case control、Case transition 或 handoff。
 

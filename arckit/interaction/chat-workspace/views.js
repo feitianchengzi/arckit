@@ -13,7 +13,7 @@
   }
   function groups() {
     return M.state.projects.filter(p => !window.GlobalContext || GlobalContext.includes(({atlas:"orbit",borealis:"feedback"})[p.id]||p.id))
-      .map(p => ({...p, items:M.state.sessions.filter(s=>s.project===p.id).sort((a,b)=>(a.created||0)-(b.created||0)||a.id.localeCompare(b.id))}))
+      .map(p => ({...p, items:M.state.sessions.filter(s=>s.project===p.id).sort((a,b)=>(b.created||0)-(a.created||0)||a.id.localeCompare(b.id))}))
       .filter(p=>p.items.length).sort((a,b)=>a.id.localeCompare(b.id)).map(p=>{
         const collapsed=M.state.collapsed[p.id], limit=M.state.limits[p.id]||5;
         return `<section class="session-group">${btn('project', `${collapsed?'▸':'▾'} <strong>${esc(p.name)}</strong><small>${p.items.length}</small>`, `class="session-project" data-project="${p.id}" aria-expanded="${!collapsed}"`)}${collapsed?'':p.items.slice(0,limit).map(s=>`<button type="button" class="session-row ${s.id===M.state.selected?'selected':''}" data-chat-action="select" data-id="${s.id}" aria-current="${s.id===M.state.selected}" title="${esc(s.title)} · ${labels[s.status]}"><strong>${esc(s.title)}</strong><span aria-label="${labels[s.status]}">${M.active(s)?'◉':'·'}</span></button>`).join('')}${!collapsed&&p.items.length>limit?btn('history',`查看更多（剩余 ${p.items.length-limit} 个）`,`data-project="${p.id}"`):''}</section>`;

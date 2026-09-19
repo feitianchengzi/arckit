@@ -14,6 +14,6 @@
   - product-feedback-integration.md 产品反馈 SDK：定义 Project 107、受限 Electron WebContents、SDK 文档身份、草稿保持、Workshop 稳定身份和未读角标。✅ (67行)
   - release-workspace-solution.md Release 本地能力：终端、仓库、文件、任务服务及场景 Agent。✅ (43行)
   - product-management-solution.md 产品资料方案：版本化记录、场景工具、接入恢复与独立 Git 资料分支。✅ (87行)
-  - project-workbench-solution.md 项目事情台：独立场景、任务主会话、业务能力桥、按事情 Auto 与同步刷新边界。✅ (77行)
+  - project-workbench-solution.md 项目事情台：独立场景、Chat 共享主会话与原生待办能力、按事情 Auto 与同步刷新边界。✅ (91行)
 - repository-governance/ 仓库治理：公开源码 monorepo、目录许可与私有运维边界。✅
   - monorepo-solution.md Monorepo 方案：定义 Todo/Feedback 源映射、历史过滤、多许可证矩阵、arckit-ops 隔离与安全门禁。✅ (142行)

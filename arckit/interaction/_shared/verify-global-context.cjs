@@ -14,6 +14,15 @@ app.whenReady().then(async()=>{
  const shot=async name=>fs.writeFileSync(path.join(output,name+'.png'),(await win.webContents.capturePage()).toPNG());
  try{
   await load('chat-workspace');
+  assert.equal(await run('getComputedStyle(document.querySelector(".gc-navigation")).display'),'none');
+  assert.equal(await run('document.querySelector(".gc-scope label:nth-child(2)>span").textContent'),'查看');
+  assert.ok(await run('document.querySelector("#gc-manage").getBoundingClientRect().right<document.querySelector("#gc-sync").getBoundingClientRect().left'));
+  assert.ok(await run('document.querySelector(".gc-feedback").getBoundingClientRect().right<document.querySelector("#gc-refresh").getBoundingClientRect().left'));
+  await click('#gc-manage');assert.equal(await run('document.querySelectorAll("dialog[open] [name=project]").length'),3);await click('dialog[open] [data-cancel]');
+  await click('#gc-manage');await click('dialog[open] [value=feedback]');await run('document.querySelector("dialog[open] form").requestSubmit()');assert.equal(await run('GlobalContext.includes("feedback")'),false);
+  await win.reload();await wait();assert.equal(await run('GlobalContext.includes("feedback")'),false);
+  await click('#gc-manage');await click('dialog[open] [value=feedback]');await run('document.querySelector("dialog[open] form").requestSubmit()');assert.equal(await run('GlobalContext.includes("feedback")'),true);
+  checks.push('Desktop header matches implemented scope cluster, management and action order; navigation is compact-only');
   for(const id of ['gc-sync','gc-runtime']){await click('#'+id+'>summary');const style=await run(`(()=>{const e=document.getElementById('${id}');return {bg:getComputedStyle(e.querySelector('.gc-popup')).backgroundColor,border:getComputedStyle(e.querySelector('summary')).borderTopStyle,arrow:getComputedStyle(e.querySelector('summary'),'::after').content};})()`);assert.notEqual(style.bg,'rgba(0, 0, 0, 0)');assert.equal(style.border,'solid');assert.notEqual(style.arrow,'none');await click('#'+id+'>summary');}
   checks.push('Status entries visibly indicate disclosure; popover surfaces are opaque');await scope('orbit');assert.equal(await run('ChatModel.current().project'),'atlas');
   await input('#chat-input','ArcOrbit 草稿');await scope('feedback');assert.equal(await run('ChatModel.current().project'),'borealis');

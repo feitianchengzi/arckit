@@ -100,7 +100,7 @@ app.whenReady().then(async () => {
       const todayPanes = [...todayWorkspace.children].map((node) => node.getBoundingClientRect().width);
       document.querySelector("#todayAddProjectButton").click();
       await new Promise((resolve) => setTimeout(resolve, 80));
-      const projectSource = document.querySelector('#platformActionFields [name="source"]');
+      const worksetProjects = [...document.querySelectorAll('#platformActionFields [name="project_ids"]')];
       const today = {
         workspace_columns: getComputedStyle(todayWorkspace).gridTemplateColumns.split(" ").length,
         pane_widths: todayPanes,
@@ -108,7 +108,8 @@ app.whenReady().then(async () => {
         responsibility_rows: document.querySelectorAll("#todayResponsibilityList .today-responsibility-row").length,
         sheet_visible: !document.querySelector("#platformActionOverlay").classList.contains("hidden"),
         sheet_title: document.querySelector("#platformActionTitle").textContent,
-        project_source_options: [...projectSource.options].map((option) => option.value),
+        workset_project_options: worksetProjects.map((input) => input.value),
+        selected_workset_projects: worksetProjects.filter((input) => input.checked).map((input) => input.value),
         page_remains_active: document.querySelector('[data-page-view="today"]').classList.contains("is-active")
       };
       document.querySelector("#closePlatformActionButton").click();
@@ -129,7 +130,7 @@ app.whenReady().then(async () => {
         current_run_single_line: currentRunSingleLine,
         core_navigation_pages: navigation.map(item => item.dataset.page),
         core_navigation_vector_icons: navigation.filter((item) => item.querySelector("svg.ui-icon use")).length,
-        core_navigation_text_icons: navigation.filter((item) => [...item.childNodes].some((node) => node.nodeType === Node.ELEMENT_NODE && node.matches("span") && node.textContent.trim())).length,
+        core_navigation_text_icons: navigation.filter((item) => [...item.childNodes].some((node) => node.nodeType === Node.ELEMENT_NODE && node.matches("span:not(.nav-item-status)") && node.textContent.trim())).length,
         table_font_px: tableFontPx,
         conversation_font_px: conversationFontPx,
         today

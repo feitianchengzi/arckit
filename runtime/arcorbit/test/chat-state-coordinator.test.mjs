@@ -66,3 +66,13 @@ test("Chat state keeps Composer configuration with a new draft, workspace change
     reasoning_effort: "max"
   });
 });
+
+test('native context follows draft ownership, clears foreign references and restores failed send', async()=>{
+ const drafts=new Map(),sessions=[{id:'A',project_id:'P'},{id:'B',project_id:'P'}];let selected='A',sent;
+ const snap=()=>({projects:[{id:'P'},{id:'Q'}],sessions,selected_session_id:selected,messages:[],draft:{project_id:selected?'P':'Q',text:'',...drafts.get(selected)}});
+ const api={chatSnapshot:async()=>snap(),createChat:async p=>{selected=p.session_id;drafts.set(p.session_id,{...p});return snap()},selectChat:async p=>{selected=p.session_id;return snap()},sendChatMessage:async p=>{sent=p;throw Error('offline')},deleteChat:async()=>{},renameChat:async()=>{},interruptChat:async()=>{},decideChatApproval:async()=>{}};
+ const c=createChatStateCoordinator({api,createRequestId:()=> 'id',setTimer:()=>1,clearTimer:()=>{}});await c.initialize(snap());
+ c.setNativeContext({capability:{id:'create',kind:'native',label:'创建待办'},refs:[{kind:'task',id:'1',project_id:'P',label:'todo'}]});c.setDraft('keep');await c.selectSession('B');assert.equal(c.getState().native_context.capability,null);await c.selectSession('A');assert.equal(c.getState().native_context.refs[0].id,'1');
+ await assert.rejects(c.send(),/offline/);assert.equal(sent.native_context.refs[0].id,'1');assert.equal(c.getState().draft,'keep');assert.equal(c.getState().native_context.capability.id,'create');
+ await c.newDraft('P');c.setDraft('new');c.setNativeContext({capability:{id:'create',kind:'native',label:'创建待办'},refs:[{kind:'task',id:'1',project_id:'P'}]});await c.changeDraftWorkspace('Q');assert.equal(c.getState().draft,'new');assert.deepEqual(c.getState().native_context.refs,[]);assert.equal(c.getState().native_context.capability.id,'create');await c.clearScopeSelection();assert.equal(c.getState().native_context.capability,null);
+});

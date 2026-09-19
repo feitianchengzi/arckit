@@ -621,6 +621,9 @@ body.is-resizing-work-inspector { cursor: col-resize; user-select: none; }
 .text-button.danger { color: var(--red-600); }
 .chat-error { margin: 12px 22px 0; padding: 9px 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--semantic-divider); border-radius: 7px; color: var(--red-600); background: var(--colors-danger-soft); font-size: var(--type-caption); }
 .conversation-surface { width: 100%; max-width: 100%; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; display: grid; align-content: start; gap: 18px; padding: 24px max(24px, calc((100% - 760px) / 2)); overscroll-behavior: contain; scrollbar-gutter: stable; }
+/* Keep complete, searchable history in the DOM; only lay out nearby messages.
+   Short conversations retain their existing sizing and scrolling behavior. */
+.conversation-deferred-layout > [data-conversation-message-id] { content-visibility: auto; contain-intrinsic-block-size: auto 120px; }
 .chat-empty { margin: auto; max-width: 420px; padding: 32px; color: var(--ink-500); text-align: center; }
 .chat-empty strong { display: block; margin-bottom: 8px; color: var(--ink-800); font-size: var(--type-body); }
 

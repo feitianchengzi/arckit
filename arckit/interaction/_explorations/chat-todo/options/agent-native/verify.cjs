@@ -1,0 +1,51 @@
+const {app,BrowserWindow}=require('electron');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
+app.setPath('userData',fs.mkdtempSync(path.join(os.tmpdir(),'chat-agent-native-')));app.disableHardwareAcceleration();
+app.whenReady().then(async()=>{
+ const w=new BrowserWindow({width:1450,height:1000,show:false,webPreferences:{sandbox:true,contextIsolation:true}}),errors=[],checks=[];
+ w.webContents.on('console-message',(_e,l,m)=>{if(l>=3&&!m.includes('Content Security Policy'))errors.push(m)});
+ const run=s=>w.webContents.executeJavaScript(s),wait=(ms=70)=>new Promise(r=>setTimeout(r,ms));
+ const click=async s=>{await run(`(()=>{const e=document.querySelector(${JSON.stringify(s)});if(!e||e.disabled)throw Error('missing/disabled '+${JSON.stringify(s)});e.focus();e.click()})()`);await wait()};
+ const type=async text=>{await run(`document.querySelector('#draft').value=${JSON.stringify(text)};document.querySelector('#draft').dispatchEvent(new Event('input'))`)};
+ const send=async text=>{await type(text);await run('document.querySelector("#composer").requestSubmit()');await wait(1000)};
+ const sample=async name=>send(await run(`SAMPLE[${JSON.stringify(name)}]`));
+ const shot=async name=>fs.writeFileSync(path.join(__dirname,name+'.png'),(await w.webContents.capturePage()).toPNG());
+ try{
+  await w.loadFile(path.join(__dirname,'default.html'));await wait();await shot('preview-default');
+  await type('保留原草稿');const thread=await run('current().thread');await click('#convert');await wait(650);
+  assert.equal(await run('current().thread'),thread);assert.equal(await run('state.sessions.length'),1);assert.equal(await run('state.tasks.length'),3);assert.equal(await run('current().draft'),'保留原草稿');
+  await click('#tasks-tab');await click('#list [data-task="T203"]');assert.equal(await run('current().thread'),thread);assert.match(await run('document.querySelector("#context").textContent'),/本会话对应待办/);
+  await send('把这段对话整理成待办。');assert.equal(await run('state.tasks.length'),3);
+  checks.push('整段转换及会话/待办双入口复用同一 thread；保留草稿，重复整理不重复创建');
+  await click('#invoke');await shot('preview-picker');await click('[data-pick="create"]');assert.equal(await run('state.tasks.length'),3);assert.equal(await run('current().composeContext.capability.id'),'create');
+  await type('给 Chat 增加会话搜索');await click('#invoke');await click('[data-pick="file-chat"]');await shot('preview-compose');
+  assert.equal(await run('current().composeContext.refs.length'),1);await run('document.querySelector("#composer").requestSubmit()');await wait(1000);
+  assert.equal(await run('state.tasks.length'),4);assert.equal(await run('current().mainTask'),'T203');assert.equal(await run('state.sessions.length'),1);assert.equal(await run('current().composeContext.capability'),null);assert.equal(await run('current().composeContext.refs.length'),0);
+  assert.ok(await run('current().messages.some(m=>m.envelope?.refs?.length&&m.envelope?.capability?.id==="create")'));
+  assert.equal(await run('document.querySelectorAll("[data-reply],[data-retry]").length'),0);await shot('preview-agent-create');
+  checks.push('统一入口选择能力和文件先保留在草稿；发送才执行，消息显示已发送引用；无预设快捷回复按钮');
+  await click('#messages [data-task="T204"]');await wait(400);const child=await run('current().thread');assert.notEqual(child,thread);assert.match(await run('document.querySelector("#context").textContent'),/创建于/);await click('#context [data-session="c1"]');assert.equal(await run('current().thread'),thread);
+  checks.push('其他待办创建来源与专属会话分别显示；创建时不新建会话，主动打开后可回到来源');
+  await type('/');assert.equal(await run('document.querySelector("#context-picker").open'),true);assert.equal(await run('document.querySelectorAll("[data-pick=file-chat]").length'),0);
+  await run('document.querySelector("#picker-search").value="问题诊断";document.querySelector("#picker-search").dispatchEvent(new Event("input"));document.querySelector("#picker-search").dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}))');
+  assert.equal(await run('current().composeContext.capability.id'),'diagnose');assert.equal(await run('current().draft'),'');
+  await type('@');await click('[data-pick="T201"]');assert.equal(await run('current().mainTask'),'T203');assert.equal(await run('current().thread'),thread);await type('检查这个问题');
+  await click('#sessions-tab');await click('[data-session="c2"]');await click('[data-session="c1"]');assert.equal(await run('current().composeContext.capability.id'),'diagnose');assert.equal(await run('current().composeContext.refs[0].id'),'T201');
+  await w.reload();await wait();assert.equal(await run('current().draft'),'检查这个问题');assert.equal(await run('current().composeContext.refs.length'),1);
+  await run('document.querySelector("#composer").requestSubmit()');await wait(800);assert.ok(await run('current().messages.some(m=>m.tools?.some(t=>t.label.includes("已载入 Skill")))'));
+  checks.push('/ 能力、@ 上下文、搜索与键盘选择；引用待办不切换主对象；能力/引用/草稿按会话保存并刷新恢复');
+  await type('@');await run('document.querySelector("#context-picker").dispatchEvent(new Event("cancel",{cancelable:true}))');assert.equal(await run('document.activeElement.id'),'draft');assert.equal(await run('current().draft'),'@');
+  await click('#invoke');await click('[data-pick="create"]');await click('[data-remove-context="capability"]');assert.equal(await run('current().composeContext.capability'),null);
+  await sample('update');assert.match(await run('findTask("T203").content'),/完成标准/);await click('[data-read="T203"]');await wait(400);assert.match(await run('current().messages.at(-1).text'),/完成标准/);await sample('execute');assert.equal(await run('findTask("T203").status'),'待评审');
+  checks.push('取消选择保留输入并恢复焦点；标签可移除；待办读取/写回/重新读取与执行仍沿当前 thread');
+  await sample('suggest');const count=await run('state.tasks.length');assert.equal(await run('document.querySelectorAll(".inline-actions").length'),0);await send('记成另一个待办');assert.equal(await run('state.tasks.length'),count+1);
+  await run('document.querySelector("#fail-next").checked=true');await sample('other');assert.equal(await run('state.tasks.length'),count+1);await send('重试刚才的操作');assert.equal(await run('state.tasks.length'),count+2);
+  checks.push('Agent 建议通过自然语言回应；失败通过对话重试，只在回执成功后新增待办');
+  const before=await run('state.tasks.length');await type('给 Chat 增加会话搜索');await run('document.querySelector("#composer").requestSubmit()');await click('#send');await wait(600);assert.equal(await run('state.tasks.length'),before);
+  const msgs=await run('current().messages.length');await run('document.querySelector("#draft").value="/";document.querySelector("#draft").dispatchEvent(new InputEvent("input",{isComposing:true}));document.querySelector("#draft").dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",ctrlKey:true,isComposing:true,bubbles:true}))');assert.equal(await run('current().messages.length'),msgs);assert.equal(await run('document.querySelector("#context-picker").open'),false);await type('');
+  for(const width of [1450,760,390]){w.setContentSize(width,1000);await wait();assert.equal(await run('document.documentElement.scrollWidth<=innerWidth'),true);if(width===390){await click('#invoke');assert.ok(await run('document.querySelector("#context-picker").getBoundingClientRect().right<=innerWidth'));await shot('preview-picker-390');await click('#picker-close');await click('#list-toggle');await shot('preview-task-list-390');await click('#close-list')}await shot('preview-'+width)}
+  w.setContentSize(1450,1000);w.webContents.setZoomFactor(2);await wait();assert.equal(await run('document.documentElement.scrollWidth<=innerWidth'),true);
+  checks.push('停止阻止未提交写入；输入法不误开选择器或发送；1450/760/390px、窄窗弹层和 200% 缩放');
+  assert.deepEqual(errors,[]);const report={ok:true,checks,errors,scope:'Agent、Skill、文件读取、工具回执及 thread 标识均为本地模拟；未调用真实能力'};fs.writeFileSync(path.join(__dirname,'verification.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));app.exit(0);
+ }catch(e){console.error(e,errors);await shot('failure');app.exit(1)}
+});

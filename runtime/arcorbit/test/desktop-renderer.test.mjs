@@ -153,7 +153,7 @@ test("Chat state coordinator captures draft ownership and flushes before selecti
   await coordinator.selectSession("CHAT-B");
 
   assert.deepEqual(calls, [
-    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A" }
+    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A", response: "ack" }
   ]);
   assert.equal(coordinator.getState().owner.session_id, "CHAT-B");
 });
@@ -317,12 +317,12 @@ test("Chat state coordinator serializes captured draft owners without applying p
   coordinator.setDraft("new");
   const flushed = coordinator.flushDraft();
 
-  assert.deepEqual(calls, [{ session_id: "CHAT-A", project_id: "PROJECT-A", text: "old" }]);
+  assert.deepEqual(calls, [{ session_id: "CHAT-A", project_id: "PROJECT-A", text: "old", response: "ack" }]);
   releases.shift()({ selected_session_id: "CHAT-A" });
   await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
   assert.deepEqual(calls, [
-    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "old" },
-    { session_id: "CHAT-B", project_id: "PROJECT-B", text: "new" }
+    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "old", response: "ack" },
+    { session_id: "CHAT-B", project_id: "PROJECT-B", text: "new", response: "ack" }
   ]);
   releases.shift()({ selected_session_id: "CHAT-B" });
   await flushed;
@@ -340,7 +340,7 @@ test("Chat session selection flushes the old draft before persisting and applyin
   coordinator.setDraft("draft A");
   await coordinator.selectSession("CHAT-B");
   assert.deepEqual(order, [
-    ["flush", { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A" }],
+    ["flush", { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A", response: "ack" }],
     ["select", { session_id: "CHAT-B" }]
   ]);
   assert.equal(coordinator.getState().draft, "draft B");
@@ -412,7 +412,8 @@ test("Chat new-draft response preserves and persists Composer input typed while 
   assert.deepEqual(persisted.at(-1), {
     session_id: "",
     project_id: "PROJECT-B",
-    text: "typed while new-chat request is pending"
+    text: "typed while new-chat request is pending",
+    response: "ack"
   });
 });
 
@@ -443,7 +444,8 @@ test("Chat workspace response preserves and persists newer Composer input for th
   assert.deepEqual(persisted.at(-1), {
     session_id: "",
     project_id: "PROJECT-B",
-    text: "typed while workspace request is pending"
+    text: "typed while workspace request is pending",
+    response: "ack"
   });
 });
 
@@ -527,7 +529,8 @@ test("Chat first send adopts the new session without losing or misowning an in-f
   assert.deepEqual(calls, [{
     session_id: "CHAT-A",
     project_id: "PROJECT-A",
-    text: "next message"
+    text: "next message",
+    response: "ack"
   }]);
 });
 
@@ -560,7 +563,7 @@ test("Chat send does not clear newer Composer input while the accepted draft is 
   await sending;
 
   assert.equal(coordinator.getState().draft, "next message");
-  assert.deepEqual(persisted.at(-1), { session_id: "CHAT-A", project_id: "PROJECT-A", text: "next message" });
+  assert.deepEqual(persisted.at(-1), { session_id: "CHAT-A", project_id: "PROJECT-A", text: "next message", response: "ack" });
 });
 
 test("Chat session mutation response cannot project the old transcript after a later selection", async () => {
@@ -828,11 +831,11 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.doesNotMatch(html, /跨产品下一步|todayPrimaryAction|todayMetricGrid|todayProductGrid|todayWorkList|todayAttentionList/);
   assert.match(source, /deriveTodayWorkspace/);
   assert.match(source, /async function performTodayAction\(item, action\)/);
-  assert.match(source, /async function openTodayProjectCatalog\(\)[\s\S]+从可访问项目中选择[\s\S]+新建个人项目[\s\S]+使用邀请码加入/);
-  assert.match(source, /api\.setTodayProjects\(nextIds\)/);
+  assert.match(source, /els\.todayAddProjectButton\.onclick = \(\) => runAction\(editCurrentWorkset\)/);
+  assert.match(source, /async function editCurrentWorkset\(\)[\s\S]+同时选择要在 Today、Work、Automation 和 Feedback 展示的产品/);
+  assert.match(source, /api\.updateWorkset\(\{ id: activeWorkset\.id, project_ids: projectIds \}\)/);
   assert.match(source, /function hydrateTodayPreference\(preference = \{\}\)/);
   assert.match(source, /api\.setTodayPreference\(preference\)/);
-  assert.doesNotMatch(source.match(/async function openTodayProjectCatalog\(\)[\s\S]*?\n\}/)?.[0] || "", /showPage\("organization"\)/);
   assert.match(source, /setupByProject: state\.todaySetupByProject/);
   assert.match(source, /sections: workSurface \? \["tasks"\] : \["overview", "organizations", "members", "tasks", "feedback", "today"\]/);
   for (const capability of ["decideChatApproval", "submitIntervention", "confirmAutomationExternalDependency", "resolveAutomationRecovery", "submitAcceptanceFeedback", "retryFeedbackTaskLink", "setProjectParticipation"]) {
@@ -2530,4 +2533,24 @@ test('workbench polling checks authentication without loading legacy snapshots',
   state.page = 'work';
   await vm.runInContext('refreshProjectWorkbench()', context);
   assert.equal(refreshes, 1);assert.equal(routes, 2);
+});
+
+test('Empty Chat projects render a new-conversation row rather than a persisted session', async () => {
+  const { groupChatSessions, chatSessionVisibility, CHAT_SESSION_PREVIEW_LIMIT } = await import('../desktop/renderer/chat-session-groups.mjs');
+  const source = await readFile(rendererPath, 'utf8');
+  const start = source.indexOf('function renderChatSessionGroups(chat)');
+  const end = source.indexOf('\nfunction renderChat()', start);
+  const context = {
+    groupChatSessions, chatSessionVisibility, CHAT_SESSION_PREVIEW_LIMIT,
+    chatProjectsInScope: () => [{ id: 'EMPTY', name: 'Empty project' }],
+    collapsedChatProjectIds: new Set(), chatProjectLimits: new Map(),
+    escapeHtml: value => value,
+    chat: { snapshot: { sessions: [] }, owner: { session_id: '' } }
+  };
+  const html = vm.runInNewContext(source.slice(start, end) + '\nrenderChatSessionGroups(chat)', context);
+  assert.match(html, /data-chat-new-project-id="EMPTY"/);
+  assert.match(html, /新建对话/);
+  assert.doesNotMatch(html, /data-chat-session-id|Automation/);
+  context.collapsedChatProjectIds.add('EMPTY');
+  assert.match(vm.runInNewContext(source.slice(start, end) + '\nrenderChatSessionGroups(chat)', context), /class="chat-project-sessions" hidden/);
 });

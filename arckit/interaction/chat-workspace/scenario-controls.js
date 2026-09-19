@@ -1,1 +1,1 @@
-document.getElementById('apply').onclick = () => document.querySelector('iframe').contentWindow.postMessage({type:'chat-scenario',name:document.getElementById('scenario').value}, '*');
+document.getElementById('apply').onclick = () => { const name=document.getElementById('scenario').value;document.querySelector('iframe').contentWindow.postMessage({type:name.startsWith('native-')?'chat-native-scenario':'chat-scenario',name}, '*'); };

@@ -3,7 +3,10 @@ export const CHAT_SESSION_PREVIEW_LIMIT = 5;
 // Immutable identity/creation keys keep refreshes and active turns from moving rows.
 export function groupChatSessions({ sessions = [], projects = [] } = {}) {
   const projectsById = new Map(projects.map(project => [String(project.id || ''), project]));
-  const groups = new Map();
+  const groups = new Map(projects.map(project => [String(project.id), {
+    project_id: String(project.id), project_name: String(project.name || project.id),
+    available: true, sessions: []
+  }]));
   for (const session of sessions) {
     const id = String(session.project_id || '');
     const project = projectsById.get(id);
@@ -15,7 +18,7 @@ export function groupChatSessions({ sessions = [], projects = [] } = {}) {
   }
   return [...groups.values()].sort((a, b) => a.project_id.localeCompare(b.project_id))
     .map(group => ({ ...group, sessions: group.sessions.slice().sort((a, b) =>
-      String(a.created_at || '').localeCompare(String(b.created_at || ''))
+      String(b.created_at || '').localeCompare(String(a.created_at || ''))
       || String(a.id || '').localeCompare(String(b.id || ''))) }));
 }
 

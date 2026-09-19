@@ -87,6 +87,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     ipcRenderer.on("arckit:product-event", handler);
     return () => ipcRenderer.off("arckit:product-event", handler);
   },
+  chatNativeCatalog: input => ipcRenderer.invoke("arckit:chat-native-catalog", input),
+  chatNativeOpen: input => ipcRenderer.invoke("arckit:chat-native-open", input),
   chatSnapshot: (input) => ipcRenderer.invoke("arckit:chat-snapshot", input),
   createChat: (input) => ipcRenderer.invoke("arckit:chat-create", input),
   selectChat: (input) => ipcRenderer.invoke("arckit:chat-select", input),

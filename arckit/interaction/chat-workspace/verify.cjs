@@ -7,7 +7,7 @@ app.whenReady().then(async()=>{
  win.webContents.session.webRequest.onBeforeRequest((d,cb)=>{if(/^https?:/.test(d.url))requests.push(d.url);cb({cancel:/^https?:/.test(d.url)});});
  const run=code=>win.webContents.executeJavaScript(code),wait=(ms=60)=>new Promise(r=>setTimeout(r,ms));
  const click=async selector=>{await run(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el||el.disabled)throw Error('Missing/disabled '+${JSON.stringify(selector)});el.focus();el.click();})()`);await wait();};
- const input=async(id,value)=>{await run(`(()=>{const el=document.getElementById(${JSON.stringify(id)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('input',{bubbles:true}));})()`);};
+ const input=async(id,value)=>{const config=['chat-model','chat-level'].includes(id);if(config)await click('[data-native-action=model-settings]');await run(`(()=>{const el=document.getElementById(${JSON.stringify(id)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`);if(config)await click('#model-settings-close');};
  const submit=async()=>{await run('document.getElementById("chat-compose").requestSubmit()');await wait();};
  const state=code=>run(`(()=>{const M=window.ChatModel;return (${code})})()`);
  const scenario=async name=>{await run(`window.ChatPrototype.scenario(${JSON.stringify(name)})`);await wait();};
