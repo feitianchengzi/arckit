@@ -1,0 +1,234 @@
+document_scope:
+  scope_kind: change
+  root: arckit/visual/
+  created:
+  - path: _explorations/orange-tone/adoption.yaml
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 正式采纳及两域同步记录。
+  updated:
+  - path: INDEX.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _library/brief.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _library/design-tokens.yaml
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _library/components/foundation.yaml
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _library/state-contract.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _library/preview.css
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _library/generated-tokens.css
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _library/preview-data.js
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: themes/legacy-mixed.yaml
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _map/RELATIONS.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _map/feature-matrix.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _map/validation.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _explorations/INDEX.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _explorations/orange-tone/exploration.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  deleted: []
+  reorganized: []
+fact_result:
+  schema_version: arckit-fact-result/v2
+  mode: standalone
+  case_id: null
+  gap_id: null
+  outcome: updated
+  facts:
+  - statement: '浅杏橙 #F4B77D 及中性链接/选中文字、无深橙按钮描边已正式采纳并同步原型。'
+    basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    source_refs:
+    - arckit/visual/_library/brief.md
+    - arckit/visual/_library/design-tokens.yaml
+    - arckit/interaction/project-workbench/visual.css
+    evidence:
+    - 38 项对比度检查通过；21 个组件引用有效
+    - 两主题组件预览及正式原型 30 项检查通过；截图已刷新
+  unresolved: []
+  human_decision_required: false
+exploration_result:
+  mode: standalone
+  case_id: null
+  gap_id: null
+  objective: 正式采纳浅杏橙及配套用色方式
+  artifact_status: complete
+  formal_fact_effect: updated
+  artifacts:
+  - path: arckit/visual/_explorations/orange-tone/exploration.md
+    status: 已采纳
+    basis_refs:
+    - arckit/visual/_library/brief.md
+    baseline: '原 #FF8A1F 鲜橙及候选组件对照'
+    evidence: 正式原型截图已核对
+  decision:
+    required_for_current_objective: false
+    question: null
+    basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+  adoption:
+  - source_refs:
+    - arckit/visual/_explorations/orange-tone/options/apricot/tokens.json
+    - arckit/visual/_explorations/orange-tone/exploration.md
+    adopted_parts:
+    - 浅杏橙主色与按钮三态、深色按钮文字、浅色选中底
+    - 去除主按钮深橙描边，中性链接和选中文字
+    excluded_parts:
+    - 奶桃橙
+    - 燕麦橙
+    decision_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    target_paths:
+    - arckit/visual/_library/brief.md
+    - arckit/visual/_library/design-tokens.yaml
+    - arckit/visual/_library/components/foundation.yaml
+    - arckit/interaction/project-workbench/visual.css
+  remaining_work: []
+---
+document_scope:
+  scope_kind: change
+  root: arckit/interaction/
+  created: []
+  updated:
+  - path: INDEX.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/visual.css
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/interaction.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/verification.json
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _map/RELATIONS.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: _map/feature-matrix.md
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/acceptance.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/activity.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/adjusted-direction.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/analysis-overview.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/analysis-results.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/auto-intervention.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/collaboration.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/current-plan.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/decision.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/detail.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/messages.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/narrow-activity.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/narrow-attributes.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/narrow-list.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/narrow-messages.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/narrow-results.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/narrow-runtime.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/narrow-scene.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/new-work.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/paused-direction.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/pending-direction.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/properties.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/result-document.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/results.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/running.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/runtime-idle.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/runtime-queue.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  - path: project-workbench/previews/runtime-status.png
+    source_basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    summary: 同步浅杏橙策略、组件用色、原型或验证证据。
+  deleted: []
+  reorganized: []
+fact_result:
+  schema_version: arckit-fact-result/v2
+  mode: standalone
+  case_id: null
+  gap_id: null
+  outcome: updated
+  facts:
+  - statement: '浅杏橙 #F4B77D 及中性链接/选中文字、无深橙按钮描边已正式采纳并同步原型。'
+    basis: 用户回复“可以”，确认推荐的浅杏橙及去除深橙描边、使用中性文字的搭配。
+    source_refs:
+    - arckit/visual/_library/brief.md
+    - arckit/visual/_library/design-tokens.yaml
+    - arckit/interaction/project-workbench/visual.css
+    evidence:
+    - 38 项对比度检查通过；21 个组件引用有效
+    - 两主题组件预览及正式原型 30 项检查通过；截图已刷新
+  unresolved: []
+  human_decision_required: false
+exploration_result: null

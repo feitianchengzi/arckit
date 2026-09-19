@@ -1,3 +1,5 @@
+import { writePromptContext } from "../prompt-compiler.mjs";
+import { executionControlPath, createExecutionControl } from "../kernel/execution-control.mjs";
 import { startLifecycleSpan, endLifecycleSpan } from '../observability/lifecycle-trace.mjs';
 import { createAgentAdapter } from '../agent-adapter.mjs';
 import { runStateDrivenSession } from '../state-driven-runner.mjs';
@@ -11,6 +13,10 @@ import { TASK_CLOSEOUT_VERSION, taskCloseoutOutputSchema, isTaskCloseoutResult,
 // Product composition: accepted Case -> authorized delivery -> optional fresh Case continuation.
 // One adapter and thread belong to the whole task, not to individual stages or Cases.
 export async function runAutomationSession({ projectRoot, stateStore, options = {}, dependencies = {} }) {
+  if (!options.dryRun && !(options.agentAdapter || dependencies.createAdapter)) {
+    options = { ...options, executionControlFile: executionControlPath(projectRoot, options) };
+    createExecutionControl(options.executionControlFile).assertRunning();
+  }
   const deliveryPolicy = requireAutomationDeliveryPolicy(options.runtimeContext?.delivery_policy);
   let checkpoint = createExecutionCheckpoint(options.runtimeContext);
   const adapter = options.agentAdapter || (dependencies.createAdapter || createAgentAdapter)(
@@ -30,9 +36,9 @@ export async function runAutomationSession({ projectRoot, stateStore, options = 
     persist(checkpoint);
     for (;;) {
       if (checkpoint.phase === 'loop') {
-        const { execution_checkpoint, closeout_only, ...context } = executionRuntimeContext(options.runtimeContext, checkpoint);
+        const { execution_checkpoint, closeout_only, delivery_policy, ...context } = executionRuntimeContext(options.runtimeContext, checkpoint);
         envelope = await runStateDrivenSession({ projectRoot, stateStore, dependencies, agentAdapter: adapter, threadState,
-          options: { ...options, threadId, roundIndexOffset: rounds.length,
+          options: { ...options, automationLoop: true, threadId, roundIndexOffset: rounds.length,
             runtimeContext: { ...context, case_checkpoint: caseCheckpointFromExecution(checkpoint) },
             onEvent(event) {
               if (event.type === 'runtime.case_checkpoint') persist(executionCheckpointFromCase(event.checkpoint));
@@ -78,22 +84,22 @@ export async function runAutomationSession({ projectRoot, stateStore, options = 
 
 async function runGitCloseout({ adapter, projectRoot, threadKey, threadId, checkpoint, deliveryPolicy, options }) {
   if (checkpoint.phase !== 'closeout' || !checkpoint.case_id) throw new Error('Git delivery requires an accepted bound Case completion.');
-  const prompt = ["Complete the explicitly authorized local Git delivery for this task in the current conversation.", '', JSON.stringify({
-    schema_version: 'arcorbit-git-delivery-request/v1', phase: 'task_closeout',
-    original_user_input: options.runtimeContext?.original_task || options.originalTask || options.task || '',
-    current_instruction: options.task || '',
-    task_context: { ...options.runtimeContext, authoritative_case_id: checkpoint.case_id,
-      trusted_ledger_changed_files: checkpoint.trusted_ledger_changed_files },
-    case_completion: 'trusted_ledger_accepted',
-    delivery_contract: {
-      scope: 'Commit the reviewed work belonging to this authorized task on the current branch. Preserve unrelated staged and unstaged changes. Trusted Ledger paths are evidence, not an exhaustive allowlist. Local commit authorization does not authorize push, tags or branch changes.',
-      completion: 'Report completed with outcome committed and the actual commit hash, or no_changes when the task work is already committed or has no remaining diff.',
-      continuation: 'Do not add content changes or another semantic review during delivery. If concrete evidence reveals substantive unfinished work, return resume_loop with a nonempty summary and evidence; Automation will resume the normal fresh-read Loop in this same thread.',
-      responsibility: 'Respect current user instructions and any stop request. Report stopped for a requested stop, needs_human only for a required human decision, external_wait for a concrete external dependency, and failed for an actual technical error. Include the relevant evidence and recovery condition; authorized Agent work does not become human responsibility merely because delivery has started.'
-    },
-    execution_authorization: { workspace_root: projectRoot, git_commit_allowed: deliveryPolicy.commit_authorized },
-    output_contract: TASK_CLOSEOUT_VERSION
-  }, null, 2)].join('\n');
+  const contextPath = await writePromptContext({
+    current_instruction: options.task || "",
+    task_context: options.runtimeContext, authoritative_case_id: checkpoint.case_id,
+    trusted_ledger_changed_files: checkpoint.trusted_ledger_changed_files,
+    execution_checkpoint: checkpoint
+  });
+  const prompt = [
+    'Phase: task_closeout. Complete the explicitly authorized final local Git delivery in this same conversation.',
+    `Original task: ${options.runtimeContext?.original_task || options.originalTask || options.task || ''}`,
+    `Read the delivery context and accepted Case evidence at ${contextPath}.`,
+    'The trusted Ledger has accepted the bound Case. Confirm the accepted work covers the original task before committing.',
+    'Create one final commit for the reviewed task work on the current branch. Preserve unrelated staged and unstaged changes. Ledger paths are evidence, not an exhaustive allowlist. Do not push, tag or change branches.',
+    'Do not add content changes or another semantic review here. If concrete evidence shows unfinished original-task work, return resume_loop with evidence before committing. Independent new issues are hints, not authorization to resume work.',
+    'Return completed with outcome committed and the actual commit hash, or no_changes if already committed or no task diff remains. Respect user stop.',
+    `Output contract: ${TASK_CLOSEOUT_VERSION}. Git commit authorized: ${deliveryPolicy.commit_authorized}.`
+  ].join('\n');
   let result = null;
   for await (const event of adapter.runTurn({ projectRoot, prompt, options: { ...options,
     threadKey, threadId, resultKind: 'task-closeout-result', outputSchema: taskCloseoutOutputSchema(), lifecycleCostCenter: 'closeout' } })) {

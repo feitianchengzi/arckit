@@ -1,0 +1,49 @@
+metadata:
+  tokens: ../design-tokens.yaml
+  last_updated: "2026-09-16"
+  state_contract: ../state-contract.md
+components:
+  LoginGate:
+    role: 在启动恢复和未登录状态建立轻量、聚焦且不可绕过的认证画布
+    variants:
+      restoring: { canvas: "{colors.ink.75}", content: "{colors.ink.900}" }
+      logged_out: { canvas: "{colors.ink.75}", panel: "{colors.paper}" }
+    sizes:
+      desktop: { panel_width: 440, panel_padding: "{spacing.7}", radius: "{corner_radius.large}" }
+    states: [restoring, logged_out, verification_sent, signing_in, error]
+    token_refs: [colors.ink.75, colors.ink.50, colors.paper, colors.accent.soft, colors.accent.faint, colors.ink.900, corner_radius.large, shadows.large]
+    accessibility:
+      requirement: 浅色画布与正文保持 AA 对比度；进度与错误状态不只依赖颜色
+
+  AccountPanel:
+    role: 在独立认证页和设置覆盖层表达 Workshop 登录输入、会话状态与退出边界
+    variants:
+      logged_out: { surface: "{colors.paper}", status: "{colors.ink.500}", primary_action: "{colors.accent.base}" }
+      verification_sent: { surface: "{colors.info.soft}", status: "{colors.info.base}", primary_action: "{colors.accent.base}" }
+      authenticated: { surface: "{colors.success.soft}", status: "{colors.success.base}", primary_action: "{colors.info.base}" }
+      expired: { surface: "{colors.danger.soft}", status: "{colors.danger.base}", primary_action: "{colors.accent.base}" }
+    sizes:
+      standard: { width: 560, padding: "{spacing.7}", field_height: 38, gap: "{spacing.5}" }
+    states: [logged_out, sending_code, verification_sent, signing_in, authenticated, refreshing, expired, signing_out]
+    token_refs: [colors.paper, colors.info.soft, colors.success.soft, colors.danger.soft, colors.accent.base, typography.body, corner_radius.medium, shadows.large]
+    accessibility:
+      requirement: 状态同时显示图标、文本和说明；错误紧邻表单；账号可脱敏但 token 永不显示
+
+  ConversationSurface:
+    role: 为 Chat 与 Automation Workbench 提供唯一共享的消息渲染、浏览和滚动视觉层级
+    variants:
+      chat: { surface: "{colors.paper}", composer: fixed, transcript_scroll: independent }
+      review: { surface: "{colors.paper}", composer: hidden, transcript_scroll: independent }
+      intervention: { surface: "{colors.paper}", composer: fixed, transcript_scroll: independent }
+      reasoning_disclosure: { surface: transparent, foreground: "{colors.ink.600}", border: "{colors.ink.150}", typography: "{typography.body}", completed: collapsed }
+      agent_message: { surface: transparent, foreground: "{colors.ink.900}", typography: "{typography.conversation}" }
+      tool_activity: { surface: transparent, foreground: "{colors.ink.600}", typography: "{typography.caption}", overflow: ellipsis }
+      approval_activity: { surface: "{colors.warning.soft}", foreground: "{colors.ink.900}", border: "{colors.warning.base}", typography: "{typography.caption}" }
+      user_message: { surface: "{colors.accent.faint}", border: "{colors.accent.soft}", typography: "{typography.conversation}" }
+    sizes:
+      shell: { min_height: 0, left_pane: stable, center: flexible, inspector: "{layout.inspector_width}" }
+      readable: { max_content_width: 760, message_padding: "{spacing.7}", tool_row_height: "{layout.compact_control_height}", typography: "{typography.conversation}" }
+    states: [loading, chat, review, intervention, reasoning_streaming, reasoning_collapsed, approval_waiting, streaming, following_latest, history_position, submitting, accepted, error]
+    token_refs: [colors.paper, colors.ink.150, colors.ink.600, colors.ink.900, colors.accent.faint, colors.accent.soft, colors.warning.soft, colors.warning.base, typography.caption, typography.conversation]
+    accessibility:
+      requirement: reasoning 使用原生可聚焦展开控件并提供可读标题；空 reasoning 不产生控件；工具与权限状态同时使用图标和文字；工具目标溢出时保留可访问全称；阅读历史时新消息不强制改变滚动位置

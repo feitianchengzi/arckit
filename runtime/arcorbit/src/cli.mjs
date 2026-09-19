@@ -142,13 +142,12 @@ export async function run(options) {
   });
 }
 
-function parseRunOptions(args) {
+export function parseRunOptions(args) {
   const options = {
     project: ".",
     adapter: "dry-run",
     dryRun: false,
     json: false,
-    maxNoProgressRounds: 8,
     maxAgentRepairAttempts: 2,
     streamEvents: false,
     superviseStdin: false,
@@ -176,6 +175,8 @@ function parseRunOptions(args) {
       options.superviseStdin = true;
     } else if (arg === "--supervise-parent-port") {
       options.superviseParentPort = true;
+    } else if (arg === "--yolo" || arg === "--no-yolo") {
+      options.yoloMode = arg === "--yolo";
     } else if (arg === "--approval-policy") {
       options.approvalPolicy = requiredValue(args, ++index, arg);
     } else if (arg === "--model") {
@@ -197,8 +198,9 @@ function parseRunOptions(args) {
     } else if (arg === '--scene-skill-binding-file') {
       options.sceneSkillBindingFile = resolve(requiredValue(args, ++index, arg));
     } else if (arg === "--max-no-progress-rounds") {
-      options.maxNoProgressRounds = Number(requiredValue(args, ++index, arg));
-      if (!Number.isInteger(options.maxNoProgressRounds) || options.maxNoProgressRounds < 1) {
+      // Accept the retired option for older Desktop launchers; it has no effect.
+      const retiredLimit = Number(requiredValue(args, ++index, arg));
+      if (!Number.isInteger(retiredLimit) || retiredLimit < 1) {
         throw new Error("--max-no-progress-rounds must be a positive integer.");
       }
     } else if (arg === "--max-agent-repair-attempts") {
@@ -375,7 +377,7 @@ function printHelp() {
 
 Usage:
   arcorbit init-project [--project <path>] [--name <name>] [--intent <text>]
-  arcorbit run [--project <path>] [--task <text>] [--task-id <id>] [--thread-id <id>] [--thread-binding-file <path>] [--runtime-context <json>] [--max-no-progress-rounds <count>] [--max-agent-repair-attempts <count>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
+  arcorbit run [--project <path>] [--task <text>] [--task-id <id>] [--thread-id <id>] [--thread-binding-file <path>] [--runtime-context <json>] [--max-agent-repair-attempts <count>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
   arcorbit run --adapter codex-app-server [--model <name>] [--reasoning-effort <level>] [--stream-events] [--supervise-stdin|--supervise-parent-port]
   arcorbit probe-app-server [--project <path>] [--json]
   arcorbit analyze-lifecycle --file <events.jsonl>
@@ -386,6 +388,7 @@ Usage:
 MVP behavior:
   - reads arckit/project state
   - keeps one persistent Codex thread for the full todo, including validation, repair, and Git closeout
+  - --yolo explicitly disables Codex approvals and sandbox; --no-yolo restores ordinary execution
   - resumes the saved thread after process restart and compacts that same thread at 80% context utilization
   - lets the manifest-triggered Controller select one Case gap per round
   - sends only skill triggers, human input, and bounded Runtime facts to Agent turns

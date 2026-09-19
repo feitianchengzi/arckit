@@ -60,7 +60,6 @@ export function selectNextRound(snapshot, options = {}) {
       snapshot.paths.techIndex,
     ]),
     stop_conditions: [],
-    max_auto_rounds: options.maxNoProgressRounds || 8,
   };
 }
 
@@ -93,7 +92,6 @@ function protocolRecoveryRound(snapshot, options, taskGoal) {
       'Stop for human input if semantic preservation cannot be established from durable facts.',
       'After trusted reconciliation, return an Agent continuation that requires a fresh canonical read.',
     ],
-    max_auto_rounds: options.maxNoProgressRounds || 8,
   };
 }
 

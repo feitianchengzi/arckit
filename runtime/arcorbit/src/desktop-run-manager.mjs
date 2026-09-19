@@ -1,3 +1,6 @@
+import { acquireTaskTurn } from './workbench/task-turn-lock.mjs';
+import { executionProgress } from "./kernel/execution-progress.mjs";
+import { createExecutionControl, requestExecutionStop } from "./kernel/execution-control.mjs";
 import { executionOutcome } from './automation/execution-outcome.mjs';
 import { loadAgentOutputSchema } from './agent-contracts.mjs';
 import { normalizeCodexSettings, validateCodexSettingsPatch } from "./codex-model-settings.mjs";
@@ -6,7 +9,7 @@ import { EventEmitter } from "node:events";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile, unlink } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { ensureArckitProject } from "./project-initializer.mjs";
 import {
@@ -56,6 +59,7 @@ export function createDesktopRunManager({
   spawnProcess = spawn,
   runtimeHost = null,
   resolveSceneSkills = async () => null,
+  getTaskAgentEnvironment = async () => ({}),
   ensureProject = ensureArckitProject
 }) {
   const emitter = new EventEmitter();
@@ -656,7 +660,26 @@ export function createDesktopRunManager({
     return null;
   }
 
-  async function startRun(input) {
+  async function startRun(input = {}) {
+    const release = acquireTaskTurn(input.projectId, input.taskId, `auto:${randomUUID()}`);
+    try {
+      const run = await startRunUnlocked(input);
+      const active = activeRuns.get(run.id);
+      if (active) active.releaseTaskTurn = release;
+      else release();
+      return run;
+    } catch (error) { release(); throw error; }
+  }
+
+  async function bindTaskThread(projectIdValue, taskIdValue, binding) {
+    if (!binding.threadId) throw new Error('Task thread binding is empty.');
+    const file = join(dataDir, 'thread-bindings', projectIdValue, `${stableTaskKey(taskIdValue)}.json`);
+    const previous = await readThreadBinding(file);
+    if (previous?.threadId && previous.threadId !== binding.threadId) throw new Error('Task thread binding cannot be replaced.');
+    await writeJson(file, { schema_version: 'arckit-codex-thread-binding/v1', ...binding });
+  }
+
+  async function startRunUnlocked(input) {
     const store = await readStore();
     const project = store.projects.find((item) => item.id === input.projectId);
     if (!project) {
@@ -698,6 +721,7 @@ export function createDesktopRunManager({
     const run = {
       id: runId,
       model: input.model || codexSettings.model,
+      yolo_mode: normalizeCodexSettings(store.settings?.codex).yolo_mode,
       reasoning_effort: input.reasoningEffort || codexSettings.reasoning_effort,
       project_id: project.id,
       session_id: input.sessionId || "",
@@ -712,7 +736,6 @@ export function createDesktopRunManager({
       adapter: input.dryRun ? "dry-run" : input.adapter || "codex-app-server",
       codex_proxy_enabled: Boolean(store.settings?.codex_proxy?.enabled),
       codex_proxy_url: store.settings?.codex_proxy?.enabled ? store.settings?.codex_proxy?.url || "" : "",
-      max_no_progress_rounds: positiveInteger(input.maxNoProgressRounds, 8),
       max_agent_repair_attempts: nonNegativeInteger(input.maxAgentRepairAttempts, 2),
       runtime_context: normalizeRuntimeContext(input.runtimeContext),
       scene_skill_binding_file: sceneSkillBindingFile,
@@ -731,6 +754,16 @@ export function createDesktopRunManager({
       lifecycle_summary_file: lifecycleContext?.summary_file || "",
       exit_code: null
     };
+    const controlKey = createHash('sha256').update(`${project.id}\n${run.runtime_context?.execution_id || run.task_id || run.thread_id || run.task || run.id}`).digest('hex');
+    // Existing executions retain their guard file across upgrades; new feedback
+    // executions get independent controls even when they share the todo thread.
+    const previousControl = run.runtime_context?.execution_id && store.runs.find(previous => (
+      previous.project_id === project.id && previous.task_id === run.task_id
+      && previous.runtime_context?.execution_id === run.runtime_context.execution_id
+      && previous.execution_control_file
+    ))?.execution_control_file;
+    run.execution_control_file = previousControl || join(dataDir, 'execution-controls', `${controlKey}.json`);
+    createExecutionControl(run.execution_control_file).assertRunning();
     run.activity = createRunActivity(run);
     const selectedSession = getSession(store, project.id, run.session_id);
     run.session_id = selectedSession.id;
@@ -756,7 +789,6 @@ export function createDesktopRunManager({
     if (run.runtime_context) {
       args.push("--runtime-context", JSON.stringify(run.runtime_context));
     }
-    args.push("--max-no-progress-rounds", String(run.max_no_progress_rounds));
     args.push("--max-agent-repair-attempts", String(run.max_agent_repair_attempts));
     args.push("--runtime-record-ref", runtimeRecordRefForRun(run.id));
     if (run.task_id) args.push("--task-id", run.task_id);
@@ -772,17 +804,21 @@ export function createDesktopRunManager({
       args.push("--dry-run");
     } else {
       args.push("--adapter", run.adapter, host.controlMode === "parent-port" ? "--supervise-parent-port" : "--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
+      args.push(run.yolo_mode ? "--yolo" : "--no-yolo");
       args.push("--codex-bin", codexExecutable.command);
       args.push("--model", run.model, "--reasoning-effort", run.reasoning_effort);
     }
 
+    const taskAgentEnv = await getTaskAgentEnvironment({ projectId: project.id, taskId: run.task_id, runId: run.id });
     const child = host.spawn(runtimeBin, args, {
       cwd: runtimeCwd,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
       env: buildRuntimeEnv(prependRuntimePath({
         ...process.env,
-        FORCE_COLOR: "0"
+        ...taskAgentEnv,
+        FORCE_COLOR: "0",
+        ARCORBIT_EXECUTION_CONTROL_FILE: run.execution_control_file
       }, codexExecutable?.pathEntries), store.settings)
     });
 
@@ -819,6 +855,16 @@ export function createDesktopRunManager({
         const parsed = parseEventLine(line);
         recordChildLifecycleEvent(run, parsed?.event);
         applyRunEvent(run, { line, parsed });
+        if (['runtime.execution_progress', 'runtime.execution_checkpoint', 'runtime.case_checkpoint', 'codex.thread.start.completed', 'codex.thread.resume.completed', 'codex.thread.reused'].includes(parsed?.event?.type)) {
+          queueRunWrite(activeRun, async () => {
+            await writeJson(run.activity_file, run.activity);
+            await updateStore(draft => {
+              const saved = draft.runs.find(item => item.id === run.id);
+              if (saved) { saved.thread_id = run.activity.thread_id || run.thread_id; saved.execution_control_file = run.execution_control_file; }
+              return draft;
+            });
+          });
+        }
         scheduleActivityEmit(activeRun);
         if (isMessagePersistenceBoundary(parsed?.event)) {
           queueRunWrite(activeRun, () => persistPendingMessages(activeRun));
@@ -859,12 +905,19 @@ export function createDesktopRunManager({
     return run;
   }
 
-  async function finishRun(runId, status, exitCode, errorMessage, stdout) {
+  function finishRun(runId, status, exitCode, errorMessage, stdout) {
+    const active = activeRuns.get(runId);
+    if (!active) return Promise.resolve();
+    if (!active.finishPromise) active.finishPromise = finalizeRun(runId, status, exitCode, errorMessage, stdout)
+      .finally(() => { active.releaseTaskTurn?.(); if (activeRuns.get(runId) === active) activeRuns.delete(runId); });
+    return active.finishPromise;
+  }
+
+  async function finalizeRun(runId, status, exitCode, errorMessage, stdout) {
     const active = activeRuns.get(runId);
     if (!active) {
       return;
     }
-    activeRuns.delete(runId);
     if (active.activityEmitTimer) {
       clearTimeout(active.activityEmitTimer);
       active.activityEmitTimer = null;
@@ -891,6 +944,11 @@ export function createDesktopRunManager({
     }
     if (errorMessage) {
       await appendText(run.error_file, `${errorMessage}\n`);
+    }
+    if (active.aborting) {
+      parsedResult = { ...(parsedResult || {}), execution_control: active.suspending
+        ? { interrupted: true } : { stop_requested: true }, stop_reason: active.suspending ? 'desktop_shutdown' : 'stopped' };
+      await writeJson(run.result_file, parsedResult);
     }
     finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage });
     run.status = status;
@@ -925,56 +983,39 @@ export function createDesktopRunManager({
       }
       return store;
     });
+    active.releaseTaskTurn?.();
     emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
   }
 
-  async function abortActiveRuns({ reason = "Desktop is quitting; active runs were aborted.", graceMs = 750 } = {}) {
-    const entries = Array.from(activeRuns.entries());
-    if (entries.length === 0) {
-      return { aborted: 0 };
-    }
+  async function abortActiveRuns() {
+    const entries = [...activeRuns.keys()];
+    for (const runId of entries) if (activeRuns.has(runId)) await controlRun(runId, { type: 'suspend' });
+    return { aborted: entries.length };
+  }
 
-    for (const [runId, active] of entries) {
-      if (!activeRuns.has(runId)) {
-        continue;
+  async function authorizeRunRecovery(runId, identity = {}) {
+    if (activeRuns.has(runId)) throw new Error('Stop the active execution before authorizing recovery.');
+    const store = await readStore();
+    const run = store.runs.find(item => item.id === runId);
+    const controlFiles = new Set();
+    if (identity.projectId && identity.taskId) {
+      // Include the legacy task control for starts that failed before saving a Run.
+      for (const key of [identity.taskId, identity.executionId].filter(Boolean)) {
+        controlFiles.add(join(dataDir, 'execution-controls', `${createHash('sha256').update(`${identity.projectId}\n${key}`).digest('hex')}.json`));
       }
-      active.aborting = true;
-      sendInterrupt(host, active.child);
-      updateRunActivity(active.run, {
-        phase: "aborted",
-        current_step: reason,
-        timeline: {
-          type: "desktop.run.abort_requested",
-          label: "Abort requested",
-          detail: reason
-        }
-      });
-      addRunMessage(active.run.activity, {
-        id: `operator:${runId}:abort`,
-        role: "user",
-        actor: "operator",
-        actor_label: "你",
-        kind: "control",
-        content: "停止当前运行。",
-        detail: reason,
-        status: "completed"
-      });
-      queueRunWrite(active, () => persistPendingMessages(active));
-      emit("run.abort_requested", { runId, reason, activity: active.run.activity });
     }
-
-    await delay(graceMs);
-
-    let aborted = 0;
-    for (const [runId, active] of entries) {
-      if (!activeRuns.has(runId)) {
-        continue;
+    if (run?.execution_control_file) {
+      if (identity.projectId && (run.project_id !== identity.projectId || String(run.task_id) !== String(identity.taskId))) {
+        throw new Error('The recovery Run does not belong to this task.');
       }
-      host.terminate(active.child, "SIGTERM");
-      await finishRun(runId, "aborted", null, reason, active.stdout);
-      aborted += 1;
+      controlFiles.add(run.execution_control_file);
     }
-    return { aborted };
+    if ([...activeRuns.values()].some(active => controlFiles.has(active.run.execution_control_file)
+      || (identity.projectId && active.run.project_id === identity.projectId))) throw new Error('The same execution is still active.');
+    for (const controlFile of controlFiles) {
+      executionProgress(controlFile).authorizeRecovery();
+      await unlink(`${controlFile}.stop`).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    }
   }
 
   async function controlRun(runId, control) {
@@ -982,8 +1023,16 @@ export function createDesktopRunManager({
     if (!active) {
       throw new Error(`Run is not active: ${runId}`);
     }
-    if (control.type === "interrupt") {
-      host.sendControl(active.child, { type: "interrupt" });
+    if (["interrupt", "suspend"].includes(control.type)) {
+      active.suspending = control.type === "suspend";
+      if (!active.suspending && active.run.execution_control_file) requestExecutionStop(active.run.execution_control_file);
+      active.aborting = true;
+      await updateStore(draft => {
+        const saved = draft.runs.find(item => item.id === runId);
+        if (saved) saved[active.suspending ? "interrupted_at" : "stop_requested_at"] = new Date().toISOString();
+        return draft;
+      });
+      sendInterrupt(host, active.child);
       updateRunActivity(active.run, {
         phase: "interrupting",
         current_step: "Interrupt requested",
@@ -996,7 +1045,7 @@ export function createDesktopRunManager({
       const operatorMessage = await addMessage(active.run.project_id, {
         role: "user",
         kind: "interrupt",
-        content: "Interrupt current run.",
+        content: active.suspending ? "应用退出，执行中断；保留上下文以便恢复。" : "Interrupt current run.",
         run_id: runId,
         task_id: active.run.task_id || "",
         session_id: active.run.session_id
@@ -1004,7 +1053,12 @@ export function createDesktopRunManager({
       addOperatorRunMessage(active, operatorMessage);
       queueRunWrite(active, () => persistPendingMessages(active));
       emit("run.control", { runId, type: "interrupt", activity: active.run.activity });
-      return { ok: true };
+      await delay(750);
+      if (activeRuns.has(runId)) await host.terminate(active.child, 'SIGKILL');
+      const deadline = Date.now() + 2_000;
+      while (activeRuns.has(runId) && Date.now() < deadline) await delay(25);
+      if (activeRuns.has(runId)) throw new Error('Stop requested, but process exit has not been confirmed.');
+      return { ok: true, stopped: true };
     }
     if (control.type === "steer") {
       const message = String(control.message || "").trim();
@@ -1282,6 +1336,7 @@ export function createDesktopRunManager({
     warmRunSummaryIndex,
     readRunResult,
     getTaskThreadBinding,
+    bindTaskThread,
     isRunActive(runId) {
       return activeRuns.has(runId);
     },
@@ -1297,6 +1352,7 @@ export function createDesktopRunManager({
     updateSettings,
     startRun,
     controlRun,
+    authorizeRunRecovery,
     abortActiveRuns,
     gateRun,
     writeLedgerForRun,

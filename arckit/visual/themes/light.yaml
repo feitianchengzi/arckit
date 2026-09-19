@@ -1,0 +1,7 @@
+metadata:
+  name: light
+  status: active
+  scope: 项目事情台与共享内容区
+  tokens: ../_library/design-tokens.yaml
+# 默认语义值即亮色；主题不重复维护色值。
+overrides: {}

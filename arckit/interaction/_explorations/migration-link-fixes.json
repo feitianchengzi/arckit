@@ -1,0 +1,76 @@
+[
+  {
+    "file": "arckit/interaction/_explorations/product-continuity-concept/options/original/README.md",
+    "missing_in_source": "previews/today.png"
+  },
+  {
+    "file": "arckit/interaction/_explorations/product-continuity-concept/options/original/README.md",
+    "missing_in_source": "previews/products.png"
+  },
+  {
+    "file": "arckit/interaction/_explorations/product-continuity-concept/options/original/README.md",
+    "missing_in_source": "previews/product-workspace.png"
+  },
+  {
+    "file": "arckit/interaction/_explorations/product-continuity-concept/options/original/README.md",
+    "missing_in_source": "previews/iterations.png"
+  },
+  {
+    "file": "arckit/interaction/_explorations/product-continuity-concept/options/original/README.md",
+    "missing_in_source": "previews/lifecycle-work.png"
+  },
+  {
+    "file": "arckit/interaction/_explorations/product-continuity-concept/options/original/README.md",
+    "missing_in_source": "previews/add-idea.png"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../../../arckit/intake/2026/2026-09-09-arcorbit-product-management.md",
+    "new": "../../../../../../intake/2026/2026-09-09-arcorbit-product-management.md"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../../../arckit/tech/arcorbit/product-management-solution.md",
+    "new": "../../../../../../tech/arcorbit/product-management-solution.md"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../desktop/renderer/product-surface.mjs",
+    "new": "../../../../../../../runtime/arcorbit/desktop/renderer/product-surface.mjs"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../src/product-coordinator.mjs",
+    "new": "../../../../../../../runtime/arcorbit/src/product-coordinator.mjs"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../src/chat-coordinator.mjs",
+    "new": "../../../../../../../runtime/arcorbit/src/chat-coordinator.mjs"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../adapters/codex-app-server-adapter.mjs",
+    "new": "../../../../../../../runtime/arcorbit/adapters/codex-app-server-adapter.mjs"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../src/product-git.mjs",
+    "new": "../../../../../../../runtime/arcorbit/src/product-git.mjs"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../package.json",
+    "new": "../../../../../../../runtime/arcorbit/package.json"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../desktop/main.mjs",
+    "new": "../../../../../../../runtime/arcorbit/desktop/main.mjs"
+  },
+  {
+    "file": "arckit/interaction/_explorations/release-workbench/options/original/research/implementation-options.md",
+    "old": "../../../../../arckit/cases/evidence/CASE-20260909-001/verification.md",
+    "new": "../../../../../../cases/evidence/CASE-20260909-001/verification.md"
+  }
+]

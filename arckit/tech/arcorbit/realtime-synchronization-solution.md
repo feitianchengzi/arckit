@@ -153,6 +153,8 @@ Work Sync snapshot 暴露聚合连接健康、聚合订阅模式、各项目连�
 
 连接状态和恢复过程通过 `work.sync` 结构化事件及 Desktop Store 项目状态记录，至少包括连接状态、`resumable` / `legacy` 模式、现代模式 confirmed cursor、最近事件时间、最近项目刷新时间和错误。Renderer 将旧服务显示为“实时兼容连接”，将异常状态显示为“可立即同步”。这些诊断不进入 Agent conversation，也不作为 ledger 事实源。
 
+Renderer 对 `work.sync`、`work.syncing` 只合并已有的同步健康并更新导航状态和可见 Automation 同步摘要，不触发 Platform 网络快照、任务查询或附件读取。聚合实时健康与 Work Sync 使用同一纯投影函数。`work.changed` 和 `work.error` 保留内容刷新及错误恢复路径；主壳的全量数据刷新只渲染当前可见业务页面，导航仍读取最新内存投影。Thing 的详情失效与刷新合并遵循项目事情台技术方案。
+
 ## 验证边界
 
 - Workshop model、transaction 和 handler 测试证明领域变更与事件记录同成同败。

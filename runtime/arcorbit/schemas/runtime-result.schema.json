@@ -422,8 +422,7 @@
         "responsibility_reason",
         "next_prompt",
         "agent_instruction",
-        "human_gate",
-        "progress_guard"
+        "human_gate"
       ],
       "properties": {
         "version": {
@@ -530,32 +529,50 @@
         },
         "progress_guard": {
           "type": "object",
-          "required": [
-            "expected_state_change",
-            "actual_state_change",
-            "no_progress_limit",
-            "max_auto_rounds"
-          ],
-          "properties": {
-            "expected_state_change": {
-              "type": "string"
-            },
-            "actual_state_change": {
-              "type": "string"
-            },
-            "no_progress_limit": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "max_auto_rounds": {
-              "type": "integer",
-              "minimum": 0
-            }
-          },
-          "additionalProperties": false
+          "deprecated": true,
+          "description": "Historical handoff metadata only. Accepted when reading older Runtime results; not emitted, required, scored, or used to control continuation."
         }
       },
       "additionalProperties": false
+    },
+    "task_progress": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "advanced",
+            "reason",
+            "evidence",
+            "remaining"
+          ],
+          "properties": {
+            "advanced": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "remaining": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Agent-owned assessment of original-task progress. This declaration is evidence for context recovery, not a Runtime continuation gate. Continuation is expressed separately by handoff."
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Preserved Agent assessment; may be absent in historical results. Never used as an execution gate."
     }
   },
   "additionalProperties": false

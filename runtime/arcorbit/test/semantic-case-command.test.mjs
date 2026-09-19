@@ -1,3 +1,4 @@
+import { selectionAssessment } from './helpers/selection-assessment.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -46,6 +47,8 @@ test('Semantic Case Command materializes identities, revisions and reverse relat
   const fresh = readLedgerSnapshot(projectRoot, { afterCommitToken: result.post_commit_snapshot_token });
   const nextCase = fresh.canonical.active_cases.find((item) => item.record.id === active.record.id).record;
   const nextProject = fresh.canonical.project_state;
+  assert.deepEqual(nextCase.rounds.at(-1).planned_transition.selection_assessment, command.planned_transition.selection_assessment);
+  assert.deepEqual(result.round_closeout.planned_transition.selection_assessment, command.planned_transition.selection_assessment);
   const factId = first.canonical_id_mapping['local:fact:result'];
   const gapId = first.canonical_id_mapping['local:gap:followup'];
   const projectGapId = first.canonical_id_mapping['local:project-gap:runtime-boundary'];
@@ -83,11 +86,33 @@ test('Semantic Case Command reports claim and freshness rejections without mixin
   assert.equal(result.rejection.recovery_action, 'replan_from_fresh_state');
 });
 
+test('semantic reframing preserves replacement derivations and obligations across trusted apply and fresh-read', async () => {
+  const projectRoot = await fixtureProject();
+  const snapshot = readLedgerSnapshot(projectRoot);
+  const record = snapshot.canonical.active_cases[0].record;
+  const command = semanticCommand(snapshot, record);
+  command.claim.resolve_selected_gap = null;
+  command.claim.gaps_cancelled = [{ gap_ref: 'case:gap:GAP-WORK', outcome: 'Boundary replaced; work remains.',
+    reason: 'Current evidence separates an independent result from the broad original boundary.', evidence: ['fixture:boundary'] }];
+  command.claim.gaps_added[0].derived_from.push('case:gap:GAP-WORK');
+  command.claim.impacts_added = [];
+  command.project_claim = { decision_changes: [], invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] };
+  const result = await applyRuntimeLedgerWriteback({ projectRoot, runtimeResult: { case_command: command }, snapshot, gate: { allowed: true, reasons: [] } });
+  assert.equal(result.written, true);
+  const fresh = readLedgerSnapshot(projectRoot, { afterCommitToken: result.post_commit_snapshot_token });
+  const next = fresh.canonical.active_cases.find((item) => item.record.id === record.id).record;
+  assert.equal(next.gaps.find((gap) => gap.id === 'GAP-WORK').status, 'cancelled');
+  const replacement = next.gaps.find((gap) => gap.status === 'open');
+  assert.ok(replacement.derived_from.includes('GAP-WORK'));
+  assert.notEqual(next.case_resolution.status, 'resolved');
+  assert.ok(fresh.candidate_catalog.persisted_candidates.some((item) => item.gap.id === replacement.id));
+});
+
 test('Semantic validation rejects malformed containers without escaping as an internal exception', () => {
   const issues = validateSemanticCaseCommand({
     schema_version: 'arckit-semantic-case-command/v1', case_id: 'CASE-20260824-001',
     selection: { basis: 'x', snapshot_token: 'x', selected_ref: 'x', comparison_summary: 'x', fresh_discovery_summary: 'x', considered: {} },
-    planned_transition: { goal: 'x', expected_state_change: 'x' }, fresh_gap: null,
+    planned_transition: { selection_assessment: selectionAssessment(), goal: 'x', expected_state_change: 'x' }, fresh_gap: null,
     claim: {
       resolve_selected_gap: null, facts_added: {}, facts_superseded: {}, impacts_added: {}, impacts_updated: {},
       gaps_added: {}, gaps_cancelled: {}, resolved_open_questions: {}, completed_handoffs: {},
@@ -108,10 +133,6 @@ test('Semantic preflight rejects contract contradictions before canonical apply'
     {
       name: 'duplicate selection identity', path: 'case_command.selection.considered',
       mutate(command) { command.selection.considered.push({ ...structuredClone(command.selection.considered[0]), disposition: 'deferred' }); },
-    },
-    {
-      name: 'ordinary gap without resolution', path: 'case_command.claim.resolve_selected_gap',
-      mutate(command) { command.claim.resolve_selected_gap = null; },
     },
     {
       name: 'selected fresh gap assigned away from the Agent', path: 'case_command.fresh_gap.responsibility',
@@ -171,7 +192,7 @@ test('Semantic preflight rejects contract contradictions before canonical apply'
       name: 'core invariant mutation outside sync', path: 'case_command.project_claim.invariant_changes[0].action',
       mutate(command) {
         command.project_claim.invariant_changes = [{
-          action: 'update', ref: 'project:invariant:accepted-facts-are-realized',
+          action: 'update', ref: command.invariant_assessment.judgments[0].invariant_ref,
           definition: {
             applies_when: 'Changed.', must_hold: 'Changed.', evidence_expectation: 'Changed.', priority: 'required',
           },
@@ -200,17 +221,20 @@ test('Semantic preflight rejects contract contradictions before canonical apply'
     );
   }
 
-  const rejected = semanticCommand(snapshot, active.record);
-  rejected.claim.resolve_selected_gap = null;
+  const partial = semanticCommand(snapshot, active.record);
+  partial.round_outcome = 'partial';
+  partial.claim.resolve_selected_gap = null;
+  const selectedId = active.record.gaps.find(gap => gap.status === 'open').id;
   const result = await applyRuntimeLedgerWriteback({
-    projectRoot,
-    runtimeResult: { case_command: rejected },
-    snapshot,
+    projectRoot, runtimeResult: { case_command: partial }, snapshot,
     gate: { allowed: true, reasons: [] },
   });
-  assert.equal(result.rejection.kind, 'claim_invalid');
-  assert.equal(result.rejection.responsibility, 'agent');
-  assert.equal(result.rejection.recovery_action, 'repair_rejected_claim');
+  assert.equal(result.written, true, JSON.stringify(result.rejection));
+  const fresh = readLedgerSnapshot(projectRoot, { afterCommitToken: result.post_commit_snapshot_token });
+  const record = fresh.canonical.active_cases.find(item => item.record.id === active.record.id).record;
+  assert.equal(record.gaps.find(gap => gap.id === selectedId).status, 'open');
+  assert.equal(record.gaps.find(gap => gap.id === selectedId).resolution, null);
+  assert.ok(record.facts.length > active.record.facts.length);
 });
 
 test('Ledger rejection taxonomy assigns repair only to claim_invalid', () => {
@@ -275,7 +299,7 @@ test('Review findings explicitly bind invariant judgments to their persisted rep
     ref: findingRef, kind: 'omission', statement: 'Submission context is missing.',
     responsibility: 'agent', artifact_refs: ['fixture:source'], evidence: ['fixture:review'],
   }];
-  const judgment = command.invariant_assessment.judgments.find((item) => item.invariant_ref.endsWith(':accepted-facts-are-realized'));
+  const judgment = command.invariant_assessment.judgments[0];
   Object.assign(judgment, { disposition: 'threatened', reason: 'The accepted context is missing.',
     fact_refs: ['case:fact:FACT-INTENT'], evidence: ['fixture:review'], gap_refs: [findingRef] });
   const unknown = structuredClone(command);
@@ -441,12 +465,13 @@ function semanticCommand(snapshot, record) {
     status: 'settled', statement: 'Use explicit semantic commands and deterministic materialization.',
     reason: 'The responsibility boundary is explicit.', evidence: ['fixture:architecture'], confidence: 'high', resume_condition: 'Revisit when the boundary changes.',
   };
-  const judgments = snapshot.canonical.project_state.software_invariants.map((invariant) => {
-    if (invariant.id === 'accepted-facts-are-realized' || invariant.id === 'material-risks-have-credible-evidence') return {
+  // Fixture-assigned dispositions exercise transport, not domain classification.
+  const judgments = snapshot.canonical.project_state.software_invariants.map((invariant, index) => {
+    if (index === 0) return {
       invariant_ref: `project:invariant:${invariant.id}`, disposition: 'threatened', reason: 'The follow-up remains explicitly open.',
       fact_refs: ['local:fact:result'], evidence: ['fixture:evidence'], gap_refs: ['local:gap:followup'],
     };
-    if (invariant.id === 'technical-decisions-remain-explainable') return {
+    if (index === 1) return {
       invariant_ref: `project:invariant:${invariant.id}`, disposition: 'upheld', reason: 'The technical boundary is explicit.',
       fact_refs: ['local:fact:result'], evidence: ['fixture:architecture'], gap_refs: [],
     };
@@ -463,7 +488,7 @@ function semanticCommand(snapshot, record) {
         reason: item.ref === selectedRef ? 'This is the selected ready Case gap.' : 'This candidate requires a separate Case.',
       })),
     },
-    planned_transition: { goal: 'Exercise semantic materialization.', expected_state_change: 'Explicit claims become a canonical transition.' },
+    planned_transition: { selection_assessment: selectionAssessment(), goal: 'Exercise semantic materialization.', expected_state_change: 'Explicit claims become a canonical transition.' },
     fresh_gap: null,
     claim: {
       resolve_selected_gap: { outcome: 'The fixture command is accepted.', reason: 'Explicit evidence supports it.', evidence: ['fixture:evidence'] },
@@ -513,7 +538,7 @@ function completionReviewCommand(snapshot, record) {
       disposition: item.ref === selectedRef ? 'selected' : 'deferred', priority_basis: { ...priority(), ...(item.gap.priority_basis || {}) },
       reason: item.ref === selectedRef ? 'This is the selected Completion Review.' : 'This candidate requires a separate Case.',
     }));
-  command.planned_transition = { goal: 'Review the completed fixture.', expected_state_change: 'Record a clean Completion Review.' };
+  command.planned_transition = { selection_assessment: selectionAssessment(), goal: 'Review the completed fixture.', expected_state_change: 'Record a clean Completion Review.' };
   command.claim.resolve_selected_gap = null;
   command.claim.completion_review_result = {
     outcome: 'clean', reviewer: 'agent',
@@ -531,3 +556,125 @@ function completionReviewCommand(snapshot, record) {
 function priority() {
   return { blocking: 'high', uncertainty: 'low', risk: 'medium', user_impact: 'high' };
 }
+
+test('mixed phases and missing prerequisites are rejected before semantic writeback', async () => {
+  const projectRoot = await fixtureProject();
+  const snapshot = readLedgerSnapshot(projectRoot);
+  const command = semanticCommand(snapshot, snapshot.canonical.active_cases[0].record);
+  for (const override of [
+    { establishes_expectations: true, delivers_realization: true },
+    { conclusion_kind: 'exploration', delivers_realization: true },
+    { delivers_realization: true, expected_fact_refs: [], implementation_carriers: ['fixture:skill'] },
+    { prerequisites: [{ statement: 'A shared contract is still unknown.', status: 'unresolved', evidence: [] }] },
+    { invariant_refs: ['nonexistent-responsibility'] },
+  ]) {
+    const invalid = structuredClone(command);
+    Object.assign(invalid.planned_transition.selection_assessment, override);
+    assert.throws(() => materializeSemanticCaseCommand({ command: invalid, snapshot }), /selection_assessment/);
+  }
+  assert.equal(readLedgerSnapshot(projectRoot).snapshot_token, snapshot.snapshot_token);
+});
+
+test('trusted scene definition changes invalidate Case selection tokens', async () => {
+  const { cp, readFile, writeFile } = await import('node:fs/promises');
+  const { pathToFileURL } = await import('node:url');
+  const projectRoot = await fixtureProject();
+  const snapshot = readLedgerSnapshot(projectRoot);
+  const command = semanticCommand(snapshot, snapshot.canonical.active_cases[0].record);
+  const adapterRoot = join(await mkdtemp(join(tmpdir(), 'arckit-definition-token-')), 'ledger');
+  await cp(new URL('../../../entry/skills/arckit-development-ledger/', import.meta.url), adapterRoot, { recursive: true });
+  const adapter = await import(pathToFileURL(join(adapterRoot, 'scripts/loop-snapshot.mjs')).href);
+  assert.deepEqual(adapter.readLedgerSnapshot(projectRoot).selection_tokens, snapshot.selection_tokens);
+  const template = join(adapterRoot, 'templates/software-state-definition.json');
+  const definition = JSON.parse(await readFile(template, 'utf8'));
+  definition.revision += 1;
+  definition.selection_rules.push('A new trusted scene prerequisite applies.');
+  await writeFile(template, JSON.stringify(definition));
+  const updated = adapter.readLedgerSnapshot(projectRoot);
+  assert.notEqual(updated.state_definition.digest, snapshot.state_definition.digest);
+  assert.notDeepEqual(updated.selection_tokens, snapshot.selection_tokens);
+  assert.throws(() => materializeSemanticCaseCommand({ command, snapshot: updated }), /stale/);
+});
+
+test('semantic continuation checks the persisted Gap history before materialization', async () => {
+  const projectRoot = await fixtureProject();
+  const snapshot = readLedgerSnapshot(projectRoot);
+  const active = snapshot.canonical.active_cases[0];
+  const first = ordinaryResolutionCommand(snapshot, active.record);
+  first.claim.resolve_selected_gap = null;
+  first.round_outcome = 'partial';
+  first.planned_transition.selection_assessment = selectionAssessment({
+    establishes_expectations: true,
+    invariant_refs: [snapshot.canonical.project_state.software_invariants[0].id],
+  });
+  const accepted = await applyRuntimeLedgerWriteback({
+    projectRoot, runtimeResult: { case_command: first }, snapshot, gate: { allowed: true, reasons: [] },
+  });
+  assert.equal(accepted.written, true, JSON.stringify(accepted));
+  const fresh = readLedgerSnapshot(projectRoot, { afterCommitToken: accepted.post_commit_snapshot_token });
+  const next = ordinaryResolutionCommand(fresh, fresh.canonical.active_cases[0].record);
+  next.planned_transition.selection_assessment = selectionAssessment({
+    delivers_realization: true, invariant_refs: [fresh.canonical.project_state.software_invariants[0].id],
+    expected_fact_refs: ['fixture:accepted-local-contract'], implementation_carriers: ['fixture:implementation'],
+  });
+  assert.throws(() => materializeSemanticCaseCommand({ command: next, snapshot: fresh }), /same Gap/);
+  assert.equal(readLedgerSnapshot(projectRoot).snapshot_token, fresh.snapshot_token);
+});
+
+test('negative exploration evidence can close its question while retaining formal follow-up obligations', async () => {
+  const projectRoot = await fixtureProject();
+  const snapshot = readLedgerSnapshot(projectRoot);
+  const command = semanticCommand(snapshot, snapshot.canonical.active_cases[0].record);
+  command.planned_transition.selection_assessment = selectionAssessment({
+    conclusion_kind: 'exploration',
+    invariant_refs: [snapshot.canonical.project_state.software_invariants[0].id],
+    acceptance: ['Determine whether the proposed approach supports the required capability.'],
+    deferred: ['Choose and formally establish a viable alternative.'],
+  });
+  command.project_claim.decision_changes = [];
+  command.project_claim.project_gap_changes = [];
+  command.project_claim.evidence = [];
+  command.claim.impacts_added = [];
+  command.claim.facts_added[0].statement = 'The experiment reproducibly rules out the proposed approach.';
+  command.claim.resolve_selected_gap.outcome = 'The feasibility question is answered by negative evidence.';
+  command.claim.gaps_added[0].goal = 'Establish a viable alternative from the accepted experiment evidence.';
+  const accepted = await applyRuntimeLedgerWriteback({
+    projectRoot, runtimeResult: { case_command: command }, snapshot, gate: { allowed: true, reasons: [] },
+  });
+  assert.equal(accepted.written, true, JSON.stringify(accepted));
+  const fresh = readLedgerSnapshot(projectRoot);
+  const record = fresh.canonical.active_cases[0].record;
+  assert.equal(record.gaps.find((gap) => gap.id === 'GAP-WORK').status, 'resolved');
+  assert.ok(record.gaps.some((gap) => gap.status === 'open' && gap.goal === command.claim.gaps_added[0].goal));
+  assert.equal(record.case_resolution.status, 'unresolved');
+  assert.equal(record.rounds.at(-1).planned_transition.selection_assessment.delivers_realization, false);
+});
+
+test('semantic context references survive materialization, writeback and closeout', async () => {
+  const projectRoot = await fixtureProject();
+  const snapshot = readLedgerSnapshot(projectRoot);
+  const first = ordinaryResolutionCommand(snapshot, snapshot.canonical.active_cases[0].record);
+  first.claim.resolve_selected_gap = null;
+  first.round_outcome = 'partial';
+  first.planned_transition.selection_assessment.implementation_carriers = ['fixture:skill-source'];
+  const accepted = await applyRuntimeLedgerWriteback({
+    projectRoot, runtimeResult: { case_command: first }, snapshot, gate: { allowed: true, reasons: [] },
+  });
+  assert.equal(accepted.written, true, JSON.stringify(accepted));
+  const fresh = readLedgerSnapshot(projectRoot);
+  const second = ordinaryResolutionCommand(fresh, fresh.canonical.active_cases[0].record);
+  Object.assign(second.planned_transition.selection_assessment, {
+    context_ref: 'case:round:1', maintenance_object: null, implementation_carriers: null, activation: null, verification: null,
+  });
+  const invalid = structuredClone(second);
+  invalid.planned_transition.selection_assessment.context_ref = 'case:round:99';
+  assert.throws(() => materializeSemanticCaseCommand({ command: invalid, snapshot: fresh }), /accepted context/);
+  const result = await applyRuntimeLedgerWriteback({
+    projectRoot, runtimeResult: { case_command: second }, snapshot: fresh, gate: { allowed: true, reasons: [] },
+  });
+  assert.equal(result.written, true, JSON.stringify(result));
+  const recorded = readLedgerSnapshot(projectRoot).canonical.active_cases[0].record.rounds.at(-1);
+  assert.equal(recorded.planned_transition.selection_assessment.context_ref, 'case:round:1');
+  assert.equal(recorded.planned_transition.selection_assessment.maintenance_object, null);
+  assert.deepEqual(result.round_closeout.planned_transition.selection_assessment, second.planned_transition.selection_assessment);
+});

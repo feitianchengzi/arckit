@@ -3,6 +3,52 @@ import test from "node:test";
 import { createCodexAppServerAdapter, waitForActiveTurn } from "../adapters/codex-app-server-adapter.mjs";
 import { digest, readSkill } from '../src/skill-files.mjs';
 import { fileURLToPath } from 'node:url';
+import { workbenchTools } from '../src/workbench/protocol.mjs';
+import { JsonRpcStdioClient } from '../src/json-rpc-stdio-client.mjs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+for (const mode of ['start', 'missing-thread', 'real-codex']) {
+ test(`mixed dynamic tool formats are normalized for ${mode}`, {
+  skip: mode === 'real-codex' && process.env.ARCORBIT_CODEX_DYNAMIC_TOOLS_TEST !== '1', timeout: 30000
+ }, async () => {
+  const tools = [...workbenchTools, { type: 'function', name: 'arcforge_catalog', description: 'Catalog fixture', inputSchema: { type: 'object', properties: {} } }];
+  const original = structuredClone(tools);
+  let native, home;
+  const client = new FakeClient(), request = client.request.bind(client);
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  try {
+   if (mode === 'real-codex') {
+    home = await mkdtemp(join(tmpdir(), 'arcorbit-dynamic-tools-'));
+    native = new JsonRpcStdioClient({ command: 'codex', args: ['app-server'], cwd: home, env: { ...process.env, CODEX_HOME: home }, stderr: 'ignore' });
+    await native.request('initialize', { clientInfo: { name: 'dynamic-tools-fixture', version: '1' }, capabilities: { experimentalApi: true } });
+    await assert.rejects(native.request('thread/start', { cwd: home, ephemeral: true, dynamicTools: tools }), /dynamic tools must use either canonical or legacy format consistently/);
+   }
+   client.request = async (method, params) => {
+    if (method === 'thread/resume' && mode === 'missing-thread') throw new Error('thread not found');
+    if (method === 'thread/start') {
+     assert.ok(params.dynamicTools.every(tool => tool.type === 'function'));
+     assert.deepEqual(params.dynamicTools.map(tool => tool.name), tools.map(tool => tool.name));
+     if (native) {
+      const result = await native.request(method, { ...params, cwd: home, ephemeral: true });
+      assert.ok(result.thread.id);
+     }
+    }
+    return request(method, params);
+   };
+   await collect(adapter.runTurn({ projectRoot: home || '/workspace/project', prompt: 'Fixture', options: {
+    resultKind: 'agent-loop-result', dynamicTools: tools,
+    ...(mode === 'missing-thread' ? { threadId: 'MISSING' } : {})
+   } }));
+   assert.equal(client.requests.filter(item => item.method === 'thread/start').length, 1);
+   assert.deepEqual(tools, original, 'shared MCP definitions must remain unchanged');
+  } finally {
+   adapter.close(); native?.close();
+   if (home) await rm(home, { recursive: true, force: true });
+  }
+ });
+}
 
 test('scene roots are configured once per process and exclusions travel with thread resume', async () => {
  const client=new FakeClient(),request=client.request.bind(client);
@@ -276,7 +322,7 @@ class FakeClient {
       const turn = { id: `TURN-${++this.turnCount}` };
       queueMicrotask(() => {
         this.emit("turn/started", { threadId: params.threadId, turn });
-        this.emit("item/completed", { item: { type: "agentMessage", text: "completed" } });
+        this.emit("item/completed", { item: { type: "agentMessage", text: JSON.stringify({ schema_version: "arckit-agent-loop-result/v2", action: "handoff", summary: "Fixture complete", case_control: null, case_command: null, changed_files: [], artifact_impacts: [], risks: [], unknowns: [], task_progress: { advanced: false, reason: "Fixture", evidence: [], remaining: [] }, handoff: { next_responsibility: "none", reason: "Fixture complete", next_prompt: "", human_decision_required: false } }) } });
         this.emit("turn/completed", { threadId: params.threadId, turn });
       });
       return { turn };
@@ -318,7 +364,7 @@ class DuplicateCommandClient extends FakeClient {
       this.emit("item/completed", { item: { id: "CMD-1", type: "commandExecution", command: base.command } });
       this.commandDecisions.push(await approve({ method: "item/commandExecution/requestApproval", params: { ...base, command: "cmake --build build --target tests -j2", itemId: "CMD-3", startedAtMs: 300 } }));
       this.emit("item/completed", { item: { id: "CMD-3", type: "commandExecution", command: base.command } });
-      this.emit("item/completed", { item: { type: "agentMessage", text: "completed" } });
+      this.emit("item/completed", { item: { type: "agentMessage", text: JSON.stringify({ schema_version: "arckit-agent-loop-result/v2", action: "handoff", summary: "Fixture complete", case_control: null, case_command: null, changed_files: [], artifact_impacts: [], risks: [], unknowns: [], task_progress: { advanced: false, reason: "Fixture", evidence: [], remaining: [] }, handoff: { next_responsibility: "none", reason: "Fixture complete", next_prompt: "", human_decision_required: false } }) } });
       this.emit("turn/completed", { threadId: params.threadId, turn });
     });
     return { turn };
@@ -348,7 +394,7 @@ class PermissionClient extends FakeClient {
           }
         }
       });
-      this.emit("item/completed", { item: { type: "agentMessage", text: "completed" } });
+      this.emit("item/completed", { item: { type: "agentMessage", text: JSON.stringify({ schema_version: "arckit-agent-loop-result/v2", action: "handoff", summary: "Fixture complete", case_control: null, case_command: null, changed_files: [], artifact_impacts: [], risks: [], unknowns: [], task_progress: { advanced: false, reason: "Fixture", evidence: [], remaining: [] }, handoff: { next_responsibility: "none", reason: "Fixture complete", next_prompt: "", human_decision_required: false } }) } });
       this.emit("turn/completed", { threadId: params.threadId, turn });
     });
     return { turn };
@@ -502,4 +548,68 @@ test('Automation keeps entry skills discoverable without invoking them during sa
     assert.deepEqual(client.requests.find(item => item.method === 'skills/extraRoots/set').params.extraRoots, skills.map(skill => skill.path));
     assert.ok(client.requests.find(item => item.method === 'thread/start').params.config['skills.config'].every(skill => skill.enabled));
   } finally { adapter.close(); }
+});
+
+
+test('interrupted Automation output is terminal, never a fabricated retry', async () => {
+  const client = new InterruptClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  const run = collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'work', options: { resultKind: 'agent-loop-result' } }));
+  const rejected = assert.rejects(run, error => error.code === 'ARCORBIT_EXECUTION_STOPPED');
+  await client.turnStarted;
+  await adapter.interrupt();
+  await rejected;
+  adapter.close();
+});
+
+test('malformed Automation output reports a transport error without Agent continuation', async () => {
+  const client = new FakeClient();
+  const emit = client.emit.bind(client);
+  client.emit = (method, params) => emit(method, params.item?.type === 'agentMessage' ? { ...params, item: { ...params.item, text: 'not JSON' } } : params);
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  try {
+    await assert.rejects(collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'work', options: { resultKind: 'agent-loop-result' } })), error => error.code === 'INVALID_AGENT_RESULT');
+  } finally { adapter.close(); }
+});
+
+for (const threadId of ['', 'THREAD-PERSISTED']) {
+ test(`explicit YOLO applies to ${threadId ? 'resume' : 'start'} and disabling restores the same thread`, async () => {
+  const client = new FakeClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  const options = { threadKey: 'yolo', threadId, resultKind: 'agent-loop-result' };
+  try {
+   await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'enabled', options: { ...options, yoloMode: true, approvalPolicy: 'on-request', sandboxPolicy: { type: 'readOnly', networkAccess: false } } }));
+   const thread = client.requests.find(x => x.method === (threadId ? 'thread/resume' : 'thread/start'));
+   assert.equal(thread.params.approvalPolicy, 'never');
+   assert.equal(thread.params.sandbox, 'danger-full-access');
+   await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'disabled', options: { ...options, yoloMode: false } }));
+   await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'read only', options: { ...options, yoloMode: false, sandboxPolicy: { type: 'readOnly', networkAccess: false } } }));
+   const turns = client.requests.filter(x => x.method === 'turn/start').map(x => x.params);
+   assert.deepEqual(turns[0].sandboxPolicy, { type: 'dangerFullAccess' });
+   assert.equal(turns[1].approvalPolicy, 'on-request');
+   assert.equal(turns[1].sandboxPolicy.type, 'workspaceWrite');
+   assert.equal(turns[1].sandboxPolicy.networkAccess, false);
+   assert.deepEqual(turns[1].sandboxPolicy.writableRoots, ['/workspace/project']);
+   assert.deepEqual(turns[2].sandboxPolicy, { type: 'readOnly', networkAccess: false });
+   assert.equal(new Set(turns.map(x => x.threadId)).size, 1);
+  } finally { adapter.close(); }
+ });
+}
+
+test('resuming a previously privileged thread with YOLO off sets a bounded sandbox before the turn', async () => {
+ const client = new FakeClient();
+ const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+ try {
+  await collect(adapter.runTurn({ projectRoot: '/workspace/project', prompt: 'ordinary', options: { threadId: 'THREAD-PERSISTED', yoloMode: false, resultKind: 'agent-loop-result' } }));
+  const params = client.requests.find(x => x.method === 'thread/resume').params;
+  assert.equal(params.approvalPolicy, 'on-request');
+  assert.equal(params.sandbox, 'workspace-write');
+ } finally { adapter.close(); }
+});
+
+test('restored work-item thread receives MCP configuration without replacing its identity',async()=>{
+ const client=new FakeClient(),adapter=createCodexAppServerAdapter({clientFactory:()=>client});
+ const config={'mcp_servers.arcorbit_workbench':{url:'http://127.0.0.1:4567/mcp',bearer_token_env_var:'ARCORBIT_WORKBENCH_TOKEN'}};
+ try {await collect(adapter.runTurn({projectRoot:'/workspace/project',prompt:'continue',options:{resultKind:'chat',threadId:'EXISTING',threadConfig:config}}));
+ assert.deepEqual(client.requests.find(x=>x.method==='thread/resume').params.config,config);assert.equal(client.requests.filter(x=>x.method==='thread/start').length,0);assert.equal(client.requests.find(x=>x.method==='turn/start').params.threadId,'EXISTING');}finally{adapter.close();}
 });

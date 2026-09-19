@@ -20,7 +20,7 @@ gap_selection:
   fresh_discovery_summary: "what fresh work was actually discovered"
   considered: []
 selected_gap: {}
-planned_transition: { goal: "...", expected_state_change: "..." }
+planned_transition: { goal: "...", expected_state_change: "...", selection_assessment: { ... } }
 accepted_state_delta:
   resolved_gap: null
   facts_added: []

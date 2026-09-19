@@ -1,0 +1,57 @@
+const {app,BrowserWindow}=require('electron');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
+app.setPath('userData',fs.mkdtempSync(path.join(os.tmpdir(),'arcorbit-chat-prototype-')));app.disableHardwareAcceleration();
+app.whenReady().then(async()=>{
+ const win=new BrowserWindow({width:1500,height:1000,show:false,webPreferences:{sandbox:true,contextIsolation:true}}),errors=[],requests=[],checks=[];
+ win.webContents.on('console-message',(_e,level,text)=>{if(level>=3&&!text.includes('Content Security Policy'))errors.push(text);});
+ win.webContents.session.webRequest.onBeforeRequest((d,cb)=>{if(/^https?:/.test(d.url))requests.push(d.url);cb({cancel:/^https?:/.test(d.url)});});
+ const run=code=>win.webContents.executeJavaScript(code),wait=(ms=60)=>new Promise(r=>setTimeout(r,ms));
+ const click=async selector=>{await run(`(()=>{const el=document.querySelector(${JSON.stringify(selector)});if(!el||el.disabled)throw Error('Missing/disabled '+${JSON.stringify(selector)});el.focus();el.click();})()`);await wait();};
+ const input=async(id,value)=>{await run(`(()=>{const el=document.getElementById(${JSON.stringify(id)});el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('input',{bubbles:true}));})()`);};
+ const submit=async()=>{await run('document.getElementById("chat-compose").requestSubmit()');await wait();};
+ const state=code=>run(`(()=>{const M=window.ChatModel;return (${code})})()`);
+ const scenario=async name=>{await run(`window.ChatPrototype.scenario(${JSON.stringify(name)})`);await wait();};
+ const tick=async()=>{await run('window.ChatPrototype.tick()');await wait();};
+ const shot=async name=>{fs.mkdirSync(path.join(__dirname,'previews'),{recursive:true});await wait(100);fs.writeFileSync(path.join(__dirname,'previews',name+'.png'),(await win.webContents.capturePage()).toPNG());};
+ try {
+  await win.loadFile(path.join(__dirname,'default.html'),{query:{autoplay:'off'}});await wait(120);
+  assert.equal(await run('document.querySelector(".page-navigation [aria-current=page]").textContent'),'Chat');
+  assert.deepEqual(await run('[...document.querySelectorAll(".page-navigation h2")].map(e=>e.textContent)'),['PERSONAL','PRODUCT','PRODUCT LIFECYCLE','ORGANIZATION']);
+  const geometry=await run('(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return {nav:r(".sidebar").right,centerLeft:r(".chat-center").left,centerRight:r(".chat-center").right,list:r(".chat-sessions").left,reading:r(".chat-reading").width}})()');
+  assert.ok(geometry.nav<=geometry.centerLeft&&geometry.centerRight<=geometry.list&&geometry.reading<=760);
+  assert.equal(await run('document.querySelectorAll(".session-group:first-child .session-row").length'),10);
+  await click('[data-chat-action=history][data-project=atlas]');assert.equal(await run('document.querySelectorAll(".session-group:first-child .session-row").length'),12);
+  await shot('chat-desktop');checks.push('Four navigation groups; Chat centered between app navigation and right session list; 760px reading width; project history expands');
+  await input('chat-input','草稿 A');await click('[data-chat-action=select][data-id=b1]');await input('chat-input','草稿 B');await click('[data-chat-action=select][data-id=a1]');assert.equal(await state('M.owner().draft'),'草稿 A');
+  await click('[data-chat-action=new]');const count=await state('M.state.sessions.length');await input('chat-input','检查本地缓存边界');
+  await run('document.getElementById("chat-project").value="borealis";document.getElementById("chat-project").dispatchEvent(new Event("change",{bubbles:true}))');
+  assert.equal(await state('M.owner().draft'),'检查本地缓存边界');assert.equal(await state('M.state.sessions.length'),count);
+  await input('chat-model','custom-model');await submit();assert.equal(await state('M.state.sessions.length'),count+1);assert.equal(await state('M.current().project'),'borealis');
+  const created=await state('M.current().id'),thread=await state('M.current().thread');
+  await tick();await input('chat-model','next-model');assert.equal(await state('M.current().turnConfig.model'),'custom-model');
+  await input('chat-input','下一条草稿');await click('[data-chat-action=select][data-id=a1]');await tick();await tick();await click(`[data-chat-action=select][data-id="${created}"]`);
+  assert.equal(await state('M.current().status'),'completed');assert.equal(await state('M.owner().draft'),'下一条草稿');assert.equal(await state('M.current().thread'),thread);
+  await submit();await tick();await click('[data-chat-action=stop]');assert.equal(await state('M.current().status'),'interrupting');await tick();assert.equal(await state('M.current().status'),'interrupted');
+  checks.push('Per-session drafts; new workspace switching creates no empty session; thread continuity, turn config snapshot, background generation and explicit stop');
+  await scenario('offline');await input('chat-input','离线草稿');const msgs=await state('M.current().messages.length');await submit();assert.equal(await state('M.current().messages.length'),msgs);assert.equal(await state('M.owner().draft'),'离线草稿');await scenario('recover');
+  await run('document.getElementById("chat-input").dispatchEvent(new CompositionEvent("compositionstart",{bubbles:true}));document.getElementById("chat-input").dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));window.ChatPrototype.tick();');
+  assert.equal(await state('M.current().messages.length'),msgs);await run('document.getElementById("chat-input").dispatchEvent(new CompositionEvent("compositionend",{bubbles:true}))');
+  await submit();await scenario('permission');await click('[data-chat-action=reject]');assert.equal(await state('M.current().status'),'running');await tick();await tick();await tick();
+  await scenario('failed');await click('[data-chat-action=retry]');assert.equal(await state('M.current().thread'),thread);await tick();await tick();await tick();checks.push('Offline and IME preserve input; approval decision and failed-turn retry remain in the same thread');
+  await scenario('long');assert.equal(await run('document.querySelectorAll(".chat-table table").length'),1);await run('document.querySelector(".chat-thread").scrollTop=100');await wait();await click('[data-chat-action=select][data-id=a1]');await click(`[data-chat-action=select][data-id="${created}"]`);assert.equal(await run('document.querySelector(".chat-thread").scrollTop'),100);
+  await click('[data-chat-action=latest]');await shot('chat-messages');
+  await click('[data-chat-action=rename]');await run('document.querySelector("#chat-dialog input").value="缓存边界讨论";document.querySelector("#chat-dialog form").requestSubmit()');await wait();assert.equal(await state('M.current().title'),'缓存边界讨论');
+  await input('chat-input','刷新保留的草稿');await win.reload();await wait(120);assert.equal(await state('M.owner().draft'),'刷新保留的草稿');
+  checks.push('Long code stays inside message width; session scroll restores; rename and draft survive reload');
+  await click('[data-chat-action=new]');await scenario('no-workspace');await input('chat-input','绑定前草稿');assert.equal(await run('document.querySelector("#chat-compose button[type=submit]").disabled'),true);
+  await click('[data-chat-action=bind]');await scenario('failure');await run('document.querySelector("#chat-dialog form").requestSubmit()');await wait();assert.match(await run('document.querySelector("#chat-dialog [role=alert]").textContent'),/失败/);await run('document.querySelector("#chat-dialog form").requestSubmit()');await wait();assert.equal(await state('M.owner().draft'),'绑定前草稿');
+  await scenario('recover');checks.push('Workspace setup failure retains draft and choices, retry returns to same draft');
+  await click('.account-trigger');await wait(350);assert.equal(await run('document.getElementById("account-dialog").open'),true);assert.ok(await run('!!document.getElementById("codexProxyUrl")'));await click('#accountClose');
+  for(const width of [1500,1024,900,760,390]){win.setContentSize(width,950);await wait(90);assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));if(width<=760){await click('[data-chat-action=toggle-list]');assert.equal(await run('getComputedStyle(document.querySelector(".chat-sessions")).display'),'flex');await shot('chat-list-'+width);await run('document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');assert.equal(await state('M.state.listOpen'),false);if(width===390)await shot('chat-mobile');}}
+  win.setContentSize(1440,1000);win.webContents.setZoomFactor(2);await wait();assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));win.webContents.setZoomFactor(1);win.setContentSize(1500,1000);await wait();
+  await click(`[data-chat-action=select][data-id="${created}"]`);await click('[data-chat-action=delete]');await click('[data-chat-action=close]');assert.ok(await state(`M.state.sessions.some(s=>s.id===${JSON.stringify(created)})`));await click('[data-chat-action=delete]');await run('document.querySelector("#chat-dialog form").requestSubmit()');await wait();assert.equal(await state(`M.state.sessions.some(s=>s.id===${JSON.stringify(created)})`),false);
+  checks.push('Shared account popup, 390–1500px layout, right drawer Escape/focus, 200% zoom, delete confirmation/cancel');
+  assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);
+  const report={ok:true,checks,geometry,errors,externalRequests:requests,scope:'Local interactive fixtures only; real Codex, filesystem, sync and authentication are not executed.'};fs.writeFileSync(path.join(__dirname,'verification.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));app.exit(0);
+ }catch(error){console.error(error,errors);await shot('failure');app.exit(1);}
+});

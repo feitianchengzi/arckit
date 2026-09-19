@@ -14,6 +14,8 @@ test("real settings page offers model-specific suggestions, saves in place and r
   const result = JSON.parse(stdout.trim());
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.defaults, ["gpt-6-astra", "high", "gpt-6-astra", "high"]);
+  assert.equal(result.yoloDefault, false);
+  assert.equal(result.yoloRestored, true);
   assert.equal(result.preservedDraft, "test-model");
   assert.deepEqual(result.levels, ["low", "max"]);
   assert.equal(result.retainedLevel, "high");
@@ -23,6 +25,7 @@ test("real settings page offers model-specific suggestions, saves in place and r
   assert.match(result.manualFallback, /手动输入/);
   assert.equal(result.failedDraft, "future-model");
   assert.deepEqual(result.saves.at(-1)[1], { codex: {
+    yolo_mode: true,
     chat: { model: "future-model", reasoning_effort: "max" },
     automation: { model: "automation-model", reasoning_effort: "low" }
   } });

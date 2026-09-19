@@ -52,7 +52,7 @@ app.whenReady().then(async () => {
         todayView.classList.add('is-active');
         return {
           sidebarWidth: rect('.sidebar').width,
-          titlebarHeight: rect('.titlebar').height,
+          titlebarHeight: document.querySelector('.titlebar')?.getBoundingClientRect().height || 0,
           commandbarHeight: rect('.commandbar').height,
           viewCount: views.length,
           activeViewDisplay: getComputedStyle(document.querySelector('[data-page-view="today"]')).display,

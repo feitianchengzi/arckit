@@ -133,9 +133,10 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - 加载中只锁定刷新按钮，模型和级别仍可编辑、保存。刷新不会覆盖草稿；旧打开周期的异步结果不得更新新打开的设置页。
 - 两个场景未配置时均显示 gpt-6-astra / high；旧单组配置首次升级时复制为两组初始值。当前值不在清单或没有匹配级别时仍显示原值、允许保存，并说明可人工输入；不得把服务端推荐值静默选入。
 - “刷新清单”使用已保存的代理设置。失败或空清单显示原位说明和重试动作，保留当前输入。页面不呈现原始进程错误、环境或认证材料。
-- “保存 Codex 配置”仅保存四个场景字段；保存期间锁定四个输入与两个保存入口，刷新和其它设置仍可操作。成功后原位说明“新对话使用 Chat 默认值，下一次 Automation Run 使用 Automation 默认值”，不触发任务同步、不关闭覆盖层。失败解锁并保留草稿，允许检查非空、长度和控制字符要求后重试。
-- “保存并同步”同样保存两组 Model/Level 草稿，并沿用 Workshop 同步流程；关闭后重新打开从已保存值恢复，未保存草稿不跨打开周期保留。
+- “保存 Codex 配置”保存四个场景字段和统一 YOLO 开关；保存期间锁定四个输入、YOLO 开关与两个保存入口，刷新和其它设置仍可操作。成功后原位说明“新对话使用 Chat 默认值，下一次 Automation Run 使用 Automation 默认值”，不触发任务同步、不关闭覆盖层。失败解锁并保留草稿，允许检查非空、长度和控制字符要求后重试。
+- “保存并同步”同样保存两组 Model/Level 和 YOLO 草稿，并沿用 Workshop 同步流程；关闭后重新打开从已保存值恢复，未保存草稿不跨打开周期保留。
 - 生效说明始终可见：既有 Chat 会话保留自己的 Composer 选择，正在运行的 Chat turn 和 Automation Run 保持启动时配置，保存不打断执行或替换 thread。候选输入、按钮与反馈沿用既有 Settings Sheet 的中性表面、字段网格、可见焦点和状态播报。
+- 同一区域提供“YOLO 模式”复选框，默认未勾选，辅助说明为“跳过命令审批并解除 Codex 沙箱限制。覆盖各处 Agent 调用，应用业务确认仍然有效。”；保存后作用于后续消息、新 Run 和终端接力，正在执行的调用保持原配置。刷新清单不重置勾选；失败保留草稿；关闭重开恢复已保存状态。此开关复用原保存反馈与键盘交互。
 - `authentication.html` 的 Codex 编辑、清单失败、保存中、保存成功与保存失败状态投影本策略。
 
 #### 项目绑定选择器
@@ -452,3 +453,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 | Workbench 对话 | 先确认当前待办的 task session，再把该待办跨 Run 和 turn 聚合后的用户、Agent、reasoning、工具与权限消息交给 Chat 同一 Conversation Surface；不读取项目默认会话，也不把 Automation 专属状态、原始 delta、文件正文或命令输出作为普通消息 |
 | 待办标题 | 从当前完整正文生成统一的 64-grapheme 单行展示标题；历史 session 只读标签可保留生成时快照，活动任务、顶部标题和确认对话不得把快照当作正文或写回服务端 |
 | Workbench 执行全貌 | 同步聚合同一 task session 全部 Runtime runs 的首次开始、最终结束、实际 round、selected gap、Agent summary 和 trusted closeout；右栏先显示完整墙钟时间、累计 gap 数与逐 gap 结果，再按需加载 Run、round、turn 用量和软异常证据 |
+
+## 账户与 Runtime 完整原型
+
+账号状态辅助稿 `authentication.html` 的完整可操作补充位于 `../project-workbench/default.html` 左下个人中心。能力逐项对应当前生产设置区，覆盖邮箱/手机、任务源三种认证、YOLO、两组模型、代理、同步及产品反馈。依据与本轮体验优化见 `../project-workbench/account-capabilities.md`，不改变 Automation 执行控制的归属。

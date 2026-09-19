@@ -1,18 +1,6 @@
 interface:
   display_name: "ArcKit Visual"
-  short_description: "维护稳定视觉策略、Design Tokens 和组件规格"
-  default_prompt: "使用 $arckit-visual 维护稳定视觉事实。Agent 判断 dynamic case_gap 需要视觉事实时，先读取共享 Case Gap Contract，并基于完整上下文查询、更新、确认既有事实或判定不适用；输出 document_scope 与 fact_result。代码和截图只提供观察证据，缺少品牌或审美依据时返回 needs_human。"
+  short_description: "维护视觉预期及候选探索、比较与采纳"
+  default_prompt: "使用 $arckit-visual 查询或维护视觉预期，先区分正式维护、探索比较和采纳整合，读取索引及策略，保持源与投影一致。候选独立存放，按用户已有选择整合；报告跨域影响和验证。按设计产物结果契约区分产物完成、正式事实影响和当前必要决定；纯探索无事实判断时 fact_result 为 null。不决定 gap 完成，不写 Case State。"
 policy:
   allow_implicit_invocation: true
-workflow:
-  first_steps:
-    - "读取 arckit/visual/INDEX.md 并判断查询或变更。"
-    - "变更时先确认视觉域归属、用户依据和投影一致性。"
-    - "只把稳定视觉策略、token、主题和组件状态写入事实源。"
-  boundaries:
-    - "本能力由 Agent 按当前 gap 动态调用，只能在视觉事实与 arckit/visual/ 写入边界内执行。"
-    - "不由 agent 静默决定品牌方向、审美批准或组件性格。"
-    - "不依赖已移除 skill；需要人类判断时创建 human gate。"
-  output:
-    - "document_scope"
-    - "fact_result"

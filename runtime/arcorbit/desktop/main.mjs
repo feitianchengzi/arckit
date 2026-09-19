@@ -1,3 +1,6 @@
+import { createSoftwareCapabilities } from '../src/workbench/software-capabilities.mjs';
+import { createProjectWorkbench } from '../src/workbench/coordinator.mjs';
+import { createWorkbenchAgentBridge } from '../src/workbench/agent-bridge.mjs';
 import { app, BrowserWindow, dialog, ipcMain, powerMonitor, session, shell, utilityProcess, WebContentsView } from "electron";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
@@ -64,6 +67,8 @@ let mainWindow;
 let runManager;
 let automationCoordinator;
 let chatCoordinator;
+let projectWorkbench;
+let workbenchAgentBridge;
 let productCoordinator;
 let releaseCoordinator;
 let platformCoordinator;
@@ -90,6 +95,7 @@ app.whenReady().then(async () => {
     return;
   }
   runManager = createDesktopRunManager({
+    getTaskAgentEnvironment: input => workbenchAgentBridge?.environment(input) || {},
     runtimeRoot,
     runtimeCwd: app.isPackaged ? process.resourcesPath : runtimeRoot,
     dataDir: join(app.getPath("userData"), "runtime"),
@@ -214,6 +220,29 @@ app.whenReady().then(async () => {
     workSync: workSyncCoordinator,
     automationCoordinator
   });
+  const workbenchAccountScope = async () => {
+    const auth = await workshopService.getAuthStatus();
+    if (!auth.authenticated) return '';
+    const settings = await runManager.getTaskSourceSettings();
+    const projection = await workSyncCoordinator.getSnapshot();
+    if(settings.user_id && String(settings.user_id)!==String(projection.user?.id))return '';
+    return projection.user?.id ? `${settings.base_url}:${projection.user.id}` : '';
+  };
+  const softwareCapabilities=createSoftwareCapabilities({platform:()=>platformCoordinator,release:()=>releaseCoordinator,product:()=>productCoordinator,engineering:()=>sceneSkillManager,getAccountScope:workbenchAccountScope,
+    confirm:async request=>(await dialog.showMessageBox(mainWindow,{type:'question',title:'Agent 请求调用软件能力',message:`${request.name} · 事情 #${request.task_id}`,detail:JSON.stringify(request.input,null,2),buttons:['取消','允许一次'],defaultId:0,cancelId:0})).response===1});
+  projectWorkbench = createProjectWorkbench({
+    dataDir: join(app.getPath('userData'), 'project-workbench'), runManager,
+    getAgentEnvironment:input=>workbenchAgentBridge.environment(input),revokeAgentEnvironment:id=>workbenchAgentBridge.revoke(id),
+    softwareCapabilities:softwareCapabilities.list,callSoftware:softwareCapabilities.call,
+    workSync: workSyncCoordinator, platform: platformCoordinator, automation: automationCoordinator,
+    getAccountScope: workbenchAccountScope,
+    getCodexExecutable: () => codexExecutableResolver.getResolved(),
+    setupReadinessPreflight: async root => { await codexSetupManager.assertReady(); return skillProvisioningManager.assertReady(root); },
+    resolveSceneSkills: root => sceneSkillManager.resolveScene('chat', root)
+  });
+  workbenchAgentBridge = createWorkbenchAgentBridge({coordinator:projectWorkbench,getAccountScope:workbenchAccountScope});
+  projectWorkbench.onEvent(event => { if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send('arckit:project-workbench-event',event); });
+  runManager.onEvent(event => { if(event.type==='run.finished') workbenchAgentBridge.revoke(event.run?.id || event.runId); });
   releaseCoordinator = createReleaseCoordinator({
     dataDir: join(app.getPath("userData"), "release"),
     lazygitPath: join(app.isPackaged ? process.resourcesPath : join(runtimeRoot,"build-tools",`${process.platform}-${process.arch}`), ...(app.isPackaged ? ["lazygit"] : []), process.platform === "win32" ? "lazygit.exe" : "lazygit"),
@@ -375,6 +404,8 @@ app.on("before-quit", async (event) => {
     }
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
+    await projectWorkbench?.close();
+    workbenchAgentBridge?.close();
     await releaseCoordinator?.close();
     await productCoordinator?.close();
     productFeedbackService?.close();
@@ -472,6 +503,14 @@ function combinedSetupReadiness(
 }
 
 function registerIpc() {
+  ipcMain.handle('arckit:workspace-surface', (event,surface) => {
+    assertMainRenderer(event);if(!['workbench','chat','legacy'].includes(surface))throw new Error('Unknown workspace surface.');
+    const minimum=surface!=='legacy'?[390,640]:[1100,720];mainWindow.setMinimumSize(...minimum);
+    const [width,height]=mainWindow.getSize();if(width<minimum[0]||height<minimum[1])mainWindow.setSize(Math.max(width,minimum[0]),Math.max(height,minimum[1]));
+  });
+  ipcMain.handle('arckit:project-workbench-snapshot', event => { assertMainRenderer(event); return projectWorkbench.snapshot(); });
+  ipcMain.handle('arckit:project-workbench-detail', (event,id) => { assertMainRenderer(event); return projectWorkbench.detail(String(id)); });
+  ipcMain.handle('arckit:project-workbench-command', (event,action,input) => { assertMainRenderer(event); return projectWorkbench.command(action,input); });
   ipcMain.handle('arckit:engineering-snapshot', event => { assertMainRenderer(event); return sceneSkillManager.snapshot(); });
   ipcMain.handle('arckit:engineering-update', (event, input) => { assertMainRenderer(event); return sceneSkillManager.update(input); });
   ipcMain.handle("arckit:release-snapshot", async event => { assertMainRenderer(event); return releaseCoordinator.snapshot(); });
@@ -626,6 +665,7 @@ function registerIpc() {
       await automationCoordinator.stopAll();
     }
     await releaseCoordinator?.closeScope();
+    await projectWorkbench?.close();
     const authentication = await workshopService.logout();
     productFeedbackService.resetSession();
     await workSyncCoordinator.clearSession();
@@ -658,6 +698,7 @@ function registerIpc() {
   ipcMain.handle("arckit:automation-reopen-cli", async (_event, input) => automationCoordinator.reopenCodexCli(input));
   ipcMain.handle("arckit:automation-resume-runtime", async (_event, input) => automationCoordinator.resumeRuntimeFromCodexCli(input));
   ipcMain.handle("arckit:automation-confirm-external-dependency", async (_event, input) => automationCoordinator.confirmExternalDependency(input));
+  ipcMain.handle("arckit:automation-execution-manage", async (_event, input) => automationCoordinator.manageExecution(input));
   ipcMain.handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
   ipcMain.handle("arckit:platform-snapshot", async (_event, input) => platformCoordinator.getSnapshot(input));
   ipcMain.handle("arckit:platform-work-query", async (_event, input) => platformCoordinator.queryWork(input));

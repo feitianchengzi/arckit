@@ -1,3 +1,6 @@
+import { createProjectWorkbenchSurface } from './project-workbench-surface.mjs';
+import { applyWorkSyncHealth } from './work-sync-health.mjs';
+import { workbenchExecutionTarget } from '../../src/automation/execution-history.mjs';
 import { openMemberAddSheet } from "./project-member-add.mjs";
 import { createEngineeringSurface } from './engineering-surface.mjs';
 import { createReleaseSurface } from "./release-surface.mjs";
@@ -144,7 +147,7 @@ const state = {
   codexAuthMethod: "",
   codexAuthFlow: "",
   codexInstallMethod: "",
-  page: "today",
+  page: "command",
   selectedProjectId: "all",
   todaySelectedProjectId: "all",
   todayMode: "",
@@ -225,6 +228,7 @@ const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map
 const codexSettingsForm = createCodexSettingsForm({
   api,
   elements: {
+    yoloCheckbox: els.codexYoloMode,
     contexts: {
       chat: {
         model: els.codexChatModel, effort: els.codexChatEffort,
@@ -310,6 +314,7 @@ const chatConversationSurface = createConversationSurface({
 const productSurface = createProductSurface({
   api, normalizeChatSnapshot, formatTime, performAction: runAction,
   getPlatform: () => state.platform,
+  isAuthenticated: () => state.authentication.authenticated,
   navigate: async (page, projectId, feedbackId) => {
     if (projectId) state.selectedProjectId = String(projectId);
     if (feedbackId) state.selectedFeedbackId = String(feedbackId);
@@ -320,6 +325,14 @@ const productSurface = createProductSurface({
 const releaseSurface = createReleaseSurface({
   api, normalizeChatSnapshot, formatTime, performAction: runAction,
   navigateSetup: () => showPage("command")
+});
+const projectWorkbenchSurface = createProjectWorkbenchSurface({
+  root:document.getElementById('projectWorkbenchView'),api,navigate:showPage,
+  openSettings:()=>document.getElementById('settingsButton').click(),
+  onSyncHealth: snapshot => {
+    for (const key of ['source_status', 'synced_at', 'realtime']) if (snapshot[key] !== undefined) state.snapshot[key] = snapshot[key];
+    renderNavigation();
+  }
 });
 const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
 const workbenchConversationSurface = createConversationSurface({
@@ -339,7 +352,7 @@ initializeWindowControls({
   closeButton: els.windowCloseButton,
   minimizeButton: els.windowMinimizeButton,
   maximizeButton: els.windowMaximizeButton,
-  dragRegion: els.titlebarDrag,
+  dragRegion: els.windowDragRegion,
   onError: (error) => showToast(error.message || "窗口控制失败")
 });
 
@@ -383,7 +396,14 @@ async function boot() {
     renderSetup();
   });
   api.onAutomationEvent(() => scheduleAutomationRefresh());
-  api.onWorkSyncEvent(() => scheduleRefresh());
+  api.onWorkSyncEvent((event) => {
+    if (applyWorkSyncHealth(state.snapshot, event)) {
+      renderNavigation();
+      if (state.page === 'command') renderCommandSyncSummary();
+      return;
+    }
+    scheduleRefresh();
+  });
   api.onChatEvent((event) => {
     if (event?.type === "chat.draft.changed") return;
     if (event?.type === "chat.message.changed") {
@@ -405,7 +425,8 @@ async function boot() {
     }
   });
   window.setInterval(() => {
-    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
+    const refresh = state.page === "project-workbench" ? refreshProjectWorkbench()
+      : state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     refresh.catch(() => {});
   }, 30_000);
   window.setInterval(() => {
@@ -414,6 +435,13 @@ async function boot() {
 }
 
 function wireEvents() {
+  const legacyButton=document.getElementById('legacyPagesButton'),legacyMenu=document.getElementById('legacyPagesMenu');
+  els.workbenchSyncSettings.addEventListener('click',()=>runAction(async()=>{await api.projectWorkbenchCommand('sync',{});await projectWorkbenchSurface.refresh();showToast('项目与事情已同步');}));
+  els.workbenchFeedbackSettings.addEventListener('click',()=>{els.closeSettingsButton.click();els.productFeedbackButton.click();});
+  function closePageNavigation(restoreFocus=false){document.body.classList.remove('page-navigation-open');legacyButton.setAttribute('aria-expanded','false');if(restoreFocus)legacyButton.focus();}
+  legacyButton.addEventListener('click',()=>{const opening=!document.body.classList.contains('page-navigation-open');document.body.classList.toggle('page-navigation-open',opening);legacyButton.setAttribute('aria-expanded',String(opening));if(opening)legacyMenu.querySelector('.is-active,button')?.focus();});
+  document.addEventListener('click',event=>{if(!event.target.closest('.sidebar,#legacyPagesButton'))closePageNavigation();});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.body.classList.contains('page-navigation-open')){event.preventDefault();closePageNavigation(true);}});
   initializeWorkInspectorResize();
   els.setupRetryButton.addEventListener("click", () => runAction(async () => {
     state.setupActionError = "";
@@ -583,9 +611,16 @@ function wireEvents() {
     renderSetup();
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
+  document.getElementById('chatSessionsToggle').addEventListener('click', () => setChatSessionsOpen(!document.body.classList.contains('chat-sessions-open')));
+  document.getElementById('chatSessionsClose').addEventListener('click', () => setChatSessionsOpen(false, true));
+  window.matchMedia('(max-width: 760px)').addEventListener('change', () => setChatSessionsOpen(false));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.body.classList.contains('chat-sessions-open')) setChatSessionsOpen(false, true);
+  });
   els.newChatButton.addEventListener("click", () => runAction(async () => {
     const projectId = defaultChatDraftProject()?.id || "";
     await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
+    setChatSessionsOpen(false);
     renderChat();
     els.chatInput.focus();
   }));
@@ -755,6 +790,7 @@ function wireEvents() {
     state.feedbackSort = els.feedbackSortSelect.value;
     renderPlatformFeedback();
   });
+  els.showArchivedExecutions?.addEventListener("change", renderExecutionHistory);
   els.feedbackRefreshButton.addEventListener("click", () => runAction(refreshFeedbackWorkspace));
   els.feedbackKnowledgeButton?.addEventListener("click", () => openKnowledgeBaseDialog());
   els.closePlatformActionButton.addEventListener("click", () => closePlatformAction(null));
@@ -770,30 +806,7 @@ function wireEvents() {
     }
     closePlatformAction(serializePlatformAction());
   });
-  els.submitInterventionButton.addEventListener("click", () => runAction(async () => {
-    const active = state.snapshot.active_task;
-    const sourceTask = state.workbenchTask || (state.workbenchCompletion
-      ? state.snapshot.tasks.find((item) => String(item.id) === String(state.workbenchCompletion.task_id))
-      : null);
-    const acceptanceReview = Boolean(sourceTask && sourceTask.state === "completed");
-    if (!active && !acceptanceReview) throw new Error("当前没有活动执行。");
-    state.interventionSubmitting = true;
-    renderWorkbench();
-    try {
-      if (acceptanceReview) {
-        const key = globalThis.crypto?.randomUUID?.() || `${sourceTask.id}-${Date.now()}`;
-        await api.submitAcceptanceFeedback({ taskId: sourceTask.id, message: els.interventionInput.value, idempotencyKey: key });
-      } else {
-        await api.submitIntervention({ execution_id: state.snapshot.selected_execution_id, taskId: active.task_id, message: els.interventionInput.value });
-      }
-      els.interventionInput.value = "";
-      await refreshSnapshot();
-      if (!acceptanceReview) showPage("command");
-    } finally {
-      state.interventionSubmitting = false;
-      if (state.page === "workbench") renderWorkbench();
-    }
-  }));
+  els.submitInterventionButton.addEventListener("click", () => runAction(submitWorkbenchMessage));
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closePlatformAction(null);
@@ -1345,21 +1358,37 @@ function mergeWorkPlatformSnapshot(current, incoming) {
   };
 }
 
+// The workbench owns its event subscriptions. Only poll its data and account status;
+// rebuilding legacy snapshots here duplicates work on the same renderer thread.
+async function refreshProjectWorkbench() {
+  const authentication = normalizeAuthentication(await api.getAuthStatus());
+  if (state.page !== "project-workbench") return;
+  state.authentication = authentication;
+  renderPageVisibility();
+  renderNavigation();
+  routeAuthentication();
+  if (authentication.authenticated) await projectWorkbenchSurface.refresh();
+}
+
 function scheduleRefresh(delay = 80) {
+  if (state.page === "project-workbench") return;
   if (refreshQueued) return;
   refreshQueued = true;
   window.setTimeout(async () => {
     refreshQueued = false;
+    if (state.page === "project-workbench") return;
     const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     await refresh.catch((error) => showToast(error.message));
   }, delay);
 }
 
 function scheduleAutomationRefresh(delay = 80) {
+  if (state.page === "project-workbench") return;
   if (automationRefreshQueued) return;
   automationRefreshQueued = true;
   window.setTimeout(async () => {
     automationRefreshQueued = false;
+    if (state.page === "project-workbench") return;
     if (state.refreshing) {
       scheduleAutomationRefresh(delay);
       return;
@@ -1611,6 +1640,8 @@ function renderChat() {
     renderedChatSessionList = sessionList;
     els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
       await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
+      setChatSessionsOpen(false);
+      els.chatInput.focus();
       renderChat();
     })));
     els.chatSessionList.querySelectorAll("[data-chat-history-project-id]").forEach((button) => button.addEventListener("click", () => {
@@ -1628,7 +1659,7 @@ function renderChat() {
   els.chatStatusText.textContent = session
     ? `${chatStatusLabel(session.status)}${chat.refreshing ? " · 正在同步" : ""}${session.error ? ` · ${session.error}` : ""}`
     : chat.refreshing ? "正在同步最新会话…"
-      : project ? "发送第一条消息后创建持久会话和 Codex thread。" : "先在 Workset 中配置一个本地 Product Workspace。";
+      : project ? "从一个问题开始，消息与回答会保存在这段对话中。" : "先在 Workset 中配置一个本地 Product Workspace。";
   els.chatTranscript.setAttribute("aria-busy", String(chat.refreshing));
   els.renameChatButton.disabled = !session;
   els.deleteChatButton.disabled = !session;
@@ -1640,7 +1671,7 @@ function renderChat() {
     messages: session ? chat.snapshot.messages : [],
     emptyHtml: session
       ? `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`
-      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : bindableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
+      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "提问、讨论或一起完成工作。你可以随时停止回答，稍后继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : bindableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
   });
   els.chatErrorHost.querySelector("[data-chat-retry-last]")?.addEventListener("click", () => {
     chatStateCoordinator.prepareRetry();
@@ -1764,16 +1795,18 @@ function render() {
   renderPageVisibility();
   renderNavigation();
   renderCommandBar();
+  if (state.page === "project-workbench") return;
   renderWorkset();
-  renderToday();
-  renderChat();
-  renderOrganization();
-  renderPlatformWork();
-  renderPlatformFeedback();
-  renderCommandCenter();
-  renderTaskBrowser();
-  renderWorkbench();
-  renderRecovery();
+  // Hidden workspaces are rendered when navigated to, using the latest state.
+  if (state.page === 'today') renderToday();
+  if (state.page === 'chat') renderChat();
+  if (state.page === 'organization') renderOrganization();
+  if (state.page === 'work') renderPlatformWork();
+  if (state.page === 'feedback') renderPlatformFeedback();
+  if (state.page === 'command') renderCommandCenter();
+  if (state.page === 'tasks') renderTaskBrowser();
+  if (state.page === 'workbench') renderWorkbench();
+  if (state.page === 'recovery') renderRecovery();
 }
 
 function renderWorkSurface() {
@@ -1784,7 +1817,25 @@ function renderWorkSurface() {
   renderPlatformWork();
 }
 
+let renderedWorkspaceSurface = "";
+function setChatSessionsOpen(open, restoreFocus = false) {
+  const narrow = window.matchMedia('(max-width: 760px)').matches;
+  const visible = Boolean(open && narrow && state.page === 'chat');
+  document.body.classList.toggle('chat-sessions-open', visible);
+  document.getElementById('chatSessionsToggle').setAttribute('aria-expanded', String(visible));
+  document.querySelector('#chatView .chat-main').inert = visible;
+  if (visible) document.getElementById('chatSessionsClose').focus();
+  else if (restoreFocus) document.getElementById('chatSessionsToggle').focus();
+}
 function renderPageVisibility() {
+  document.body.classList.toggle('chat-active', state.page === 'chat');
+  const workspaceSurface = state.page === 'project-workbench' ? 'workbench' : state.page === 'chat' ? 'chat' : 'legacy';
+  if (workspaceSurface !== renderedWorkspaceSurface) {
+    renderedWorkspaceSurface = workspaceSurface;
+    void api.setWorkspaceSurface?.(workspaceSurface);
+  }
+  document.body.classList.toggle('project-workbench-active',state.page==='project-workbench');
+  projectWorkbenchSurface.show(state.page==='project-workbench' && state.authentication.authenticated);
   engineeringSurface.show(state.page === 'engineering', state.page === 'chat');
   releaseSurface.show({active:state.page === "release", projectId:state.selectedProjectId, workset:state.platform.active_workset});
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
@@ -1803,8 +1854,8 @@ function renderNavigation() {
   els.accountName.textContent = accountName;
   els.accountAvatar.textContent = accountName.slice(0, 1).toUpperCase() || "W";
   els.accountStatus.textContent = state.authentication.authenticated ? sourceStatusLabel(snapshot.source_status) : "未登录";
-  els.titlebarSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
-  els.titlebarSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
+  els.accountSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
+  els.accountSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
 }
 
 function renderCommandBar() {
@@ -1815,7 +1866,7 @@ function renderCommandBar() {
     ? organizationScope?.name || "个人项目"
     : project?.name || state.platform.active_workset?.name || "项目集全部";
   els.pageTitle.textContent = {
-    today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
+    "project-workbench":"Thing", today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
     work: "Work", feedback: "Feedback", command: "Automation", release: "Release", operations: "Operations",
     tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
   }[state.page] || "ArcOrbit";
@@ -4783,6 +4834,13 @@ function workshopTaskPriority(task) {
   return Number.isFinite(number) ? String(number) : String(servicePriority(task?.priority));
 }
 
+function renderCommandSyncSummary() {
+  const snapshot = state.snapshot;
+  const worksetProjects = automationProjectsInActiveWorkset();
+  const scopedProjects = state.selectedProjectId === "all" ? worksetProjects : worksetProjects.filter((project) => project.id === state.selectedProjectId);
+  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · ${realtimeStatusLabel(snapshot.realtime)} · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+}
+
 function renderCommandCenter() {
   const snapshot = state.snapshot;
   const worksetProjects = automationProjectsInActiveWorkset();
@@ -4791,7 +4849,7 @@ function renderCommandCenter() {
   const scopedBlockedPending = (snapshot.blocked_pending_tasks || []).filter(scopedTaskFilter);
   const scopedFeedback = (snapshot.acceptance_feedback_queue || []).filter(scopedTaskFilter);
   els.commandHeading.textContent = state.selectedProjectId === "all" ? "产品集自动领取态势" : `${currentProject()?.name || "项目"} 自动领取态势`;
-  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · ${realtimeStatusLabel(snapshot.realtime)} · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+  renderCommandSyncSummary();
   els.healthBadge.className = `health-badge ${snapshot.health?.tone === "success" ? "success" : snapshot.health?.tone === "danger" ? "danger" : snapshot.health?.tone === "warning" ? "warning" : ""}`;
   els.healthBadge.textContent = snapshot.health?.label || "待命";
   els.queuePauseButton.textContent = snapshot.queue_paused ? "继续领取" : "暂停领取";
@@ -4824,7 +4882,72 @@ function renderCommandCenter() {
   renderQueue(scopedQueue, scopedBlockedPending);
   renderAcceptanceFeedbackQueue(scopedFeedback);
   renderRecentCompletions();
+  renderExecutionHistory();
   renderCommandInspector(scopedProjects);
+}
+
+async function submitWorkbenchMessage() {
+  const target = currentWorkbenchExecution();
+  if (!els.interventionInput.value.trim()) throw new Error("请输入要发送的说明，或点击恢复执行。");
+  if (!target || target.status === "resolved") throw new Error("请选择需要继续的执行；新问题请在待办详情中提出。");
+  state.interventionSubmitting = true;
+  renderWorkbench();
+  try {
+    await api.manageAutomationExecution({ history_id: target.history_id, action: "resume", message: els.interventionInput.value });
+    els.interventionInput.value = "";
+    await refreshSnapshot();
+    showPage("command");
+  } finally {
+    state.interventionSubmitting = false;
+    if (state.page === "workbench") renderWorkbench();
+  }
+}
+
+function currentWorkbenchExecution() {
+  return workbenchExecutionTarget(state.snapshot, {
+    historyId: state.workbenchHistoryId || "",
+    taskId: state.workbenchTask?.id || state.workbenchCompletion?.task_id || "",
+    feedbackId: state.workbenchFeedbackId || "",
+    runId: state.workbenchRun?.id || state.workbenchCompletion?.run_id || ""
+  });
+}
+
+function executionActionButtons(item) {
+  const button = (action, label) => `<button class="secondary-button" type="button" data-execution-action="${action}" data-execution-history="${escapeHtml(item.history_id)}">${label}</button>`;
+  if (item.archived_at) return button("unarchive", "取消归档");
+  const live = item.active && ["starting", "running", "continuing", "closeout_running", "closeout_starting", "switching_to_cli"].includes(item.status);
+  if (live) return button("stop", "停止执行");
+  return (item.status !== "resolved" ? button("resume", "恢复执行") : "")
+    + (!["resolved", "cancelled"].includes(item.status) ? button("cancel", "取消执行") : "")
+    + (!item.active && ["stopped", "cancelled", "resolved"].includes(item.status) ? button("archive", "归档") : "");
+}
+
+function wireExecutionActions(host) {
+  host.querySelectorAll("[data-execution-action]").forEach(button => button.addEventListener("click", () => runAction(async () => {
+    const item = (state.snapshot.execution_history || []).find(item => item.history_id === button.dataset.executionHistory);
+    if (!item) throw new Error("执行已变化，请刷新后重试。");
+    button.disabled = true;
+    try {
+      if (button.dataset.executionAction === "stop") await api.stopAutomationRun({ execution_id: item.execution_id });
+      else await api.manageAutomationExecution({ history_id: item.history_id, action: button.dataset.executionAction });
+      await refreshSnapshot();
+    } finally { button.disabled = false; }
+  })));
+}
+
+function renderExecutionHistory() {
+  if (!els.executionHistoryList) return;
+  const items = (state.snapshot.execution_history || []).filter(scopedTaskFilter)
+    .filter(item => !state.acceptanceFeedbackOnly || item.feedback_id)
+    .filter(item => els.showArchivedExecutions.checked || !item.archived_at);
+  const labels = { stopped: "已停止", cancelled: "已取消", resolved: "已解决", blocked: "已阻塞", recovery: "需要恢复", queued: "排队中", running: "运行中", awaiting_human: "等待人工", external_wait: "等待外部结果" };
+  els.executionHistoryList.innerHTML = items.length ? items.map(item => `<article class="execution-history-item"><div><strong>${escapeHtml(item.title || item.task_title)}</strong><p>${escapeHtml(labels[item.status] || item.status)}${item.archived_at ? " · 已归档" : ""} · ${escapeHtml(item.task_id)}${item.progress ? ` · ${escapeHtml(item.progress)}` : ""}</p></div><div class="execution-history-actions"><button class="text-button" data-history-open="${escapeHtml(item.history_id)}" type="button">查看对话</button>${executionActionButtons(item)}</div></article>`).join("") : `<div class="empty-state">当前范围没有执行历史。</div>`;
+  wireExecutionActions(els.executionHistoryList);
+  els.executionHistoryList.querySelectorAll("[data-history-open]").forEach(button => button.addEventListener("click", () => runAction(async () => {
+    const item = items.find(item => item.history_id === button.dataset.historyOpen);
+    const task = state.snapshot.tasks.find(task => String(task.id) === String(item.task_id));
+    await openWorkbench("review", item.run_id, { task, feedbackId: item.feedback_id || "", historyId: item.history_id });
+  })));
 }
 
 function renderAcceptanceFeedbackQueue(items) {
@@ -4905,7 +5028,7 @@ function renderCurrentRun(blockedPendingTasks = []) {
   if (!activeExecutionMatchesSelectedProject(active)) {
     const stopped = [...(state.snapshot.stopped_executions || [])].reverse().find(scopedTaskFilter);
     els.currentRunPanel.innerHTML = stopped
-      ? `<div class="run-empty"><div><strong>执行已停止</strong><p>${escapeHtml(taskDisplayTitle(stopped.task_title, stopped.task_id))}</p><p>${escapeHtml(stopped.execution_outcome?.reason || "已保留未完成事项。")}</p><small>待办状态保持不变；重新设为待处理可再次进入队列。</small></div></div>`
+      ? `<div class="run-empty"><div><strong>执行已停止</strong><p>${escapeHtml(taskDisplayTitle(stopped.task_title, stopped.task_id))}</p><p>${escapeHtml(stopped.execution_outcome?.reason || "已保留未完成事项。")}</p><small>待办状态保持不变；请在下方“执行历史与恢复”中恢复原执行。</small></div></div>`
       : `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.some(scopedTaskFilter) ? "自动化将从下一队列领取一项任务。" : blockedPendingTasks.length ? "存在待处理任务，但项目尚未满足自动执行条件。" : "同步后继续监听待处理任务。"}</p></div></div>`;
     els.currentRunActions.innerHTML = "";
     return;
@@ -5159,6 +5282,7 @@ function workAcceptanceSelectionTarget(taskId) {
 
 async function openWorkbench(mode = "review", runId = "", context = {}) {
   state.workbenchMode = mode;
+  state.workbenchHistoryId = context.historyId || "";
   state.workbenchCompletion = runId
     ? state.snapshot.recent_completions.find((item) => item.run_id === runId) || null
     : null;
@@ -5167,6 +5291,11 @@ async function openWorkbench(mode = "review", runId = "", context = {}) {
   state.workbenchRun = runId && state.snapshot.active_run?.id !== runId
     ? (await api.listRuns({})).find((run) => run.id === runId) || null
     : null;
+  const selectedHistory = currentWorkbenchExecution();
+  if (selectedHistory && !state.workbenchRun && state.snapshot.active_run?.id !== selectedHistory.run_id) {
+    state.workbenchRun = { id: selectedHistory.run_id, project_id: selectedHistory.local_project_id,
+      session_id: selectedHistory.session_id, task_id: selectedHistory.task_id, activity: {} };
+  }
   state.transcriptSessionId = "";
   workbenchConversationSurface.followLatest();
   await loadTranscript({ force: true });
@@ -5174,8 +5303,11 @@ async function openWorkbench(mode = "review", runId = "", context = {}) {
 }
 
 async function loadTranscript({ force = false } = {}) {
-  const active = state.snapshot.active_task;
-  const run = state.workbenchRun || state.snapshot.active_run;
+  const selectedExecution = currentWorkbenchExecution();
+  const active = selectedExecution?.active
+    ? (state.snapshot.active_executions || []).find(item => item.execution_id === selectedExecution.execution_id) || null
+    : null;
+  const run = state.workbenchRun || active?.active_run || (active?.run_id === state.snapshot.active_run?.id ? state.snapshot.active_run : null);
   const localProjectId = state.workbenchTask?.local_project_id || state.workbenchCompletion?.local_project_id || active?.local_project_id || run?.project_id || "";
   if (!localProjectId || !run?.session_id) {
     state.transcript = [];
@@ -5206,11 +5338,14 @@ async function loadTranscript({ force = false } = {}) {
 }
 
 function renderWorkbench() {
-  const active = state.snapshot.active_task;
+  const selectedExecution = currentWorkbenchExecution();
+  const active = selectedExecution?.active
+    ? (state.snapshot.active_executions || []).find(item => item.execution_id === selectedExecution.execution_id) || null
+    : null;
   const completion = state.workbenchCompletion;
   const sourceTask = state.workbenchTask || (completion ? state.snapshot.tasks.find((item) => String(item.id) === String(completion.task_id)) : null);
   const feedbackItem = sourceTask?.acceptance_feedback_items?.find((item) => item.feedback_id === state.workbenchFeedbackId) || null;
-  const run = state.workbenchRun || state.snapshot.active_run;
+  const run = state.workbenchRun || active?.active_run || (active?.run_id === state.snapshot.active_run?.id ? state.snapshot.active_run : null);
   const activity = run?.activity || {};
   const attention = state.snapshot.attention_items.find((item) => !active || item.task_id === active.task_id);
   const taskId = sourceTask?.id || completion?.task_id || active?.task_id || "";
@@ -5221,12 +5356,18 @@ function renderWorkbench() {
     : taskDisplayTitle(completion?.title || active?.task_title, "执行对话审查");
   els.workbenchMode.className = `status-pill ${state.workbenchMode === "intervention" ? "pending" : acceptanceReview ? "completed" : "pending_review"}`;
   els.workbenchMode.textContent = state.workbenchMode === "intervention" ? "人工处理" : acceptanceReview ? "验收问题" : "只读审查";
-  els.interventionComposer.classList.toggle("hidden", state.workbenchMode !== "intervention" && !acceptanceReview);
-  els.interveneCurrentButton.classList.toggle("hidden", state.workbenchMode === "intervention" || !active || Boolean(completion) || acceptanceReview);
+  const executionTarget = currentWorkbenchExecution();
+  const canSend = executionTarget && !["resolved", "cancelled"].includes(executionTarget.status) && !executionTarget.archived_at;
+  els.interventionComposer.classList.toggle("hidden", !canSend);
+  els.interveneCurrentButton.classList.add("hidden");
   els.interventionInput.disabled = state.interventionSubmitting;
   els.submitInterventionButton.disabled = state.interventionSubmitting;
-  els.interventionInput.placeholder = acceptanceReview ? "描述新的验收问题…" : "提供授权、事实或决策，并说明恢复条件…";
-  els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : acceptanceReview ? "提交验收问题" : "提交并恢复自动化";
+  els.interventionInput.placeholder = "向当前执行补充说明；发送后继续处理该执行…";
+  els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : executionTarget?.status === "running" ? "发送给当前执行" : "发送并恢复执行";
+  if (els.workbenchExecutionActions) {
+    els.workbenchExecutionActions.innerHTML = executionTarget ? executionActionButtons(executionTarget) : `<p>查看历史对话；提出新验收问题请返回待办详情。</p>`;
+    wireExecutionActions(els.workbenchExecutionActions);
+  }
   const selectedGap = activity.controller_frame?.selected_gap || null;
   const sourceFacts = activity.artifact_ownership_scan?.source_facts_changed || [];
   const implementationEvidence = activity.artifact_ownership_scan?.implementation_evidence || [];
@@ -5315,9 +5456,18 @@ function renderAutomationExecutionOverview(summary) {
     ? `${formatDateTime(summary.started_at)} → ${summary.finished_at ? formatDateTime(summary.finished_at) : "执行中"}`
     : "尚无执行记录";
   const rounds = summary.gap_rounds.length
-    ? summary.gap_rounds.map((round, index) => `<article class="gap-round-card status-${escapeHtml(round.status)}"><div class="gap-round-head"><span>GAP ${index + 1}</span><strong>${escapeHtml(round.selected_gap_id || `Round ${round.round_index || index + 1}`)}</strong><em>${escapeHtml(round.status)}</em></div><dl><div><dt>目标</dt><dd>${escapeHtml(round.goal || round.selection_summary || "本轮目标未记录")}</dd></div><div><dt>完成的工作</dt><dd>${escapeHtml(round.work_summary || "正在执行或旧版 Activity 未记录工作摘要")}</dd></div><div><dt>结果</dt><dd>${escapeHtml(round.outcome || "尚未 closeout")}</dd></div></dl><small>${escapeHtml(round.case_id || "Case 未记录")} · ${escapeHtml(round.started_at ? formatDateTime(round.started_at) : "开始时间未知")}${round.finished_at ? ` → ${escapeHtml(formatDateTime(round.finished_at))}` : ""}</small></article>`).join("")
+    ? summary.gap_rounds.map((round, index) => `<article class="gap-round-card status-${escapeHtml(round.status)}"><div class="gap-round-head"><span>Loop ${index + 1}</span><strong>${escapeHtml(round.selected_gap_id || `Round ${round.round_index || index + 1}`)}</strong><em>${escapeHtml(round.status)}</em></div><dl><div><dt>目标</dt><dd>${escapeHtml(round.goal || round.selection_summary || "本轮目标未记录")}</dd></div><div><dt>完成的工作</dt><dd>${escapeHtml(round.work_summary || "正在执行或旧版 Activity 未记录工作摘要")}</dd></div><div><dt>结果</dt><dd>${escapeHtml(round.outcome || "尚无验收结果")}</dd></div>${renderRoundProgress(round)}</dl><small>${escapeHtml(round.case_id || "Case 未记录")} · ${escapeHtml(round.started_at ? formatDateTime(round.started_at) : "开始时间未知")}${round.finished_at ? ` → ${escapeHtml(formatDateTime(round.finished_at))}` : ""}</small></article>`).join("")
     : `<div class="automation-overview-empty">尚未进入 gap round。</div>`;
-  return `<section class="automation-execution-overview"><div class="automation-overview-title"><div><span>完整执行总览</span><strong>${summary.active ? "执行中" : "已收束"}</strong></div><em>${summary.gap_round_count} 轮 GAP</em></div><div class="automation-time-summary"><strong>${escapeHtml(formatDuration(summary.duration_ms))}</strong><small>${escapeHtml(timeRange)} · ${summary.run_count} 个 Run</small></div>${summary.complete_projection ? "" : `<p class="automation-projection-note">旧版 Run 仅能恢复最后一轮摘要；新 Run 会完整记录每轮 gap。</p>`}<div class="gap-round-list">${rounds}</div></section>`;
+  return `<section class="automation-execution-overview"><div class="automation-overview-title"><div><span>完整执行总览</span><strong>${escapeHtml(({ running: "执行中", completed: "已完成", stopped: "已停止", failed: "执行失败", needs_human: "等待人工", waiting_external: "等待外部", continue: "待继续", not_started: "尚未开始" })[summary.outcome] || "执行已结束")}</strong></div><em>${summary.gap_round_count} 轮 Loop · ${summary.distinct_gap_count} 个 Gap</em></div><div class="automation-time-summary"><strong>${escapeHtml(formatDuration(summary.duration_ms))}</strong><small>${escapeHtml(timeRange)} · ${summary.run_count} 个 Run</small></div>${summary.complete_projection ? "" : `<p class="automation-projection-note">旧版 Run 仅能恢复最后一轮摘要；新 Run 会完整记录每轮 gap。</p>`}<div class="gap-round-list">${rounds}</div></section>`;
+}
+
+function renderRoundProgress(round) {
+  const progress = round.task_progress;
+  const guard = ({ no_progress_limit: '旧版进展保护停止，可重试恢复', snapshot_stale_limit: '连续状态冲突，需人工审查', agent_repair_limit: '修复未通过，需人工审查' })[round.continuation?.reason];
+  if (!progress) return `<div><dt>任务进展</dt><dd>${escapeHtml(guard || '未记录进展判断')}</dd></div>`;
+  const evidence = Array.isArray(progress.evidence) ? progress.evidence.join('；') : '';
+  const remaining = Array.isArray(progress.remaining) ? progress.remaining.join('；') : '';
+  return `<div><dt>Agent 进展判断</dt><dd>${escapeHtml(progress.advanced ? '推进了原任务' : '未推进原任务')}：${escapeHtml(progress.reason || '')}</dd></div>${evidence ? `<div><dt>依据</dt><dd>${escapeHtml(evidence)}</dd></div>` : ''}${remaining ? `<div><dt>剩余验收</dt><dd>${escapeHtml(remaining)}</dd></div>` : ''}${guard ? `<div><dt>继续执行</dt><dd>${escapeHtml(guard)}</dd></div>` : ''}`;
 }
 
 function renderAutomationPanelActivity(messages) {
@@ -5443,7 +5593,13 @@ function invalidatePlatformTaskSelectionContext() {
 }
 
 function showPage(page) {
+  setChatSessionsOpen(false);
+  const leavingProjectWorkbench = state.page === "project-workbench" && page !== state.page;
+  document.body.classList.remove('page-navigation-open');
+  document.getElementById('legacyPagesButton').setAttribute('aria-expanded','false');
   state.page = page;
+  if (leavingProjectWorkbench) void refreshSnapshot({ quiet: true, afterMutation: true }).catch(error => showToast(error.message));
+  if(page==='project-workbench') { renderPageVisibility();renderNavigation();renderCommandBar();return; }
   if (["product", "product-detail", "idea", "idea-add"].includes(page)) {
     renderPageVisibility(); renderNavigation(); renderCommandBar();
     productSurface.show(page).catch(error => showToast(error.message));

@@ -17,6 +17,8 @@ export function createChatCoordinator({
   setupReadinessPreflight = async () => {},
   createAdapter = createCodexAppServerAdapter,
   getTurnContext = async () => ({}),
+  sessionKind = "chat",
+  onTurnSettled = async () => {},
   approvalTimeoutMs = 5 * 60_000,
   streamNotifyMs = 32,
   now = () => new Date().toISOString(),
@@ -45,7 +47,7 @@ export function createChatCoordinator({
     await updateChatStore((store) => {
       for (const sessions of Object.values(store.sessions || {})) {
         for (const session of sessions || []) {
-          if (session.kind === "chat" && ACTIVE_STATUSES.has(session.status)) {
+          if (session.kind === sessionKind && ACTIVE_STATUSES.has(session.status)) {
             session.status = "interrupted";
             session.error = "ArcOrbit restarted before this turn reached a terminal state.";
             session.updated_at = now();
@@ -61,7 +63,7 @@ export function createChatCoordinator({
     await ensureInitialized();
     const store = await readChatStore();
     const sessions = Object.values(store.sessions || {}).flat()
-      .filter((session) => session.kind === "chat")
+      .filter((session) => session.kind === sessionKind)
       .sort((left, right) => String(right.updated_at).localeCompare(String(left.updated_at)));
     const explicitSelection = Object.prototype.hasOwnProperty.call(input, "session_id");
     const requestedId = String(explicitSelection ? input.session_id || "" : store.chat?.selected_session_id || "");
@@ -102,7 +104,7 @@ export function createChatCoordinator({
       const chatDefaults = normalizeCodexSettings(draft.settings?.codex).chat;
       if (sessionId) {
         const located = findSessionById(draft, sessionId);
-        if (!located || located.session.kind !== "chat") throw new Error("Unknown Chat session.");
+        if (!located || located.session.kind !== sessionKind) throw new Error("Unknown Chat session.");
         located.session.draft = text;
         if (requestedConfiguration) Object.assign(located.session, requestedConfiguration);
         located.session.updated_at = now();
@@ -125,7 +127,7 @@ export function createChatCoordinator({
       store.chat ||= {};
       if (sessionId) {
         const located = findSessionById(store, sessionId);
-        if (!located || located.session.kind !== "chat") throw new Error("Unknown Chat session.");
+        if (!located || located.session.kind !== sessionKind) throw new Error("Unknown Chat session.");
       }
       store.chat.selected_session_id = sessionId;
       return store;
@@ -157,17 +159,18 @@ export function createChatCoordinator({
     let shouldStart = false;
     let turnConfiguration;
     const requestedConfiguration = configurationFromInput(input);
+    const yoloMode = normalizeCodexSettings((await runManager.getSettings()).codex).yolo_mode;
 
     await updateChatStore((store) => {
       let located = sessionId ? findSessionById(store, sessionId) : null;
-      const replay = findChatRequest(store, requestId);
+      const replay = findChatRequest(store, requestId, sessionKind);
       if (replay) {
         if (sessionId && sessionId !== replay.session.id) throw new Error("Chat request id belongs to another session.");
         sessionId = replay.session.id;
         located = replay;
       }
       if (sessionId && !located) throw new Error("Unknown Chat session.");
-      if (located && located.session.kind !== "chat") throw new Error("The selected session does not belong to Chat.");
+      if (located && located.session.kind !== sessionKind) throw new Error("The selected session does not belong to Chat.");
       const projectId = located?.project_id || String(input.project_id || store.chat?.draft?.project_id || "");
       project = store.projects.find((item) => item.id === projectId);
       if (!project) throw new Error("Select an available local Product Workspace before sending.");
@@ -180,7 +183,7 @@ export function createChatCoordinator({
         const session = {
           id: sessionId,
           project_id: project.id,
-          kind: "chat",
+          kind: sessionKind,
           title: boundedTitle(text),
           thread_id: "",
           turn_id: "",
@@ -237,8 +240,10 @@ export function createChatCoordinator({
         located.session,
         normalizeCodexSettings(store.settings?.codex).chat
       );
-      store.chat.selected_session_id = sessionId;
-      store.chat.draft = { project_id: project.id, text: "", updated_at: createdAt };
+      if (sessionKind === "chat") {
+        store.chat.selected_session_id = sessionId;
+        store.chat.draft = { project_id: project.id, text: "", updated_at: createdAt };
+      }
       shouldStart = true;
       return store;
     });
@@ -247,7 +252,7 @@ export function createChatCoordinator({
     changed("chat.turn.starting", sessionId);
     try {
       const owner = await ownerFor(sessionId, project);
-      owner.completion = consumeTurn({ owner, sessionId, project, text, configuration: turnConfiguration });
+      owner.completion = consumeTurn({ owner, sessionId, project, text, configuration: { ...turnConfiguration, yoloMode } });
     } catch (error) {
       await failSession(sessionId, error);
       throw error;
@@ -261,7 +266,7 @@ export function createChatCoordinator({
       if (owner.cancelled) return;
       const store = await readChatStore();
       const located = findSessionById(store, sessionId);
-      if (!located || located.session.kind !== "chat") throw new Error("Chat session disappeared before the turn started.");
+      if (!located || located.session.kind !== sessionKind) throw new Error("Chat session disappeared before the turn started.");
       const executable = normalizeExecutable(getCodexExecutable());
       const settings = await runManager.getSettings();
       const env = prependPath(buildRuntimeEnv({ ...process.env }, settings), executable.pathEntries);
@@ -269,7 +274,7 @@ export function createChatCoordinator({
         configuration,
         normalizeCodexSettings(settings.codex).chat
       );
-      const context = await getTurnContext({ project, sessionId, text });
+      const context = await getTurnContext({ project, sessionId, text, yoloMode: configuration.yoloMode });
       const skillFingerprint = context.options?.sceneSkillBinding?.fingerprint || '';
       if (owner.skillFingerprint && owner.skillFingerprint !== skillFingerprint) {
         await owner.adapter.close();
@@ -289,12 +294,13 @@ export function createChatCoordinator({
         reasoningEffort: codexSettings.reasoning_effort,
         resultKind: "chat",
         threadKey: `chat:${sessionId}`,
-        threadId: located.session.thread_id || "",
+        threadId: context.options?.threadId || located.session.thread_id || "",
         approvalPolicy: "on-request",
+        yoloMode: configuration.yoloMode,
         codexBin: executable.command,
-        env: context.options?.commandEnvironment || env,
+        env: { ...(context.options?.commandEnvironment || env), ...(context.options?.extraEnvironment || {}) },
         approvalProvider: (request) => requestApproval(sessionId, request),
-        onThreadBound: (binding) => bindThread(sessionId, binding)
+        onThreadBound: async (binding) => { await context.options?.onThreadBound?.(binding); await bindThread(sessionId, binding); }
       };
       owner.adapterStarted = true;
       for await (const event of owner.adapter.runTurn({ projectRoot: project.path, prompt: context.prompt || text, options })) {
@@ -305,6 +311,8 @@ export function createChatCoordinator({
     } finally {
       owner.adapterStarted = false;
       owner.completion = null;
+      if (sessionKind !== "chat") { await owner.adapter.close(); owners.delete(sessionId); }
+      await onTurnSettled({ sessionId });
     }
   }
 
@@ -315,7 +323,7 @@ export function createChatCoordinator({
     if (!owner?.completion) throw new Error("This conversation has no active turn.");
     const currentStore = await readChatStore();
     const current = findSessionById(currentStore, sessionId);
-    if (!current || current.session.kind !== "chat") throw new Error("Unknown Chat session.");
+    if (!current || current.session.kind !== sessionKind) throw new Error("Unknown Chat session.");
     if (!ACTIVE_STATUSES.has(current.session.status)) return getSnapshot({ session_id: sessionId });
     owner.cancelled = true;
     await mutateChatSession(sessionId, (session) => { session.status = "interrupting"; session.updated_at = now(); });
@@ -366,7 +374,7 @@ export function createChatCoordinator({
     let removed = null;
     await updateChatStore((store) => {
       const located = findSessionById(store, sessionId);
-      if (!located || located.session.kind !== "chat") throw new Error("Unknown Chat session.");
+      if (!located || located.session.kind !== sessionKind) throw new Error("Unknown Chat session.");
       removed = deleteProjectSession(store, located.project_id, sessionId);
       if (store.chat.selected_session_id === sessionId) store.chat.selected_session_id = "";
       return store;
@@ -598,7 +606,7 @@ export function createChatCoordinator({
   async function mutateChatSession(sessionId, mutation) {
     return updateChatStore((store) => {
       const located = findSessionById(store, sessionId);
-      if (!located || located.session.kind !== "chat") throw new Error(`Unknown Chat session: ${sessionId}`);
+      if (!located || located.session.kind !== sessionKind) throw new Error(`Unknown Chat session: ${sessionId}`);
       mutation(located.session, store);
       return store;
     });
@@ -811,10 +819,10 @@ function requireId(value, name) {
   if (!result || result.length > 200) throw new Error(`${name} is required.`);
   return result;
 }
-function findChatRequest(store, requestId) {
+function findChatRequest(store, requestId, sessionKind = "chat") {
   for (const [projectId, sessions] of Object.entries(store.sessions || {})) {
     for (const session of sessions || []) {
-      if (session.kind !== "chat") continue;
+      if (session.kind !== sessionKind) continue;
       const message = (store.messages?.[session.id] || []).find((item) => (
         item.role === "user" && item.client_request_id === requestId
       ));

@@ -1,3 +1,4 @@
+import { executionOutcome } from "../automation/execution-outcome.mjs";
 import { isExecutionCheckpoint, acceptLedgerCheckpoint, acceptCloseoutCheckpoint } from '../automation/execution-checkpoint.mjs';
 import { taskCloseoutMessageStatus } from '../task-closeout-contract.mjs';
 const VISIBLE_TOOL_ITEM_TYPES = new Set(["commandExecution", "toolCall", "webSearch", "fileChange"]);
@@ -93,6 +94,15 @@ function applyRunEvent(run, { parsed }) {
         content: "Agent 正在推进一个 Case gap。", status: "active"
       });
       break;
+    case "runtime.execution_progress": {
+      activity.execution_progress = event.progress;
+      const observation = event.progress?.recent_rounds?.at(-1);
+      if (observation) updateGapRound(activity, event, {
+        task_progress: observation.task_progress,
+        continuation: observation.continuation,
+      });
+      break;
+    }
     case "runtime.agent_loop.completed":
       activity.case_id = event.case_id || activity.case_id;
       activity.agent_loop_result = {
@@ -356,7 +366,7 @@ function updateGapRound(activity, event = {}, patch = {}) {
     round.selection_summary = selection.comparison_summary || selection.basis || selection.fresh_discovery_summary || round.selection_summary;
     if (!round.selected_gap_id) round.selected_gap_id = selectedGapId(selection);
   }
-  for (const key of ["work_summary", "outcome", "status", "started_at", "finished_at", "project_revision"]) {
+  for (const key of ["work_summary", "outcome", "status", "started_at", "finished_at", "project_revision", "task_progress", "continuation"]) {
     if (patch[key] !== undefined && patch[key] !== "") round[key] = patch[key];
   }
   activity.gap_rounds.sort((left, right) => left.round_index - right.round_index);
@@ -534,6 +544,8 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
     if (parsedResult.execution_checkpoint.phase === 'loop') activity.closeout_result = null;
   }
   activity.validation_valid = parsedResult?.validation?.valid ?? activity.validation_valid;
+  activity.execution_outcome = executionOutcome({ result: parsedResult, activity, status });
+  activity.execution_progress = parsedResult?.execution_progress || activity.execution_progress;
   upsertMessage(activity, {
     id: `runtime:${run.id}:finished`, role: "system", actor: "runtime", actor_label: "Runtime", kind: "status",
     content: activity.current_step, status: status === "completed" ? "completed" : "failed"

@@ -3,7 +3,7 @@
   "$id": "https://arckit.local/schema/ledger-snapshot.schema.json",
   "title": "Arckit Ledger Snapshot Receipt",
   "type": "object",
-  "required": ["schema_version", "protocol_revision", "state_availability", "observed_at", "snapshot_token", "observed_after_commit", "expected_after_commit_token", "compatibility", "source_digests", "project_revision", "case_revisions", "selection_tokens", "canonical", "candidate_catalog", "paths"],
+  "required": ["schema_version", "protocol_revision", "state_availability", "observed_at", "snapshot_token", "observed_after_commit", "expected_after_commit_token", "compatibility", "state_definition", "source_digests", "project_revision", "case_revisions", "selection_tokens", "canonical", "candidate_catalog", "paths"],
   "properties": {
     "schema_version": { "const": "arckit-ledger-snapshot/v1" },
     "protocol_revision": { "type": "string", "minLength": 1 },
@@ -13,6 +13,7 @@
     "observed_after_commit": { "type": "boolean" },
     "expected_after_commit_token": { "type": "string" },
     "compatibility": { "type": "object" },
+    "state_definition": { "type": "object", "required": ["definition", "digest"], "properties": { "definition": { "type": "object" }, "digest": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
     "source_digests": { "type": "object" },
     "project_revision": { "type": ["integer", "null"], "minimum": 0 },
     "case_revisions": { "type": "array" },

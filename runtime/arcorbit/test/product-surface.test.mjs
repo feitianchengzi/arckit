@@ -112,3 +112,18 @@ test('a selected formal directory and human edits reach the same-turn Agent cont
  input('#ideaChatInput','正式工作目录现在选择的合适吗？');click('#ideaChatSend');await wait(()=>f.contexts.length===2,'Agent context');const ctx=f.contexts[1];
  assert.equal(ctx.plan.workspace_path,target);assert.equal(ctx.interaction.fields['plan.directory'].selected_label,'选择其他工作目录');assert.equal(ctx.interaction.fields['plan.directory'].actual_path,target);assert.match(ctx.interaction.material_action,/复制材料.*保留来源/);assert.ok(f.turns[1].includes('interaction'));assert.deepEqual(f.errors,[]);
 });
+
+test('signed-out product surfaces skip snapshots and resume loading after login', async () => {
+ const {document}=parseHTML(await readFile(new URL('../desktop/renderer/index.html',import.meta.url),'utf8'));
+ globalThis.document=document;
+ let authenticated=false,calls=0;
+ const surface=createProductSurface({
+  api:{productSnapshot:async()=>{calls++;return {ideas:[],records:[],projects:[],organizations:[],errors:[]};}},
+  isAuthenticated:()=>authenticated,getPlatform:()=>({}),performAction:fn=>fn(),navigate:()=>{}
+ });
+ surface.renderToday();await surface.show('idea');
+ assert.equal(calls,0);
+ authenticated=true;await surface.show('idea');assert.equal(calls,1);
+ authenticated=false;surface.reset();surface.renderToday();await surface.show('idea');
+ assert.equal(calls,1);assert.equal(document.getElementById('todayProductContinuity').innerHTML,'');
+});

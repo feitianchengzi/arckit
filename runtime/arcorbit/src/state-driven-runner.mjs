@@ -1,3 +1,5 @@
+import { executionProgress } from "./kernel/execution-progress.mjs";
+import { executionControlPath, createExecutionControl } from "./kernel/execution-control.mjs";
 import { createCaseCheckpoint, acceptLedgerCheckpoint, caseRuntimeContext, acceptedCaseCompletion } from './kernel/case-execution.mjs';
 import { compactSessionThread } from './kernel/session-thread.mjs';
 import { createAgentAdapter } from "./agent-adapter.mjs";
@@ -9,16 +11,23 @@ import { runAgenticLoop } from "./agent-orchestrator.mjs";
 import { endLifecycleSpan, startLifecycleSpan } from "./observability/lifecycle-trace.mjs";
 
 export async function runStateDrivenSession({ projectRoot, stateStore, options = {}, dependencies = {}, agentAdapter = null, threadState = {} }) {
+  if (!options.dryRun && !(agentAdapter || options.agentAdapter || dependencies.createAdapter)) {
+    options = { ...options, executionControlFile: executionControlPath(projectRoot, options) };
+    createExecutionControl(options.executionControlFile).assertRunning();
+  }
   const createAdapter = dependencies.createAdapter || createAgentAdapter;
   const runRound = dependencies.runRound || runAgenticLoop;
   const writeRoundLedger = dependencies.writeRoundLedger || writeLedger;
   const adapterName = options.dryRun ? "dry-run" : options.adapter || "codex-app-server";
-  const adapter = agentAdapter || options.agentAdapter || createAdapter(adapterName, options);
+  const controlFile = options.executionControlFile || process.env.ARCORBIT_EXECUTION_CONTROL_FILE;
+  const executionControl = controlFile ? createExecutionControl(controlFile) : null;
   const rounds = [];
   let nextTask = options.task || "";
   const originalTask = options.runtimeContext?.original_task || options.originalTask || options.task || "";
-  let noProgressRounds = 0;
-  let agentRepairAttempts = 0;
+  const progressJournal = executionProgress(options.dryRun ? null : controlFile);
+  const adapter = agentAdapter || options.agentAdapter || createAdapter(adapterName, options);
+  let snapshotReplanAttempts = progressJournal.snapshot().snapshot_replan_attempts;
+  let agentRepairAttempts = progressJournal.snapshot().repair_attempts;
   let totalAgentRepairAttempts = 0;
   const maxAgentRepairAttempts = effectiveAgentRepairLimit(options.maxAgentRepairAttempts);
   let finalEnvelope = null;
@@ -61,6 +70,8 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       next_action: 'The accepted Case is complete.'
     };
     for (let roundIndex = (options.roundIndexOffset || 0) + 1; ; roundIndex += 1) {
+      executionControl?.assertRunning();
+      progressJournal.assertContinuable();
       activeRoundSpan = startLifecycleSpan(sessionOptions, {
         name: "runtime.round",
         category: "runtime",
@@ -102,6 +113,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       const roundOptions = {
         ...sessionOptions,
         runtimeContext: caseRuntimeContext(options.runtimeContext || {}, checkpoint),
+        executionProgress: progressJournal.snapshot(),
         task: nextTask,
         originalTask,
         agentAdapter: adapter,
@@ -156,6 +168,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
           attributes: { round_index: roundIndex }
         });
         try {
+          executionControl?.assertRunning();
           ledgerWriteResult = await writeRoundLedger({
             projectRoot,
             runtimeResult: loop.runtimeResult,
@@ -254,41 +267,27 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         stopReason = "dry_run";
         break;
       }
-      if (!validation.valid) {
-        const rejection = validationRejection(validation);
-        if (agentRepairAttempts >= maxAgentRepairAttempts) {
-          stopReason = "agent_repair_limit";
-          break;
-        }
-        agentRepairAttempts += 1;
-        totalAgentRepairAttempts += 1;
-        nextTask = buildAgentRepairInstruction({
-          rejection,
-          loop,
-          attempt: agentRepairAttempts,
-          maxAttempts: maxAgentRepairAttempts
-        });
-        emitAgentRepairRequested(options, {
-          roundIndex,
-          attempt: agentRepairAttempts,
-          maxAttempts: maxAgentRepairAttempts,
-          rejection,
-          loop
-        });
-        continue;
-      }
-
       const handoff = authoritativeHandoff(loop.runtimeResult, ledgerWriteResult);
-      const decision = decideSessionContinuation({
+      const decision = validation.valid ? decideSessionContinuation({
         runtimeResult: loop.runtimeResult,
         ledgerWriteResult,
         handoff,
-        noProgressRounds,
-        maxNoProgressRounds: effectiveNoProgressLimit(options.maxNoProgressRounds, handoff),
+        snapshotReplanAttempts,
         agentRepairAttempts,
         maxAgentRepairAttempts,
         authoritativeCaseId: checkpoint.case_id
-      });
+      }) : { continue: agentRepairAttempts < maxAgentRepairAttempts,
+        reason: agentRepairAttempts < maxAgentRepairAttempts ? "agent_repair" : "agent_repair_limit" };
+      const progressState = progressJournal.record({
+        round_index: roundIndex, case_id: checkpoint.case_id,
+        selected_gap_id: agentSelectedGapRef(loop.agentLoopResult),
+        task_progress: loop.runtimeResult?.task_progress || null,
+        validation_valid: validation.valid, ledger_written: ledgerWriteResult?.written === true
+      }, decision);
+      snapshotReplanAttempts = progressState.snapshot_replan_attempts;
+      agentRepairAttempts = progressState.repair_attempts;
+      Object.assign(rounds.at(-1), { task_progress: loop.runtimeResult?.task_progress || null, continuation: decision });
+      emitSessionEvent(options, { type: 'runtime.execution_progress', round_index: roundIndex, progress: progressState });
       if (!decision.continue) {
         stopReason = decision.reason;
 
@@ -296,10 +295,10 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       }
 
       if (decision.reason === "agent_repair") {
-        agentRepairAttempts += 1;
         totalAgentRepairAttempts += 1;
+        const rejection = validation.valid ? ledgerWriteResult.rejection : validationRejection(validation);
         nextTask = buildAgentRepairInstruction({
-          rejection: ledgerWriteResult.rejection,
+          rejection,
           loop,
           attempt: agentRepairAttempts,
           maxAttempts: maxAgentRepairAttempts
@@ -308,14 +307,13 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
           roundIndex,
           attempt: agentRepairAttempts,
           maxAttempts: maxAgentRepairAttempts,
-          rejection: ledgerWriteResult.rejection,
+          rejection,
           loop
         });
         continue;
       }
 
       if (decision.reason === "fresh_replan") {
-        noProgressRounds += 1;
         prefetchedSnapshot = await stateStore.readSnapshot();
         nextTask = buildFreshReplanInstruction({
           rejection: ledgerWriteResult.rejection,
@@ -329,9 +327,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         continue;
       }
 
-      noProgressRounds = decision.madeProgress ? 0 : noProgressRounds + 1;
-      if (decision.madeProgress) agentRepairAttempts = 0;
-      if (decision.madeProgress) await compactBetweenRounds(roundOptions);
+      await compactBetweenRounds(roundOptions);
       nextTask = handoff?.next_prompt || "Reload fresh Project and Case State, then advance the next agent-owned gap.";
     }
   } catch (error) {
@@ -363,6 +359,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
     round_count: rounds.length,
     agent_repair_attempt_count: totalAgentRepairAttempts,
     max_agent_repair_attempts: maxAgentRepairAttempts,
+    execution_progress: progressJournal.snapshot(),
     session_rounds: rounds,
     thread_id: taskThreadId,
     case_checkpoint: checkpoint,
@@ -376,71 +373,69 @@ export function decideSessionContinuation({
   runtimeResult,
   ledgerWriteResult,
   handoff,
-  noProgressRounds = 0,
-  maxNoProgressRounds = 8,
+  snapshotReplanAttempts = 0,
+  maxSnapshotReplanAttempts = 8,
   agentRepairAttempts = 0,
   maxAgentRepairAttempts = 2,
   authoritativeCaseId = ""
 }) {
-  const madeProgress = ledgerWriteResult?.written === true;
+  const written = ledgerWriteResult?.written === true;
   const writebackRequired = runtimeResult?.ledger_stage?.writeback_required === true;
-  if (!madeProgress && ledgerWriteResult?.rejection) {
+  if (!written && ledgerWriteResult?.rejection) {
     const rejectionKind = classifyRejection(ledgerWriteResult.rejection);
     if (rejectionKind === "snapshot_stale") {
-      if (noProgressRounds + 1 >= maxNoProgressRounds) {
-        return { continue: false, madeProgress: false, reason: "snapshot_stale_limit" };
+      if (snapshotReplanAttempts >= maxSnapshotReplanAttempts) {
+        return { continue: false, reason: "snapshot_stale_limit" };
       }
-      return { continue: true, madeProgress: false, reason: "fresh_replan" };
+      return { continue: true, reason: "fresh_replan" };
     }
     if (rejectionKind === "claim_invalid"
       && agentRepairAttempts < maxAgentRepairAttempts) {
-      return { continue: true, madeProgress: false, reason: "agent_repair" };
+      return { continue: true, reason: "agent_repair" };
     }
     if (rejectionKind === "claim_invalid") {
-      return { continue: false, madeProgress: false, reason: "agent_repair_limit" };
+      return { continue: false, reason: "agent_repair_limit" };
     }
     if (rejectionKind === "protocol_incompatible") {
-      return { continue: false, madeProgress: false, reason: "protocol_incompatible" };
+      return { continue: false, reason: "protocol_incompatible" };
     }
     if (rejectionKind === "materialization_failed") {
-      return { continue: false, madeProgress: false, reason: "materialization_failed" };
+      return { continue: false, reason: "materialization_failed" };
     }
     if (rejectionKind === "infrastructure_failed") {
-      return { continue: false, madeProgress: false, reason: "infrastructure_recovery" };
+      return { continue: false, reason: "infrastructure_recovery" };
     }
-    return { continue: false, madeProgress: false, reason: "ledger_write_failed" };
+    return { continue: false, reason: "ledger_write_failed" };
   }
-  if (writebackRequired && !madeProgress) {
-    return { continue: false, madeProgress: false, reason: "ledger_write_failed" };
+  if (writebackRequired && !written) {
+    return { continue: false, reason: "ledger_write_failed" };
   }
   if (handoff?.human_decision_required === true || handoff?.next_responsibility === "human") {
-    return { continue: false, madeProgress, reason: "human_intervention" };
+    return { continue: false, reason: "human_intervention" };
   }
   if (handoff?.next_responsibility === "external" || handoff?.status === "external_wait") {
-    return { continue: false, madeProgress, reason: "external_wait" };
+    return { continue: false, reason: "external_wait" };
   }
   if (ledgerWriteResult?.case_control_result) {
     if (ledgerWriteResult.case_control_result.action === "bind_closed_case") {
-      return { continue: false, madeProgress: true, reason: "completed" };
+      return { continue: false, reason: "completed" };
     }
-    return { continue: true, madeProgress: true, reason: "case_created" };
+    // Case registration is an accepted control action, not a Runtime progress judgment.
+    // Continue only through the Agent handoff below.
   }
   if (handoff?.next_responsibility === "agent"
     && handoff?.agent_continuation_available === true
     && Boolean(handoff?.next_prompt)) {
-    if (!madeProgress && noProgressRounds + 1 >= maxNoProgressRounds) {
-      return { continue: false, madeProgress: false, reason: "no_progress_limit" };
-    }
-    return { continue: true, madeProgress, reason: "agent_continuation" };
+    return { continue: true, reason: "agent_continuation" };
   }
   if (acceptedCaseCompletion(ledgerWriteResult)) {
     if (!String(authoritativeCaseId || "").trim()) {
-      return { continue: false, madeProgress, reason: "case_binding_required" };
+      return { continue: false, reason: "case_binding_required" };
     }
-    return { continue: false, madeProgress, reason: "completed" };
+    return { continue: false, reason: "completed" };
   }
-  if (handoff?.next_responsibility === "none") return { continue: false, madeProgress, reason: "stopped" };
-  return { continue: false, madeProgress, reason: "terminal_runtime_result" };
+  if (handoff?.next_responsibility === "none") return { continue: false, reason: "stopped" };
+  return { continue: false, reason: "terminal_runtime_result" };
 }
 
 function classifyRejection(rejection) {
@@ -449,12 +444,6 @@ function classifyRejection(rejection) {
   if (rejection?.recovery_action === "repair_rejected_claim" && rejection?.responsibility === "agent") return "claim_invalid";
   if (rejection?.recovery_action === "replan_from_fresh_state") return "snapshot_stale";
   return kind;
-}
-
-export function effectiveNoProgressLimit(configuredLimit, handoff) {
-  const configured = Number.isInteger(configuredLimit) && configuredLimit > 0 ? configuredLimit : 8;
-  const guardLimit = handoff?.progress_guard?.no_progress_limit;
-  return Number.isInteger(guardLimit) && guardLimit > 0 ? Math.min(configured, guardLimit) : configured;
 }
 
 export function effectiveAgentRepairLimit(configuredLimit) {

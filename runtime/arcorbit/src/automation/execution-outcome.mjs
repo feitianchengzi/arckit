@@ -16,6 +16,7 @@ export function executionHandoff({ result = null, activity = null } = {}) {
 // Execution disposition is independent of the Case resolution. This is the
 // single interpretation boundary shared by live delivery and restart recovery.
 export function executionOutcome({ result = null, activity = null, status = '' } = {}) {
+  if (result?.execution_control?.stop_requested === true) return { schema_version: 'arcorbit-execution-outcome/v1', state: 'stopped', responsibility: 'none', reason: 'Execution stopped; unfinished Case obligations are preserved.' };
   const runtime = result?.runtime_result;
   const handoff = executionHandoff({ result, activity });
   const closeout = selectTaskCloseoutResult({ result, activity });

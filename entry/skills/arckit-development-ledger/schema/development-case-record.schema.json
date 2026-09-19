@@ -46,6 +46,7 @@
   "additionalProperties": false,
   "$defs": {
     "invariant_assessment": {
+      "description": "A complete assessment of responsibilities, not a claim that every responsibility was resolved in this round. Other related deficits may remain open.",
       "type": "object",
       "required": ["project_revision", "judgments"],
       "properties": {
@@ -68,6 +69,7 @@
       "additionalProperties": false
     },
     "fact": {
+      "description": "An accepted observation or conclusion, distinct from the unresolved questions it exposes.",
       "type": "object",
       "required": ["id", "revision", "status", "statement", "basis", "evidence"],
       "properties": {
@@ -106,6 +108,7 @@
       "additionalProperties": false
     },
     "dynamic_gap": {
+      "description": "One independently resolvable deficit with a question, priority basis and completion evidence. A Gap may remain open across rounds. Software domains and document types do not define Gap boundaries.",
       "type": "object",
       "required": ["id", "status", "goal", "reason", "derived_from", "blocked_by", "priority_basis", "responsibility", "evidence_required", "resolution"],
       "properties": {

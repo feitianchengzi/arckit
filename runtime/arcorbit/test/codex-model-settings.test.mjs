@@ -9,8 +9,9 @@ const available = { status: "available", models: [{ model: "gpt-6-astra", displa
 
 test("model settings default only missing or invalid stored fields and preserve manual values", () => {
   const defaults = { model: "gpt-6-astra", reasoning_effort: "high" };
-  assert.deepEqual(normalizeCodexSettings(), { chat: defaults, automation: defaults });
+  assert.deepEqual(normalizeCodexSettings(), { yolo_mode: false, chat: defaults, automation: defaults });
   assert.deepEqual(normalizeCodexSettings({ model: "future/provider", reasoning_effort: " custom " }), {
+    yolo_mode: false,
     chat: { model: "future/provider", reasoning_effort: "custom" },
     automation: { model: "future/provider", reasoning_effort: "custom" }
   });
@@ -18,6 +19,7 @@ test("model settings default only missing or invalid stored fields and preserve 
     chat: { model: "chat-model", reasoning_effort: "medium" },
     automation: { model: "automation-model", reasoning_effort: "ultra" }
   }), {
+    yolo_mode: false,
     chat: { model: "chat-model", reasoning_effort: "medium" },
     automation: { model: "automation-model", reasoning_effort: "ultra" }
   });
@@ -101,6 +103,7 @@ test("form keeps drafts on catalog refresh, updates efforts and saves unknown cu
   elements.contexts.automation.effort.value = "ultra";
   await form.save();
   assert.deepEqual(saves, [{ codex: {
+    yolo_mode: false,
     chat: { model: "gpt-6-astra", reasoning_effort: "custom" },
     automation: { model: "automation-model", reasoning_effort: "ultra" }
   } }]);
@@ -140,9 +143,64 @@ function fixture(api) {
     addEventListener(name, handler) { this.handlers[name] = handler; },
     fire(name) { this.handlers[name](); }
   });
-  const elements = Object.fromEntries(["refreshButton", "saveButton", "feedback", "catalogFeedback", "generalSaveButton"].map((key) => [key, element()]));
+  const elements = Object.fromEntries(["refreshButton", "saveButton", "feedback", "catalogFeedback", "generalSaveButton", "yoloCheckbox"].map((key) => [key, element()]));
   elements.contexts = Object.fromEntries(["chat", "automation"].map((key) => [key, Object.fromEntries(
     ["model", "effort", "modelList", "effortList"].map((field) => [field, element()])
   )]));
   return { elements, form: createCodexSettingsForm({ elements, api }) };
 }
+
+test('YOLO requires a boolean and the form persists explicit choices with failure recovery', async () => {
+  for (const yolo_mode of ['true', 'false', 1, null, {}, []]) {
+    assert.equal(normalizeCodexSettings({ yolo_mode }).yolo_mode, false);
+    assert.throws(() => validateCodexSettingsPatch({ yolo_mode }));
+  }
+  for (const yolo_mode of [true, false]) validateCodexSettingsPatch({ yolo_mode });
+  const saves = [];
+  let fail = true;
+  const { form, elements } = fixture({ updateSettings: async value => {
+    saves.push(value);
+    if (fail) throw new Error('disk');
+    return value;
+  } });
+  form.reset({});
+  assert.equal(elements.yoloCheckbox.checked, false);
+  elements.yoloCheckbox.checked = true;
+  await form.save();
+  assert.equal(elements.yoloCheckbox.checked, true);
+  assert.equal(elements.yoloCheckbox.disabled, false);
+  fail = false;
+  await form.save();
+  assert.equal(saves.at(-1).codex.yolo_mode, true);
+  form.reset({ codex: saves.at(-1).codex });
+  assert.equal(elements.yoloCheckbox.checked, true);
+  elements.yoloCheckbox.checked = false;
+  await form.save();
+  assert.equal(saves.at(-1).codex.yolo_mode, false);
+});
+
+test('real settings markup binds the YOLO checkbox to persisted settings without a GUI process', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { parseHTML } = await import('linkedom');
+  const { document } = parseHTML(await readFile(new URL('../desktop/renderer/index.html', import.meta.url), 'utf8'));
+  const el = id => document.getElementById(id);
+  const saves = [];
+  const form = createCodexSettingsForm({ elements: {
+    yoloCheckbox: el('codexYoloMode'),
+    contexts: Object.fromEntries(['chat', 'automation'].map(key => {
+      const prefix = key === 'chat' ? 'codexChat' : 'codexAutomation';
+      return [key, { model: el(`${prefix}Model`), effort: el(`${prefix}Effort`), modelList: el(`${prefix}ModelOptions`), effortList: el(`${prefix}EffortOptions`) }];
+    })),
+    refreshButton: el('refreshCodexModelsButton'), saveButton: el('saveCodexSettingsButton'),
+    generalSaveButton: el('saveSettingsButton'), feedback: el('codexSettingsFeedback'), catalogFeedback: el('codexCatalogFeedback')
+  }, api: { updateSettings: async value => { saves.push(value); return value; } } });
+  form.reset({});
+  assert.equal(el('codexYoloMode').getAttribute('type'), 'checkbox');
+  assert.equal(el('codexYoloMode').checked, false);
+  el('codexYoloMode').checked = true;
+  await form.save();
+  assert.equal(saves[0].codex.yolo_mode, true);
+  form.reset(saves[0]);
+  assert.equal(el('codexYoloMode').checked, true);
+  assert.match(el('codexYoloMode').parentElement.textContent, /解除 Codex 沙箱限制/);
+});

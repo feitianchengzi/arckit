@@ -27,10 +27,12 @@
     "package:win:x64": "electron-builder --config dist-package/electron-builder.generated.json --win --x64 --publish=never",
     "package:linux:x64": "electron-builder --config dist-package/electron-builder.generated.json --linux --x64 --publish=never",
     "build:release-ui": "node scripts/build-release-ui.mjs",
-    "predesktop": "npm run build:release-ui",
+    "predesktop": "npm run sync:visual && npm run build:release-ui",
     "prepare:lazygit": "node scripts/prepare-lazygit.mjs",
     "test:release": "node --test test/release-workspace.test.mjs test/release-process.test.mjs",
-    "test:release:electron": "npm run build:release-ui && node --test test/release-electron.test.mjs"
+    "test:release:electron": "npm run build:release-ui && node --test test/release-electron.test.mjs",
+    "sync:visual": "node scripts/sync-visual-tokens.mjs",
+    "check:visual": "node scripts/sync-visual-tokens.mjs --check"
   },
   "engines": {
     "node": ">=18"

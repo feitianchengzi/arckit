@@ -37,7 +37,7 @@ ArcOrbit 是在本地项目上开发多个软件产品的平台。Product 目录
 
 左侧导航分为三个职责组：
 
-- `PERSONAL`：Today、Chat；Today 使用当前 Workset，Chat 可以选择产品上下文但保持自由讨论边界；
+- `PERSONAL`：Today、Chat、Thing；Today 使用当前 Workset，Chat 可以选择产品上下文但保持自由讨论边界；
 - `PRODUCT`：Product 目录和详情。
 - `PRODUCT LIFECYCLE`：Idea、Work、Automation、Release、Operations、Feedback；Work、Automation 与 Feedback 保留真实平台行为，Idea 提供临时录入与仓库正式资料恢复，Release 与 Operations 是计划展示页；
 - `ORGANIZATION`：Organization、Engineering；Organization 保留真实治理行为，Engineering 是管理 State Model、Capability Mapping 与 Lifecycle Mapping 的 Domain Profile 计划工作台。
@@ -189,3 +189,7 @@ Feedback 按顶部产品集观察范围展示 Workshop 用户反馈，不展示�
 - 生产页面：`runtime/arcorbit/desktop/renderer/`
 - Automation：`../automation-workspace/interaction.md`
 - Task Browser：`../task-browser/interaction.md`
+
+## 事情台独立入口
+
+主导航在 Chat 旁新增“Thing”，链接到 `../project-workbench/default.html`；既有业务入口保持直接可达，不增加项目列表或事情分组导航，不改变默认启动路由。事情台的列表、详情、交流和成果体验由其页面策略维护。依据：用户 2026-09-17 的原型边界修正。

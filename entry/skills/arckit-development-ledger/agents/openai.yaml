@@ -1,6 +1,6 @@
 interface:
   display_name: "Arckit Development Ledger"
   short_description: "确定性维护 ledger 状态、协议恢复与 transition"
-  default_prompt: "使用 $arckit-development-ledger 通过 trusted snapshot、Case-scoped selection token、Transition v8、完整 invariant assessment 和 round closeout 确定性维护 Project/Iteration/Case；协议不兼容时在 Case 外验收 Agent 的语义 reconciliation。"
+  default_prompt: "使用 $arckit-development-ledger 通过 trusted snapshot、selection token、Transition v8 和 closeout 确定性维护 Project/Iteration/Case。提供可信场景定义，校验 selection_assessment 的前置、结论性质和显式冲突；读取当前不变量定义后声明责任、证据和未决关系，Ledger 不替代语义判断。协议不兼容时验收保留历史与未完成义务的 reconciliation。"
 policy:
   allow_implicit_invocation: true

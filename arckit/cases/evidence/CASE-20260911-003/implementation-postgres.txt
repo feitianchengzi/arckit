@@ -1,4 +1,0 @@
-=== RUN   TestProjectMemberAddAuthorizationAndTransactions
---- PASS: TestProjectMemberAddAuthorizationAndTransactions (0.44s)
-PASS
-ok  	todo/handler	2.442s
