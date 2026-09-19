@@ -120,18 +120,8 @@ func RetrieveHandler(c *gin.Context) {
 	_ = userID // 用于日志追踪
 
 	// 查询该项目的 OpenHands Agent Server 地址
+	// 未配置 Agent 时 PRD F-03 的本地层（客户代码索引）仍可用，仅跳过 Agent 层。
 	agent := getAgentServerByProject(db, projectID)
-	if agent == nil {
-		// 项目未启用智能客服
-		c.JSON(200, gin.H{
-			"code": 0,
-			"data": RetrieveResponse{
-				NeedCollect: true,
-			},
-			"message": "该项目未启用智能客服",
-		})
-		return
-	}
 
 	// 两层检索：先本地代码搜索，再 OpenHands Agent
 	var localHits []RetrievalHit
@@ -147,18 +137,22 @@ func RetrieveHandler(c *gin.Context) {
 		})
 	}
 
-	// 调用 OpenHands Agent Server
-	agentResp, err := callOpenHandsAgent(agent, req.Query, req.ConversationID)
-	if err != nil && len(localHits) == 0 {
-		// 降级：转追问收集
-		c.JSON(200, gin.H{
-			"code": 0,
-			"data": RetrieveResponse{
-				NeedCollect: true,
-			},
-			"message": "我先帮你记录下来转团队跟进",
-		})
-		return
+	// 调用 OpenHands Agent Server（未配置时跳过）
+	var agentResp *RetrieveResponse
+	if agent != nil {
+		var err error
+		agentResp, err = callOpenHandsAgent(agent, req.Query, req.ConversationID)
+		if err != nil && len(localHits) == 0 {
+			// 降级：转追问收集
+			c.JSON(200, gin.H{
+				"code": 0,
+				"data": RetrieveResponse{
+					NeedCollect: true,
+				},
+				"message": "我先帮你记录下来转团队跟进",
+			})
+			return
+		}
 	}
 
 	// 合并两层检索结果
@@ -178,9 +172,9 @@ func RetrieveHandler(c *gin.Context) {
 	}
 
 	// 判断是否需要收集
-	threshold := agent.ConfidenceThreshold
-	if threshold <= 0 {
-		threshold = 0.75
+	threshold := 0.75
+	if agent != nil && agent.ConfidenceThreshold > 0 {
+		threshold = agent.ConfidenceThreshold
 	}
 	needCollect := confidence < threshold
 

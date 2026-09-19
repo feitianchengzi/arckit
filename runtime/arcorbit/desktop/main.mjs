@@ -180,6 +180,7 @@ app.whenReady().then(async () => {
   automationCoordinator = createAutomationCoordinator({
     runManager,
     workSync: workSyncCoordinator,
+    taskSource: workshopService,
     setupReadinessPreflight: async (projectRoot) => {
       await codexSetupManager.assertReady();
       return skillProvisioningManager.assertReady(projectRoot);
@@ -194,6 +195,14 @@ app.whenReady().then(async () => {
     writeProjectState: (projectId, update) => workSyncCoordinator.updateRealtimeProjectState(projectId, update),
     onInvalidate: async (projectId, { event_types: eventTypes = [] } = {}) => {
       await workSyncCoordinator.invalidateProject(projectId, { event_types: eventTypes });
+    },
+    // 桥3：客户反馈消息经硬关联门控注入同一线程；派发失败由适配器内部消化。
+    onFeedbackEvent: async (_projectId, event) => {
+      try {
+        await automationCoordinator.handleCustomerFeedbackEvent(event?.data || {});
+      } catch (error) {
+        console.error(`[Main] customer feedback steer failed: ${error?.message || error}`);
+      }
     }
   });
   workshopRealtimeAdapter.onEvent((event) => {
@@ -710,6 +719,11 @@ function registerIpc() {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.retrieveFeedback(input));
   });
+  // 智能客服 — AI 分诊初判（后端写入 feedback.data.triage）
+  ipcMain.handle("arckit:feedback-triage", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.runFeedbackTriage(input));
+  });
   // 智能客服 — 草稿确认/驳回/创建
   ipcMain.handle("arckit:feedback-draft-confirm", async (event, input) => {
     assertMainRenderer(event);
@@ -739,6 +753,11 @@ function registerIpc() {
   ipcMain.handle("arckit:customer-code-repo-delete", async (event, input) => {
     assertMainRenderer(event);
     return platformCoordinator.deleteCustomerCodeRepo(input);
+  });
+  // 知识库 — 检索测试（直查项目索引）
+  ipcMain.handle("arckit:knowledge-search-code", async (event, input) => {
+    assertMainRenderer(event);
+    return platformCoordinator.searchProjectKnowledgeCode(input);
   });
   ipcMain.handle("arckit:feedback-attachment-open", async (event, value) => {
     assertMainRenderer(event);

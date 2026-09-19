@@ -1098,3 +1098,4 @@ Task 1 --- N CustomerCodeRepo
 |-----|------|---------|--------|--------|
 | v1.0 | 2026-09-08 | 初始版本，基于代码核实基线+确定的产品定位 | Arckit | — |
 | v1.1 | 2026-09-18 | 更新功能状态为"代码完成"，新增接口定义（桥1/2/3、知识库、代码仓库、Agent），更新数据模型，更新验收标准 | Arckit | — |
+| v1.2 | 2026-09-18 | TDD 补齐三桥 runtime 侧落地：桥1 source_feedback_id 贯通 active_task + continuationContext 增加 customer_feedback_ref；桥2 closeout 草稿回写改用客户反馈 ID（closeoutDraftTarget 门控）；桥3 realtime feedback.message.created 事件 → handleCustomerFeedbackEvent 硬关联匹配 → steer 注入；AI 分诊面板数据源接通（runFeedbackTriage IPC 链路）；移除误入库的编译二进制 | Arckit | — |

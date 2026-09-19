@@ -507,6 +507,7 @@ export function normalizeTask(value, fallbackProjectId = "") {
     completion_at: String(value.completion_at ?? value.completionAt ?? ""),
     creator_id: scalarId(value.creator_id ?? value.creatorId),
     executor_id: scalarId(value.executor_id ?? value.executorId),
+    source_feedback_id: scalarId(value.source_feedback_id ?? value.sourceFeedbackId),
     creator: value.creator ?? null,
     assignee: value.assignee ?? value.executor ?? value.owner ?? null,
     tags: String(value.tags || ""),

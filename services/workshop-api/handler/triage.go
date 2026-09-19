@@ -46,6 +46,11 @@ func TriageHandler(c *gin.Context) {
 		return
 	}
 
+	// 分诊初判与分诊决策同权（PRD 安全验收 AC-F04）：仅 owner/admin 可触发。
+	if _, ok := requireFeedbackTriagePermission(c, db, feedback.ProjectID, "AI 分诊分析"); !ok {
+		return
+	}
+
 	triage := analyzeFeedback(feedback.Title, feedback.Content)
 
 	data := parseFeedbackPayload(feedback.Data)

@@ -95,6 +95,10 @@ export async function world() {
 				if ch.endLine < ch.startLine {
 					t.Errorf("chunk endLine %d < startLine %d", ch.endLine, ch.startLine)
 				}
+				// 检索命中必须能标注来源文件；filePath 缺失会让命中卡片失去路径信息。
+				if len(chunks) > 0 && tt.wantMin > 0 && ch.filePath != tt.filePath {
+					t.Errorf("chunk filePath = %q, want %q", ch.filePath, tt.filePath)
+				}
 			}
 		})
 	}

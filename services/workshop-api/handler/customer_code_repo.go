@@ -204,6 +204,15 @@ func SyncCustomerCodeRepoHandler(c *gin.Context) {
 			// 使用repo_url，需要先clone
 			cmd = exec.Command("git", "clone", "-b", repo.Branch, repo.RepoURL, fmt.Sprintf("/workspace/customer-repos/%d/%s", repo.ProjectID, repo.CustomerID))
 		} else if repo.RepoPath != "" {
+			if err := exec.Command("git", "-C", repo.RepoPath, "rev-parse", "--is-inside-work-tree").Run(); err != nil {
+				// 普通目录快照：没有可拉取的远端，磁盘内容即最新，直接就绪并索引。
+				db.Model(&repo).Updates(map[string]interface{}{
+					"status":         "ready",
+					"last_synced_at": time.Now(),
+				})
+				runCodeIndexPipeline(db, projectID, repo)
+				return
+			}
 			// 使用本地路径，直接pull
 			cmd = exec.Command("git", "-C", repo.RepoPath, "pull", "origin", repo.Branch)
 		} else {

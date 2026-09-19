@@ -600,3 +600,24 @@ test("Feedback V2 action failures degrade only that feature and preserve loaded 
   assert.equal(after.product_workspaces[0].feedback_management.features.messages, false);
   assert.equal(after.product_workspaces[0].feedback_management.errors.messages.status, 403);
 });
+
+test("runFeedbackTriage posts to the per-feedback triage endpoint and returns the stored analysis", async () => {
+  const requests = [];
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => normalizeStore({}), updateDesktopStore: async (updater) => normalizeStore(await updater(normalizeStore({})) || normalizeStore({})) },
+    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], queue: [], attention_items: [], recovery_items: [] }) },
+    platformSource: {
+      isFeedbackV2ProjectEnabled: () => true,
+      isFeedbackV2NotificationsProjectEnabled: () => false,
+      listOrganizations: async () => [],
+      listProjects: async () => [{ id: "11", name: "V2" }],
+      requestV2: async (path, options) => { requests.push({ path, options }); return { data: { triage: { type: "issue", priority: "P1", confidence: 0.82 } } }; },
+    }
+  });
+
+  const result = await coordinator.runFeedbackTriage({ project_id: "11", feedback_id: "51" });
+
+  assert.deepEqual(requests, [{ path: "/feedbacks/51/triage", options: { method: "POST" } }]);
+  assert.equal(result.data.triage.type, "issue");
+  assert.equal(result.data.triage.priority, "P1");
+});

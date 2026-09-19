@@ -128,7 +128,9 @@ type CodeChunk struct {
 }
 
 func (CodeChunk) TableName() string {
-	return "code_chunks"
+	// 迁移把 code_chunks 建在独立 code_index schema（与业务表隔离），
+	// 必须带 schema 限定，否则 GORM 会写入 public.code_chunks 并报错。
+	return "code_index.code_chunks"
 }
 
 // CodeChunkSymbolType 常量

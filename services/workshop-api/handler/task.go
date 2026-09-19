@@ -586,19 +586,20 @@ type GetTasksRequest struct {
 
 // TaskResponse 任务响应结构
 type TaskResponse struct {
-	ID           uint    `json:"id"`                   // 任务ID
-	ProjectID    uint    `json:"project_id"`           // 项目ID
-	FatherID     *uint   `json:"father_id"`            // 父任务ID
-	Content      string  `json:"content"`              // 任务内容
-	State        string  `json:"state"`                // 任务状态
-	CreatorID    uint    `json:"creator_id"`           // 创建者ID
-	ExecutorID   *uint   `json:"executor_id"`          // 执行者ID
-	Priority     *int    `json:"priority"`             // 优先级
-	Tags         *string `json:"tags"`                 // 标签
-	CreatedAt    string  `json:"created_at"`           // 创建时间
-	UpdatedAt    string  `json:"updated_at"`           // 更新时间
-	CompletionAt *string `json:"completion_at"`        // 完成时间
-	DeletedAt    *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
+	ID               uint    `json:"id"`                           // 任务ID
+	ProjectID        uint    `json:"project_id"`                   // 项目ID
+	FatherID         *uint   `json:"father_id"`                    // 父任务ID
+	Content          string  `json:"content"`                      // 任务内容
+	State            string  `json:"state"`                        // 任务状态
+	CreatorID        uint    `json:"creator_id"`                   // 创建者ID
+	ExecutorID       *uint   `json:"executor_id"`                  // 执行者ID
+	Priority         *int    `json:"priority"`                     // 优先级
+	Tags             *string `json:"tags"`                         // 标签
+	SourceFeedbackID *uint   `json:"source_feedback_id,omitempty"` // 来源反馈ID（桥1：Task→Feedback 追溯）
+	CreatedAt        string  `json:"created_at"`                   // 创建时间
+	UpdatedAt        string  `json:"updated_at"`                   // 更新时间
+	CompletionAt     *string `json:"completion_at"`                // 完成时间
+	DeletedAt        *string `json:"deleted_at,omitempty"`         // 删除时间（如果存在）
 }
 
 // TaskTreeResponse 带子任务层级的任务响应结构
@@ -997,19 +998,20 @@ func taskToResponse(task models.Task) TaskResponse {
 	}
 
 	return TaskResponse{
-		ID:           task.ID,
-		ProjectID:    task.ProjectID,
-		FatherID:     task.FatherID,
-		Content:      task.Content,
-		State:        task.State,
-		CreatorID:    task.CreatorID,
-		ExecutorID:   task.ExecutorID,
-		Priority:     task.Priority,
-		Tags:         task.Tags,
-		CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		CompletionAt: completionAt,
-		DeletedAt:    deletedAt,
+		ID:               task.ID,
+		ProjectID:        task.ProjectID,
+		FatherID:         task.FatherID,
+		Content:          task.Content,
+		State:            task.State,
+		CreatorID:        task.CreatorID,
+		ExecutorID:       task.ExecutorID,
+		Priority:         task.Priority,
+		Tags:             task.Tags,
+		SourceFeedbackID: task.SourceFeedbackID,
+		CreatedAt:        task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:        task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CompletionAt:     completionAt,
+		DeletedAt:        deletedAt,
 	}
 }
 

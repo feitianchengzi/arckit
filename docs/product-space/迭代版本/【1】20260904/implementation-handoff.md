@@ -591,8 +591,47 @@ CREATE TABLE customer_code_repos (
 
 | 问题 | 状态 | 说明 |
 |------|------|------|
-| AI 分诊面板数据源未接通 | ⚠️ 待接通 | `feedback.data.triage` 未被后端填充（需要 triage 接口写入 Data JSON） |
-| 检索卡片数据源未接通 | ⚠️ 待接通 | `feedback.retrieval` 未被后端附加（需要 retrieve 结果写入反馈记录） |
+| AI 分诊面板数据源未接通 | ✅ 已接通 | 详情打开时经 `runFeedbackTriage` IPC（`arckit:feedback-triage`）调用 `POST /feedbacks/:id/triage`，后端写入 `data.triage` 后刷新 |
+| 检索卡片数据源未接通 | ✅ 已接通 | 详情打开时 `loadFeedbackRetrieval` 调用 retrieve 并就地渲染 |
+
+### 6.4 三桥 runtime 侧落地（2026-09-18 TDD 补齐）
+
+| 桥 | 落点 | 状态 |
+|----|------|------|
+| 桥1 | `normalizeTask` 保留 `source_feedback_id`；claim 时写入 `active_task.customer_feedback_id`；`continuationContext` 携带 `customer_feedback_ref`（`customer-feedback:<id>`，供 Agent ledger 记录 Gap.derived_from） | ✅ 完成 |
+| 桥2 | `closeoutDraftTarget(active)` 门控（仅客户反馈来源执行），`markCloseoutCompleted` 经注入的 `taskSource` 回写 `POST /feedbacks/:id/drafts`；验收反馈（AF-*）不误写 | ✅ 完成 |
+| 桥3 | `workshop-realtime-adapter` 透传 `feedback.message.created` 载荷（含断线重放）；`automationCoordinator.handleCustomerFeedbackEvent` 硬关联匹配（feedback_id + project + run running）后 `controlRun steer` 注入 `[customer-follow-up feedback:<id>]` 消息 | ✅ 完成 |
+
+测试：`runtime/arcorbit/test/customer-support-bridges.test.mjs`（8 例）+ `workshop-realtime-adapter.test.mjs` 新增 2 例 + `platform-coordinator.test.mjs` 新增 1 例。
+
+### 6.5 真实端到端验收发现并修复的缺陷（2026-09-19）
+
+| 缺陷 | 影响 | 修复 | 回归测试 |
+|------|------|------|---------|
+| `CodeChunk.TableName` 缺 schema 限定 | 代码索引写入落到不存在的 `public.code_chunks` 且错误被吞，索引永远无法持久化、检索永远为空 | TableName 改为 `code_index.code_chunks` | `code_index_schema_integration_test.go` + `knowledge_test.go` 断言更新 |
+| `TriageHandler` 无 role 门控 | member 可触发 AI 分诊初判，违反 PRD 安全验收 AC-F04 | 加 `requireFeedbackTriagePermission` | `triage_gate_test.go`（owner/admin 200、member 403） |
+| `TaskResponse` 缺 `source_feedback_id` | 任务列表/转换响应丢失桥1溯源字段，runtime 拿不到客户反馈 ID | 字段加入 struct 与两个 mapper | E2E 步骤[4] 断言 |
+| `KnowledgeRetrieveTestHandler` 测试对响应信封 code 类型断言过严 | DSN 门控测试在带库环境下恒失败（存量） | 测试改用 `json.RawMessage` | 全量回归绿 |
+
+端到端验收脚本：`deploy/dev/e2e-acceptance.sh`（31 项断言，覆盖 反馈提交→检索(降级)→分诊→转任务(桥1)→越权403→认领→WS广播(桥3输入)→草稿确认/驳回(桥2)→验收→产物交付→代码索引(降级)→DB级一致性）。运行方式：启动服务后 `./e2e-acceptance.sh <BASE_URL> <USER_UUID> <PROJECT_ID>`。
+
+### 6.6 真实端到端验收第二轮（2026-09-19 复验，32 项断言）
+
+干净环境（清理历史残留配置与 chunk）复跑发现并修复以下缺陷；E2E 脚本新增来源路径断言后为 32 项：
+
+| 缺陷 | 影响 | 修复 | 回归 |
+|------|------|------|------|
+| `chunkCodeFile` 构造 chunk 漏传 `filePath` | 所有索引 chunk 的 file_path 落库为空，检索命中卡片无来源文件路径（违反 PRD F-03 来源标注） | 两个分支补 `filePath: relPath` | `TestChunkCodeFile` 增加 filePath 断言 + E2E 步骤[10] 新增断言 |
+| 无 active OpenHands 配置时 `RetrieveHandler` 直接短路返回"未启用智能客服" | 本地检索层（客户代码索引）被整层跳过，与 PRD F-03"两层检索/本地兜底"矛盾；首轮验收通过系历史残留配置掩盖 | 移除短路：未配置 Agent 时仍执行本地检索层，阈值取默认 0.75 | E2E 步骤[10]（干净状态下）复验命中 |
+| 非 git 目录 sync 被 `git pull` 失败误标 `error` 且 `last_synced_at` 恒零值 | 本地目录快照（合法形态）状态永远报错、永不自动索引 | sync 前先 `rev-parse` 判定：非 git 仓库视为快照直接 ready 并触发索引 | E2E 步骤[10] + DB 断言 status=ready |
+| sync 自动索引与显式 `/index` 并发到达可同源双写 | 重复 chunk | `runCodeIndexPipeline` 加互斥锁串行化 | 并发场景观察 |
+| `snippet[:500]` 按字节截断可切破 UTF-8 多字节字符 | 检索摘要尾部出现乱码替换符 | 复用 rune-safe `truncateRunes` | go test 全量绿 |
+| `renderer.js` `loadKnowledgeFactSummary(selected)` 误置于无该作用域的 `wireOrganizationActions` | 打开组织页触发 `ReferenceError: selected is not defined`，知识库状态行永远"加载中" | 调用移回拥有 `selected` 的 `renderOrganizationProjects` 末尾 | arcorbit 739 用例全绿（修复前 2 例失败） |
+
+mock 模型路径验证（`/tmp/mock-openhands.cjs` 按 `callOpenHandsAgent` 契约实现 /health、/api/conversations、/api/conversations/:cid/events）：健康检查 available；检索双层合并（agent_hits=1、draft_reply、confidence 0.72）；带 conversation_id 二轮追问正确路由到 /events 端点；Agent 宕机时本地命中照常返回、全未命中转 need_collect，无阻断。
+
+已知改进项（不阻断投产，记录备忘）：① retrieve 本地层为整句 SQL LIKE 不分词，混合查询（"LoginUser 登录无响应"）命中不了本地代码，可接入向量检索层；② 同一物理目录重复注册仓库会产生跨 source 重复 chunk（检索层已去重，数据层可在注册时按 repo_path 清理旧 source）；③ 验收当日观察到一次检索响应含未转义控制字符（jq 解析失败），后续 40+ 次压测未能复现，服务端为标准 encoding/json，建议生产监控留意。
+
 
 ---
 

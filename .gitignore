@@ -24,3 +24,7 @@ coverage/
 
 # Generated Release editor and terminal browser assets
 runtime/arcorbit/desktop/renderer/vendor/
+
+# Compiled Go binaries
+services/workshop-api/workshop-api*
+*.exe

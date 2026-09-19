@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"sync"
 	"strings"
 	"time"
 	"todo/middleware"
@@ -127,8 +128,14 @@ func IndexCodeRepoHandler(c *gin.Context) {
 	}))
 }
 
+// indexPipelineMu 串行化索引管道：sync 自动触发与显式 /index 并发到达时避免同源双写。
+var indexPipelineMu sync.Mutex
+
 // runCodeIndexPipeline 执行代码索引管道
 func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
+	indexPipelineMu.Lock()
+	defer indexPipelineMu.Unlock()
+
 	// 查找或创建 knowledge_source
 	var src models.KnowledgeSource
 	sourceName := fmt.Sprintf("code-repo-%d", repo.ID)
@@ -288,6 +295,7 @@ func chunkCodeFile(content, relPath string, config CodeIndexConfig) []chunkedSym
 				symbolName: relPath,
 				startLine:  i + 1,
 				endLine:    end,
+				filePath:   relPath,
 				text:       chunkText,
 			})
 		}
@@ -311,6 +319,7 @@ func chunkCodeFile(content, relPath string, config CodeIndexConfig) []chunkedSym
 			symbolName: sym.SymbolName,
 			startLine:  sym.StartLine,
 			endLine:    end,
+			filePath:   relPath,
 			text:       chunkText,
 		})
 	}
@@ -628,11 +637,15 @@ func searchCodeChunksBySQL(db *gorm.DB, projectID uint, query string, limit int)
 	}
 
 	var results []CodeChunkResult
+	seen := make(map[string]struct{}, len(chunks))
 	for _, ch := range chunks {
-		snippet := ch.ChunkText
-		if len(snippet) > 500 {
-			snippet = snippet[:500] + "..."
+		// 同一物理仓库重复注册会产生不同 source 下内容相同的 chunk，检索层按位置与内容去重。
+		key := fmt.Sprintf("%s|%s|%d|%d", ch.FilePath, ch.SymbolName, ch.StartLine, ch.EndLine)
+		if _, dup := seen[key]; dup {
+			continue
 		}
+		seen[key] = struct{}{}
+		snippet := truncateRunes(ch.ChunkText, 500)
 		results = append(results, CodeChunkResult{
 			ID:         ch.ID,
 			FilePath:   ch.FilePath,

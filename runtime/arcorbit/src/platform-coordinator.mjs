@@ -708,12 +708,29 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     return runFeedbackV2Action(input.project_id, "convert_to_task", () => platformSource.convertFeedbackV2ToTask(input.project_id, input));
   }
 
+  // 智能客服相关端点（检索/分诊/草稿/代码仓库）只在反馈工作流路由（v2）注册，
+  // 必须走 v2 请求；requestV2 缺失时回退 request 以兼容旧适配器桩。
+  function smartServiceRequest(path, options = {}) {
+    const requestV2 = typeof platformSource.requestV2 === "function" ? platformSource.requestV2 : platformSource.request;
+    return requestV2(path, options);
+  }
+
   // 智能客服 — 检索（OpenHands Agent 调用）
   async function retrieveFeedback(input = {}) {
     return runFeedbackV2Action(input.project_id, "retrieve", () =>
-      platformSource.request(`/feedbacks/retrieve`, {
+      smartServiceRequest(`/feedbacks/retrieve`, {
         method: "POST",
-        body: { query: input.query, conversation_id: input.conversation_id }
+        // 渲染层反馈对象携带字符串 ID，后端 RetrieveRequest.ProjectID 是 uint，需数值化。
+        body: { project_id: Number(input.project_id), query: input.query, conversation_id: input.conversation_id }
+      })
+    );
+  }
+
+  // 智能客服 — AI 分诊初判（结果由后端写入 feedback.data.triage）
+  async function runFeedbackTriage(input = {}) {
+    return runFeedbackV2Action(input.project_id, "triage", () =>
+      smartServiceRequest(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/triage`, {
+        method: "POST"
       })
     );
   }
@@ -721,7 +738,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
   // 智能客服 — 确认草稿
   async function confirmFeedbackDraft(input = {}) {
     return runFeedbackV2Action(input.project_id, "draft_confirm", () =>
-      platformSource.request(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/messages/${encodeURIComponent(requiredId(input.message_id, "Message"))}/confirm`, {
+      smartServiceRequest(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/messages/${encodeURIComponent(requiredId(input.message_id, "Message"))}/confirm`, {
         method: "POST",
         body: { content: input.content }
       })
@@ -731,7 +748,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
   // 智能客服 — 驳回草稿
   async function rejectFeedbackDraft(input = {}) {
     return runFeedbackV2Action(input.project_id, "draft_reject", () =>
-      platformSource.request(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/messages/${encodeURIComponent(requiredId(input.message_id, "Message"))}/reject`, {
+      smartServiceRequest(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/messages/${encodeURIComponent(requiredId(input.message_id, "Message"))}/reject`, {
         method: "POST"
       })
     );
@@ -740,9 +757,9 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
   // 智能客服 — 创建草稿（runtime 回写）
   async function createFeedbackDraft(input = {}) {
     return runFeedbackV2Action(input.project_id, "draft_create", () =>
-      platformSource.request(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/drafts`, {
+      smartServiceRequest(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/drafts`, {
         method: "POST",
-        body: { content: input.content, task_id: input.task_id, source_files: input.source_files }
+        body: { content: input.content, task_id: input.task_id ? Number(input.task_id) : 0, source_files: input.source_files }
       })
     );
   }
@@ -750,16 +767,26 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
   // 客户代码仓库 — 列表
   async function listCustomerCodeRepos(projectId) {
     const id = requiredText(projectId, "Project id", 120);
-    return platformSource.request(`/projects/${encodeURIComponent(id)}/code-repos`);
+    return smartServiceRequest(`/projects/${encodeURIComponent(id)}/code-repos`);
+  }
+
+  // 知识库 — 检索测试（直查项目索引，验证仓库配置是否生效）
+  async function searchProjectKnowledgeCode(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const query = requiredText(input.query, "Query", 500);
+    return smartServiceRequest(`/projects/${encodeURIComponent(projectId)}/knowledge/search-code`, {
+      method: "POST",
+      body: { query }
+    });
   }
 
   // 客户代码仓库 — 创建
   async function createCustomerCodeRepo(input = {}) {
     const projectId = requiredText(input.project_id, "Project id", 120);
-    return platformSource.request(`/projects/${encodeURIComponent(projectId)}/code-repos`, {
+    return smartServiceRequest(`/projects/${encodeURIComponent(projectId)}/code-repos`, {
       method: "POST",
-      body: { 
-        customer_id: input.customer_id, 
+      body: {
+        customer_id: input.customer_id,
         repo_path: input.repo_path,
         repo_url: input.repo_url,
         branch: input.branch,
@@ -772,7 +799,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
   async function syncCustomerCodeRepo(input = {}) {
     const projectId = requiredText(input.project_id, "Project id", 120);
     const repoId = requiredText(input.repo_id, "Repo id", 120);
-    return platformSource.request(`/projects/${encodeURIComponent(projectId)}/code-repos/${encodeURIComponent(repoId)}/sync`, {
+    return smartServiceRequest(`/projects/${encodeURIComponent(projectId)}/code-repos/${encodeURIComponent(repoId)}/sync`, {
       method: "POST"
     });
   }
@@ -781,7 +808,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
   async function deleteCustomerCodeRepo(input = {}) {
     const projectId = requiredText(input.project_id, "Project id", 120);
     const repoId = requiredText(input.repo_id, "Repo id", 120);
-    return platformSource.request(`/projects/${encodeURIComponent(projectId)}/code-repos/${encodeURIComponent(repoId)}`, {
+    return smartServiceRequest(`/projects/${encodeURIComponent(projectId)}/code-repos/${encodeURIComponent(repoId)}`, {
       method: "DELETE"
     });
   }
@@ -871,10 +898,12 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     deleteFeedbackV2,
     convertFeedbackV2ToTask,
     retrieveFeedback,
+    runFeedbackTriage,
     confirmFeedbackDraft,
     rejectFeedbackDraft,
     createFeedbackDraft,
     listCustomerCodeRepos,
+    searchProjectKnowledgeCode,
     createCustomerCodeRepo,
     syncCustomerCodeRepo,
     deleteCustomerCodeRepo,

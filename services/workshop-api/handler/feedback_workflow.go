@@ -918,19 +918,20 @@ func buildTaskResponseFromModel(task models.Task) TaskResponse {
 		deletedAt = &deletedAtStr
 	}
 	return TaskResponse{
-		ID:           task.ID,
-		ProjectID:    task.ProjectID,
-		FatherID:     task.FatherID,
-		Content:      task.Content,
-		State:        task.State,
-		CreatorID:    task.CreatorID,
-		ExecutorID:   task.ExecutorID,
-		Priority:     task.Priority,
-		Tags:         task.Tags,
-		CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		CompletionAt: completionAt,
-		DeletedAt:    deletedAt,
+		ID:               task.ID,
+		ProjectID:        task.ProjectID,
+		FatherID:         task.FatherID,
+		Content:          task.Content,
+		State:            task.State,
+		CreatorID:        task.CreatorID,
+		ExecutorID:       task.ExecutorID,
+		Priority:         task.Priority,
+		Tags:             task.Tags,
+		SourceFeedbackID: task.SourceFeedbackID,
+		CreatedAt:        task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:        task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CompletionAt:     completionAt,
+		DeletedAt:        deletedAt,
 	}
 }
 

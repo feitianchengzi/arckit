@@ -110,7 +110,9 @@ func TestKnowledgeSourceTableName(t *testing.T) {
 
 func TestCodeChunkTableName(t *testing.T) {
 	chunk := CodeChunk{}
-	if got := chunk.TableName(); got != "code_chunks" {
-		t.Errorf("TableName() = %q, want %q", got, "code_chunks")
+	// code_chunks 建在独立 code_index schema，表名必须带 schema 限定，
+	// 否则 GORM 写入 public.code_chunks 报错且索引数据永远无法落库。
+	if got := chunk.TableName(); got != "code_index.code_chunks" {
+		t.Errorf("TableName() = %q, want %q", got, "code_index.code_chunks")
 	}
 }

@@ -104,6 +104,27 @@ test("owner-aware update checks cache success and force refresh through exact np
   assert.equal(calls, 2);
 });
 
+test("standalone update check aborts a stalled release-channel fetch instead of hanging", async () => {
+  const checker = createCodexUpdateChecker({
+    updateFetchTimeoutMs: 20,
+    fetchImpl: (_url, init) => new Promise((_resolve, reject) => {
+      init.signal?.addEventListener("abort", () => reject(init.signal.reason || new Error("aborted")));
+    })
+  });
+  const installation = {
+    id: "standalone-installation",
+    available: true,
+    owner: "standalone",
+    owner_confidence: "proven",
+    owner_identity: "standalone:fixture",
+    version: "1.2.3",
+    platform: "darwin"
+  };
+  const update = await checker(installation);
+  assert.equal(update.state, "check-failed");
+  assert.equal(update.error.code, "UPDATE_NETWORK_TIMEOUT");
+});
+
 test("update check failures remain advisory and owner mutations use fixed argv", async () => {
   const checker = createCodexUpdateChecker({
     processRunner: async () => { throw Object.assign(new Error("proxy unavailable"), { code: "ECONNREFUSED" }); }

@@ -263,7 +263,7 @@ func TestKnowledgeRetrieveTestHandler(t *testing.T) {
 	}
 
 	var resp struct {
-		Code string `json:"code"`
+		Code json.RawMessage `json:"code"`
 		Data struct {
 			NeedCollect bool `json:"need_collect"`
 		} `json:"data"`

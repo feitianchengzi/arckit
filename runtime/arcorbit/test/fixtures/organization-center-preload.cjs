@@ -29,6 +29,8 @@ const chatStreamPerformanceTest = process.env.ARCORBIT_CHAT_STREAM_PERFORMANCE_F
 const chatContentOverflowTest = process.env.ARCORBIT_CHAT_CONTENT_OVERFLOW_FIXTURE === "1";
 const codexSettingsFixture = process.env.ARCORBIT_CODEX_SETTINGS_FIXTURE === "1";
 const chatFixtureEnabled = chatStreamPerformanceTest || chatContentOverflowTest || codexSettingsFixture;
+const knowledgeRepos = [];
+let knowledgeRepoSequence = 0;
 let chatSnapshotDelayMs = 0;
 let chatStreamEmitted = 0;
 let chatStreamTimer = null;
@@ -286,6 +288,33 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     }
     return platform;
   },
+  listCustomerCodeRepos: async () => ({ code: 0, data: [...knowledgeRepos] }),
+  createCustomerCodeRepo: async (input) => {
+    knowledgeRepoSequence += 1;
+    const repo = {
+      id: String(knowledgeRepoSequence),
+      customer_id: input.customer_id,
+      repo_url: input.repo_url || "",
+      repo_path: input.repo_path || "",
+      branch: input.branch || "main",
+      auto_sync: Boolean(input.auto_sync),
+      status: "ready",
+      created_at: new Date().toISOString()
+    };
+    knowledgeRepos.push(repo);
+    return { code: 0, data: repo };
+  },
+  syncCustomerCodeRepo: async (input) => {
+    const repo = knowledgeRepos.find((item) => String(item.id) === String(input.repo_id));
+    if (repo) repo.status = "ready";
+    return { code: 0, data: { repo_id: input.repo_id, status: "ready" } };
+  },
+  deleteCustomerCodeRepo: async (input) => {
+    const index = knowledgeRepos.findIndex((item) => String(item.id) === String(input.repo_id));
+    if (index >= 0) knowledgeRepos.splice(index, 1);
+    return { code: 0, data: null };
+  },
+  searchKnowledgeCode: async () => ({ code: 0, data: [] }),
   platformWorkQuery: async (input) => {
     calls.push(["platformWorkQuery", input]);
     const scenario = workQueryScenarios.shift() || null;
@@ -337,10 +366,15 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   setAutomationEnabled: noOp, setQueuePaused: noOp,
   getFeedbackV2Messages: async (input) => {
     calls.push(["getFeedbackV2Messages", input]);
-    return [{
+    const messages = [{
       id: "M-F-11-V2-1", sender_type: "customer", content: "V2 message with a screenshot", created_at: "2026-08-20T10:05:00Z",
       attachments: [{ id: "A-F-11-V2-1", type: "image", object_key: "feedback/F-11-V2/reply.png", file_name: "reply.png", mime_type: "image/png" }]
     }];
+    if (process.env.ARCORBIT_KB_DETAIL_FIXTURE === "1") {
+      messages.push({ id: "M-F-11-V2-DRAFT", sender_type: "system", state: "pending_review", content: "【进展草稿】已定位到登录按钮事件绑定问题，修复验证中。", metadata: JSON.stringify({ source_files: ["src/auth/login.ts"] }), created_at: "2026-08-20T10:06:00Z" });
+      messages.push({ id: "M-F-11-V2-2", sender_type: "developer", content: "收到，正在处理，稍后同步进展。", created_at: "2026-08-20T10:07:00Z" });
+    }
+    return messages;
   },
   markFeedbackV2Read: async (input) => { calls.push(["markFeedbackV2Read", input]); return { marked_count: 1 }; },
   updateWorkset: async (input) => { calls.push(["updateWorkset", input]); platform.active_workset.project_ids = input.project_ids; return input; },

@@ -23,6 +23,9 @@ export function createWorkshopPlatformAdapter({
   const v2Request = typeof requestV2 === "function" ? requestV2 : unavailableFeedbackV2;
 
   return {
+    // 智能客服相关端点只存在于 v2（反馈工作流路由），协调器经此发起 v2 请求。
+    requestV2,
+
     isFeedbackV2ProjectEnabled(projectId) {
       return v2Projects(requiredId(projectId, "Project"));
     },
