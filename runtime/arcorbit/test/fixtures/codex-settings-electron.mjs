@@ -27,6 +27,8 @@ app.whenReady().then(async () => {
       await waitFor(() => !document.body.classList.contains('auth-pending'));
       el('settingsButton').click();
       await waitFor(() => !el('settingsOverlay').classList.contains('hidden'));
+      const yoloDefault = el('codexYoloMode').checked;
+      el('codexYoloMode').click();
       const defaults = [el('codexChatModel').value, el('codexChatEffort').value, el('codexAutomationModel').value, el('codexAutomationEffort').value];
       type('codexChatModel', 'test-model');
       await waitFor(() => !el('refreshCodexModelsButton').disabled);
@@ -43,6 +45,7 @@ app.whenReady().then(async () => {
       el('closeSettingsButton').click();
       el('settingsButton').click();
       await waitFor(() => !el('settingsOverlay').classList.contains('hidden'));
+      const yoloRestored = el('codexYoloMode').checked;
       const restored = [el('codexChatModel').value, el('codexChatEffort').value, el('codexAutomationModel').value, el('codexAutomationEffort').value];
       await waitFor(() => !el('refreshCodexModelsButton').disabled);
       await window.arckitDesktop.setTestCodexFailures({ catalog: true, save: true });
@@ -69,7 +72,7 @@ app.whenReady().then(async () => {
       type('chatCodexEffort', 'ultra');
       await new Promise(r => setTimeout(r, 450));
       const calls = await window.arckitDesktop.getTestCalls();
-      return { defaults, preservedDraft, levels, retainedLevel, savedInPlace, saveFeedback, restored, manualFallback, failedDraft,
+      return { yoloDefault, yoloRestored, defaults, preservedDraft, levels, retainedLevel, savedInPlace, saveFeedback, restored, manualFallback, failedDraft,
         saves: calls.filter(([method]) => method === 'updateSettings'),
         composerDefaults, composerModels, composerDrafts: calls.filter(([method]) => method === 'createChat'),
         modelInputType: el('codexChatModel').type, effortInputType: el('codexChatEffort').type,

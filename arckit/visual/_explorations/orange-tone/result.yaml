@@ -1,0 +1,56 @@
+document_scope:
+  scope_kind: change
+  root: arckit/visual/
+  created:
+  - path: _explorations/orange-tone/index.html
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 橙色候选、对照和验证记录。
+  - path: _explorations/orange-tone/comparison.png
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 橙色候选、对照和验证记录。
+  - path: _explorations/orange-tone/exploration.md
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 橙色候选、对照和验证记录。
+  - path: _explorations/orange-tone/options/oat/tokens.json
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 橙色候选、对照和验证记录。
+  - path: _explorations/orange-tone/options/apricot/tokens.json
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 橙色候选、对照和验证记录。
+  - path: _explorations/orange-tone/options/peach/tokens.json
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 橙色候选、对照和验证记录。
+  - path: _explorations/INDEX.md
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 橙色候选、对照和验证记录。
+  - path: _explorations/orange-tone/result.yaml
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 橙色候选、对照和验证记录。
+  updated:
+  - path: INDEX.md
+    source_basis: 用户认为橙色仍偏重，要求比较其他适合的橙色。
+    summary: 链接独立探索入口。
+  deleted: []
+  reorganized: []
+fact_result: null
+exploration_result:
+  mode: standalone
+  case_id: null
+  gap_id: null
+  objective: 比较更柔和的橙色候选
+  artifact_status: complete
+  formal_fact_effect: none
+  artifacts:
+  - path: arckit/visual/_explorations/orange-tone/index.html
+    status: 候选
+    basis_refs:
+    - arckit/visual/_library/brief.md
+    - arckit/visual/_library/design-tokens.yaml
+    baseline: '#FF8A1F 鲜橙；完整基线摘要见 exploration.md'
+    evidence: 三候选九组按钮文字对比度通过；1280/390px 无溢出，已检查截图
+  decision:
+    required_for_current_objective: false
+    question: 未来采纳哪一组橙色及配套用色方式
+    basis: 本轮提供适用候选和比较
+  adoption: []
+  remaining_work: []

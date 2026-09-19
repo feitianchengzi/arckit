@@ -194,6 +194,80 @@ test("realtime adapter treats an old Workshop handshake as legacy and refreshes 
   adapter.stop();
 });
 
+test("realtime adapter dispatches customer feedback messages without disrupting invalidation", async () => {
+  FakeWebSocket.instances = [];
+  const invalidations = [];
+  const feedbackEvents = [];
+  const states = new Map([["12", { cursor: 40 }]]);
+  const adapter = createWorkshopRealtimeAdapter({
+    WebSocketImpl: FakeWebSocket,
+    taskSource: {
+      async realtimeConnection() { return { url: "wss://workshop.test/ws", protocols: [], headers: {} }; },
+      async listProjectEvents(_projectId, { afterId }) {
+        return { events: [
+          { id: 41, event: "feedback.message.created", occurred_at: "2026-09-18T00:00:01.000Z", data: { feedback_id: 5, project_id: 12, sender_type: "customer", content: "进展如何？" } }
+        ], next_after_id: 41, latest_event_id: 41, has_more: false };
+      }
+    },
+    readProjectState: async (projectId) => states.get(String(projectId)),
+    writeProjectState: async (projectId, update) => states.set(String(projectId), { ...(states.get(String(projectId)) || {}), ...update }),
+    onInvalidate: async (projectId, details) => invalidations.push(details),
+    onFeedbackEvent: async (projectId, event) => feedbackEvents.push({ projectId: String(projectId), event })
+  });
+
+  await adapter.updateProjects(["12"]);
+  await new Promise((resolve) => setImmediate(resolve));
+  const socket = FakeWebSocket.instances[0];
+  socket.emit("open");
+  socket.message({ schema_version: 1, event: "system.connected", project_id: 12, data: { latest_event_id: 41 } });
+  socket.message({ id: 42, event: "feedback.message.created", occurred_at: "2026-09-18T00:00:02.000Z", data: { feedback_id: 5, project_id: 12, sender_type: "customer", content: "追加追问" } });
+  socket.message({ id: 43, event: "task.updated", occurred_at: "2026-09-18T00:00:03.000Z" });
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  assert.equal(feedbackEvents.length, 2);
+  assert.equal(feedbackEvents[0].projectId, "12");
+  assert.equal(feedbackEvents[0].event.data.feedback_id, 5);
+  assert.equal(feedbackEvents[0].event.id, 41);
+  assert.equal(feedbackEvents[1].event.id, 42);
+  assert.equal(feedbackEvents[1].event.data.content, "追加追问");
+  assert.ok(feedbackEvents.every((item) => item.event.event === "feedback.message.created"));
+  assert.equal(states.get("12").cursor, 43);
+  assert.equal(states.get("12").state, "connected");
+  adapter.stop();
+});
+
+test("realtime adapter keeps the connection alive when feedback dispatch rejects", async () => {
+  FakeWebSocket.instances = [];
+  const invalidations = [];
+  const states = new Map();
+  const adapter = createWorkshopRealtimeAdapter({
+    WebSocketImpl: FakeWebSocket,
+    taskSource: {
+      async realtimeConnection() { return { url: "wss://workshop.test/ws", protocols: [], headers: {} }; },
+      async listProjectEvents() { return { events: [], next_after_id: 0, has_more: false }; }
+    },
+    readProjectState: async (projectId) => states.get(String(projectId)),
+    writeProjectState: async (projectId, update) => states.set(String(projectId), { ...(states.get(String(projectId)) || {}), ...update }),
+    onInvalidate: async (projectId, details) => invalidations.push(details),
+    onFeedbackEvent: async () => { throw new Error("steer unavailable"); }
+  });
+
+  await adapter.updateProjects(["12"]);
+  await new Promise((resolve) => setImmediate(resolve));
+  const socket = FakeWebSocket.instances[0];
+  socket.emit("open");
+  socket.message({ schema_version: 1, event: "system.connected", project_id: 12, data: { latest_event_id: 0 } });
+  await new Promise((resolve) => setImmediate(resolve));
+  socket.message({ id: 7, event: "feedback.message.created", occurred_at: "2026-09-18T00:00:04.000Z", data: { feedback_id: 5, sender_type: "customer", content: "追问" } });
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  assert.deepEqual(invalidations.map((item) => item.reason), ["initial_snapshot", "event"]);
+  assert.equal(states.get("12").cursor, 7);
+  assert.equal(states.get("12").state, "connected");
+  assert.equal(adapter.isDegraded(), false);
+  adapter.stop();
+});
+
 test("realtime adapter rejects an ambiguous unversioned handshake that advertises a cursor", async () => {
   FakeWebSocket.instances = [];
   const writes = [];

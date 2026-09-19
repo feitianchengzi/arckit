@@ -1,3 +1,4 @@
+import { terminateProcessTree } from "./process-tree.mjs";
 import { spawn } from "node:child_process";
 import { statSync } from "node:fs";
 import { win32 as pathWin32 } from "node:path";
@@ -129,8 +130,10 @@ export class JsonRpcStdioClient {
     platform = process.platform,
     env = process.env,
     isFile = defaultIsFile,
-    spawnProcess = spawn
+    spawnProcess = spawn,
+    terminateOwnedTree = false
   }) {
+    this.terminateOwnedTree = terminateOwnedTree;
     this.command = command;
     this.args = args;
     this.cwd = cwd;
@@ -211,8 +214,9 @@ export class JsonRpcStdioClient {
     }
     this.closed = true;
     this.readline.close();
+    if (this.terminateOwnedTree) terminateProcessTree(this.proc);
     this.proc.stdin.end();
-    this.proc.kill("SIGTERM");
+    if (!this.terminateOwnedTree) this.proc.kill("SIGTERM");
   }
 
   #send(message) {

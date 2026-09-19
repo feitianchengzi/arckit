@@ -1,0 +1,31 @@
+# OpenHands Agent Server 部署配置
+# 用法: docker compose -f docker-compose.dev.yml -f docker-compose.openhands.yml up -d
+
+services:
+  # OpenHands Agent Server
+  openhands-agent:
+    image: ghcr.io/openhands/agent-server:latest-python
+    container_name: openhands-agent-dev
+    environment:
+      - OH_SESSION_API_KEYS_0=${OH_SESSION_API_KEYS_0:-$(openssl rand -hex 32)}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-anthropic/claude-sonnet-4-5-20250929}
+      - OH_PERSISTENCE_DIR=/home/openhands/.openhands
+      - SANDBOX_VOLUMES=/projects:/projects:ro
+    ports:
+      - "${OPENHANDS_PORT:-8000}:8000"
+    volumes:
+      - openhands-workspace:/home/openhands/.openhands
+      - ${CUSTOMER_REPOS_PATH:-./customer-repos}:/projects:ro
+    restart: unless-stopped
+    networks:
+      - workshop
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  openhands-workspace:

@@ -1,3 +1,4 @@
+import { selectionAssessment } from './helpers/selection-assessment.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -18,7 +19,6 @@ import { createProjectStateRecord } from '../../../entry/skills/arckit-developme
 import { defaultSoftwareInvariants } from '../../../entry/skills/arckit-development-ledger/scripts/project-invariants.mjs';
 import { readLedgerSnapshot } from '../../../entry/skills/arckit-development-ledger/scripts/loop-snapshot.mjs';
 import { validateCaseControlHandoff } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-case-control.mjs';
-import { createControllerContextDigest } from '../src/agent-orchestrator.mjs';
 
 test('new bug Case starts from facts and one diagnosis gap without facet ceremony', () => {
   const record = bugCase();
@@ -67,23 +67,6 @@ test('completion review stays implementation-focused and resolves the current re
   assert.deepEqual(validateCaseRecord(closed), []);
 });
 
-test('Runtime digest exposes the explicit software checklist, invariants and Case facts', () => {
-  const record = bugCase();
-  const projectState = createProjectStateRecord({ name: 'Fixture', intent: 'Fix restore behavior.' });
-  const digest = createControllerContextDigest({
-    snapshot: {
-      projectState,
-      activeCases: [{ ref: 'arckit/cases/active/fixture.md', record }],
-      paths: { projectState: 'arckit/project/state.record.json', activeIteration: '' }, summary: {},
-    },
-    loopFrame: { project_revision: 0, case_id: '' },
-  });
-  assert.equal(digest.project.software_definition.length, 15);
-  assert.equal(digest.project.software_definition[0].id, 'product_intent_and_scope');
-  assert.equal(digest.project.software_invariants.some((item) => item.id === 'accepted-facts-are-realized'), true);
-  assert.equal(digest.active_cases[0].facts[0].id, 'FACT-BUG');
-  assert.equal(Object.hasOwn(digest.active_cases[0], 'facets'), false);
-});
 
 test('Case control binds numeric Project revision and requires semantic initial gaps', () => {
   const valid = {
@@ -228,7 +211,7 @@ function baseTransition(record, selected) {
   return {
     schema_version: 'arckit-case-transition/v8', case_id: record.id, case_updated_at: record.updated_at, project_revision: 0,
     gap_selection: selectionTrace(record, selected), selected_gap: structuredClone(selected),
-    planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
+    planned_transition: { selection_assessment: selectionAssessment(), goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: { resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [], resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null },
     project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
     invariant_assessment: {

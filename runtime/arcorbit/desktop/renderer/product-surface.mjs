@@ -10,7 +10,7 @@ const active=s=>['starting','running','waiting_approval','interrupting'].include
 const button=(action,label,extra='')=>`<button type="button" class="${extra.includes('class="primary-button"')?'primary-button':'secondary-button'}" data-product-action="${action}" ${extra.replace('class="primary-button"','')}>${label}</button>`;
 const field=(label,name,value,type='text')=>`<label class="product-field"><span>${label}</span>${type==='textarea'?`<textarea data-field="${name}" rows="3">${esc(value)}</textarea>`:`<input data-field="${name}" value="${esc(value)}">`}</label>`;
 const select=(label,name,value,options)=>`<label class="product-field"><span>${label}</span><select data-field="${name}">${options.map(([id,title])=>`<option value="${esc(id)}" ${String(value)===String(id)?'selected':''}>${esc(title)}</option>`).join('')}</select></label>`;
-export function createProductSurface({api,normalizeChatSnapshot,formatTime,performAction,navigate,getPlatform}) {
+export function createProductSurface({api,normalizeChatSnapshot,formatTime,performAction,navigate,getPlatform,isAuthenticated=()=>true}) {
   const el=id=>document.getElementById(id);let snapshot={ideas:[],records:[],projects:[],organizations:[],errors:[]};let current=null;let page='';let search='';let filter='all';let tab='overview';let error='';let loading=false;let loaded=false;let chat=null;let epoch=0;let eventTimer;let listPromise;
   const chats=new Map();const drafts=new Map();let manual=false;let confirming=false;let confirmationBinding=null;
   const draftKey=id=>`arcorbit:product-editor:${id}`;
@@ -35,8 +35,9 @@ export function createProductSurface({api,normalizeChatSnapshot,formatTime,perfo
     const o=owner();return performAction(async()=>{try{error='';await fn();}catch(e){if(isOwner(o)){error=e.message;renderCurrent();}throw e;}});
   }
   async function load(refresh=false) {
+    if(!isAuthenticated())return;
     if(listPromise)return listPromise;
-    listPromise=(async()=>{snapshot=await api.productSnapshot({refresh});loaded=true;renderToday();})();
+    listPromise=(async()=>{const next=await api.productSnapshot({refresh});if(!isAuthenticated())return;snapshot=next;loaded=true;renderToday();})();
     try{await listPromise;}finally{listPromise=null;}
   }
   function projectFor(p){return snapshot.projects.find(r=>String(r.id)===p?.remote_project_id);}
@@ -215,6 +216,7 @@ export function createProductSurface({api,normalizeChatSnapshot,formatTime,perfo
   function renderCurrent(){if(page==='product')renderList();else if(page==='idea')renderList(true);else if(page==='idea-add')renderIntake();else if(page==='product-detail')renderDetail();}
   function renderToday() {
     const host=el('todayProductContinuity');if(!host)return;
+    if(!isAuthenticated()){host.innerHTML='';return;}
     const platform=getPlatform();const unread=(platform.product_workspaces||[]).filter(w=>Number(w.feedback_management?.unread_count)>0);
     const pending=(snapshot.records||[]).filter(p=>p.kind==='temporary'||p.kind==='product'&&p.record.revision>0||p.kind==='formal'&&p.sync.status==='local');
     host.innerHTML=`<div>${button('new','＋ 添加 Idea')}</div><div><strong>继续整理</strong>${pending.slice(0,5).map(p=>`<button type="button" data-resume="${esc(p.id)}">${esc(p.name)} · ${esc(label(p))}</button>`).join('')||'<span>没有未完成录入</span>'}</div><div><strong>反馈新消息</strong>${unread.map(w=>`<button type="button" data-feedback-project="${esc(w.project_id||w.id)}">${esc(w.name||w.project_name||'项目')} · ${Number(w.feedback_management.unread_count)} 条未读</button>`).join('')||'<span>查看 Feedback 来源消息</span>'}</div>`;
@@ -234,5 +236,5 @@ export function createProductSurface({api,normalizeChatSnapshot,formatTime,perfo
       }).catch(()=>{});
     },100);
   });
-  return {reset(){epoch++;current=null;chat=null;loaded=false;snapshot={ideas:[],records:[],projects:[],organizations:[],errors:[]};for(const id of ['productListHost','productDetailHost','ideaListHost','ideaEditor','ideaTranscript','todayProductContinuity'])el(id).innerHTML='';},async show(next){if(page!==next)epoch++;page=next;if(!api.productSnapshot)return;await load(!loaded||['product','idea'].includes(next));if(current && !snapshot.records.some(p=>p.id===current.id)){current=null;chat=null;}renderCurrent();if(next==='idea-add'&&current)await loadChat();},renderToday};
+  return {reset(){epoch++;current=null;chat=null;loaded=false;snapshot={ideas:[],records:[],projects:[],organizations:[],errors:[]};for(const id of ['productListHost','productDetailHost','ideaListHost','ideaEditor','ideaTranscript','todayProductContinuity'])el(id).innerHTML='';},async show(next){if(page!==next)epoch++;page=next;if(!isAuthenticated()||!api.productSnapshot)return;await load(!loaded||['product','idea'].includes(next));if(current && !snapshot.records.some(p=>p.id===current.id)){current=null;chat=null;}renderCurrent();if(next==='idea-add'&&current)await loadChat();},renderToday};
 }

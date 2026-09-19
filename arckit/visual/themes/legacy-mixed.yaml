@@ -1,0 +1,12 @@
+metadata:
+  name: legacy-mixed
+  status: compatibility
+  scope: 全部页面中的既有控制台外壳，内容区仍为亮色
+  tokens: ../_library/design-tokens.yaml
+overrides:
+  semantic.sidebar: "{colors.ink.900}"
+  semantic.chrome: "{colors.ink.950}"
+  semantic.nav_text: "{colors.ink.300}"
+  semantic.nav_selected_text: "{colors.paper}"
+  semantic.nav_selected: "{colors.ink.800}"
+  semantic.focus: "#C45100"

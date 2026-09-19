@@ -1,0 +1,36 @@
+{
+  "enabled": false,
+  "server_url": "http://localhost:8000",
+  "api_key_env": "OH_SESSION_API_KEYS_0",
+  "sandbox": {
+    "runtime": "docker",
+    "base_image": "ghcr.io/openhands/agent-server:latest-python",
+    "workspace_path": "/workspace"
+  },
+  "llm": {
+    "model": "anthropic/claude-sonnet-4-5-20250929",
+    "api_key_env": "LLM_API_KEY",
+    "temperature": 0.0,
+    "max_iterations": 50
+  },
+  "retrieval": {
+    "confidence_threshold": 0.75,
+    "timeout_ms": 10000,
+    "source_weights": {
+      "product_faq": 1.2,
+      "product_facts": 1.0,
+      "customer_doc": 0.9,
+      "customer_code": 0.8
+    }
+  },
+  "fallback": {
+    "on_timeout": "collect",
+    "on_error": "collect",
+    "on_no_match": "collect"
+  },
+  "conversation": {
+    "max_history": 20,
+    "context_window": 8000,
+    "summarize_after": 15
+  }
+}

@@ -18,7 +18,7 @@
       "agent_loop"
     ]
   },
-  "summary": "Runs one coherent Agent turn from explicit Project software decisions, invariants and fresh facts through the smallest causally ready Case gap, workspace execution, evidence, Project delta, transition claim, and handoff.",
+  "summary": "Runs one coherent Agent turn from explicit Project software decisions, invariants and fresh facts and trusted scene definition through a bounded, prerequisite-ready Case gap, workspace execution, evidence, Project delta, transition claim, and handoff.",
   "input_facts": [
     "original_user_input",
     "current_operator_increment",
@@ -28,10 +28,11 @@
     "active_cases",
     "iteration_state",
     "loop_handoff",
-    "agent_context_digest",
+    "host_context_refs",
     "execution_authorization",
     "protocol_compatibility",
-    "ledger_snapshot"
+    "ledger_snapshot",
+    "execution_progress"
   ],
   "outputs": [
     "case_control",
@@ -50,7 +51,8 @@
     "protocol_reconciliation_result",
     "selection_trace",
     "round_closeout",
-    "fresh_read_receipt"
+    "fresh_read_receipt",
+    "task_progress"
   ],
   "allowed_write_targets": [],
   "forbidden_decisions": [
@@ -63,14 +65,14 @@
   "runtime_notes": [
     "Default Runtime execution invokes one agent_loop turn per Case gap and reuses one stable Codex thread for the active todo/session.",
     "The Agent may use native tools and other installed skills inside the same turn; Runtime does not pre-bind a fixed definition/diagnosis skill list or predictive allowed_paths.",
-    "Runtime supplies original user intent, current increment, fresh bounded canonical facts, revisions, and execution authorization; these supersede conflicting thread history.",
+    "Runtime supplies original user intent, current increment, source references, trusted Ledger entrypoints and execution authorization. The Agent reads current canonical facts and revisions through those sources; prompts do not embed project file contents or a duplicate state digest.",
     "No suitable active Case produces a semantic case_control.create_case with outcome, initial facts, relevant impacts, and at least one dynamic gap; Runtime only binds Project revision and explicit review policy.",
     "ArcOrbit Agent output is a snapshot-bound Semantic Case Command with explicit typed semantic relations; the trusted ledger alone allocates canonical ids/revisions, rehydrates candidates, projects reverse relations and compiles the internal Case transition. Direct Agents may use the canonical v8 transition entrypoint.",
     "The Agent evaluates every current Project invariant against fresh Case facts and dynamically chosen skills; threatened or undetermined results become explicit Case gaps without preplanning a workflow.",
-    "When a downstream result depends on a material fact or decision not yet accepted at the start of the Round, the prerequisite result is the current Gap; newly established facts may add or reopen future gaps but cannot be consumed for another downstream result until post-closeout fresh-read.",
+    "Gap boundaries permit jointly decidable low-risk conclusions and isolate important decisions; selection_assessment declares prerequisites and exploration versus establishment. Boundaries follow causal dependencies, not phases, file counts or skill names. New evidence may resolve the current question; independently necessary questions remain explicit obligations for fresh selection after closeout. Professional skills do not expand the selected Gap or its authorization.",
     "Runtime gates schema, revision, authorization, workspace safety, and ledger legality; it does not semantically re-review the Agent claim.",
     "Successful ledger writeback exposes the ledger-produced round closeout before a separately verified post-commit snapshot and the next turn. Human responsibility pauses for operator input; external responsibility remains a recoverable system wait.",
-    "Serial one-gap Loops, productive rounds, and long-running commands have no total wall-clock or productive-round limit; no-progress recovery is separate.",
+    "The Agent owns semantic progress assessment and continuation decisions; Runtime records observations and executes handoffs without a semantic no-progress cutoff. User stop and bounded protocol recovery remain independent.",
     "When canonical state is protocol-incompatible, the same Agent suspends ordinary Case work, performs semantic reconciliation through the trusted ledger entrypoint, then fresh-reads and resumes the original intent."
   ]
 }

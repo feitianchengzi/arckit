@@ -1,3 +1,6 @@
+import { createProjectWorkbenchSurface } from './project-workbench-surface.mjs';
+import { applyWorkSyncHealth } from './work-sync-health.mjs';
+import { workbenchExecutionTarget } from '../../src/automation/execution-history.mjs';
 import { openMemberAddSheet } from "./project-member-add.mjs";
 import { createEngineeringSurface } from './engineering-surface.mjs';
 import { createReleaseSurface } from "./release-surface.mjs";
@@ -144,7 +147,7 @@ const state = {
   codexAuthMethod: "",
   codexAuthFlow: "",
   codexInstallMethod: "",
-  page: "today",
+  page: "command",
   selectedProjectId: "all",
   todaySelectedProjectId: "all",
   todayMode: "",
@@ -225,6 +228,7 @@ const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map
 const codexSettingsForm = createCodexSettingsForm({
   api,
   elements: {
+    yoloCheckbox: els.codexYoloMode,
     contexts: {
       chat: {
         model: els.codexChatModel, effort: els.codexChatEffort,
@@ -310,6 +314,7 @@ const chatConversationSurface = createConversationSurface({
 const productSurface = createProductSurface({
   api, normalizeChatSnapshot, formatTime, performAction: runAction,
   getPlatform: () => state.platform,
+  isAuthenticated: () => state.authentication.authenticated,
   navigate: async (page, projectId, feedbackId) => {
     if (projectId) state.selectedProjectId = String(projectId);
     if (feedbackId) state.selectedFeedbackId = String(feedbackId);
@@ -320,6 +325,14 @@ const productSurface = createProductSurface({
 const releaseSurface = createReleaseSurface({
   api, normalizeChatSnapshot, formatTime, performAction: runAction,
   navigateSetup: () => showPage("command")
+});
+const projectWorkbenchSurface = createProjectWorkbenchSurface({
+  root:document.getElementById('projectWorkbenchView'),api,navigate:showPage,
+  openSettings:()=>document.getElementById('settingsButton').click(),
+  onSyncHealth: snapshot => {
+    for (const key of ['source_status', 'synced_at', 'realtime']) if (snapshot[key] !== undefined) state.snapshot[key] = snapshot[key];
+    renderNavigation();
+  }
 });
 const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
 const workbenchConversationSurface = createConversationSurface({
@@ -339,7 +352,7 @@ initializeWindowControls({
   closeButton: els.windowCloseButton,
   minimizeButton: els.windowMinimizeButton,
   maximizeButton: els.windowMaximizeButton,
-  dragRegion: els.titlebarDrag,
+  dragRegion: els.windowDragRegion,
   onError: (error) => showToast(error.message || "窗口控制失败")
 });
 
@@ -383,7 +396,14 @@ async function boot() {
     renderSetup();
   });
   api.onAutomationEvent(() => scheduleAutomationRefresh());
-  api.onWorkSyncEvent(() => scheduleRefresh());
+  api.onWorkSyncEvent((event) => {
+    if (applyWorkSyncHealth(state.snapshot, event)) {
+      renderNavigation();
+      if (state.page === 'command') renderCommandSyncSummary();
+      return;
+    }
+    scheduleRefresh();
+  });
   api.onChatEvent((event) => {
     if (event?.type === "chat.draft.changed") return;
     if (event?.type === "chat.message.changed") {
@@ -405,7 +425,8 @@ async function boot() {
     }
   });
   window.setInterval(() => {
-    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
+    const refresh = state.page === "project-workbench" ? refreshProjectWorkbench()
+      : state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     refresh.catch(() => {});
   }, 30_000);
   window.setInterval(() => {
@@ -414,6 +435,13 @@ async function boot() {
 }
 
 function wireEvents() {
+  const legacyButton=document.getElementById('legacyPagesButton'),legacyMenu=document.getElementById('legacyPagesMenu');
+  els.workbenchSyncSettings.addEventListener('click',()=>runAction(async()=>{await api.projectWorkbenchCommand('sync',{});await projectWorkbenchSurface.refresh();showToast('项目与事情已同步');}));
+  els.workbenchFeedbackSettings.addEventListener('click',()=>{els.closeSettingsButton.click();els.productFeedbackButton.click();});
+  function closePageNavigation(restoreFocus=false){document.body.classList.remove('page-navigation-open');legacyButton.setAttribute('aria-expanded','false');if(restoreFocus)legacyButton.focus();}
+  legacyButton.addEventListener('click',()=>{const opening=!document.body.classList.contains('page-navigation-open');document.body.classList.toggle('page-navigation-open',opening);legacyButton.setAttribute('aria-expanded',String(opening));if(opening)legacyMenu.querySelector('.is-active,button')?.focus();});
+  document.addEventListener('click',event=>{if(!event.target.closest('.sidebar,#legacyPagesButton'))closePageNavigation();});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.body.classList.contains('page-navigation-open')){event.preventDefault();closePageNavigation(true);}});
   initializeWorkInspectorResize();
   els.setupRetryButton.addEventListener("click", () => runAction(async () => {
     state.setupActionError = "";
@@ -583,9 +611,16 @@ function wireEvents() {
     renderSetup();
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
+  document.getElementById('chatSessionsToggle').addEventListener('click', () => setChatSessionsOpen(!document.body.classList.contains('chat-sessions-open')));
+  document.getElementById('chatSessionsClose').addEventListener('click', () => setChatSessionsOpen(false, true));
+  window.matchMedia('(max-width: 760px)').addEventListener('change', () => setChatSessionsOpen(false));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.body.classList.contains('chat-sessions-open')) setChatSessionsOpen(false, true);
+  });
   els.newChatButton.addEventListener("click", () => runAction(async () => {
     const projectId = defaultChatDraftProject()?.id || "";
     await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
+    setChatSessionsOpen(false);
     renderChat();
     els.chatInput.focus();
   }));
@@ -755,7 +790,9 @@ function wireEvents() {
     state.feedbackSort = els.feedbackSortSelect.value;
     renderPlatformFeedback();
   });
+  els.showArchivedExecutions?.addEventListener("change", renderExecutionHistory);
   els.feedbackRefreshButton.addEventListener("click", () => runAction(refreshFeedbackWorkspace));
+  els.feedbackKnowledgeButton?.addEventListener("click", () => openKnowledgeBaseDialog());
   els.closePlatformActionButton.addEventListener("click", () => closePlatformAction(null));
   els.cancelPlatformActionButton.addEventListener("click", () => closePlatformAction(null));
   els.platformActionOverlay.addEventListener("click", (event) => {
@@ -769,30 +806,7 @@ function wireEvents() {
     }
     closePlatformAction(serializePlatformAction());
   });
-  els.submitInterventionButton.addEventListener("click", () => runAction(async () => {
-    const active = state.snapshot.active_task;
-    const sourceTask = state.workbenchTask || (state.workbenchCompletion
-      ? state.snapshot.tasks.find((item) => String(item.id) === String(state.workbenchCompletion.task_id))
-      : null);
-    const acceptanceReview = Boolean(sourceTask && sourceTask.state === "completed");
-    if (!active && !acceptanceReview) throw new Error("当前没有活动执行。");
-    state.interventionSubmitting = true;
-    renderWorkbench();
-    try {
-      if (acceptanceReview) {
-        const key = globalThis.crypto?.randomUUID?.() || `${sourceTask.id}-${Date.now()}`;
-        await api.submitAcceptanceFeedback({ taskId: sourceTask.id, message: els.interventionInput.value, idempotencyKey: key });
-      } else {
-        await api.submitIntervention({ execution_id: state.snapshot.selected_execution_id, taskId: active.task_id, message: els.interventionInput.value });
-      }
-      els.interventionInput.value = "";
-      await refreshSnapshot();
-      if (!acceptanceReview) showPage("command");
-    } finally {
-      state.interventionSubmitting = false;
-      if (state.page === "workbench") renderWorkbench();
-    }
-  }));
+  els.submitInterventionButton.addEventListener("click", () => runAction(submitWorkbenchMessage));
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closePlatformAction(null);
@@ -1344,21 +1358,37 @@ function mergeWorkPlatformSnapshot(current, incoming) {
   };
 }
 
+// The workbench owns its event subscriptions. Only poll its data and account status;
+// rebuilding legacy snapshots here duplicates work on the same renderer thread.
+async function refreshProjectWorkbench() {
+  const authentication = normalizeAuthentication(await api.getAuthStatus());
+  if (state.page !== "project-workbench") return;
+  state.authentication = authentication;
+  renderPageVisibility();
+  renderNavigation();
+  routeAuthentication();
+  if (authentication.authenticated) await projectWorkbenchSurface.refresh();
+}
+
 function scheduleRefresh(delay = 80) {
+  if (state.page === "project-workbench") return;
   if (refreshQueued) return;
   refreshQueued = true;
   window.setTimeout(async () => {
     refreshQueued = false;
+    if (state.page === "project-workbench") return;
     const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     await refresh.catch((error) => showToast(error.message));
   }, delay);
 }
 
 function scheduleAutomationRefresh(delay = 80) {
+  if (state.page === "project-workbench") return;
   if (automationRefreshQueued) return;
   automationRefreshQueued = true;
   window.setTimeout(async () => {
     automationRefreshQueued = false;
+    if (state.page === "project-workbench") return;
     if (state.refreshing) {
       scheduleAutomationRefresh(delay);
       return;
@@ -1610,6 +1640,8 @@ function renderChat() {
     renderedChatSessionList = sessionList;
     els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
       await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
+      setChatSessionsOpen(false);
+      els.chatInput.focus();
       renderChat();
     })));
     els.chatSessionList.querySelectorAll("[data-chat-history-project-id]").forEach((button) => button.addEventListener("click", () => {
@@ -1627,7 +1659,7 @@ function renderChat() {
   els.chatStatusText.textContent = session
     ? `${chatStatusLabel(session.status)}${chat.refreshing ? " · 正在同步" : ""}${session.error ? ` · ${session.error}` : ""}`
     : chat.refreshing ? "正在同步最新会话…"
-      : project ? "发送第一条消息后创建持久会话和 Codex thread。" : "先在 Workset 中配置一个本地 Product Workspace。";
+      : project ? "从一个问题开始，消息与回答会保存在这段对话中。" : "先在 Workset 中配置一个本地 Product Workspace。";
   els.chatTranscript.setAttribute("aria-busy", String(chat.refreshing));
   els.renameChatButton.disabled = !session;
   els.deleteChatButton.disabled = !session;
@@ -1639,7 +1671,7 @@ function renderChat() {
     messages: session ? chat.snapshot.messages : [],
     emptyHtml: session
       ? `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`
-      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : bindableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
+      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "提问、讨论或一起完成工作。你可以随时停止回答，稍后继续。" : "选择 Workshop Project 和对应本地目录后返回当前草稿；该动作不创建组织、不邀请成员，也不修改 Workset。"}</p>${project ? "" : bindableRemoteProjects.length ? `<button class="primary-button" data-chat-add-workspace type="button">选择项目并绑定本地目录</button>` : `<button class="secondary-button" data-chat-copy-workspace-handoff type="button">复制项目连接说明</button>`}</div>`,
   });
   els.chatErrorHost.querySelector("[data-chat-retry-last]")?.addEventListener("click", () => {
     chatStateCoordinator.prepareRetry();
@@ -1763,16 +1795,18 @@ function render() {
   renderPageVisibility();
   renderNavigation();
   renderCommandBar();
+  if (state.page === "project-workbench") return;
   renderWorkset();
-  renderToday();
-  renderChat();
-  renderOrganization();
-  renderPlatformWork();
-  renderPlatformFeedback();
-  renderCommandCenter();
-  renderTaskBrowser();
-  renderWorkbench();
-  renderRecovery();
+  // Hidden workspaces are rendered when navigated to, using the latest state.
+  if (state.page === 'today') renderToday();
+  if (state.page === 'chat') renderChat();
+  if (state.page === 'organization') renderOrganization();
+  if (state.page === 'work') renderPlatformWork();
+  if (state.page === 'feedback') renderPlatformFeedback();
+  if (state.page === 'command') renderCommandCenter();
+  if (state.page === 'tasks') renderTaskBrowser();
+  if (state.page === 'workbench') renderWorkbench();
+  if (state.page === 'recovery') renderRecovery();
 }
 
 function renderWorkSurface() {
@@ -1783,7 +1817,25 @@ function renderWorkSurface() {
   renderPlatformWork();
 }
 
+let renderedWorkspaceSurface = "";
+function setChatSessionsOpen(open, restoreFocus = false) {
+  const narrow = window.matchMedia('(max-width: 760px)').matches;
+  const visible = Boolean(open && narrow && state.page === 'chat');
+  document.body.classList.toggle('chat-sessions-open', visible);
+  document.getElementById('chatSessionsToggle').setAttribute('aria-expanded', String(visible));
+  document.querySelector('#chatView .chat-main').inert = visible;
+  if (visible) document.getElementById('chatSessionsClose').focus();
+  else if (restoreFocus) document.getElementById('chatSessionsToggle').focus();
+}
 function renderPageVisibility() {
+  document.body.classList.toggle('chat-active', state.page === 'chat');
+  const workspaceSurface = state.page === 'project-workbench' ? 'workbench' : state.page === 'chat' ? 'chat' : 'legacy';
+  if (workspaceSurface !== renderedWorkspaceSurface) {
+    renderedWorkspaceSurface = workspaceSurface;
+    void api.setWorkspaceSurface?.(workspaceSurface);
+  }
+  document.body.classList.toggle('project-workbench-active',state.page==='project-workbench');
+  projectWorkbenchSurface.show(state.page==='project-workbench' && state.authentication.authenticated);
   engineeringSurface.show(state.page === 'engineering', state.page === 'chat');
   releaseSurface.show({active:state.page === "release", projectId:state.selectedProjectId, workset:state.platform.active_workset});
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
@@ -1802,8 +1854,8 @@ function renderNavigation() {
   els.accountName.textContent = accountName;
   els.accountAvatar.textContent = accountName.slice(0, 1).toUpperCase() || "W";
   els.accountStatus.textContent = state.authentication.authenticated ? sourceStatusLabel(snapshot.source_status) : "未登录";
-  els.titlebarSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
-  els.titlebarSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
+  els.accountSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
+  els.accountSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
 }
 
 function renderCommandBar() {
@@ -1814,7 +1866,7 @@ function renderCommandBar() {
     ? organizationScope?.name || "个人项目"
     : project?.name || state.platform.active_workset?.name || "项目集全部";
   els.pageTitle.textContent = {
-    today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
+    "project-workbench":"Thing", today: "Today", chat: "Chat", product: "Product", "product-detail": "产品详情", "idea-add": "添加 Idea", idea: "Idea", organization: "Organization", engineering: "Engineering",
     work: "Work", feedback: "Feedback", command: "Automation", release: "Release", operations: "Operations",
     tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
   }[state.page] || "ArcOrbit";
@@ -2472,7 +2524,8 @@ function renderOrganizationProjects(scope, personalProjects) {
   const members = selected ? (state.platform.project_members || []).filter((member) => String(member.project_id) === String(selected.id)) : [];
   const canManage = selected && ["owner", "admin"].includes(selected.current_user_role);
   const selectedScopeLabel = personal ? (selected?.external_participation ? "外部参与" : "个人项目") : scope?.name || "";
-  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><p>${escapeHtml(selected.git_url || "未设置 Git 地址")}</p><div class="project-connection-list"><span><strong>组织归属</strong><small>${escapeHtml(selectedScopeLabel)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>本地项目</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span></div>${organizationProjectGuidance(selected, canManage)}<div class="row-actions project-detail-actions"><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${canManage && !personal ? `<button data-project-member-add="${escapeHtml(selected.id)}" type="button">从组织添加成员</button>` : ""}${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
+  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><p>${escapeHtml(selected.git_url || "未设置 Git 地址")}</p><div class="project-connection-list"><span><strong>组织归属</strong><small>${escapeHtml(selectedScopeLabel)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>本地项目</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span><span><strong>知识库</strong><small data-knowledge-summary="${escapeHtml(selected.id)}">加载中…</small></span></div>${organizationProjectGuidance(selected, canManage)}<div class="row-actions project-detail-actions"><button data-knowledge-configure="${escapeHtml(selected.id)}" type="button">配置知识库</button><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${canManage && !personal ? `<button data-project-member-add="${escapeHtml(selected.id)}" type="button">从组织添加成员</button>` : ""}${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
+  if (selected) void loadKnowledgeFactSummary(selected);
 }
 
 function organizationProjectGuidance(project, canManage) {
@@ -2515,6 +2568,7 @@ function wireOrganizationActions() {
   els.organizationContent.querySelectorAll("[data-product-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteProject(button.dataset.productInvite))));
   els.organizationContent.querySelectorAll("[data-product-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProduct(button.dataset.productDelete))));
   els.organizationContent.querySelectorAll("[data-project-workset-toggle]").forEach((button) => button.addEventListener("click", () => runAction(() => toggleProjectInWorkset(button.dataset.projectWorksetToggle))));
+  els.organizationContent.querySelectorAll("[data-knowledge-configure]").forEach((button) => button.addEventListener("click", () => openKnowledgeBaseDialog(button.dataset.knowledgeConfigure, () => renderOrganization())));
   els.organizationContent.querySelectorAll("[data-organization-bind-workspace]").forEach((button) => button.addEventListener("click", () => runAction(() => bindProjectWorkspace(findWorkspace(button.dataset.organizationBindWorkspace)))));
   els.organizationContent.querySelectorAll("[data-organization-enable-project]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
     await api.setProjectParticipation(button.dataset.organizationEnableProject, true);
@@ -3019,7 +3073,7 @@ function renderFeedbackInspector(feedback) {
     ["提交时间", formatFeedbackDate(feedback.created_at)],
     ["最近更新", formatFeedbackDate(feedback.updated_at)],
     ["关联待办", feedback.linked_task_id ? `${feedback.linked_task_id}${feedback.linked_task_state ? ` · ${STATE_LABELS[feedback.linked_task_state] || feedback.linked_task_state}` : ""}` : "未关联"]
-  ])}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}</div>`;
+  ])}${renderAITriagePanel(feedback)}${renderRetrievalCard(feedback.retrieval)}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}</div>`;
   els.feedbackInspector.querySelector("[data-feedback-priority]")?.addEventListener("change", (event) => runAction(() => updateFeedbackPriority(feedback.id, event.currentTarget.value)));
   els.feedbackInspector.querySelector("[data-feedback-ignore]")?.addEventListener("click", () => runAction(() => ignoreFeedback(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-restore]")?.addEventListener("click", (event) => runAction(() => restoreFeedback(feedback.id, event.currentTarget)));
@@ -3027,6 +3081,9 @@ function renderFeedbackInspector(feedback) {
   els.feedbackInspector.querySelector("[data-feedback-task]")?.addEventListener("click", () => runAction(() => feedbackToTask(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-link-retry]")?.addEventListener("click", () => runAction(() => retryFeedbackTaskLink(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-delete]")?.addEventListener("click", () => runAction(() => deleteFeedback(feedback.id)));
+  // AI 分诊面板事件
+  els.feedbackInspector.querySelector("[data-ai-triage-accept]")?.addEventListener("click", () => runAction(() => acceptAITriage(feedback)));
+  els.feedbackInspector.querySelector("[data-ai-triage-adjust]")?.addEventListener("click", () => runAction(() => adjustAITriage(feedback)));
   wireFeedbackImages(feedback);
   wireFeedbackConversation(feedback, feedbackManagement);
   els.feedbackInspector.querySelector(".feedback-inspector-scroll").scrollTop = previousScrollTop;
@@ -3034,6 +3091,12 @@ function renderFeedbackInspector(feedback) {
     void loadFeedbackConversation(feedback, {
       force: Boolean(state.feedbackConversations[String(feedback.id)])
     });
+  }
+  if (!feedback.retrieval && feedback.content) {
+    void loadFeedbackRetrieval(feedback);
+  }
+  if (useV2 && !feedback.data?.triage) {
+    void ensureFeedbackTriage(feedback);
   }
 }
 
@@ -3121,12 +3184,194 @@ function renderFeedbackConversation(feedback, management) {
   const messages = conversation.messages || [];
   const error = conversation.error ? `<div class="feedback-conversation-error"><span>${escapeHtml(conversation.error)}</span><button data-feedback-messages-retry type="button">重试</button></div>` : "";
   const readError = conversation.readError ? `<small class="feedback-read-error">消息已加载，但未读状态保存失败；可稍后重试。</small>` : "";
+  
+  // 分离普通消息和待确认草稿
+  const pendingDrafts = messages.filter(m => m.sender_type === 'system' && m.state === 'pending_review');
+  const regularMessages = messages.filter(m => !(m.sender_type === 'system' && m.state === 'pending_review'));
+
+  // 渲染待确认草稿
+  const draftPanels = pendingDrafts.length > 0
+    ? `<div class="draft-list" aria-label="待确认草稿">${pendingDrafts.map(draft => renderDraftConfirmPanel(feedback, draft)).join('')}</div>`
+    : '';
+  
+  // 渲染普通消息列表
   const timeline = conversation.loading
     ? `<div class="feedback-conversation-loading">正在读取沟通记录…</div>`
-    : messages.length
-      ? `<div class="feedback-message-list">${messages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => feedbackResourceIsImage(attachment) ? renderFeedbackImage({ source: "feedback-v2", project_id: feedback.project_id, feedback_id: feedback.id, attachment_id: attachment.id, object_key: attachment.object_key, file_name: attachment.file_name || feedbackFileName(attachment.object_key), mime_type: attachment.mime_type, resource_version: attachment.id || attachment.object_key }) : `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
+    : regularMessages.length
+      ? `<div class="feedback-message-list">${regularMessages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => feedbackResourceIsImage(attachment) ? renderFeedbackImage({ source: "feedback-v2", project_id: feedback.project_id, feedback_id: feedback.id, attachment_id: attachment.id, object_key: attachment.object_key, file_name: attachment.file_name || feedbackFileName(attachment.object_key), mime_type: attachment.mime_type, resource_version: attachment.id || attachment.object_key }) : `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
       : `<div class="empty-state compact">尚无沟通记录。</div>`;
-  return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div><button class="secondary-button" data-feedback-conversation-refresh type="button" ${conversation.loading ? "disabled" : ""}>刷新</button></div>${error}${readError}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><label><span>回复附件</span><input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}><small>${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small></label><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></section>`;
+  
+  return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div><button class="secondary-button" data-feedback-conversation-refresh type="button" ${conversation.loading ? "disabled" : ""}>刷新</button></div>${error}${readError}${draftPanels}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><div class="feedback-reply-actions"><label class="secondary-button feedback-reply-attach">选择附件<input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}></label><small class="feedback-reply-file-hint">${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></div></section>`;
+}
+
+/**
+ * 渲染草稿确认面板：复用 draft-confirm-panel 体系与全局按钮/status-pill 控件。
+ * 仅渲染待确认草稿；已发送消息走 timeline 的 system 气泡。
+ */
+function renderDraftConfirmPanel(feedback, message) {
+  if (!feedback || !message) return "";
+  const metadata = parseMetadata(message.metadata);
+  const sourceFiles = metadata?.source_files || [];
+  return `
+    <div class="draft-confirm-panel" data-message-id="${escapeHtml(message.id)}">
+      <div class="draft-confirm-header">
+        <span class="draft-confirm-title">草稿确认</span>
+        <span class="status-pill pending_review">待确认</span>
+      </div>
+      <div>
+        <div class="draft-confirm-label">草稿回复</div>
+        <p class="draft-confirm-text">${escapeHtml(message.content || "")}</p>
+      </div>
+      ${sourceFiles.length ? `
+      <div>
+        <div class="draft-confirm-label">引用的源文件</div>
+        <div class="draft-confirm-sources">${sourceFiles.map((file) => `<code class="draft-confirm-source">${escapeHtml(file)}</code>`).join("")}</div>
+      </div>
+      ` : ""}
+      <div class="card-actions">
+        <button class="primary-button" data-action="confirm" data-message-id="${escapeHtml(message.id)}" type="button">批准发送</button>
+        <button class="secondary-button" data-action="reject" data-message-id="${escapeHtml(message.id)}" type="button">驳回重试</button>
+        <button class="secondary-button" data-action="manual" type="button">转人工回复</button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 解析 metadata
+ */
+function parseMetadata(metadata) {
+  if (!metadata) return null;
+  if (typeof metadata === 'string') {
+    try {
+      return JSON.parse(metadata);
+    } catch {
+      return null;
+    }
+  }
+  return metadata;
+}
+
+/**
+ * AI 分诊面板
+ * 渲染 AI 对反馈的初步判断（类型/优先级/可行动性/置信度）。
+ * 复用 section-title-row / status-pill / fact-row / 全局按钮体系。
+ */
+function renderAITriagePanel(feedback) {
+  const triage = feedback?.data?.triage;
+  if (!triage) return "";
+  const confidence = triage.confidence ?? 0;
+  const confidenceClass = confidence >= 0.75 ? "high" : confidence >= 0.5 ? "medium" : "low";
+  return `
+    <details class="ai-triage-panel" open>
+      <summary class="section-title-row ai-triage-head">
+        <div><span class="section-icon" aria-hidden="true">✦</span><div><h3>AI 分诊初判</h3><p>启发式分析 · 供人工确认</p></div></div>
+        <span class="status-pill ${confidenceClass}">${Math.round(confidence * 100)}%</span>
+      </summary>
+      <div class="ai-triage-body">
+        <div class="fact-grid">
+          <div class="fact-row"><small>类型</small><strong>${escapeHtml(triage.type || "未判断")}</strong></div>
+          <div class="fact-row"><small>优先级</small><strong>${escapeHtml(triage.priority || "P2")}</strong></div>
+          <div class="fact-row"><small>可行动性</small><strong>${escapeHtml(triage.actionability || "待确认")}</strong></div>
+          <div class="fact-row"><small>需补问</small><strong>${triage.needs_clarification ? "是" : "否"}</strong></div>
+        </div>
+        <div class="fact-grid">
+          <div class="fact-row"><small>表达清晰</small><div class="score-meter"><div style="width:${Math.round((triage.clarity || 0) * 100)}%"></div></div></div>
+          <div class="fact-row"><small>影响面</small><div class="score-meter"><div style="width:${Math.round((triage.impact || 0) * 100)}%"></div></div></div>
+          <div class="fact-row"><small>紧急度</small><div class="score-meter"><div style="width:${Math.round((triage.urgency || 0) * 100)}%"></div></div></div>
+        </div>
+        ${triage.reasoning ? `<div class="insight-callout"><small>推理说明</small><p>${escapeHtml(triage.reasoning)}</p></div>` : ""}
+        <div class="card-actions">
+          <button class="secondary-button" data-ai-triage-accept type="button">采纳初判</button>
+          <button class="secondary-button" data-ai-triage-adjust type="button">人工调整</button>
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+/**
+ * 知识库检索卡片
+ * 渲染 OpenHands Agent 检索结果；复用 section-title-row / status-pill / insight-callout 体系。
+ */
+function renderRetrievalCard(retrieval) {
+  if (!retrieval) return "";
+  const hits = retrieval.hits || [];
+  const confidence = retrieval.confidence ?? 0;
+  const confidenceClass = confidence >= 0.75 ? "high" : confidence >= 0.5 ? "medium" : "low";
+  return `
+    <div class="retrieval-card">
+      <div class="section-title-row retrieval-head">
+        <div><span class="section-icon" aria-hidden="true">⌕</span><div><h3>知识库检索</h3><p>${hits.length ? `命中 ${hits.length} 条 · 来源已标注` : "两层知识库未命中"}</p></div></div>
+        <span class="status-pill ${confidenceClass}">${Math.round(confidence * 100)}%</span>
+      </div>
+      <div class="retrieval-body">
+        ${hits.length > 0 ? `
+          <div class="retrieval-hits">
+            ${hits.map(hit => `
+              <div class="retrieval-hit">
+                <div class="retrieval-hit-head">
+                  <span class="retrieval-source ${escapeHtml(hit.source || "")}">${escapeHtml(hit.source === "customer_lib" ? "客户库" : hit.source === "product_lib" ? "产品库" : hit.source || "未知")}</span>
+                  <span class="retrieval-type">${escapeHtml(hit.type || "")}</span>
+                  <span class="retrieval-score">${Math.round((hit.score || 0) * 100)}%</span>
+                </div>
+                <strong>${escapeHtml(hit.title || "")}</strong>
+                <p>${escapeHtml(hit.snippet || "")}</p>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<p class="retrieval-empty">未命中知识库，可直接转追问收集</p>`}
+        ${retrieval.draft_reply ? `
+          <div class="insight-callout">
+            <small>拟回复</small>
+            <p>${escapeHtml(retrieval.draft_reply)}</p>
+          </div>
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * 客户代码仓库管理
+ * 渲染项目关联的客户代码仓库列表：行式布局替代宽表格，适配弹窗宽度。
+ */
+function renderCustomerCodeRepos(repos, projectId) {
+  if (!repos || repos.length === 0) {
+    return `
+      <div class="customer-code-repos">
+        <div class="section-title-row">
+          <div><span class="section-icon" aria-hidden="true">⚙</span><div><h2>客户代码仓库</h2><p>尚未关联任何客户代码仓库</p></div></div>
+        </div>
+        <p class="customer-code-repos-empty">添加仓库并完成同步索引后，智能客服检索即可命中客户真实代码。</p>
+      </div>
+    `;
+  }
+  return `
+    <div class="customer-code-repos">
+      <div class="section-title-row">
+        <div><span class="section-icon" aria-hidden="true">⚙</span><div><h2>客户代码仓库</h2><p>${repos.length} 个仓库 · 同步后进入智能检索</p></div></div>
+      </div>
+      <div class="customer-code-repos-body">
+        <div class="kb-repo-list">
+          ${repos.map((repo) => {
+            const statusLabel = repo.status === "syncing" ? "同步中" : repo.status === "error" ? "错误" : "就绪";
+            return `
+            <div class="kb-repo-row" data-repo-id="${escapeHtml(repo.id)}">
+              <div class="kb-repo-main">
+                <div class="kb-repo-line1"><code>${escapeHtml(repo.repo_url || repo.repo_path || "")}</code><span class="status-pill ${escapeHtml(repo.status || "ready")}">${statusLabel}</span></div>
+                <div class="kb-repo-line2">客户 ${escapeHtml(repo.customer_id || "未填写")} · 分支 ${escapeHtml(repo.branch || "main")} · 自动同步${repo.auto_sync ? "开启" : "关闭"}</div>
+              </div>
+              <div class="kb-repo-actions">
+                <button class="secondary-button" data-kb-sync data-repo-id="${escapeHtml(repo.id)}" data-project-id="${escapeHtml(projectId)}" type="button" ${repo.status === "syncing" ? "disabled" : ""}>同步</button>
+                <button class="secondary-button danger-action" data-kb-delete data-repo-id="${escapeHtml(repo.id)}" data-project-id="${escapeHtml(projectId)}" type="button">删除</button>
+              </div>
+            </div>`;
+          }).join("")}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function wireFeedbackConversation(feedback, management) {
@@ -3143,6 +3388,22 @@ function wireFeedbackConversation(feedback, management) {
     renderFeedbackInspector(feedback);
   });
   els.feedbackInspector.querySelector("[data-feedback-reply-send]")?.addEventListener("click", () => runAction(() => sendFeedbackReply(feedback)));
+  
+  // 草稿确认按钮事件
+  els.feedbackInspector.querySelectorAll('[data-action="confirm"]').forEach(btn => {
+    btn.addEventListener('click', () => runAction(() => handleConfirmDraft(feedback, btn.dataset.messageId)));
+  });
+
+  els.feedbackInspector.querySelectorAll('[data-action="reject"]').forEach(btn => {
+    btn.addEventListener('click', () => runAction(() => handleRejectDraft(feedback, btn.dataset.messageId)));
+  });
+
+  els.feedbackInspector.querySelectorAll('[data-action="manual"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      els.feedbackInspector.querySelector("[data-feedback-reply]")?.focus();
+    });
+  });
+  
   els.feedbackInspector.querySelectorAll("[data-feedback-message-attachment]").forEach((button) => button.addEventListener("click", () => {
     void runAction(() => runFeedbackV2Request(() => api.openFeedbackV2Attachment({
       project_id: feedback.project_id,
@@ -3151,6 +3412,316 @@ function wireFeedbackConversation(feedback, management) {
       object_key: button.dataset.objectKey
     })));
   }));
+}
+
+/**
+ * 处理确认草稿：项目归属取反馈自身，避免 workset 过滤下错用 active_workset_id。
+ */
+async function handleConfirmDraft(feedback, messageId) {
+  if (!feedback?.id) {
+    console.error('[DraftConfirm] 未选中反馈');
+    return;
+  }
+  await api.confirmFeedbackDraft({
+    project_id: feedback.project_id,
+    feedback_id: feedback.id,
+    message_id: messageId,
+  });
+  renderPlatformFeedback();
+}
+
+/**
+ * 处理驳回草稿
+ */
+async function handleRejectDraft(feedback, messageId) {
+  if (!feedback?.id) {
+    console.error('[DraftConfirm] 未选中反馈');
+    return;
+  }
+  await api.rejectFeedbackDraft({
+    project_id: feedback.project_id,
+    feedback_id: feedback.id,
+    message_id: messageId,
+  });
+  renderPlatformFeedback();
+}
+
+/**
+ * 采纳 AI 分诊初判
+ */
+async function acceptAITriage(feedback) {
+  try {
+    const triage = feedback?.data?.triage;
+    if (!triage) return;
+    // 将 AI 初判应用到反馈
+    await api.updateFeedbackV2({
+      project_id: feedback.project_id,
+      feedback_id: feedback.id,
+      data: { ...feedback.data, triage_applied: true }
+    });
+    renderPlatformFeedback();
+    console.log(`[AITriage] 已采纳 AI 分诊: ${feedback.id}`);
+  } catch (error) {
+    console.error(`[AITriage] 采纳失败:`, error);
+  }
+}
+
+/**
+ * 人工调整 AI 分诊
+ */
+async function adjustAITriage(feedback) {
+  // 切换到人工调整模式（聚焦优先级选择器）
+  const prioritySelect = document.querySelector(`[data-feedback-priority="${feedback.id}"]`);
+  if (prioritySelect) {
+    prioritySelect.focus();
+  }
+}
+
+/**
+ * 添加客户代码仓库（模态表单对话框）
+ */
+/**
+ * 显示添加代码仓库的模态表单
+ */
+// Organization 项目检查器的知识库事实行：仓库数与就绪状态，加载失败保持占位。
+async function loadKnowledgeFactSummary(project) {
+  if (!project?.id) return;
+  const container = els.organizationContent?.querySelector(`[data-knowledge-summary="${CSS.escape(String(project.id))}"]`);
+  if (!container) return;
+  try {
+    const result = await api.listCustomerCodeRepos(project.id);
+    const repos = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
+    const ready = repos.filter((repo) => repo.status === "ready").length;
+    const syncing = repos.filter((repo) => repo.status === "syncing").length;
+    container.textContent = repos.length
+      ? `${repos.length} 个仓库 · ${syncing ? "索引中" : `${ready} 个就绪`}`
+      : "尚未配置仓库";
+  } catch (_) {
+    container.textContent = "状态未知";
+  }
+}
+
+/**
+ * 项目级知识库配置：仓库先于反馈配置并完成索引，智能客服检索才能命中客户代码。
+ * 单弹窗双视图（仓库列表 ⇄ 添加表单原地切换），替代旧的嵌套 modal；项目选择沿用 Feedback 页作用域。
+ */
+function openKnowledgeBaseDialog(preselectProjectId = "", onClose = null) {
+  const catalog = (state.platform.projects || []).map((project) => ({ id: String(project.id), name: project.name || `项目 ${project.id}` }));
+  // 锁定项目：从 Organization 项目详情进入时只操作该项目，不显示选择器。
+  const scoped = preselectProjectId
+    ? catalog.filter((project) => project.id === String(preselectProjectId))
+    : state.selectedProjectId === "all"
+      ? catalog
+      : catalog.filter((project) => project.id === String(state.selectedProjectId));
+  const projects = scoped.length ? scoped : (preselectProjectId ? [{ id: String(preselectProjectId), name: `项目 ${preselectProjectId}` }] : catalog);
+  if (!projects.length) {
+    console.warn("[CustomerCodeRepo] 当前产品集没有可用项目，无法配置知识库。");
+    return;
+  }
+  const LIST_HINT = "智能客服检索依赖客户代码仓库索引：先配置仓库并同步，客户反馈到来时即可命中真实代码与文档。";
+  const ADD_HINT = "仓库加入后先同步并完成索引，客户反馈检索才能命中真实代码；本地路径按磁盘快照直接索引。";
+  const dialog = document.createElement("dialog");
+  dialog.className = "app-dialog knowledge-dialog";
+  const showPicker = !preselectProjectId && projects.length > 1;
+  dialog.innerHTML = `
+    <header class="knowledge-dialog-header">
+      <div><h2 data-kb-title>知识库仓库</h2><p class="knowledge-dialog-hint" data-kb-hint>${LIST_HINT}</p></div>
+      <button class="knowledge-dialog-dismiss" data-kb-dismiss type="button" aria-label="关闭知识库配置">✕</button>
+    </header>
+    <div class="knowledge-dialog-body">
+      <section data-kb-view="list">
+        ${showPicker ? `<label class="knowledge-dialog-project"><span>目标项目</span><select data-kb-project>${projects.map((project) => `<option value="${escapeHtml(project.id)}"${project.id === String(state.selectedProjectId) ? " selected" : ""}>${escapeHtml(project.name)}</option>`).join("")}</select></label>` : ""}
+        <div data-kb-panel><p class="retrieval-empty">正在加载仓库列表…</p></div>
+        <div class="knowledge-dialog-test">
+          <div class="section-title-row"><div><span class="section-icon" aria-hidden="true">⌕</span><div><h2>检索测试</h2><p>直查项目索引，验证仓库配置是否生效</p></div></div></div>
+          <div class="knowledge-dialog-test-row">
+            <input data-kb-test-input type="search" placeholder="输入客户可能提问的内容，如：登录无响应" aria-label="检索测试关键词">
+            <button class="secondary-button" type="button" data-kb-test-run>测试</button>
+          </div>
+          <div class="knowledge-dialog-test-result" data-kb-test-result></div>
+        </div>
+      </section>
+      <section data-kb-view="add" hidden>
+        <form data-kb-add-form>
+          <div class="field">
+            <span>客户标识 *</span>
+            <input name="customer_id" required placeholder="如：customer-001" autocomplete="off">
+          </div>
+          <div class="field">
+            <span>仓库地址 *</span>
+            <input name="repo_location" required placeholder="Git 地址（https://…）或本地路径（/path/to/repo）" autocomplete="off">
+            <small>Git 地址按分支拉取同步；本地路径直接索引当前磁盘快照。</small>
+          </div>
+          <div class="field">
+            <span>分支</span>
+            <input name="branch" value="main" placeholder="main" autocomplete="off">
+          </div>
+          <label class="toggle-row">
+            <input type="checkbox" name="auto_sync" checked>
+            <span><strong>自动同步</strong><small>开启后定期拉取最新代码并重建索引。</small></span>
+          </label>
+        </form>
+      </section>
+    </div>
+    <footer class="knowledge-dialog-footer">
+      <p class="knowledge-dialog-status" data-kb-status role="status"></p>
+      <div class="knowledge-dialog-actions">
+        <button class="secondary-button" data-kb-back type="button" hidden>返回列表</button>
+        <button class="primary-button" data-kb-add type="button">添加仓库</button>
+        <button class="secondary-button" data-kb-close type="button">关闭</button>
+      </div>
+    </footer>
+  `;
+  document.body.append(dialog);
+  const panel = dialog.querySelector("[data-kb-panel]");
+  const projectSelect = dialog.querySelector("[data-kb-project]");
+  const currentProjectId = () => (projectSelect ? projectSelect.value : String(projects[0].id));
+
+  const views = {
+    list: dialog.querySelector('[data-kb-view="list"]'),
+    add: dialog.querySelector('[data-kb-view="add"]')
+  };
+  const title = dialog.querySelector("[data-kb-title]");
+  const hint = dialog.querySelector("[data-kb-hint]");
+  const statusLine = dialog.querySelector("[data-kb-status]");
+  const addButton = dialog.querySelector("[data-kb-add]");
+  const backButton = dialog.querySelector("[data-kb-back]");
+  const addForm = dialog.querySelector("[data-kb-add-form]");
+  let statusTimer = null;
+
+  const setStatus = (text, kind = "") => {
+    if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    statusLine.textContent = text;
+    statusLine.classList.remove("is-ok", "is-error");
+    if (kind === "ok" || kind === "error") statusLine.classList.add(`is-${kind}`);
+    if (kind === "ok") statusTimer = setTimeout(() => { statusLine.textContent = ""; statusLine.classList.remove("is-ok"); }, 4000);
+  };
+
+  function showView(name) {
+    const adding = name === "add";
+    views.list.hidden = adding;
+    views.add.hidden = !adding;
+    backButton.hidden = !adding;
+    addButton.textContent = adding ? "添加" : "添加仓库";
+    title.textContent = adding ? "添加代码仓库" : "知识库仓库";
+    hint.textContent = adding ? ADD_HINT : LIST_HINT;
+    setStatus("");
+    if (adding) addForm.querySelector("input[name=\"customer_id\"]")?.focus();
+  }
+
+  async function refreshPanel() {
+    const projectId = currentProjectId();
+    let repos = [];
+    try {
+      const result = await api.listCustomerCodeRepos(projectId);
+      repos = result?.data || result || [];
+    } catch (error) {
+      console.error("[CustomerCodeRepo] 仓库列表加载失败:", error);
+    }
+    panel.innerHTML = renderCustomerCodeRepos(Array.isArray(repos) ? repos : [], projectId);
+    panel.querySelectorAll("[data-kb-sync]").forEach((button) => button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await api.syncCustomerCodeRepo({ project_id: button.dataset.projectId, repo_id: button.dataset.repoId });
+        setStatus("同步已触发，索引完成后检索即可命中。", "ok");
+        await refreshPanel();
+      } catch (error) {
+        setStatus(`同步失败：${error?.message || error}`, "error");
+        button.disabled = false;
+      }
+    }));
+    panel.querySelectorAll("[data-kb-delete]").forEach((button) => button.addEventListener("click", async () => {
+      // 二段确认替代原生 confirm：第一次点击进入待确认态，再次点击才执行删除。
+      if (button.dataset.armed !== "true") {
+        button.dataset.armed = "true";
+        button.textContent = "确认删除";
+        setTimeout(() => {
+          if (button.isConnected && button.dataset.armed === "true") {
+            button.dataset.armed = "false";
+            button.textContent = "删除";
+          }
+        }, 4000);
+        return;
+      }
+      try {
+        await api.deleteCustomerCodeRepo({ project_id: button.dataset.projectId, repo_id: button.dataset.repoId });
+        setStatus("仓库已删除。", "ok");
+        await refreshPanel();
+      } catch (error) {
+        setStatus(`删除失败：${error?.message || error}`, "error");
+      }
+    }));
+  }
+
+  async function submitAddRepo() {
+    // 原生校验：必填未填时 reportValidity 提示并中止。
+    if (!addForm.reportValidity()) return;
+    const data = new FormData(addForm);
+    const location = String(data.get("repo_location") || "").trim();
+    const isGitUrl = /^(https?:\/\/|git@|ssh:\/\/)/i.test(location);
+    addButton.disabled = true;
+    try {
+      await api.createCustomerCodeRepo({
+        project_id: currentProjectId(),
+        customer_id: String(data.get("customer_id") || "").trim(),
+        repo_url: isGitUrl ? location : "",
+        repo_path: isGitUrl ? "" : location,
+        branch: String(data.get("branch") || "").trim() || "main",
+        auto_sync: data.get("auto_sync") === "on"
+      });
+      addForm.reset();
+      showView("list");
+      await refreshPanel();
+      setStatus("仓库已添加，正在同步索引；完成后可用下方检索测试验证。", "ok");
+    } catch (error) {
+      setStatus(`添加失败：${error?.message || error}`, "error");
+    } finally {
+      addButton.disabled = false;
+    }
+  }
+
+  addForm.addEventListener("submit", (event) => { event.preventDefault(); void submitAddRepo(); });
+  addButton.addEventListener("click", () => {
+    if (views.add.hidden) showView("add");
+    else void submitAddRepo();
+  });
+  backButton.addEventListener("click", () => showView("list"));
+
+  const testInput = dialog.querySelector("[data-kb-test-input]");
+  const testResult = dialog.querySelector("[data-kb-test-result]");
+  dialog.querySelector("[data-kb-test-run]").addEventListener("click", async () => {
+    const query = testInput.value.trim();
+    if (!query) return;
+    testResult.innerHTML = `<p class="retrieval-empty">检索中…</p>`;
+    try {
+      const result = await api.searchKnowledgeCode({ project_id: currentProjectId(), query });
+      const hits = Array.isArray(result?.data) ? result.data : [];
+      testResult.innerHTML = hits.length ? `<div class="retrieval-hits">${hits.slice(0, 5).map((hit) => `
+        <div class="retrieval-hit">
+          <div class="retrieval-hit-head">
+            <span class="retrieval-source customer_lib">${escapeHtml(hit.symbol_type || "代码")}</span>
+            <span class="retrieval-type">${escapeHtml(hit.file_path || "")}</span>
+            <span class="retrieval-score">${Math.round((hit.score || 0) * 100)}%</span>
+          </div>
+          <strong>${escapeHtml(hit.symbol_name || hit.file_path || "命中")}</strong>
+          <p>${escapeHtml(hit.snippet || "")}</p>
+        </div>`).join("")}</div>`
+        : `<p class="retrieval-empty">未命中：请确认仓库已添加并完成同步索引。</p>`;
+    } catch (error) {
+      testResult.innerHTML = `<p class="retrieval-empty">检索失败：${escapeHtml(String(error?.message || error))}</p>`;
+    }
+  });
+  projectSelect?.addEventListener("change", () => { setStatus(""); void refreshPanel(); });
+  dialog.querySelector("[data-kb-dismiss]").addEventListener("click", () => dialog.close());
+  dialog.querySelector("[data-kb-close]").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => {
+    if (statusTimer) clearTimeout(statusTimer);
+    dialog.remove();
+    if (onClose) onClose();
+    else renderPlatformFeedback();
+  });
+  dialog.showModal();
+  void refreshPanel();
 }
 
 function feedbackResourceIsImage(value = {}) {
@@ -3197,6 +3768,39 @@ function pumpFeedbackImagePreviewQueue() {
       }
       pumpFeedbackImagePreviewQueue();
     });
+  }
+}
+
+async function loadFeedbackRetrieval(feedback) {
+  const id = String(feedback.id);
+  try {
+    const result = await api.retrieveFeedback({ project_id: feedback.project_id, query: feedback.content, conversation_id: "" });
+    if (!result) return;
+    const hits = result.hits || result.data?.hits || [];
+    const confidence = result.confidence ?? result.data?.confidence ?? 0;
+    const draftReply = result.draft_reply || result.data?.draft_reply || "";
+    feedback.retrieval = { hits, confidence, draft_reply: draftReply };
+    const card = renderRetrievalCard(feedback.retrieval);
+    const existing = els.feedbackInspector.querySelector(".retrieval-card");
+    if (existing) {
+      existing.outerHTML = card;
+    } else {
+      const factSection = els.feedbackInspector.querySelector(".feedback-content-card");
+      if (factSection) factSection.insertAdjacentHTML("afterend", card);
+    }
+  } catch (_) {
+    feedback.retrieval = { hits: [], confidence: 0, draft_reply: "" };
+  }
+}
+
+// AI 分诊初判：详情打开且尚无 data.triage 时触发一次后端分析，成功后重绘面板。
+async function ensureFeedbackTriage(feedback) {
+  if (feedback.data?.triage) return;
+  try {
+    await api.runFeedbackTriage({ project_id: feedback.project_id, feedback_id: feedback.id });
+    await refreshFeedbackWorkspace();
+  } catch (_) {
+    // 初判失败不阻断详情查看，保留人工分诊路径。
   }
 }
 
@@ -4230,6 +4834,13 @@ function workshopTaskPriority(task) {
   return Number.isFinite(number) ? String(number) : String(servicePriority(task?.priority));
 }
 
+function renderCommandSyncSummary() {
+  const snapshot = state.snapshot;
+  const worksetProjects = automationProjectsInActiveWorkset();
+  const scopedProjects = state.selectedProjectId === "all" ? worksetProjects : worksetProjects.filter((project) => project.id === state.selectedProjectId);
+  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · ${realtimeStatusLabel(snapshot.realtime)} · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+}
+
 function renderCommandCenter() {
   const snapshot = state.snapshot;
   const worksetProjects = automationProjectsInActiveWorkset();
@@ -4238,7 +4849,7 @@ function renderCommandCenter() {
   const scopedBlockedPending = (snapshot.blocked_pending_tasks || []).filter(scopedTaskFilter);
   const scopedFeedback = (snapshot.acceptance_feedback_queue || []).filter(scopedTaskFilter);
   els.commandHeading.textContent = state.selectedProjectId === "all" ? "产品集自动领取态势" : `${currentProject()?.name || "项目"} 自动领取态势`;
-  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · ${realtimeStatusLabel(snapshot.realtime)} · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+  renderCommandSyncSummary();
   els.healthBadge.className = `health-badge ${snapshot.health?.tone === "success" ? "success" : snapshot.health?.tone === "danger" ? "danger" : snapshot.health?.tone === "warning" ? "warning" : ""}`;
   els.healthBadge.textContent = snapshot.health?.label || "待命";
   els.queuePauseButton.textContent = snapshot.queue_paused ? "继续领取" : "暂停领取";
@@ -4271,7 +4882,72 @@ function renderCommandCenter() {
   renderQueue(scopedQueue, scopedBlockedPending);
   renderAcceptanceFeedbackQueue(scopedFeedback);
   renderRecentCompletions();
+  renderExecutionHistory();
   renderCommandInspector(scopedProjects);
+}
+
+async function submitWorkbenchMessage() {
+  const target = currentWorkbenchExecution();
+  if (!els.interventionInput.value.trim()) throw new Error("请输入要发送的说明，或点击恢复执行。");
+  if (!target || target.status === "resolved") throw new Error("请选择需要继续的执行；新问题请在待办详情中提出。");
+  state.interventionSubmitting = true;
+  renderWorkbench();
+  try {
+    await api.manageAutomationExecution({ history_id: target.history_id, action: "resume", message: els.interventionInput.value });
+    els.interventionInput.value = "";
+    await refreshSnapshot();
+    showPage("command");
+  } finally {
+    state.interventionSubmitting = false;
+    if (state.page === "workbench") renderWorkbench();
+  }
+}
+
+function currentWorkbenchExecution() {
+  return workbenchExecutionTarget(state.snapshot, {
+    historyId: state.workbenchHistoryId || "",
+    taskId: state.workbenchTask?.id || state.workbenchCompletion?.task_id || "",
+    feedbackId: state.workbenchFeedbackId || "",
+    runId: state.workbenchRun?.id || state.workbenchCompletion?.run_id || ""
+  });
+}
+
+function executionActionButtons(item) {
+  const button = (action, label) => `<button class="secondary-button" type="button" data-execution-action="${action}" data-execution-history="${escapeHtml(item.history_id)}">${label}</button>`;
+  if (item.archived_at) return button("unarchive", "取消归档");
+  const live = item.active && ["starting", "running", "continuing", "closeout_running", "closeout_starting", "switching_to_cli"].includes(item.status);
+  if (live) return button("stop", "停止执行");
+  return (item.status !== "resolved" ? button("resume", "恢复执行") : "")
+    + (!["resolved", "cancelled"].includes(item.status) ? button("cancel", "取消执行") : "")
+    + (!item.active && ["stopped", "cancelled", "resolved"].includes(item.status) ? button("archive", "归档") : "");
+}
+
+function wireExecutionActions(host) {
+  host.querySelectorAll("[data-execution-action]").forEach(button => button.addEventListener("click", () => runAction(async () => {
+    const item = (state.snapshot.execution_history || []).find(item => item.history_id === button.dataset.executionHistory);
+    if (!item) throw new Error("执行已变化，请刷新后重试。");
+    button.disabled = true;
+    try {
+      if (button.dataset.executionAction === "stop") await api.stopAutomationRun({ execution_id: item.execution_id });
+      else await api.manageAutomationExecution({ history_id: item.history_id, action: button.dataset.executionAction });
+      await refreshSnapshot();
+    } finally { button.disabled = false; }
+  })));
+}
+
+function renderExecutionHistory() {
+  if (!els.executionHistoryList) return;
+  const items = (state.snapshot.execution_history || []).filter(scopedTaskFilter)
+    .filter(item => !state.acceptanceFeedbackOnly || item.feedback_id)
+    .filter(item => els.showArchivedExecutions.checked || !item.archived_at);
+  const labels = { stopped: "已停止", cancelled: "已取消", resolved: "已解决", blocked: "已阻塞", recovery: "需要恢复", queued: "排队中", running: "运行中", awaiting_human: "等待人工", external_wait: "等待外部结果" };
+  els.executionHistoryList.innerHTML = items.length ? items.map(item => `<article class="execution-history-item"><div><strong>${escapeHtml(item.title || item.task_title)}</strong><p>${escapeHtml(labels[item.status] || item.status)}${item.archived_at ? " · 已归档" : ""} · ${escapeHtml(item.task_id)}${item.progress ? ` · ${escapeHtml(item.progress)}` : ""}</p></div><div class="execution-history-actions"><button class="text-button" data-history-open="${escapeHtml(item.history_id)}" type="button">查看对话</button>${executionActionButtons(item)}</div></article>`).join("") : `<div class="empty-state">当前范围没有执行历史。</div>`;
+  wireExecutionActions(els.executionHistoryList);
+  els.executionHistoryList.querySelectorAll("[data-history-open]").forEach(button => button.addEventListener("click", () => runAction(async () => {
+    const item = items.find(item => item.history_id === button.dataset.historyOpen);
+    const task = state.snapshot.tasks.find(task => String(task.id) === String(item.task_id));
+    await openWorkbench("review", item.run_id, { task, feedbackId: item.feedback_id || "", historyId: item.history_id });
+  })));
 }
 
 function renderAcceptanceFeedbackQueue(items) {
@@ -4352,7 +5028,7 @@ function renderCurrentRun(blockedPendingTasks = []) {
   if (!activeExecutionMatchesSelectedProject(active)) {
     const stopped = [...(state.snapshot.stopped_executions || [])].reverse().find(scopedTaskFilter);
     els.currentRunPanel.innerHTML = stopped
-      ? `<div class="run-empty"><div><strong>执行已停止</strong><p>${escapeHtml(taskDisplayTitle(stopped.task_title, stopped.task_id))}</p><p>${escapeHtml(stopped.execution_outcome?.reason || "已保留未完成事项。")}</p><small>待办状态保持不变；重新设为待处理可再次进入队列。</small></div></div>`
+      ? `<div class="run-empty"><div><strong>执行已停止</strong><p>${escapeHtml(taskDisplayTitle(stopped.task_title, stopped.task_id))}</p><p>${escapeHtml(stopped.execution_outcome?.reason || "已保留未完成事项。")}</p><small>待办状态保持不变；请在下方“执行历史与恢复”中恢复原执行。</small></div></div>`
       : `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.some(scopedTaskFilter) ? "自动化将从下一队列领取一项任务。" : blockedPendingTasks.length ? "存在待处理任务，但项目尚未满足自动执行条件。" : "同步后继续监听待处理任务。"}</p></div></div>`;
     els.currentRunActions.innerHTML = "";
     return;
@@ -4606,6 +5282,7 @@ function workAcceptanceSelectionTarget(taskId) {
 
 async function openWorkbench(mode = "review", runId = "", context = {}) {
   state.workbenchMode = mode;
+  state.workbenchHistoryId = context.historyId || "";
   state.workbenchCompletion = runId
     ? state.snapshot.recent_completions.find((item) => item.run_id === runId) || null
     : null;
@@ -4614,6 +5291,11 @@ async function openWorkbench(mode = "review", runId = "", context = {}) {
   state.workbenchRun = runId && state.snapshot.active_run?.id !== runId
     ? (await api.listRuns({})).find((run) => run.id === runId) || null
     : null;
+  const selectedHistory = currentWorkbenchExecution();
+  if (selectedHistory && !state.workbenchRun && state.snapshot.active_run?.id !== selectedHistory.run_id) {
+    state.workbenchRun = { id: selectedHistory.run_id, project_id: selectedHistory.local_project_id,
+      session_id: selectedHistory.session_id, task_id: selectedHistory.task_id, activity: {} };
+  }
   state.transcriptSessionId = "";
   workbenchConversationSurface.followLatest();
   await loadTranscript({ force: true });
@@ -4621,8 +5303,11 @@ async function openWorkbench(mode = "review", runId = "", context = {}) {
 }
 
 async function loadTranscript({ force = false } = {}) {
-  const active = state.snapshot.active_task;
-  const run = state.workbenchRun || state.snapshot.active_run;
+  const selectedExecution = currentWorkbenchExecution();
+  const active = selectedExecution?.active
+    ? (state.snapshot.active_executions || []).find(item => item.execution_id === selectedExecution.execution_id) || null
+    : null;
+  const run = state.workbenchRun || active?.active_run || (active?.run_id === state.snapshot.active_run?.id ? state.snapshot.active_run : null);
   const localProjectId = state.workbenchTask?.local_project_id || state.workbenchCompletion?.local_project_id || active?.local_project_id || run?.project_id || "";
   if (!localProjectId || !run?.session_id) {
     state.transcript = [];
@@ -4653,11 +5338,14 @@ async function loadTranscript({ force = false } = {}) {
 }
 
 function renderWorkbench() {
-  const active = state.snapshot.active_task;
+  const selectedExecution = currentWorkbenchExecution();
+  const active = selectedExecution?.active
+    ? (state.snapshot.active_executions || []).find(item => item.execution_id === selectedExecution.execution_id) || null
+    : null;
   const completion = state.workbenchCompletion;
   const sourceTask = state.workbenchTask || (completion ? state.snapshot.tasks.find((item) => String(item.id) === String(completion.task_id)) : null);
   const feedbackItem = sourceTask?.acceptance_feedback_items?.find((item) => item.feedback_id === state.workbenchFeedbackId) || null;
-  const run = state.workbenchRun || state.snapshot.active_run;
+  const run = state.workbenchRun || active?.active_run || (active?.run_id === state.snapshot.active_run?.id ? state.snapshot.active_run : null);
   const activity = run?.activity || {};
   const attention = state.snapshot.attention_items.find((item) => !active || item.task_id === active.task_id);
   const taskId = sourceTask?.id || completion?.task_id || active?.task_id || "";
@@ -4668,12 +5356,18 @@ function renderWorkbench() {
     : taskDisplayTitle(completion?.title || active?.task_title, "执行对话审查");
   els.workbenchMode.className = `status-pill ${state.workbenchMode === "intervention" ? "pending" : acceptanceReview ? "completed" : "pending_review"}`;
   els.workbenchMode.textContent = state.workbenchMode === "intervention" ? "人工处理" : acceptanceReview ? "验收问题" : "只读审查";
-  els.interventionComposer.classList.toggle("hidden", state.workbenchMode !== "intervention" && !acceptanceReview);
-  els.interveneCurrentButton.classList.toggle("hidden", state.workbenchMode === "intervention" || !active || Boolean(completion) || acceptanceReview);
+  const executionTarget = currentWorkbenchExecution();
+  const canSend = executionTarget && !["resolved", "cancelled"].includes(executionTarget.status) && !executionTarget.archived_at;
+  els.interventionComposer.classList.toggle("hidden", !canSend);
+  els.interveneCurrentButton.classList.add("hidden");
   els.interventionInput.disabled = state.interventionSubmitting;
   els.submitInterventionButton.disabled = state.interventionSubmitting;
-  els.interventionInput.placeholder = acceptanceReview ? "描述新的验收问题…" : "提供授权、事实或决策，并说明恢复条件…";
-  els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : acceptanceReview ? "提交验收问题" : "提交并恢复自动化";
+  els.interventionInput.placeholder = "向当前执行补充说明；发送后继续处理该执行…";
+  els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : executionTarget?.status === "running" ? "发送给当前执行" : "发送并恢复执行";
+  if (els.workbenchExecutionActions) {
+    els.workbenchExecutionActions.innerHTML = executionTarget ? executionActionButtons(executionTarget) : `<p>查看历史对话；提出新验收问题请返回待办详情。</p>`;
+    wireExecutionActions(els.workbenchExecutionActions);
+  }
   const selectedGap = activity.controller_frame?.selected_gap || null;
   const sourceFacts = activity.artifact_ownership_scan?.source_facts_changed || [];
   const implementationEvidence = activity.artifact_ownership_scan?.implementation_evidence || [];
@@ -4762,9 +5456,18 @@ function renderAutomationExecutionOverview(summary) {
     ? `${formatDateTime(summary.started_at)} → ${summary.finished_at ? formatDateTime(summary.finished_at) : "执行中"}`
     : "尚无执行记录";
   const rounds = summary.gap_rounds.length
-    ? summary.gap_rounds.map((round, index) => `<article class="gap-round-card status-${escapeHtml(round.status)}"><div class="gap-round-head"><span>GAP ${index + 1}</span><strong>${escapeHtml(round.selected_gap_id || `Round ${round.round_index || index + 1}`)}</strong><em>${escapeHtml(round.status)}</em></div><dl><div><dt>目标</dt><dd>${escapeHtml(round.goal || round.selection_summary || "本轮目标未记录")}</dd></div><div><dt>完成的工作</dt><dd>${escapeHtml(round.work_summary || "正在执行或旧版 Activity 未记录工作摘要")}</dd></div><div><dt>结果</dt><dd>${escapeHtml(round.outcome || "尚未 closeout")}</dd></div></dl><small>${escapeHtml(round.case_id || "Case 未记录")} · ${escapeHtml(round.started_at ? formatDateTime(round.started_at) : "开始时间未知")}${round.finished_at ? ` → ${escapeHtml(formatDateTime(round.finished_at))}` : ""}</small></article>`).join("")
+    ? summary.gap_rounds.map((round, index) => `<article class="gap-round-card status-${escapeHtml(round.status)}"><div class="gap-round-head"><span>Loop ${index + 1}</span><strong>${escapeHtml(round.selected_gap_id || `Round ${round.round_index || index + 1}`)}</strong><em>${escapeHtml(round.status)}</em></div><dl><div><dt>目标</dt><dd>${escapeHtml(round.goal || round.selection_summary || "本轮目标未记录")}</dd></div><div><dt>完成的工作</dt><dd>${escapeHtml(round.work_summary || "正在执行或旧版 Activity 未记录工作摘要")}</dd></div><div><dt>结果</dt><dd>${escapeHtml(round.outcome || "尚无验收结果")}</dd></div>${renderRoundProgress(round)}</dl><small>${escapeHtml(round.case_id || "Case 未记录")} · ${escapeHtml(round.started_at ? formatDateTime(round.started_at) : "开始时间未知")}${round.finished_at ? ` → ${escapeHtml(formatDateTime(round.finished_at))}` : ""}</small></article>`).join("")
     : `<div class="automation-overview-empty">尚未进入 gap round。</div>`;
-  return `<section class="automation-execution-overview"><div class="automation-overview-title"><div><span>完整执行总览</span><strong>${summary.active ? "执行中" : "已收束"}</strong></div><em>${summary.gap_round_count} 轮 GAP</em></div><div class="automation-time-summary"><strong>${escapeHtml(formatDuration(summary.duration_ms))}</strong><small>${escapeHtml(timeRange)} · ${summary.run_count} 个 Run</small></div>${summary.complete_projection ? "" : `<p class="automation-projection-note">旧版 Run 仅能恢复最后一轮摘要；新 Run 会完整记录每轮 gap。</p>`}<div class="gap-round-list">${rounds}</div></section>`;
+  return `<section class="automation-execution-overview"><div class="automation-overview-title"><div><span>完整执行总览</span><strong>${escapeHtml(({ running: "执行中", completed: "已完成", stopped: "已停止", failed: "执行失败", needs_human: "等待人工", waiting_external: "等待外部", continue: "待继续", not_started: "尚未开始" })[summary.outcome] || "执行已结束")}</strong></div><em>${summary.gap_round_count} 轮 Loop · ${summary.distinct_gap_count} 个 Gap</em></div><div class="automation-time-summary"><strong>${escapeHtml(formatDuration(summary.duration_ms))}</strong><small>${escapeHtml(timeRange)} · ${summary.run_count} 个 Run</small></div>${summary.complete_projection ? "" : `<p class="automation-projection-note">旧版 Run 仅能恢复最后一轮摘要；新 Run 会完整记录每轮 gap。</p>`}<div class="gap-round-list">${rounds}</div></section>`;
+}
+
+function renderRoundProgress(round) {
+  const progress = round.task_progress;
+  const guard = ({ no_progress_limit: '旧版进展保护停止，可重试恢复', snapshot_stale_limit: '连续状态冲突，需人工审查', agent_repair_limit: '修复未通过，需人工审查' })[round.continuation?.reason];
+  if (!progress) return `<div><dt>任务进展</dt><dd>${escapeHtml(guard || '未记录进展判断')}</dd></div>`;
+  const evidence = Array.isArray(progress.evidence) ? progress.evidence.join('；') : '';
+  const remaining = Array.isArray(progress.remaining) ? progress.remaining.join('；') : '';
+  return `<div><dt>Agent 进展判断</dt><dd>${escapeHtml(progress.advanced ? '推进了原任务' : '未推进原任务')}：${escapeHtml(progress.reason || '')}</dd></div>${evidence ? `<div><dt>依据</dt><dd>${escapeHtml(evidence)}</dd></div>` : ''}${remaining ? `<div><dt>剩余验收</dt><dd>${escapeHtml(remaining)}</dd></div>` : ''}${guard ? `<div><dt>继续执行</dt><dd>${escapeHtml(guard)}</dd></div>` : ''}`;
 }
 
 function renderAutomationPanelActivity(messages) {
@@ -4890,7 +5593,13 @@ function invalidatePlatformTaskSelectionContext() {
 }
 
 function showPage(page) {
+  setChatSessionsOpen(false);
+  const leavingProjectWorkbench = state.page === "project-workbench" && page !== state.page;
+  document.body.classList.remove('page-navigation-open');
+  document.getElementById('legacyPagesButton').setAttribute('aria-expanded','false');
   state.page = page;
+  if (leavingProjectWorkbench) void refreshSnapshot({ quiet: true, afterMutation: true }).catch(error => showToast(error.message));
+  if(page==='project-workbench') { renderPageVisibility();renderNavigation();renderCommandBar();return; }
   if (["product", "product-detail", "idea", "idea-add"].includes(page)) {
     renderPageVisibility(); renderNavigation(); renderCommandBar();
     productSurface.show(page).catch(error => showToast(error.message));

@@ -25,11 +25,11 @@ case_gap:
 
 ## 动态工作原则
 
-- 当前工作的先后顺序由 Agent 基于阻塞、风险、信息增益、依赖、用户影响和可验证性决定，definition skill 不规定规格、交互、视觉、技术、实现或测试的顺序。
+- 当前工作的先后顺序由 Agent 基于阻塞、风险、信息增益、依赖、用户影响和可验证性决定，definition skill 不规定固定阶段。该判断须遵守可信场景定义的局部前置：正式兑现所需预期先接受；探索不等于采纳；本轮建立或改变预期时不同时正式兑现实现。
 - 维护某一事实域时，结论基于全部相关信息。清楚就是清楚，不清楚就保留 unresolved；不创建“已清楚但与代码未对齐”一类中间状态。
 - 如果 gap 的可信完成需要改变本 skill 管理的稳定事实源，应在本次工作中更新；如果已有内容已充分表达，则确认既有事实；如果与该事实域无关，则明确不适用。
 - Skill 只完成当前 gap 中属于自己的事实维护，不决定下一个 gap、不关闭 Case、不更新 Project/Case State。Agent 汇总工具和 skill 结果后形成一次 transition。
-- Completion Review 只在普通 gaps 全部闭合后查缺补漏，并重点验证实现；不能把常规文档补齐推迟到 Review。
+- Completion Review 只在普通 gaps 全部闭合后查缺补漏，按授权交付范围验证结果；不能把常规文档补齐推迟到 Review。
 
 ## 输出
 
@@ -57,3 +57,10 @@ fact_result:
 - Skill 不输出 Case resolution、facet 状态、maturity、alignment、后续 gap 或 Project impact。
 
 standalone 模式没有 `case_gap`，继续直接维护或查询事实源；仍输出 `fact_result.mode: standalone`，`case_id` 与 `gap_id` 为空，但不形成 ledger claim。
+
+
+## 交互与视觉探索的限定补充
+
+交互/视觉 skill 同时支持候选产物时，按 [设计产物结果契约](design-result-contract.md) 区分产物完成与正式事实影响。纯探索且没有正式事实判断时显式输出 `fact_result: null`，以 `exploration_result` 回传目标、产物、证据和当前必要决定；不得滥用 updated、not_applicable 或 needs_human。存在正式事实判断时继续使用上述 v2 结构。本补充不改变其他 definition skill 的输出要求，不新增 Runtime 或 Ledger 协议。
+
+是否满足当前 gap、是否提交或续轮由同一 Agent 判断。跨域交接不规定执行者或轮次，同一结论的多个事实载体可以在当前授权与 gap 范围内同步；独立新取舍回传 Agent 判断，不由专业 skill 自行扩展目标。

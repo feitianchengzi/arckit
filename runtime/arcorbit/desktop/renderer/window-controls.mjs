@@ -1,6 +1,6 @@
 export function initializeWindowControls({ api, closeButton, minimizeButton, maximizeButton, dragRegion, onError = () => {} }) {
   if (!api || !closeButton || !minimizeButton || !maximizeButton || !dragRegion) {
-    throw new TypeError("ArcOrbit window controls require the bounded API and complete titlebar elements.");
+    throw new TypeError("ArcOrbit window controls require the bounded API and complete window control elements.");
   }
 
   const controlMode = api.windowControlMode === "native-macos" ? "native-macos" : "custom";

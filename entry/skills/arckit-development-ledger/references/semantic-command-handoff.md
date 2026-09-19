@@ -1,5 +1,7 @@
 # Semantic Case Command Handoff
 
+首次构造 invariant assessment、发现反证或恢复 upheld 时读取 [invariant-assessment.md](invariant-assessment.md)。选择前显式考虑当前完整 catalog，提交时按各自动态定义的责任更新；不变量是必须的保障，不是全部候选来源。reason 明确具体适用对象、证据支持范围和未决部分，不以笼统“验证通过”覆盖多个判断。
+
 当 Host output schema 声明 `arckit-semantic-case-command/v1` 时使用本契约。Agent 生成业务语义，trusted Ledger 生成 canonical bookkeeping；Runtime 只传输和投影。
 
 ## Agent 必须声明
@@ -11,6 +13,10 @@
 
 ## Selected Gap 主张
 
+选择说明使用 goal、reason、priority basis、evidence requirements 与必填 planned_transition.selection_assessment 表达有界验收集合、局部前置和结论性质。selection_assessment 使用与 direct v8 相同的结构，invariant_refs 是当前 catalog 的原始 ID；结构见 ../schema/selection-assessment.schema.json。事实、Project decision 变化和 impacts 必须来自当前缺口已经建立的结论；相关低风险结果可以共同决定和验收，但不能合并重要独立取舍，也不能将建立预期与正式兑现合并。完整 invariant assessment 可以保留其他相关缺口未解决，不要求本轮全部 upheld。
+
+
+- 普通 Case Gap 未验收完成时允许 `round_outcome: partial`、`claim.resolve_selected_gap: null`，提交已有事实和证据并保留同一 Gap；不得为通过校验虚报完成或新增替代 Gap。
 - 普通 Case Gap 的完成使用 `claim.resolve_selected_gap`；Completion Review candidate 是 Ledger 派生的审查门禁，不是可由该字段关闭的普通 Gap。
 - 选择 Completion Review candidate 时，`resolve_selected_gap` 必须为 `null`，Case 内容变更数组必须为空；只用 `completion_review_result` 提交 clean/findings/needs_human，或只用 `review_budget_extension` 提交 human 授权，两者不能同轮出现。
 - Review finding 由 `completion_review_result.findings` 声明并由 Ledger 派生后续普通修复 Gap。修复和事实变化在 fresh-read 后选择该普通 Gap 的下一轮提交，不能与 Review 合并。

@@ -1,13 +1,15 @@
 # data-kit 标注参考
 
-在线框图 HTML 关键节点上添加 `data-kit="ControlName"` 属性，标注该区域在目标平台应使用的原生控件。
+在可交互原型 HTML 关键节点上添加 `data-kit="ControlName"` 属性，标注该区域在目标平台应使用的原生控件。
 
 ## 标注原则
 
 1. **只标注有歧义的节点** — `<button>` 显然是按钮不需标注；`<div>` 做容器时需标注是 `List` 还是 `ScrollView`
 2. **使用目标平台控件名** — 以 SwiftUI 为主，AppKit/UIKit 可用 `data-kit-appkit` 补充
 3. **可带参数** — `data-kit="List(sidebar)"` 表示侧边栏列表
-4. **不标注也能工作** — 标注只是提升 AI 生成精度，缺失不影响线框图审查
+4. **不标注也能工作** — 标注只是提升 AI 生成精度，缺失不影响原型审查
+
+以下示例仅说明语义映射，不作为可操作模板；表单需使用真实输入控件。Web/Desktop 优先语义 HTML，不强套 SwiftUI 控件名。
 
 ## SwiftUI 控件映射
 

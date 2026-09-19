@@ -462,9 +462,8 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     return { work_inspector_width_px: width };
   }
 
-  async function executeAction(command, input = {}) {
-    const action = requiredText(command, "Platform action", 120);
-    const handlers = {
+  function actionHandlers(input = {}) {
+    return {
       "organization.create": () => platformSource.createOrganization(input),
       "organization.update": () => platformSource.updateOrganization(input.organization_id, input),
       "organization.delete": () => platformSource.deleteOrganization(input.organization_id),
@@ -574,6 +573,11 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
         }
       }
     };
+  }
+
+  async function executeAction(command, input = {}) {
+    const action = requiredText(command, "Platform action", 120);
+    const handlers = actionHandlers(input);
     const handler = handlers[action];
     if (!handler) throw new TypeError(`Unsupported platform action: ${action}`);
     return handler();
@@ -708,6 +712,111 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     return runFeedbackV2Action(input.project_id, "convert_to_task", () => platformSource.convertFeedbackV2ToTask(input.project_id, input));
   }
 
+  // 智能客服相关端点（检索/分诊/草稿/代码仓库）只在反馈工作流路由（v2）注册，
+  // 必须走 v2 请求；requestV2 缺失时回退 request 以兼容旧适配器桩。
+  function smartServiceRequest(path, options = {}) {
+    const requestV2 = typeof platformSource.requestV2 === "function" ? platformSource.requestV2 : platformSource.request;
+    return requestV2(path, options);
+  }
+
+  // 智能客服 — 检索（OpenHands Agent 调用）
+  async function retrieveFeedback(input = {}) {
+    return runFeedbackV2Action(input.project_id, "retrieve", () =>
+      smartServiceRequest(`/feedbacks/retrieve`, {
+        method: "POST",
+        // 渲染层反馈对象携带字符串 ID，后端 RetrieveRequest.ProjectID 是 uint，需数值化。
+        body: { project_id: Number(input.project_id), query: input.query, conversation_id: input.conversation_id }
+      })
+    );
+  }
+
+  // 智能客服 — AI 分诊初判（结果由后端写入 feedback.data.triage）
+  async function runFeedbackTriage(input = {}) {
+    return runFeedbackV2Action(input.project_id, "triage", () =>
+      smartServiceRequest(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/triage`, {
+        method: "POST"
+      })
+    );
+  }
+
+  // 智能客服 — 确认草稿
+  async function confirmFeedbackDraft(input = {}) {
+    return runFeedbackV2Action(input.project_id, "draft_confirm", () =>
+      smartServiceRequest(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/messages/${encodeURIComponent(requiredId(input.message_id, "Message"))}/confirm`, {
+        method: "POST",
+        body: { content: input.content }
+      })
+    );
+  }
+
+  // 智能客服 — 驳回草稿
+  async function rejectFeedbackDraft(input = {}) {
+    return runFeedbackV2Action(input.project_id, "draft_reject", () =>
+      smartServiceRequest(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/messages/${encodeURIComponent(requiredId(input.message_id, "Message"))}/reject`, {
+        method: "POST"
+      })
+    );
+  }
+
+  // 智能客服 — 创建草稿（runtime 回写）
+  async function createFeedbackDraft(input = {}) {
+    return runFeedbackV2Action(input.project_id, "draft_create", () =>
+      smartServiceRequest(`/feedbacks/${encodeURIComponent(requiredId(input.feedback_id, "Feedback"))}/drafts`, {
+        method: "POST",
+        body: { content: input.content, task_id: input.task_id ? Number(input.task_id) : 0, source_files: input.source_files }
+      })
+    );
+  }
+
+  // 客户代码仓库 — 列表
+  async function listCustomerCodeRepos(projectId) {
+    const id = requiredText(projectId, "Project id", 120);
+    return smartServiceRequest(`/projects/${encodeURIComponent(id)}/code-repos`);
+  }
+
+  // 知识库 — 检索测试（直查项目索引，验证仓库配置是否生效）
+  async function searchProjectKnowledgeCode(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const query = requiredText(input.query, "Query", 500);
+    return smartServiceRequest(`/projects/${encodeURIComponent(projectId)}/knowledge/search-code`, {
+      method: "POST",
+      body: { query }
+    });
+  }
+
+  // 客户代码仓库 — 创建
+  async function createCustomerCodeRepo(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    return smartServiceRequest(`/projects/${encodeURIComponent(projectId)}/code-repos`, {
+      method: "POST",
+      body: {
+        customer_id: input.customer_id,
+        repo_path: input.repo_path,
+        repo_url: input.repo_url,
+        branch: input.branch,
+        auto_sync: input.auto_sync
+      }
+    });
+  }
+
+  // 客户代码仓库 — 同步
+  async function syncCustomerCodeRepo(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const repoId = requiredText(input.repo_id, "Repo id", 120);
+    return smartServiceRequest(`/projects/${encodeURIComponent(projectId)}/code-repos/${encodeURIComponent(repoId)}/sync`, {
+      method: "POST"
+    });
+  }
+
+  // 客户代码仓库 — 删除
+  async function deleteCustomerCodeRepo(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const repoId = requiredText(input.repo_id, "Repo id", 120);
+    return smartServiceRequest(`/projects/${encodeURIComponent(projectId)}/code-repos/${encodeURIComponent(repoId)}`, {
+      method: "DELETE"
+    });
+  }
+
   async function getFeedbackV2AttachmentUrl(input = {}) {
     return runFeedbackV2Action(input.project_id, "attachments", () => platformSource.getFeedbackV2AttachmentUrl(input.project_id, input));
   }
@@ -784,6 +893,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     setWorkspacePreference,
     setWorkInspectorWidth,
     executeAction,
+    listActions: () => Object.keys(actionHandlers()),
     getFeedbackV2Messages,
     sendFeedbackV2Reply,
     markFeedbackV2Read,
@@ -792,6 +902,16 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     updateFeedbackV2,
     deleteFeedbackV2,
     convertFeedbackV2ToTask,
+    retrieveFeedback,
+    runFeedbackTriage,
+    confirmFeedbackDraft,
+    rejectFeedbackDraft,
+    createFeedbackDraft,
+    listCustomerCodeRepos,
+    searchProjectKnowledgeCode,
+    createCustomerCodeRepo,
+    syncCustomerCodeRepo,
+    deleteCustomerCodeRepo,
     getFeedbackAttachmentUrl,
     getFeedbackV2AttachmentUrl,
     uploadTaskAttachmentResource,
@@ -1060,6 +1180,12 @@ function requireWorkset(value) {
   const workset = normalizeWorkset(value);
   if (!workset) throw new TypeError("Workset requires a non-empty name and id.");
   return workset;
+}
+
+function requiredId(value, label) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "0" || text === "undefined" || text === "null") throw new TypeError(`${label} id is required.`);
+  return text;
 }
 
 function requiredText(value, label, maxLength) {

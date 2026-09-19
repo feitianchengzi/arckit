@@ -1,0 +1,78 @@
+metadata:
+  tokens: ../design-tokens.yaml
+  last_updated: "2026-09-16"
+  state_contract: ../state-contract.md
+components:
+  MetricCard:
+    role: 仅在两个以上可比较指标直接支持当前判断时提供态势摘要，不作为页面默认容器
+    variants:
+      neutral: { surface: "{colors.paper}", value: "{colors.ink.900}" }
+      running: { surface: "{colors.accent.faint}", value: "{colors.accent.strong}" }
+      healthy: { surface: "{colors.success.soft}", value: "{colors.success.base}" }
+      attention: { surface: "{colors.warning.soft}", value: "{colors.warning.strong}" }
+    sizes:
+      standard: { min_height: 92, padding: "{spacing.5}" }
+    states: [default, hover, filtered]
+    token_refs: [colors.paper, colors.accent.faint, colors.success.soft, colors.warning.soft]
+
+  TaskTable:
+    role: 展示确定性队列、完整状态列表和任务执行资格
+    variants:
+      queue: { header: "{colors.ink.50}", current_indicator: "{colors.accent.base}" }
+      browser: { header: "{colors.ink.50}", selected: "{colors.accent.faint}" }
+    sizes:
+      dense: { row_height: "{layout.compact_row_height}", header_height: "{layout.control_height}", cell_padding_x: "{spacing.4}", typography: "{typography.body}" }
+      standard: { row_height: "{layout.row_height}", header_height: "{layout.control_height}", cell_padding_x: "{spacing.5}", typography: "{typography.body}" }
+    states: [loading, ready, empty, selected, stale, conflict, disabled]
+    token_refs: [colors.ink.50, colors.ink.150, colors.accent.base, colors.accent.faint, typography.caption]
+    accessibility:
+      requirement: 可选行进入 Tab 顺序并支持 Enter 与 Space；选中、加载、冲突和禁用状态同时提供文本或可访问名称
+
+  RuntimeStage:
+    role: 投影实际执行活动与结果；阶段名称来自 Agent 事实，不预设 Controller、Worker 或固定阶段
+    variants:
+      idle: { indicator: "{colors.ink.300}", foreground: "{colors.ink.600}" }
+      active: { indicator: "{colors.accent.base}", foreground: "{colors.ink.900}" }
+      complete: { indicator: "{colors.success.base}", foreground: "{colors.success.base}" }
+      failed: { indicator: "{colors.danger.base}", foreground: "{colors.danger.base}" }
+    sizes:
+      standard: { height: 44, gap: "{spacing.3}" }
+    states: [idle, active, complete, failed, awaiting_human]
+    token_refs: [colors.accent.base, colors.success.base, colors.danger.base, typography.caption]
+
+  AttentionStrip:
+    role: 提升必须由用户处理的人工事项但不自动打开 Chat
+    variants:
+      normal: { surface: "{colors.ink.50}", border: "{colors.ink.150}" }
+      required: { surface: "{colors.warning.soft}", border: "{colors.warning.base}" }
+      destructive: { surface: "{colors.danger.soft}", border: "{colors.danger.base}" }
+    sizes:
+      standard: { min_height: 52, padding: "{spacing.5}" }
+    states: [empty, required, submitting, accepted, error]
+    token_refs: [colors.warning.soft, colors.warning.base, colors.danger.soft, shadows.small]
+
+  RecoveryCard:
+    role: 展示远端与本地事实差异、冻结范围、责任方和恢复动作
+    variants:
+      warning: { surface: "{colors.warning.soft}", marker: "{colors.warning.base}" }
+      critical: { surface: "{colors.danger.soft}", marker: "{colors.danger.base}" }
+      informational: { surface: "{colors.info.soft}", marker: "{colors.info.base}" }
+    sizes:
+      standard: { padding: "{spacing.6}", radius: "{corner_radius.medium}" }
+    states: [open, retrying, resolved, external_wait]
+    token_refs: [colors.warning.soft, colors.danger.soft, colors.info.soft, corner_radius.medium]
+
+  AutomationExecutionOverview:
+    role: 在 Workbench 侧栏一次展示完整执行时间、Gap 总数、逐 Gap 工作与 Automation 专属证据
+    variants:
+      summary: { surface: "{colors.ink.50}", foreground: "{colors.ink.900}", border: "{colors.ink.150}" }
+      gap_completed: { indicator: "{colors.success.base}", foreground: "{colors.ink.700}" }
+      gap_active: { indicator: "{colors.accent.base}", foreground: "{colors.ink.900}" }
+      gap_waiting: { indicator: "{colors.warning.base}", foreground: "{colors.warning.strong}" }
+      gap_failed: { indicator: "{colors.danger.base}", foreground: "{colors.danger.base}" }
+    sizes:
+      compact: { row_min_height: "{layout.row_height}", gap: "{spacing.3}", typography: "{typography.caption}" }
+    states: [loading, running, awaiting_human, completed, interrupted, failed]
+    token_refs: [colors.ink.50, colors.ink.150, colors.ink.700, colors.ink.900, colors.success.base, colors.accent.base, colors.warning.base, colors.warning.strong, colors.danger.base, typography.caption]
+    accessibility:
+      requirement: 完整时间、轮数与每个 Gap 状态均显示文本；颜色和图标不作为唯一信息；Gap 列表可键盘浏览并定位关联 Agent 消息

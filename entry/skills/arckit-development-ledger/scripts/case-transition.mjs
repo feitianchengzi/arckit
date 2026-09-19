@@ -10,6 +10,7 @@ import { coreSoftwareInvariantIds, defaultSoftwareInvariants } from './project-i
 import { validateIterationStateRecord } from './project-iteration.mjs';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
 import { readLedgerSnapshot } from './loop-snapshot.mjs';
+import { validateSelectionAssessment, validateSelectionAssessmentAgainstState, validateSelectionAssessmentAgainstHistory } from './selection-assessment.mjs';
 import {
   renderIterationProjection,
   renderProjectStateProjection,
@@ -77,6 +78,7 @@ export function validateCaseTransition(transition, file = '<transition>') {
   validateGapSelection(transition.gap_selection, `${file}: gap_selection`, errors);
   validateGap(transition.selected_gap, `${file}: selected_gap`, errors, { candidate: true });
   if (!transition.planned_transition?.goal || !transition.planned_transition?.expected_state_change) errors.push(`${file}: planned_transition is incomplete`);
+  errors.push(...validateSelectionAssessment(transition.planned_transition?.selection_assessment, `${file}: planned_transition.selection_assessment`));
   const delta = transition.accepted_state_delta;
   const arrays = ['facts_added', 'facts_superseded', 'impacts_added', 'impacts_updated', 'gaps_added', 'gaps_cancelled', 'resolved_open_questions', 'completed_handoffs', 'resolved_review_findings'];
   if (!isObject(delta) || !Object.hasOwn(delta, 'resolved_gap') || !Object.hasOwn(delta, 'completion_review_result') || !Object.hasOwn(delta, 'review_budget_extension')) errors.push(`${file}: accepted_state_delta is incomplete`);
@@ -260,12 +262,15 @@ function applyReviewBudgetExtension(record, extension, candidate, timestamp) {
 
 export function applyCaseTransitionToRecord(record, transition, { timestamp = new Date().toISOString(), runtimeResultRef = '', projectState = null, invariantProjectState = projectState } = {}) {
   const errors = validateCaseTransition(transition);
+  if (projectState) errors.push(...validateSelectionAssessmentAgainstState(transition.planned_transition?.selection_assessment, projectState));
   if (errors.length) throw new Error(errors.join('\n'));
   if (record.schema_version !== 'development-case-record/v5') throw new Error(`Unsupported Case State schema: ${record.schema_version || '<missing>'}`);
   if (record.id !== transition.case_id) throw new Error(`Case transition targets ${transition.case_id}, not ${record.id}`);
   if (record.updated_at !== transition.case_updated_at) throw new Error(`Stale Case transition for ${record.id}`);
   const selection = selectTransitionGap(record, transition);
   const candidate = selection.gap;
+  const historyErrors = validateSelectionAssessmentAgainstHistory(transition.planned_transition.selection_assessment, record, candidate.id);
+  if (historyErrors.length) throw new Error(historyErrors.join('\n'));
   const canonicalSelectedGap = structuredClone(candidate);
   const delta = transition.accepted_state_delta;
   const isReview = candidate.id.includes(':completion-review:');
@@ -276,7 +281,7 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   if (isReview && contentMutation) throw new Error('Completion review cannot be committed with a content mutation');
   if (reviewBudgetExtension && !isReview) throw new Error('Review budget extension requires the current human completion-review decision');
   if (reviewBudgetExtension && delta.completion_review_result) throw new Error('Review budget extension and completion review result must be committed in separate rounds');
-  if (!isReview && !questionId && !handoffId && delta.resolved_gap?.id !== candidate.id) throw new Error('A normal transition must resolve its selected dynamic gap');
+  if (!isReview && !questionId && !handoffId && delta.resolved_gap && delta.resolved_gap.id !== candidate.id) throw new Error('A normal transition may only resolve its selected dynamic gap');
   if (questionId && !delta.resolved_open_questions.includes(questionId)) throw new Error('Selected question must be resolved');
   if (handoffId && !delta.completed_handoffs.includes(handoffId)) throw new Error('Selected handoff must be completed');
 
@@ -340,7 +345,7 @@ function selectTransitionGap(record, transition) {
   }
   const selected = transition.selected_gap;
   if (record.gaps.some((gap) => gap.id === selected.id)) throw new Error(`Fresh dynamic gap already exists: ${selected.id}`);
-  if (selected.responsibility !== 'agent') throw new Error('A fresh dynamic gap must be Agent-owned and completed in the current turn');
+  if (selected.responsibility !== 'agent') throw new Error('A fresh dynamic gap must be Agent-owned');
   if ([':completion-review:', ':open-question:', ':handoff:', ':review-finding:'].some((marker) => selected.id.includes(marker))) throw new Error(`Fresh dynamic gap uses a reserved id: ${selected.id}`);
   const closed = new Set(record.gaps.filter((gap) => ['resolved', 'cancelled'].includes(gap.status)).map((gap) => gap.id));
   if (selected.blocked_by.some((id) => !closed.has(id))) throw new Error(`Fresh dynamic gap is not ready: ${selected.id}`);
@@ -451,6 +456,7 @@ function roundCloseoutReceipt(transition, nextCase, projectedProject, priorSelec
     round: nextCase.rounds.length,
     selected_gap: structuredClone(nextCase.rounds.at(-1)?.selected_gap || transition.selected_gap),
     gap_selection: structuredClone(transition.gap_selection),
+    planned_transition: structuredClone(transition.planned_transition),
     accepted_state_delta: structuredClone(transition.accepted_state_delta),
     project_state_delta: structuredClone(transition.project_state_delta),
     invariant_assessment: structuredClone(transition.invariant_assessment),

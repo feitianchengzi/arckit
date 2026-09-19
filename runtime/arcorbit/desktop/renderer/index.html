@@ -4,11 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ArcOrbit</title>
+    <link rel="stylesheet" href="./visual-tokens.css">
     <link rel="stylesheet" href="./styles.css">
     <link rel="stylesheet" href="./product.css">
     <link rel="stylesheet" href="./release.css">
     <link rel="stylesheet" href="./vendor/release-vendor.css">
     <link rel="stylesheet" href="./engineering.css">
+    <link rel="stylesheet" href="./project-workbench.css">
+    <link rel="stylesheet" href="./workspace-navigation.css">
+    <link rel="stylesheet" href="./visual-system.css">
+    <link rel="stylesheet" href="./chat-layout.css">
+    <link rel="stylesheet" href="./window-chrome.css">
   </head>
   <body class="auth-pending">
     <svg class="icon-sprite" aria-hidden="true">
@@ -110,23 +116,21 @@
       </div>
     </section>
     <div class="desktop-app">
-      <header class="titlebar">
-        <div class="window-controls" role="group" aria-label="窗口控制">
-          <button id="windowMinimizeButton" class="window-control minimize" type="button" aria-label="最小化窗口" title="最小化窗口"><svg aria-hidden="true"><use href="#icon-window-minimize"></use></svg></button>
-          <button id="windowMaximizeButton" class="window-control maximize" type="button" aria-label="最大化窗口" title="最大化窗口"><svg class="maximize-glyph" aria-hidden="true"><use href="#icon-window-maximize"></use></svg><svg class="restore-glyph" aria-hidden="true"><use href="#icon-window-restore"></use></svg></button>
-          <button id="windowCloseButton" class="window-control close" type="button" aria-label="关闭窗口" title="关闭窗口"><svg aria-hidden="true"><use href="#icon-window-close"></use></svg></button>
-        </div>
-        <div id="titlebarDrag" class="titlebar-drag">ArcOrbit</div>
-        <div id="titlebarSync" class="sync-state"><i></i><span>准备同步</span></div>
-      </header>
+      <div class="window-controls" role="group" aria-label="窗口控制">
+        <button id="windowMinimizeButton" class="window-control minimize" type="button" aria-label="最小化窗口" title="最小化窗口"><svg aria-hidden="true"><use href="#icon-window-minimize"></use></svg></button>
+        <button id="windowMaximizeButton" class="window-control maximize" type="button" aria-label="最大化窗口" title="最大化窗口"><svg class="maximize-glyph" aria-hidden="true"><use href="#icon-window-maximize"></use></svg><svg class="restore-glyph" aria-hidden="true"><use href="#icon-window-restore"></use></svg></button>
+        <button id="windowCloseButton" class="window-control close" type="button" aria-label="关闭窗口" title="关闭窗口"><svg aria-hidden="true"><use href="#icon-window-close"></use></svg></button>
+      </div>
+      <button id="legacyPagesButton" class="page-navigation-toggle" type="button" aria-label="页面导航" aria-controls="legacyPagesMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-window-maximize"></use></svg></button>
 
       <aside class="sidebar">
-        <div class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
+        <div id="windowDragRegion" class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
 
-        <nav class="primary-nav" aria-label="主导航">
+        <nav id="legacyPagesMenu" class="primary-nav" aria-label="主导航">
           <p class="nav-label">PERSONAL</p>
-          <button class="nav-item is-active" data-page="today" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><em id="attentionNavCount">0</em></button>
+          <button class="nav-item" data-page="today" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><em id="attentionNavCount">0</em></button>
           <button class="nav-item" data-page="chat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chat"></use></svg><strong>Chat</strong><em>Codex</em></button>
+          <button class="nav-item" data-page="project-workbench" type="button" title="Thing"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Thing</strong></button>
 
           <p class="nav-label">PRODUCT</p>
           <button class="nav-item" data-page="product" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Product</strong></button>
@@ -145,7 +149,8 @@
         </nav>
 
         <div class="sidebar-footer">
-          <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small></button>
+          <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small><span id="accountSync" class="sync-state"><i aria-hidden="true"></i><span>准备同步</span></span></button>
+
         </div>
       </aside>
 
@@ -166,6 +171,7 @@
         </header>
 
         <div class="view-host">
+          <section id="projectWorkbenchView" class="app-view" data-page-view="project-workbench"></section>
           <section id="todayView" class="app-view is-active" data-page-view="today">
             <div class="today-page">
               <header class="today-heading"><div><p class="eyebrow">PERSONAL · TODAY</p><h1>需要你亲自处理的事情</h1><p id="todaySummary">只汇总会阻塞、悬置或尚未收口的人工责任。</p></div><div class="today-heading-status"><span id="platformHealthBadge" class="health-badge">等待同步</span><small id="todayFreshness">正在读取来源状态</small></div></header>
@@ -188,12 +194,8 @@
           </section>
 
           <section id="chatView" class="app-view" data-page-view="chat">
+            <header class="chat-page-heading"><strong>Chat</strong><button id="chatSessionsToggle" class="secondary-button" type="button" aria-controls="chatSessionsPanel" aria-expanded="false">会话</button></header>
             <div class="chat-workspace">
-              <aside class="chat-sidebar">
-                <div class="chat-sidebar-head"><div><p class="eyebrow">PERSONAL · CODEX CHAT</p><h1>自由对话</h1></div><button id="newChatButton" class="primary-button compact" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg>新对话</button></div>
-                <div id="chatSessionList" class="chat-session-list" aria-label="对话列表"></div>
-                <div class="chat-sidebar-boundary"><strong>独立对话边界</strong><p>Chat 不创建待办、Idea、Case 或 Automation Run，也不读取任务执行 thread。</p></div>
-              </aside>
               <main class="chat-main">
                 <header class="chat-header"><div class="chat-header-copy"><p id="chatWorkspaceLabel" class="eyebrow">选择本地工作区</p><h2 id="chatTitle">新对话</h2><p id="chatStatusText">发送第一条消息后创建持久会话和 Codex thread。</p></div><div class="chat-header-controls"><label class="chat-workspace-picker chat-header-workspace-picker"><span id="chatWorkspacePickerLabel">新对话属于</span><select id="chatProjectSelect" aria-label="Chat 工作区"></select></label><div class="chat-header-actions"><button id="renameChatButton" class="text-button" type="button">重命名</button><button id="deleteChatButton" class="text-button danger" type="button">删除</button></div></div></header>
                 <div id="chatErrorHost"></div>
@@ -201,6 +203,11 @@
                 <button id="chatJumpLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
                 <footer class="chat-composer"><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><button id="chatSkillsButton" class="secondary-button" type="button" title="配置 Chat 可用技能">技能</button><div class="chat-composer-config" aria-label="当前对话 Codex 配置"><label class="chat-composer-setting"><span>Model</span><input id="chatCodexModel" type="text" list="chatCodexModelOptions" maxlength="200" autocomplete="off" title="调整当前对话后续消息使用的 Model"><datalist id="chatCodexModelOptions"></datalist></label><label class="chat-composer-setting"><span>Level</span><input id="chatCodexEffort" type="text" list="chatCodexEffortOptions" maxlength="200" autocomplete="off" title="调整当前对话后续消息使用的推理级别"><datalist id="chatCodexEffortOptions"></datalist></label></div><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-stop"></use></svg>停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
               </main>
+              <aside id="chatSessionsPanel" class="chat-sidebar" aria-label="会话">
+                <div class="chat-sidebar-head"><h2>会话</h2><button id="chatSessionsClose" class="text-button" type="button" aria-label="关闭会话列表">关闭</button></div>
+                <div id="chatSessionList" class="chat-session-list" aria-label="对话列表"></div>
+                <button id="newChatButton" class="primary-button" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg>新对话</button>
+              </aside>
             </div>
           </section>
 
@@ -233,7 +240,7 @@
           </section>
 
           <section id="feedbackView" class="app-view" data-page-view="feedback">
-            <div class="page platform-page feedback-page primary-workspace-page"><section class="panel-card primary-control-rail feedback-toolbar" aria-label="Feedback 页面控制轨"><strong class="control-rail-identity">Feedback</strong><label class="control-rail-search"><span class="sr-only">搜索</span><input id="feedbackSearchInput" type="search" placeholder="搜索内容、用户或项目"></label><label class="control-rail-select"><span class="sr-only">处理状态</span><select id="feedbackStateFilter"><option value="all">全部状态</option><option value="pending">待处理</option><option value="accepted">已确认</option><option value="in_progress">开发中</option><option value="completed">已完成</option><option value="converted">已转待办</option><option value="ignored">已忽略</option></select></label><details class="feedback-more-menu"><summary aria-label="更多 Feedback 操作">更多</summary><div class="feedback-secondary-controls"><label><span class="sr-only">排序</span><select id="feedbackSortSelect"><option value="newest">最新反馈</option><option value="oldest">最早反馈</option><option value="priority">优先级</option></select></label><button id="feedbackRefreshButton" class="secondary-button" type="button">刷新</button></div></details></section><div class="feedback-workbench-layout"><section class="panel-card feedback-list-panel" aria-label="反馈列表"><div class="section-title-row"><div><span class="section-icon">◌</span><div><h2>反馈列表</h2><p>选择反馈后在右侧查看和处理</p></div></div><span id="feedbackListSummary" class="status-pill muted">0 条</span></div><div id="ordinaryFeedbackTable" class="feedback-list workspace-pane-scroll"></div></section><aside class="inspector-card feedback-inspector" aria-label="反馈详情"><div class="section-title-row"><div><span class="section-icon">◇</span><div><h2>反馈详情</h2><p>原文、处理状态与沟通记录</p></div></div></div><div id="feedbackInspector" class="feedback-inspector-body"><div class="feedback-inspector-scroll"><div class="empty-panel"><strong>选择一条反馈</strong><p>这里将显示不可编辑的用户反馈事实和可用处理动作。</p></div></div></div></aside></div></div>
+            <div class="page platform-page feedback-page primary-workspace-page"><section class="panel-card primary-control-rail feedback-toolbar" aria-label="Feedback 页面控制轨"><strong class="control-rail-identity">Feedback</strong><label class="control-rail-search"><span class="sr-only">搜索</span><input id="feedbackSearchInput" type="search" placeholder="搜索内容、用户或项目"></label><label class="control-rail-select"><span class="sr-only">处理状态</span><select id="feedbackStateFilter"><option value="all">全部状态</option><option value="pending">待处理</option><option value="accepted">已确认</option><option value="in_progress">开发中</option><option value="completed">已完成</option><option value="converted">已转待办</option><option value="ignored">已忽略</option></select></label><details class="feedback-more-menu"><summary aria-label="更多 Feedback 操作">更多</summary><div class="feedback-secondary-controls"><label><span class="sr-only">排序</span><select id="feedbackSortSelect"><option value="newest">最新反馈</option><option value="oldest">最早反馈</option><option value="priority">优先级</option></select></label><button id="feedbackKnowledgeButton" class="secondary-button" type="button">知识库仓库</button><button id="feedbackRefreshButton" class="secondary-button" type="button">刷新</button></div></details></section><div class="feedback-workbench-layout"><section class="panel-card feedback-list-panel" aria-label="反馈列表"><div class="section-title-row"><div><span class="section-icon">◌</span><div><h2>反馈列表</h2><p>选择反馈后在右侧查看和处理</p></div></div><span id="feedbackListSummary" class="status-pill muted">0 条</span></div><div id="ordinaryFeedbackTable" class="feedback-list workspace-pane-scroll"></div></section><aside class="inspector-card feedback-inspector" aria-label="反馈详情"><div class="section-title-row"><div><span class="section-icon">◇</span><div><h2>反馈详情</h2><p>原文、处理状态与沟通记录</p></div></div></div><div id="feedbackInspector" class="feedback-inspector-body"><div class="feedback-inspector-scroll"><div class="empty-panel"><strong>选择一条反馈</strong><p>这里将显示不可编辑的用户反馈事实和可用处理动作。</p></div></div></div></aside></div></div>
           </section>
 
           <section id="commandView" class="app-view" data-page-view="command">
@@ -263,6 +270,10 @@
                     <div id="feedbackQueueTable"></div>
                   </section>
 
+                  <section class="panel-card">
+                    <div class="section-title-row"><div><h2>执行历史与恢复</h2><p>查看异常和已停止执行，恢复原对话，或取消误提交的问题。</p></div><label class="execution-history-archive-toggle"><input id="showArchivedExecutions" type="checkbox"><span>显示已归档</span></label></div>
+                    <div id="executionHistoryList"></div>
+                  </section>
                   <section id="recentCompletionsCard" class="panel-card completions-card">
                     <div class="section-title-row"><div><span class="section-icon">✓</span><div><h2>最近完成</h2><p>本地证据与远端完成确认</p></div></div></div>
                     <div id="recentCompletions" class="completion-list"></div>
@@ -298,7 +309,7 @@
 
           <section id="workbenchView" class="app-view" data-page-view="workbench">
             <div class="workbench-layout">
-              <aside class="workbench-context"><button id="backFromWorkbenchButton" class="text-button" type="button">← 返回自动化</button><div class="workbench-side-controls"><span id="workbenchMode" class="status-pill pending_review">只读审查</span><button id="interveneCurrentButton" class="secondary-button hidden" type="button">介入当前运行</button></div><div id="workbenchContext"></div></aside>
+              <aside class="workbench-context"><button id="backFromWorkbenchButton" class="text-button" type="button">← 返回自动化</button><div class="workbench-side-controls"><span id="workbenchMode" class="status-pill pending_review">只读审查</span><button id="interveneCurrentButton" class="secondary-button hidden" type="button">介入当前运行</button></div><div id="workbenchExecutionActions"></div><div id="workbenchContext"></div></aside>
               <section class="workbench-transcript"><div class="workbench-heading"><div><p class="eyebrow">INTERVENTION WORKBENCH</p><h1 id="workbenchTitle">人工介入</h1></div></div><div class="transcript-scroll-area"><div id="transcriptList" class="conversation-surface chat-transcript" aria-live="polite" aria-label="Automation 对话消息"></div><button id="jumpToLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button></div><div id="interventionComposer" class="intervention-composer hidden"><textarea id="interventionInput" rows="4" placeholder="提供授权、事实或决策，并说明恢复条件…"></textarea><button id="submitInterventionButton" class="primary-button" type="button">提交并恢复自动化</button></div></section>
               <aside class="workbench-evidence"><h3>执行全貌与证据</h3><div id="workbenchEvidence"></div></aside>
             </div>
@@ -318,6 +329,7 @@
           <button id="closeSettingsButton" class="icon-button" type="button" aria-label="关闭设置">×</button>
         </div>
         <div class="settings-sections">
+          <section class="codex-settings-section workbench-only"><h3>工作空间</h3><div class="pw-settings-actions"><button id="workbenchSyncSettings" class="secondary-button" type="button">同步项目与事情</button><button id="workbenchFeedbackSettings" class="secondary-button" type="button">产品反馈</button></div></section>
           <section class="account-settings-section">
             <h3>Workshop 账户</h3>
             <div class="account-card">
@@ -337,6 +349,8 @@
             </details>
           </section>
           <section class="codex-settings-section"><h3>Codex Runtime</h3>
+            <label class="toggle-row"><input id="codexYoloMode" type="checkbox"><span><strong>YOLO 模式</strong><small>跳过命令审批并解除 Codex 沙箱限制。覆盖各处 Agent 调用，应用业务确认仍然有效。</small></span></label>
+            <p class="settings-lead">默认关闭。保存后用于后续消息、新 Run 和终端接力；正在执行的调用保持原配置。</p>
             <h4>Chat 默认值</h4><div class="field-grid">
               <label class="field"><span>Model</span><input id="codexChatModel" type="text" list="codexChatModelOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexChatModelOptions"></datalist></label>
               <label class="field"><span>Level（推理级别）</span><input id="codexChatEffort" type="text" list="codexChatEffortOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexChatEffortOptions"></datalist></label>

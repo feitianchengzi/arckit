@@ -14,10 +14,11 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o todo .
 
 # 运行阶段
-FROM alpine:latest
+FROM alpine:3.20
 
-RUN apk --no-cache add ca-certificates tzdata
-WORKDIR /root/
+RUN apk --no-cache add ca-certificates tzdata \
+    && addgroup -S appgroup && adduser -S appuser -G appgroup
+WORKDIR /home/appuser/
 
 # 从构建阶段复制二进制文件
 COPY --from=builder /app/todo .
@@ -25,6 +26,8 @@ COPY --from=builder /app/todo .
 # 只有数据库 schema、实时 Broker 和 HTTP 都就绪时才会通过。
 HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=12 \
   CMD wget -q -O /dev/null "http://127.0.0.1:${PORT:-8081}/${SERVICE_NAME:-workshop}/v1/public/health" || exit 1
+
+USER appuser
 
 # 运行应用
 # 注意：端口配置通过环境变量 PORT 在运行时确定，实际端口映射由 docker-compose.yml 处理

@@ -1,0 +1,42 @@
+{
+  "ok": true,
+  "checks": [
+    "Four existing navigation groups, Chat/Thing peers, all production account input/select/button IDs present",
+    "Model refresh preserves manual draft; Codex-only save excludes proxy/task-source changes",
+    "General save retains input on failure, distinguishes persisted settings from failed sync, excludes fixture secrets from persistence",
+    "Active-execution logout cancellation/confirmation, non-dismissable logged-out gate, SMS flow, cooldown, invalid-code recovery",
+    "Expired-account email recovery and unavailable catalog preserve custom model",
+    "Account dialog fits 390–1500px and 200% zoom"
+  ],
+  "productionControlIds": [
+    "workbenchSyncSettings",
+    "workbenchFeedbackSettings",
+    "authTarget",
+    "authCode",
+    "sendVerificationButton",
+    "loginButton",
+    "logoutButton",
+    "taskSourceEnabled",
+    "taskSourceBaseUrl",
+    "taskSourceServiceName",
+    "taskSourceAuthMode",
+    "taskSourceToken",
+    "taskSourceUserId",
+    "taskSourceUsername",
+    "taskSourceAppId",
+    "taskSourceSessionId",
+    "codexYoloMode",
+    "codexChatModel",
+    "codexChatEffort",
+    "codexAutomationModel",
+    "codexAutomationEffort",
+    "refreshCodexModelsButton",
+    "saveCodexSettingsButton",
+    "codexProxyEnabled",
+    "codexProxyUrl",
+    "saveSettingsButton"
+  ],
+  "errors": [],
+  "externalRequests": [],
+  "scope": "Local fixtures only; real auth, token storage, runtime shutdown and sync not executed."
+}

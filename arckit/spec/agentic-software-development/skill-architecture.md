@@ -21,6 +21,8 @@ Arckit Skill 架构把 `Project State -> Case -> Loop` 转成可安装、可复�
 - `using-arckit`：完整状态驱动方法，负责 Gap 语义、动态能力选择与执行。
 - `arckit-development-ledger`：负责 Project/Iteration/Case 模型、语义载荷契约、确定性验收、原子写入与 fresh snapshot。
 
+`using-arckit` 提供行业、场景无关的控制方法，并显式引导 Agent 读取场景定义、识别项目维护对象、实现载体、生效方式和验证依据。软件的六个责任方向、事实依赖和完成规则属于场景 State 定义及可信状态协议；入口消费这些定义，不在通用方法中复制固定业务分类或用文件格式推断事实类型。场景切换同步替换定义、校验与相应能力适配，Runtime 仍不作语义路由。
+
 ### Definition
 
 - `arckit-spec`：稳定产品行为和验收口径。
@@ -39,11 +41,13 @@ Arckit Skill 架构把 `Project State -> Case -> Loop` 转成可安装、可复�
 `using-arckit` 在一次 turn 中约束当前 Agent：
 
 1. 读取 Project State、全部 active Cases、iteration 和上一 handoff。
-2. 判断用户输入关系并选择唯一 Case/gap；无合适 Case 时请求 create_case。
+2. 判断用户输入关系，识别维护对象与实现载体，从场景不变量发现缺口，先检查事实前置、结论性质与粒度，再选择唯一 Case/gap；无合适 Case 时请求 create_case。
 3. 根据 gap 与仓库事实原生选择必要 skills/tools。
 4. 执行事实维护、诊断、实现、构建、验证与自我审查。
 5. 分离 round、Case、Project impact 与责任 handoff。
 6. 提交绑定 revision、完整 selected gap 与 evidence 的 transition claim。
+
+入口按 `controller-worker-loop.md` 的规则判断探索或正式确立：关键依据缺失必须先取得证据，正式实现须有其范围内的已接受预期，可共同决定的小项适度合并，重要取舍独立处理。预期变更与正式实现分轮；skill 项目的技能指令修改同样属于实际实现，不能因 Markdown 载体绕过边界。专业 skill 的可用方法不能自动改变本轮验收目标或扩展后续工作。
 
 Runtime 只用 manifest 声明的自然 `$using-arckit` 文本 trigger 启动该 turn，不额外传 `skill` input item，也不拼接 SKILL.md 正文、固定 Worker 顺序、allowed skills、预测路径或 closeout 工作流。output schema 作为 Codex Adapter 的机器参数传递。
 
@@ -93,3 +97,4 @@ Ledger 写回要求：
 - definition、diagnosis、Case 与 Project State 写入边界清楚。
 - human/external 工作可通过 Case 与 handoff 恢复，不因能力精简丢失。
 - ledger 语义与脚本只来自真实 `arckit-development-ledger` entrypoint。
+- 入口显式恢复维护对象与实现载体，读取场景提供的事实依赖和证据规则；不能靠隐含的“实现等于代码”假设选择 Gap。

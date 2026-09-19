@@ -7,7 +7,6 @@ import {
   buildFreshReplanInstruction,
   decideSessionContinuation,
   effectiveAgentRepairLimit,
-  effectiveNoProgressLimit,
   runStateDrivenSession
 } from "../src/state-driven-runner.mjs";
 
@@ -152,7 +151,6 @@ test("state-driven continuation pauses only for an explicit human handoff", () =
 
   assert.deepEqual(decision, {
     continue: false,
-    madeProgress: true,
     reason: "human_intervention"
   });
 });
@@ -347,7 +345,6 @@ test("writeback-required terminal result cannot complete without an accepted led
 
   assert.deepEqual(decision, {
     continue: false,
-    madeProgress: false,
     reason: "ledger_write_failed"
   });
 });
@@ -441,7 +438,7 @@ test("infrastructure rejection enters Runtime recovery without Agent repair", ()
     agentRepairAttempts: 0,
     maxAgentRepairAttempts: 2
   });
-  assert.deepEqual(decision, { continue: false, madeProgress: false, reason: "infrastructure_recovery" });
+  assert.deepEqual(decision, { continue: false, reason: "infrastructure_recovery" });
 });
 
 test("invalid semantic Case creation enters same-thread Agent repair instead of Runtime recovery", () => {
@@ -462,10 +459,10 @@ test("invalid semantic Case creation enters same-thread Agent repair instead of 
     agentRepairAttempts: 0,
     maxAgentRepairAttempts: 2
   });
-  assert.deepEqual(decision, { continue: true, madeProgress: false, reason: "agent_repair" });
+  assert.deepEqual(decision, { continue: true, reason: "agent_repair" });
 });
 
-test("repeated stale snapshots remain bounded by the no-progress guard", () => {
+test("repeated stale snapshots use an independent conflict retry budget", () => {
   const decision = decideSessionContinuation({
     runtimeResult: { round_result: "continue", ledger_stage: { writeback_required: true } },
     ledgerWriteResult: {
@@ -473,12 +470,12 @@ test("repeated stale snapshots remain bounded by the no-progress guard", () => {
       rejection: { kind: "snapshot_stale", recoverable: true, responsibility: "agent", recovery_action: "replan_from_fresh_state" }
     },
     handoff: agentHandoff(),
-    noProgressRounds: 1,
-    maxNoProgressRounds: 2,
+    snapshotReplanAttempts: 2,
+    maxSnapshotReplanAttempts: 2,
     agentRepairAttempts: 0,
     maxAgentRepairAttempts: 0
   });
-  assert.deepEqual(decision, { continue: false, madeProgress: false, reason: "snapshot_stale_limit" });
+  assert.deepEqual(decision, { continue: false, reason: "snapshot_stale_limit" });
 });
 
 test("fresh replan instruction preserves rejected output without presenting a claim repair", () => {
@@ -500,13 +497,7 @@ test("non-recoverable ledger rejection remains fail-closed", () => {
     maxAgentRepairAttempts: 2
   });
 
-  assert.deepEqual(decision, { continue: false, madeProgress: false, reason: "ledger_write_failed" });
-});
-
-test("Runtime progress guards can tighten the configured no-progress limit", () => {
-  assert.equal(effectiveNoProgressLimit(8, { progress_guard: { no_progress_limit: 2 } }), 2);
-  assert.equal(effectiveNoProgressLimit(1, { progress_guard: { no_progress_limit: 2 } }), 1);
-  assert.equal(effectiveNoProgressLimit(8, {}), 8);
+  assert.deepEqual(decision, { continue: false, reason: "ledger_write_failed" });
 });
 
 test("Agent repair limit is independent and allows an explicit zero budget", () => {
@@ -732,4 +723,139 @@ test('closeout discoveries resume the same Agent thread through ordinary ledger 
   assert.equal(adapter.closed, 1);
   assert.equal(result.stop_reason, 'completed');
   assert.equal(result.paused_for_human, false);
+});
+
+
+test('Agent continuation is independent of progress claims and retired limits', () => {
+  for (const progress of [null, { advanced: false, reason: 'Prepared context.', evidence: [], remaining: ['Implement.'] },
+    { advanced: true, reason: 'Verified cause.', evidence: ['test:reproduction'], remaining: ['Implement.'] }]) {
+    for (const ledger of [{ written: true }, { written: false },
+      { written: true, case_control_result: { action: 'create_case', case_id: 'CASE-1' } }]) {
+      const decision = decideSessionContinuation({ runtimeResult: { task_progress: progress }, ledgerWriteResult: ledger,
+        handoff: { ...agentHandoff(), progress_guard: { no_progress_limit: 1 } }, noProgressRounds: 99, maxNoProgressRounds: 1 });
+      assert.deepEqual(decision, { continue: true, reason: 'agent_continuation' });
+    }
+  }
+});
+
+test('protocol recovery and Case creation continue to task work in the same session', async () => {
+  let calls = 0;
+  const adapter = closeoutAdapter();
+  const seen = [];
+  const result = await runStateDrivenSession({
+    projectRoot: '/workspace/project', stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: { task: 'Improve the visual design', agentAdapter: adapter, maxNoProgressRounds: 2 },
+    dependencies: {
+      async runRound({ options }) {
+        calls++;
+        assert.ok(calls <= 3, 'must respect the Agent stop');
+        seen.push(options.executionProgress);
+        const loop = loopResult(calls === 3 ? terminalHandoff() : { ...agentHandoff(), progress_guard: { no_progress_limit: 2 } });
+        if (calls === 1) {
+          loop.runtimeResult.ledger_stage.writeback_required = false;
+          loop.runtimeResult.task_progress = { advanced: false, reason: 'Restored ledger readability.', evidence: ['recovery.json'], remaining: ['Visual analysis.'] };
+        }
+        return loop;
+      },
+      async writeRoundLedger() { return calls === 2
+        ? { written: true, case_control_result: { action: 'create_case', case_id: 'CASE-1' }, changed_files: ['case.md'] }
+        : { written: true, changed_files: [] }; }
+    }
+  });
+  assert.equal(calls, 3);
+  assert.equal(result.stop_reason, 'stopped');
+  assert.equal(result.paused_for_human, false);
+  assert.equal(seen[2].recent_rounds[0].task_progress.advanced, false);
+  assert.equal(seen[2].recent_rounds[1].task_progress, null);
+  assert.equal(result.execution_progress.blocked_reason, '');
+  assert.equal(adapter.closed, 1);
+});
+
+test('restart retains Agent observations without turning them into a stop', async (t) => {
+  const { mkdtemp, rm, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { executionProgress } = await import('../src/kernel/execution-progress.mjs');
+  const directory = await mkdtemp(join(tmpdir(), 'arcorbit-progress-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const controlFile = join(directory, 'execution');
+  await writeFile(`${controlFile}.progress.json`, JSON.stringify({ version: 1, round_count: 2, no_progress_rounds: 2,
+    repair_attempts: 0, blocked_reason: 'no_progress_limit', recent_rounds: [{ task_progress: { advanced: false, reason: 'Prepared context.' } }] }));
+  let calls = 0;
+  const histories = [];
+  const input = {
+    projectRoot: '/workspace/project', stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: { task: 'Fix', executionControlFile: controlFile, agentAdapter: closeoutAdapter(),
+      onEvent(event) { if (event.type === 'runtime.execution_progress') throw new Error('simulated process loss'); } },
+    dependencies: {
+      async runRound({ options }) { calls++; histories.push(options.executionProgress); return loopResult(calls === 1 ? agentHandoff() : terminalHandoff()); },
+      async writeRoundLedger() { return { written: true, changed_files: ['case.md'] }; }
+    }
+  };
+  await assert.rejects(runStateDrivenSession(input), /simulated process loss/);
+  input.options.onEvent = () => {};
+  const restarted = await runStateDrivenSession(input);
+  assert.equal(restarted.stop_reason, 'stopped');
+  assert.equal(calls, 2);
+  assert.equal(histories[1].round_count, 3);
+  assert.equal(histories[1].recent_rounds[0].task_progress.reason, 'Prepared context.');
+  assert.equal(restarted.execution_progress.round_count, 4);
+  assert.equal(executionProgress(controlFile).snapshot().blocked_reason, '');
+  assert.equal('no_progress_rounds' in restarted.execution_progress, false);
+});
+
+test('repair attempts survive restart without changing the canonical Case', async (t) => {
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const directory = await mkdtemp(join(tmpdir(), 'arcorbit-repair-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  let calls = 0;
+  const input = {
+    projectRoot: '/workspace/project', stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: { task: 'Fix', executionControlFile: join(directory, 'execution'), agentAdapter: closeoutAdapter(), maxAgentRepairAttempts: 1,
+      onEvent(event) { if (event.type === 'runtime.execution_progress') throw new Error('simulated process loss'); } },
+    dependencies: {
+      async runRound() { calls++; return { ...loopResult(agentHandoff()), validation: { valid: false, issues: ['invalid claim'] } }; },
+      async writeRoundLedger() { throw new Error('Invalid claims must not write canonical state'); }
+    }
+  };
+  await assert.rejects(runStateDrivenSession(input), /simulated process loss/);
+  input.options.onEvent = () => {};
+  const restarted = await runStateDrivenSession(input);
+  assert.equal(restarted.stop_reason, 'agent_repair_limit');
+  assert.equal(calls, 2);
+});
+
+test('protocol retry counters reset on accepted execution, independently of Agent progress', async () => {
+  const { executionProgress } = await import('../src/kernel/execution-progress.mjs');
+  const journal = executionProgress(null);
+  journal.record({ validation_valid: false }, { continue: true, reason: 'agent_repair' });
+  journal.record({ validation_valid: true, ledger_written: false }, { continue: true, reason: 'fresh_replan' });
+  assert.equal(journal.snapshot().repair_attempts, 1);
+  assert.equal(journal.snapshot().snapshot_replan_attempts, 1);
+  journal.record({ validation_valid: true, ledger_written: true, task_progress: null }, { continue: true, reason: 'agent_continuation' });
+  assert.equal(journal.snapshot().repair_attempts, 0);
+  assert.equal(journal.snapshot().snapshot_replan_attempts, 0);
+});
+
+test('legacy progress migration preserves protocol blocks and explicit user stop', async (t) => {
+  const { mkdtemp, rm, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { executionProgress } = await import('../src/kernel/execution-progress.mjs');
+  const { createExecutionControl, requestExecutionStop } = await import('../src/kernel/execution-control.mjs');
+  const directory = await mkdtemp(join(tmpdir(), 'arcorbit-legacy-progress-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const controlFile = join(directory, 'execution');
+  for (const reason of ['agent_repair_limit', 'snapshot_stale_limit']) {
+    await writeFile(`${controlFile}.progress.json`, JSON.stringify({ version: 1, round_count: 2,
+      no_progress_rounds: 2, repair_attempts: 2, blocked_reason: reason, recent_rounds: [] }));
+    assert.throws(() => executionProgress(controlFile).assertContinuable(), /operator review/);
+  }
+  await writeFile(`${controlFile}.progress.json`, JSON.stringify({ version: 1, round_count: 2,
+    no_progress_rounds: 2, repair_attempts: 0, blocked_reason: 'no_progress_limit', recent_rounds: [] }));
+  requestExecutionStop(controlFile);
+  executionProgress(controlFile).assertContinuable();
+  assert.throws(() => createExecutionControl(controlFile).assertRunning(), /stop/i);
 });

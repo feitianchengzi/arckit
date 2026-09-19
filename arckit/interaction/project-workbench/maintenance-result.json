@@ -1,0 +1,175 @@
+{
+  "document_scope": {
+    "scope_kind": "change",
+    "root": "arckit/interaction/",
+    "created": [
+      {
+        "path": "project-workbench/account-capabilities.md",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "26 个生产控件和账号操作映射，列明模拟边界与优化差异"
+      },
+      {
+        "path": "project-workbench/account-settings.js",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "完整个人中心可操作投影"
+      },
+      {
+        "path": "project-workbench/verification-account.json",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/verify-account.cjs",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/maintenance-result.json",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "记录本轮技能结果契约"
+      }
+    ],
+    "updated": [
+      {
+        "path": "INDEX.md",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "同步入口、文件职责与行数"
+      },
+      {
+        "path": "_map/RELATIONS.md",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "同步页面归属、个人中心能力来源与后续生产差异"
+      },
+      {
+        "path": "_map/feature-matrix.md",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "记录新导航及个人中心覆盖"
+      },
+      {
+        "path": "automation-workspace/interaction.md",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "platform-workspace/default.html",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "platform-workspace/interaction.md",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/README.md",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/app.js",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/default.html",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/interaction.md",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/model.js",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/navigation.js",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/scenarios.html",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/scenarios.js",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/verification-states.json",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/verification.json",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/verify-states.cjs",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/verify.cjs",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/views.js",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      },
+      {
+        "path": "project-workbench/visual.css",
+        "source_basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "summary": "更新 Thing 原型、对应策略或实际验证产物"
+      }
+    ],
+    "deleted": [],
+    "reorganized": []
+  },
+  "fact_result": {
+    "schema_version": "arckit-fact-result/v2",
+    "mode": "standalone",
+    "case_id": null,
+    "gap_id": null,
+    "outcome": "updated",
+    "facts": [
+      {
+        "statement": "Thing 是 PERSONAL 下与 Chat 并列的独立页面；保留四组业务类别，移除新增全局项目列表和资源入口。",
+        "basis": "用户明确要求：独立 Thing 入口、移除新增项目导航、恢复四组类别、保留 Chat 名称，并按代码补齐个人中心。",
+        "source_refs": [
+          "arckit/interaction/project-workbench/interaction.md",
+          "arckit/interaction/platform-workspace/interaction.md"
+        ],
+        "evidence": [
+          "arckit/interaction/project-workbench/verification.json",
+          "arckit/interaction/project-workbench/verification-states.json",
+          "arckit/interaction/project-workbench/verification-account.json"
+        ]
+      },
+      {
+        "statement": "Thing 个人中心覆盖生产账户与 Runtime 的全部既有设置控件及账号操作；保留独立 Codex 保存和完整保存的边界。",
+        "basis": "生产 settingsOverlay 与 renderer.js、codex-settings-form.mjs 的真实字段和动作；用户允许在此基础上优化。",
+        "source_refs": [
+          "runtime/arcorbit/desktop/renderer/index.html",
+          "runtime/arcorbit/desktop/renderer/renderer.js",
+          "runtime/arcorbit/desktop/renderer/codex-settings-form.mjs",
+          "arckit/interaction/project-workbench/account-capabilities.md"
+        ],
+        "evidence": [
+          "arckit/interaction/project-workbench/verification-account.json"
+        ]
+      }
+    ],
+    "unresolved": [],
+    "human_decision_required": false
+  },
+  "exploration_result": null
+}

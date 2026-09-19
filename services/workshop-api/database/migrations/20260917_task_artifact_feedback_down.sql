@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE tasks DROP COLUMN IF EXISTS artifact_url;
+ALTER TABLE tasks DROP COLUMN IF EXISTS source_feedback_id;
+
+COMMIT;

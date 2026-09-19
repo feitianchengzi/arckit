@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import {
@@ -29,27 +30,21 @@ test('Project v5 owns the complete explicit software-definition checklist and in
   assert.equal(Object.hasOwn(project, 'desired_conditions'), false);
   assert.deepEqual(validateProjectStateRecord(project), []);
 });
-
-test('core invariants use fresh facts, distinct semantic domains, and non-substitutable evidence responsibilities', () => {
-  assert.deepEqual(CORE_SOFTWARE_INVARIANTS.map((item) => item.id), [
-    'product-expectations-remain-recoverable',
-    'interaction-expectations-remain-recoverable',
-    'visual-language-remains-consistent',
-    'technical-decisions-remain-explainable',
-    'accepted-facts-are-realized',
-    'material-risks-have-credible-evidence',
-  ]);
-
-  const durableExpectations = CORE_SOFTWARE_INVARIANTS.slice(0, 4);
-  for (const invariant of durableExpectations) {
-    assert.match(invariant.applies_when, /^Fresh Case facts /);
-    assert.match(invariant.applies_when, /expose a gap in/);
-    assert.match(invariant.applies_when, /conflict with/);
-    assert.match(invariant.evidence_expectation, /^Authoritative durable evidence /);
+test('invariant template is the sole source of content and definitions remain isolated from callers', async () => {
+  const template = JSON.parse(await readFile(new URL('../../../entry/skills/arckit-development-ledger/templates/software-invariants.json', import.meta.url), 'utf8'));
+  assert.deepEqual(CORE_SOFTWARE_INVARIANTS, template);
+  const project = fixtureProject();
+  for (const expected of template) {
+    assert.ok(expected.id && expected.applies_when && expected.must_hold && expected.evidence_expectation);
+    const missing = structuredClone(project);
+    missing.software_invariants = missing.software_invariants.filter((item) => item.id !== expected.id);
+    assert.match(validateProjectStateRecord(missing).join('\n'), /must include core software invariant/);
+    const changed = structuredClone(project);
+    changed.software_invariants.find((item) => item.id === expected.id).must_hold = 'Unapproved definition';
+    assert.match(validateProjectStateRecord(changed).join('\n'), /must match the current protocol definition exactly/);
   }
-
-  assert.match(CORE_SOFTWARE_INVARIANTS[4].evidence_expectation, /^Direct, traceable realization evidence /);
-  assert.match(CORE_SOFTWARE_INVARIANTS[5].evidence_expectation, /^Repeatable, proportionate evidence /);
+  project.software_invariants[0].must_hold = 'Local mutation';
+  assert.deepEqual(CORE_SOFTWARE_INVARIANTS, template);
 });
 
 test('the protocol checklist cannot be removed or semantically rewritten by a project', () => {
@@ -60,6 +55,31 @@ test('the protocol checklist cannot be removed or semantically rewritten by a pr
   const rewritten = fixtureProject();
   rewritten.software_definition.decision_areas[0].question = 'Which skill owns product intent?';
   assert.match(validateProjectStateRecord(rewritten).join('\n'), /must match the current protocol definition exactly/);
+});
+
+test('the loader and core validation follow an alternate template without domain or count assumptions', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arckit-invariant-template-'));
+  try {
+    await mkdir(join(root, 'scripts'));
+    await mkdir(join(root, 'templates'));
+    const source = await readFile(new URL('../../../entry/skills/arckit-development-ledger/scripts/project-invariants.mjs', import.meta.url), 'utf8');
+    await writeFile(join(root, 'scripts/project-invariants.mjs'), source);
+    const definitions = ['fixture-zeta', 'fixture-alpha', 'fixture-extra'].map((id) => ({
+      id, applies_when: `Explicit fixture applicability for ${id}.`, must_hold: `Fixture responsibility for ${id}.`,
+      evidence_expectation: `Fixture evidence for ${id}.`, priority: 'required',
+    }));
+    await writeFile(join(root, 'templates/software-invariants.json'), JSON.stringify(definitions));
+    const loaded = await import(pathToFileURL(join(root, 'scripts/project-invariants.mjs')).href);
+    assert.deepEqual(loaded.defaultSoftwareInvariants(), definitions);
+    assert.deepEqual([...loaded.coreSoftwareInvariantIds()], definitions.map((item) => item.id));
+    assert.deepEqual(loaded.validateCoreSoftwareInvariants({ software_invariants: [...definitions].reverse() }), []);
+    assert.match(loaded.validateCoreSoftwareInvariants({ software_invariants: definitions.slice(1) }).join('\n'), /fixture-zeta/);
+    const altered = structuredClone(definitions);
+    altered[0].evidence_expectation = 'Other contract';
+    assert.match(loaded.validateCoreSoftwareInvariants({ software_invariants: altered }).join('\n'), /evidence_expectation/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('projects personalize software decisions without inventing concrete software invariants', () => {
@@ -135,7 +155,7 @@ test('Iteration v3 targets software decisions, invariants and Project gaps', asy
     const iteration = iterationFixture();
     iteration.targets = [
       { kind: 'software_decision', ref: 'quality_and_validation', expected: 'settled', reason: 'Validation must be explicit.' },
-      { kind: 'software_invariant', ref: 'material-risks-have-credible-evidence', expected: 'upheld', reason: 'Risk needs evidence.' },
+      { kind: 'software_invariant', ref: project.software_invariants[0].id, expected: 'upheld', reason: 'Exercise a dynamically loaded target.' },
       { kind: 'project_gap', ref: 'GAP-1', expected: 'resolved', reason: 'The evidence gap must close.' },
     ];
     assert.deepEqual(validateIterationStateRecord(iteration), []);

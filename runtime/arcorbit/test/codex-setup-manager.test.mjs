@@ -43,12 +43,15 @@ test("official installer specs are fixed per supported platform and never use a 
   assert.throws(() => buildOfficialInstallerSpec({ platform: "freebsd", scriptPath: "/tmp/install" }), /不支持/);
 });
 
-test("controlled process cancellation and timeout settle only after the child closes", async () => {
+test("controlled process cancellation and timeout settle only after the child closes", { timeout: 30_000 }, async (t) => {
+  // Advance the parent timeout only after the real child has installed its signal handler.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   for (const scenario of [
     { name: "cancellation", code: "ABORT_ERR", timeout: 5_000, cancel: true },
     { name: "timeout", code: "PROCESS_TIMEOUT", timeout: 1_000, cancel: false }
   ]) {
     const controller = new AbortController();
+    t.after(() => controller.abort());
     let ready;
     let terminating;
     const childReady = new Promise((resolve) => { ready = resolve; });
@@ -73,10 +76,11 @@ test("controlled process cancellation and timeout settle only after the child cl
     let settled = false;
     void pending.then(() => { settled = true; }, () => { settled = true; });
 
-    await childReady;
+    const closedBeforeSignal = pending.then(() => { throw new Error("Child closed before the expected signal handshake."); });
+    await Promise.race([childReady, closedBeforeSignal]);
     if (scenario.cancel) controller.abort();
-    await childTerminating;
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    else t.mock.timers.tick(scenario.timeout);
+    await Promise.race([childTerminating, closedBeforeSignal]);
     assert.equal(settled, false, `${scenario.name} must wait for the child close event`);
     await assert.rejects(pending, (error) => error.code === scenario.code);
     assert.equal(settled, true);

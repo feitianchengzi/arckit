@@ -72,7 +72,7 @@ product_context 包含产品事实、实际候选与接入所缺信息；product
 
 ## 环境能力与原生探索
 
-Product 场景按 turn/start 注入 readOnly、networkAccess=false 的原生沙箱；这一参数对新建和恢复的线程均生效，不改普通 Chat/Automation 的默认策略。原生读取范围由场景指令约束，当前 Codex readOnly 策略是文件系统只读而非所选目录的硬隔离；需要突破沙箱时复用现有用户审批，不自动批准。业务写入只由主进程执行已确认方案。
+设备 YOLO 关闭时 Product 场景按 turn/start 注入 readOnly、networkAccess=false 的原生沙箱；这一参数对新建和恢复的线程均生效，不改普通 Chat/Automation 的默认策略。原生读取范围由场景指令约束，当前 Codex readOnly 策略是文件系统只读而非所选目录的硬隔离；需要突破沙箱时复用现有用户审批，不自动批准。设备 YOLO 开启时共享 adapter 覆盖原生审批和沙箱，场景 prompt 显示当前模式；业务写入仍由主进程执行已确认方案。
 
 共享命令运行器将进程环境、已保存代理、Codex executable path entries 与常见 CLI 安装目录组合为一致环境，供 Product 的 Git/gh 检测、正式执行及场景 Codex 使用。Codex path entries 是可选补充，未就绪时不阻断独立业务操作；Git 查询用 -C 指向材料，不依赖 Agent 私有目录。场景环境或可执行程序改变时在下一轮重建 app-server 进程并恢复相同 thread，不丢弃会话；活动轮不切换进程。运行器只做确定性程序解析、执行、有界输出与错误事实封装；不执行登录、安装或修复。绝对路径保留其身份，程序路径与环境摘要不包含 token 值。
 

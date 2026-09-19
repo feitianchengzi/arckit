@@ -4,6 +4,8 @@ Completion Review 是普通动态 gaps、问题、handoff 和 threatened/undeter
 
 Ledger 只在普通工作闭合且最新内容 Round 已对当前 Project invariant catalog 完成有效 assessment 后派生 Review candidate；同一 Agent 若从 fresh state 发现更重要的普通工作，可用 `fresh` 选择先完成它。只有不存在此类工作时才执行语义审查。Review transition 自身也提交 fresh invariant assessment；finding 先转成普通 dynamic gap，后续 Round 再处理，不能在 Review 当轮顺带修复。只有后续调查确认的稳定结论才可能通过普通 transition 成为 fact。clean Review 关闭 Case 后，Runtime 只可执行 Git-only closeout。
 
+Review 范围由 Case 授权目标限定：探索任务检查证据与未知是否回答，定义任务检查预期是否成立；不要求补做未授权的产品实现。实现载体依项目而定，skill、配置等同样可以是实现。
+
 ## 五个维度
 
 - `implementation_correctness`：实现符合 relevant accepted facts、software decisions 与 upheld invariants。

@@ -1,3 +1,6 @@
+import { workbenchAgentOptions } from '../src/workbench/agent-bridge.mjs';
+import { resolveCodexExecutionPolicy } from '../src/codex-execution-policy.mjs';
+import { createExecutionControl, executionStopError, requestExecutionStop } from "../src/kernel/execution-control.mjs";
 import { invalidTaskCloseoutResult } from '../src/task-closeout-contract.mjs';
 import { createInterface } from "node:readline";
 import { resolve } from "node:path";
@@ -9,6 +12,28 @@ import { endLifecycleSpan, startLifecycleSpan } from "../src/observability/lifec
 
 export function createCodexAppServerAdapter(adapterOptions = {}) {
   let client = null;
+  let stopRequested = false;
+  const controlFile = adapterOptions.executionControlFile || process.env.ARCORBIT_EXECUTION_CONTROL_FILE;
+  const executionControl = controlFile ? createExecutionControl(controlFile) : null;
+  function assertRunning() {
+    if (stopRequested) throw executionStopError('operator_stop');
+    executionControl?.assertRunning();
+  }
+  function stopExecution(error = executionStopError('operator_stop')) {
+    if (stopRequested) return;
+    stopRequested = true;
+    // Persist stdin/utility-host stops too; a process restart must not clear them.
+    // Failure to persist must never prevent immediate termination.
+    if (controlFile) {
+      try { requestExecutionStop(controlFile); }
+      catch (persistenceError) { console.error(`Could not persist execution stop: ${persistenceError.message}`); }
+    }
+    const state = activeTurn?.state;
+    if (state?.threadId && state?.turnId) client?.request('turn/interrupt', { threadId: state.threadId, turnId: state.turnId }).catch(() => {});
+    activeTurn?.queue.fail(error);
+    activeCompaction?.reject(error);
+    client?.close();
+  }
   let initialized = false;
   let initializedProjectRoot = "";
   let initializeResult = null;
@@ -22,10 +47,17 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
   const activeCommands = new Map();
   const commandItems = new Map();
 
+  const watchdog = executionControl ? setInterval(() => {
+    try { assertRunning(); }
+    catch (error) { stopExecution(error); }
+  }, 1000) : null;
+  watchdog?.unref();
+
   const adapter = {
     name: "codex-app-server",
     async *runTurn({ projectRoot, prompt, options = {} }) {
-      const effectiveOptions = { ...adapterOptions, ...options };
+      assertRunning();
+      const effectiveOptions = resolveCodexExecutionPolicy({ ...workbenchAgentOptions(options.env || process.env), ...adapterOptions, ...options }, projectRoot);
       if (effectiveOptions.outputSchema) {
         assertCodexOutputSchema(effectiveOptions.outputSchema, { name: `${effectiveOptions.resultKind || "turn"}.outputSchema` });
       }
@@ -118,8 +150,13 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           const upstream = effectiveOptions.dynamicToolProvider;
           effectiveOptions.dynamicTools = [...(effectiveOptions.dynamicTools || []).filter(t => !sceneSkills.dynamicTools.some(s => s.name === t.name)), ...sceneSkills.dynamicTools];
           effectiveOptions.dynamicToolProvider = params => sceneSkills.dynamicTools.some(t => t.name === params.tool) ? sceneSkills.dynamicToolProvider(params) : upstream?.(params);
-          tracedOptions.dynamicTools = effectiveOptions.dynamicTools;
           tracedOptions.dynamicToolProvider = effectiveOptions.dynamicToolProvider;
+        }
+        if (effectiveOptions.dynamicTools) {
+          // MCP-style tools omit the discriminator; app-server requires one format
+          // across the entire list, including tools added by scene configuration.
+          effectiveOptions.dynamicTools = effectiveOptions.dynamicTools.map(tool => ({ type: 'function', ...tool }));
+          tracedOptions.dynamicTools = effectiveOptions.dynamicTools;
         }
         state.resultKind = effectiveOptions.resultKind || "runtime-result";
         queue.push({ type: "codex.initialize.completed", result: initializeResult });
@@ -136,10 +173,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           });
           try {
             const resumeResult = await client.request("thread/resume", {
-              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
+              ...((sceneSkills || effectiveOptions.threadConfig) ? { config: {...(sceneSkills?.config || {}), ...(effectiveOptions.threadConfig || {})}, ...(sceneSkills?.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               threadId: state.threadId,
               cwd: projectRoot,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              ...(effectiveOptions.sandbox ? { sandbox: effectiveOptions.sandbox } : {}),
               model: effectiveOptions.model || null
             });
             loadedThreadIds.add(state.threadId);
@@ -158,10 +196,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             }
             const missingThreadId = state.threadId;
             const fallback = await client.request("thread/start", {
-              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
+              ...((sceneSkills || effectiveOptions.threadConfig) ? { config: {...(sceneSkills?.config || {}), ...(effectiveOptions.threadConfig || {})}, ...(sceneSkills?.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               cwd: projectRoot,
               ephemeral: false,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              ...(effectiveOptions.sandbox ? { sandbox: effectiveOptions.sandbox } : {}),
               approvalsReviewer: "user",
               model: effectiveOptions.model || null,
               runtimeWorkspaceRoots: [projectRoot],
@@ -201,10 +240,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           let threadStartResult;
           try {
             threadStartResult = await client.request("thread/start", {
-              ...(sceneSkills ? { config: sceneSkills.config, ...(sceneSkills.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
+              ...((sceneSkills || effectiveOptions.threadConfig) ? { config: {...(sceneSkills?.config || {}), ...(effectiveOptions.threadConfig || {})}, ...(sceneSkills?.developerInstructions ? {developerInstructions: sceneSkills.developerInstructions} : {}) } : {}),
               cwd: projectRoot,
               ephemeral: false,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              ...(effectiveOptions.sandbox ? { sandbox: effectiveOptions.sandbox } : {}),
               approvalsReviewer: "user",
               model: effectiveOptions.model || null,
               runtimeWorkspaceRoots: [projectRoot],
@@ -241,10 +281,10 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         }
 
         if (effectiveOptions.superviseStdin && !stdinControls) {
-          stdinControls = attachStdinControls({ client, getActiveTurn: () => activeTurn });
+          stdinControls = attachStdinControls({ client, getActiveTurn: () => activeTurn, stopExecution });
         }
         if (effectiveOptions.superviseParentPort && !stdinControls) {
-          stdinControls = attachParentPortControls({ client, getActiveTurn: () => activeTurn });
+          stdinControls = attachParentPortControls({ client, getActiveTurn: () => activeTurn, stopExecution });
         }
 
         const turnStartParams = {
@@ -271,6 +311,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             thread_reused: threadWasReused
           }
         });
+        assertRunning();
         const turnStartResult = await client.request("turn/start", turnStartParams);
         state.turnId = readId(turnStartResult?.turn);
         if (!state.turnId) {
@@ -329,6 +370,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
       return { thread_id: state.threadId, turn_id: state.turnId, result };
     },
     close() {
+      clearInterval(watchdog);
       stdinControls?.close();
       stdinControls = null;
       activeTurn?.queue.fail(new Error("Codex app-server adapter closed during an active turn."));
@@ -355,6 +397,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
       return latestUsageByThread.get(threadId) || null;
     },
     async compactThread({ threadKey = "", threadId = "", options = {} } = {}) {
+      assertRunning();
       if (activeTurn) throw new Error("Cannot compact a Codex thread while a turn is active.");
       if (activeCompaction) throw new Error("Codex app-server adapter supports one active compaction at a time.");
       const id = String(threadId || threads.get(String(threadKey || "").trim()) || "").trim();
@@ -591,6 +634,7 @@ function createClient(projectRoot, options) {
     return options.clientFactory({ projectRoot, options });
   }
   return new JsonRpcStdioClient({
+    terminateOwnedTree: Boolean(options.executionControlFile || process.env.ARCORBIT_EXECUTION_CONTROL_FILE),
     command: options.codexBin || "codex",
     args: ["app-server", "--stdio"],
     cwd: projectRoot,
@@ -678,6 +722,11 @@ function handleNotification({ message, queue, state, options, activeCommands, co
     state.lastError = null;
   }
   if (message.method === "turn/completed") {
+    if (message.params?.turn?.status === 'interrupted' && ['agent-loop-result', 'task-closeout-result'].includes(state.resultKind)) {
+      state.completed = true;
+      queue.fail(executionStopError('operator_stop'));
+      return;
+    }
     state.turnStarted = false;
     state.completed = true;
     for (const span of state.itemSpans.values()) {
@@ -701,6 +750,12 @@ function handleNotification({ message, queue, state, options, activeCommands, co
       resultKind: state.resultKind || "runtime-result",
       error: state.lastError
     });
+    if (parsed.result?.transport_error) {
+      const error = new Error(parsed.result.transport_error);
+      error.code = 'INVALID_AGENT_RESULT';
+      queue.fail(error);
+      return;
+    }
     queue.push(parsed);
     activeCommands?.clear();
     commandItems?.clear();
@@ -790,15 +845,15 @@ function normalizeNotification(message) {
   }
 }
 
-function attachStdinControls({ client, getActiveTurn }) {
+function attachStdinControls({ client, getActiveTurn, stopExecution }) {
   const readline = createInterface({ input: process.stdin, terminal: false });
   readline.on("line", async (line) => {
-    await handleOperatorCommand({ command: line, client, getActiveTurn });
+    await handleOperatorCommand({ command: line, client, getActiveTurn, stopExecution });
   });
   return readline;
 }
 
-function attachParentPortControls({ client, getActiveTurn }) {
+function attachParentPortControls({ client, getActiveTurn, stopExecution }) {
   const parentPort = process.parentPort;
   if (!parentPort?.on) throw new Error("--supervise-parent-port requires an Electron utility-process parent port.");
   const listener = async (event) => {
@@ -807,16 +862,17 @@ function attachParentPortControls({ client, getActiveTurn }) {
     await handleOperatorCommand({
       command: command.type === "steer" ? `/steer ${String(command.message || "").trim()}` : `/${command.type}`,
       client,
-      getActiveTurn
+      getActiveTurn, stopExecution
     });
   };
   parentPort.on("message", listener);
   return { close: () => parentPort.off?.("message", listener) };
 }
 
-async function handleOperatorCommand({ command, client, getActiveTurn }) {
+async function handleOperatorCommand({ command, client, getActiveTurn, stopExecution }) {
   const trimmed = String(command || "").trim();
   if (!trimmed) return;
+  if (trimmed === "/interrupt" && stopExecution) { stopExecution(); return; }
   const active = getActiveTurn();
   if (!active) return;
   const { queue, state } = active;
@@ -954,23 +1010,7 @@ function parseJsonFromText(text) {
 }
 
 function createInvalidAgentLoopResult(summary) {
-  return {
-    schema_version: "arckit-agent-loop-result/v2",
-    action: "handoff",
-    summary,
-    case_control: null,
-    case_command: null,
-    changed_files: [],
-    artifact_impacts: [],
-    risks: [summary],
-    unknowns: [],
-    handoff: {
-      next_responsibility: "agent",
-      reason: summary,
-      next_prompt: "Retry from fresh canonical state.",
-      human_decision_required: false
-    }
-  };
+  return { transport_error: summary };
 }
 
 function codexErrorMessage(error) {
@@ -1060,12 +1100,6 @@ function createBlockedRuntimeResult({ summary, completionParams }) {
         required: false,
         reason: "",
         decision_needed: ""
-      },
-      progress_guard: {
-        expected_state_change: "Valid structured runtime result.",
-        actual_state_change: "Codex turn did not return parseable runtime JSON.",
-        no_progress_limit: 1,
-        max_auto_rounds: 1
       }
     }
   };

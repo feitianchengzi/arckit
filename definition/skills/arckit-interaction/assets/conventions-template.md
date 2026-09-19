@@ -1,36 +1,22 @@
-# 交互设计文档规范（arckit/interaction）
+# 交互预期维护规范
 
-## 目录结构
+## 正式产物
 
-```
-arckit/interaction/
-├── INDEX.md                      # 交互设计地图
-├── CONVENTIONS.md                # 本文件
-├── wireframe-style.css           # 线框统一样式（根目录唯一）
-├── [flow-or-page]/               # 流程/页面
-│   ├── default.html              # 主线框图（data-kit 标注）
-│   ├── [sub-view].html           # 子视图（复杂页面拆分时）
-│   └── interaction.md            # 交互说明
-└── _archive/
-```
+每个页面或稳定路由维护 `default.html` 完整可操作入口与 `interaction.md` 交互策略/说明。脚本、样式和场景可按职责拆分，入口不能退化为占位骨架。有效预期持续维护，不因上线归档。
 
-**Design Tokens / 组件视觉 / 主题**：由 `arckit/visual/` 维护（arckit-visual skill），与本目录分离。
+## 视觉与行为
 
-## 线框图规范
+有适用视觉规范时按 `arckit/visual/` 的策略、Tokens、组件和主题呈现，记录具体引用及同步方法；无规范时采用统一灰度线框。候选视觉只在探索区使用。
+允许本地模拟交互、状态、资料和草稿，明确模拟边界，不接入真实业务执行。主路径可连续操作，异常状态可重复触达。场景工具与产品功能区分，支持重置。
+弹层按真实覆盖范围打开，检查 Esc、键盘、焦点、草稿和阅读位置保持。HTML 与说明覆盖同一状态流；未实现和未验证部分明确列出。
 
-- **视觉风格（强制）**: 极简线框图 — 仅使用 wireframe-style.css 中的灰度与线框类，禁止内联彩色样式，禁止在 HTML 或 CSS 中引入非灰度色值。
-- **扩写 wireframe-style.css**：仅添加通用组件类（不与具体业务耦合）；扩写前在文件中搜索，避免重复定义；按既有区块归类插入。详见 references/wireframe-style.md「扩写规则」。
-- 格式: 自包含 HTML，样式仅来自根目录 wireframe-style.css（相对路径引用）
-- 状态: 至少 4 个（加载中/成功/空状态/错误）
-- 标注: 关键节点使用 data-kit 属性标注目标平台控件
-- 弹窗: 直接渲染在页面中，不使用 position:fixed
-- 设备: `.device-frame`（iOS）/ `.tablet`（iPad）/ `.desktop`（macOS）
+## 探索与采纳
 
-## 复杂页面拆分
+候选位于 `_explorations/<topic>/`，主题记录问题、固定条件、基线、候选入口、比较和采纳依据；独立 `_explorations/INDEX.md` 管理。正式 INDEX 只链接探索入口。
+联合视觉探索引用 `arckit/visual/_explorations/`，不复制规范。支持整案及部分组合采纳；用户已有选择直接落实，尚未选择的交付比较和待决定项。
+正式采纳须形成完整一致的策略、原型和说明，候选基线变化先核对；比较历史保留在探索区，不混入正式正文。
 
-- default.html 为整体骨架（各区域占位）
-- 再平铺各区域独立 .html（sidebar.html、editor-area.html 等）
+## 索引与结构
 
-## 状态标识
-
-- ✅ 已完成 | 🟡 设计中 | ⚪ 待设计 | 🔴 已废弃
+正式业务目录按页面归属，共享资源在 `_shared/`，默认线框资源为 `wireframe-style.css`。更新 INDEX、受影响的 `_map/RELATIONS.md` 和 feature-matrix。纯探索不更新正式功能覆盖。
+页面状态：✅ 已完成 / 🟡 设计中 / ⚪ 待设计 / 🔴 已废弃；候选状态：候选 / 已采纳 / 部分采纳 / 未采纳 / 已过时。

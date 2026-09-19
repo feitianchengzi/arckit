@@ -103,13 +103,13 @@ test('two independent Git caches share exact records and reject concurrent publi
 });
 
 test('scene Chat persists thread in private cwd, includes exact user request and uses real product proposal tool',async t=>{
- const calls=[];const f=await fixture(t,{createAdapter:()=>({async *runTurn(call){calls.push(call);await call.options.onThreadBound({threadId:'thread-idea'});yield {type:'codex.turn.started',turn_id:'turn-1'};
+ const calls=[];const f=await fixture(t,{getSettings:async()=>({codex:{yolo_mode:true}}),createAdapter:()=>({async *runTurn(call){calls.push(call);await call.options.onThreadBound({threadId:'thread-idea'});yield {type:'codex.turn.started',turn_id:'turn-1'};
  const ctx=await call.options.dynamicToolProvider({tool:'product_context',arguments:{}});await call.options.dynamicToolProvider({tool:'product_propose',arguments:{revision:ctx.record.revision,patch:{vision:'Agent proposal'},reason:'User input'}});
  yield {type:'codex.item.completed',params:{item:{id:'tool-1',type:'dynamicToolCall',tool:'product_propose',arguments:{revision:0},contentItems:[{type:'inputText',text:'proposal saved'}],success:true}}};
  yield {type:'codex.item.completed',params:{item:{id:'answer',type:'agentMessage',text:'请查看左侧建议'}}};yield {type:'codex.turn.completed',turn:{status:'completed'}};},async interrupt(){},close(){}})});
  const c=f.coordinator,p=await c.command('create');let chat=await c.chatAction({id:p.id,action:'send',text:'请整理一个面向设计师的产品',client_request_id:'request-1'});
  for(let i=0;i<50;i++){chat=await c.chatAction({id:p.id,action:'snapshot'});if(chat.sessions[0]?.status==='completed')break;await new Promise(r=>setTimeout(r,10));}
- assert.equal(chat.sessions[0].status,'completed');assert.match(calls[0].prompt,/请整理一个面向设计师的产品/);assert.equal(calls[0].projectRoot,p.workspace);assert.match(chat.messages.find(m=>m.kind==='tool').content,/proposal saved/);assert.equal((await c.detail(p.id)).proposal.patch.vision,'Agent proposal');assert.equal((await c.detail(p.id)).record.vision,'');
+ assert.equal(chat.sessions[0].status,'completed');assert.equal(calls[0].options.yoloMode,true);assert.match(calls[0].prompt,/当前用户显式开启 YOLO/);assert.match(calls[0].prompt,/请整理一个面向设计师的产品/);assert.equal(calls[0].projectRoot,p.workspace);assert.match(chat.messages.find(m=>m.kind==='tool').content,/proposal saved/);assert.equal((await c.detail(p.id)).proposal.patch.vision,'Agent proposal');assert.equal((await c.detail(p.id)).record.vision,'');
  await c.close();const fresh=createProductCoordinator(f.options);t.after(()=>fresh.close());await fresh.chatAction({id:p.id,action:'send',session_id:chat.selected_session_id,text:'继续',client_request_id:'request-2'});
  for(let i=0;i<50&&calls.length<2;i++)await new Promise(r=>setTimeout(r,10));assert.equal(calls[1].options.threadId,'thread-idea');await fresh.close();
 });

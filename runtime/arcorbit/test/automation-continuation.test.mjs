@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { rm } from 'node:fs/promises';
+import { rm, readFile } from 'node:fs/promises';
 import { runAutomationSession } from '../src/automation/session.mjs';
 import { automationDeliveryPolicy } from '../src/automation/delivery-policy.mjs';
 const runStateDrivenSession = input => runAutomationSession({ ...input, options: { ...input.options, runtimeContext: { delivery_policy: automationDeliveryPolicy(), ...input.options?.runtimeContext } } });
@@ -47,6 +47,8 @@ test('real Ledger gaps, reviews, closeout continuation and Automation consume on
       onEvent(event) { applyRunEvent(run, { parsed: { event } }); } },
     dependencies: {
       async runRound({ snapshot, options }) {
+        assert.equal(options.automationLoop, true);
+        assert.equal(options.runtimeContext.delivery_policy, undefined);
         contexts.push(options.runtimeContext);
         const active = snapshot.activeCases[0];
         const review = active.record.case_resolution.candidate_gaps.some((gap) => gap.id.includes(':completion-review:'));
@@ -68,15 +70,12 @@ test('real Ledger gaps, reviews, closeout continuation and Automation consume on
   assert.equal(result.round_count, 4);
   assert.deepEqual(result.session_rounds.map(round => round.round_index), [1, 2, 3, 4]);
   for (const prompt of prompts) {
-    assert.ok(prompt.startsWith('Complete the explicitly authorized local Git delivery'));
-    const request = JSON.parse(prompt.slice(prompt.indexOf('{')));
-    assert.equal(request.schema_version, 'arcorbit-git-delivery-request/v1');
-    assert.equal(request.execution_authorization.git_commit_allowed, true);
-    assert.equal(request.case_completion, 'trusted_ledger_accepted');
-    assert.equal(request.workflow_authority, undefined);
-    assert.equal(request.original_user_input, 'Finish the authorized fixture obligations.');
-    assert.match(request.delivery_contract.scope, /Preserve unrelated staged and unstaged changes/);
-    assert.match(request.delivery_contract.continuation, /resume_loop/);
+    assert.match(prompt, /Phase: task_closeout/);
+    assert.match(prompt, /Git commit authorized: true/);
+    assert.match(prompt, /Finish the authorized fixture obligations/);
+    assert.match(prompt, /Preserve unrelated staged and unstaged changes/);
+    assert.match(prompt, /resume_loop/);
+    assert.doesNotMatch(prompt, /"task_context"/);
   }
   assert.equal(contexts[1].case_binding.case_id, ids[0]);
   assert.equal(contexts[2].case_checkpoint.pending_continuation.source_case_id, ids[0]);
@@ -200,10 +199,11 @@ test('human closeout resume preserves both original intent and the current user 
     task: 'Use the already authorized commit identity.', threadId: 'THREAD-1', agentAdapter: adapter([closeout()], prompts),
     runtimeContext: { original_task: 'Implement the original feature.', execution_checkpoint: checkpoint }
   } });
-  const invocation = JSON.parse(prompts[0].slice(prompts[0].indexOf('{')));
-  assert.equal(invocation.original_user_input, 'Implement the original feature.');
+  assert.match(prompts[0], /Implement the original feature/);
+  const path = prompts[0].match(/accepted Case evidence at (.+)\./)[1];
+  const invocation = JSON.parse(await readFile(path, 'utf8'));
   assert.equal(invocation.current_instruction, 'Use the already authorized commit identity.');
-  assert.equal(invocation.task_context.authoritative_case_id, caseA);
+  assert.equal(invocation.authoritative_case_id, caseA);
 });
 
 test('explicit stop during closeout releases Automation without remote completion or a human gate', async (t) => {

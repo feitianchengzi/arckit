@@ -71,3 +71,31 @@ Intervention Workbench 从 Command Center 的人工关注项或历史运行按�
 Product 管理以 `arckit/spec/agentic-software-development/arcorbit-product-management.md` 为产品源，技术协议在 `arckit/tech/arcorbit/product-management-solution.md`；页面为 `product-list` → `product-detail`、`idea-workspace` → `idea-add`，Today 通过 `today-workspace/product-continuity.html` 续接原对象。原 Lifecycle 页面保持独立。
 
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
+
+`project-workbench/interaction.md` 对应 `arckit/spec/agentic-software-development/arcorbit-project-workbench.md` 与 `arckit/interaction/project-workbench/`，生产实现位于 `runtime/arcorbit/src/workbench/` 和独立 project-workbench renderer 模块。
+
+
+## 项目事情台正式原型与探索来源
+
+- 正式策略：project-workbench/interaction.md；可操作入口：project-workbench/default.html。正式入口无探索资源依赖。
+- 视觉输入：arckit/visual/_library/brief.md、design-tokens.yaml、component-catalog.yaml、state-contract.md 与 themes/light.yaml；入口直接消费 generated-tokens.css。重建命令见 project-workbench/README.md。
+- 采纳记录：_explorations/project-workbench-v2/exploration.md；采纳前稿保留在 options/original/，使用独立存储与旧视觉。正式升级不回写候选样本。
+- 其他探索：unified-work-exploration、product-continuity-concept、release-workbench；仅迁移，不改变正式页面覆盖状态。
+- 平台主导航在 PERSONAL 的 Chat 旁新增独立 Thing 入口，恢复 PERSONAL / PRODUCT / PRODUCT LIFECYCLE / ORGANIZATION 分类；事情台侧栏直接呈现各业务页面，不再承担项目列表、关注分组和资源导航。窄窗页面导航菜单保留所有目的地；其他页面原型在独立标签页打开，当前事情与草稿保留。生产路由与 spec/tech 中旧主体入口描述尚待后续同步。
+- 异常场景：project-workbench/scenarios.html → default.html?autoplay=off&scenarioTools=on，场景存储与正式原型隔离，禁止真实服务连接。
+- 历史 intake/Case 中的 runtime/arcorbit/design 路径作为原始证据保留；当前地址从 _explorations/migration-baseline.json 的 moves 映射定位。当前 spec 入口已指向正式目录。
+- Renderer 尚未消费本轮视觉应用与本地异常演示代码；此迁移不代表生产界面同步完成。
+
+事情台强调色依据 visual 的 2026-09-17 橙色策略，由同一 generated-tokens.css 自动消费；正式截图已重建，探索截图保持采纳时证据。
+
+浅杏橙已采纳：#F4B77D 主操作、无深橙装饰描边、中性链接与选中文字；正式 project-workbench 消费共享 Token 和对应样式。来源：arckit/visual/_explorations/orange-tone/exploration.md。
+
+Thing 的个人中心通过 project-workbench/account-settings.js 提供完整可操作投影；能力源为生产 settingsOverlay、renderer.js 与 codex-settings-form.mjs，逐项映射见 project-workbench/account-capabilities.md。automation-workspace/authentication.html 保留账号状态辅助稿；当前完整能力覆盖以 Thing 弹出页为准。
+
+## Chat 完整原型迁移
+
+chat-workspace/default.html 已迁移为分类应用导航、中央对话与右侧会话列表的可操作页面；原静态主稿保留为 chat-workspace/states.html 辅助说明，右侧方向同步修正。页面按 ConversationSurface 和 light Tokens 呈现；独立模型、渲染、行为与异常工具覆盖会话生命周期。与 Thing 共用 project-workbench/navigation.js、account-settings.js 及基础样式，通过 NavigationHost / AccountHost 显式适配，不共享会话或业务状态。
+
+验证：chat-workspace/verification.json；共用导航回归：project-workbench/verification-states.json。生产 Chat renderer 与产品规格中的旧左右栏描述尚未迁移，本轮不宣称生产同步。
+
+无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。

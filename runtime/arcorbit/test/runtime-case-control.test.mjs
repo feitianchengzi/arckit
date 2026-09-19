@@ -195,6 +195,13 @@ test("Runtime projects closed Case reuse as a terminal writeback-gated result", 
   assert.equal(result.ledger_stage.writeback_required, true);
   assert.equal(result.loop_handoff.next_responsibility, "none");
   assert.deepEqual(validateRuntimeResult(result).issues, []);
+  assert.equal(Object.hasOwn(result.loop_handoff, 'progress_guard'), false);
+  const historical = structuredClone(result);
+  historical.loop_handoff.progress_guard = { no_progress_limit: 2, max_auto_rounds: 8 };
+  assert.deepEqual(validateRuntimeResult(historical).issues, []);
+  const schema = JSON.parse(await readFile(new URL('../schemas/runtime-result.schema.json', import.meta.url), 'utf8'));
+  assert.equal(schema.properties.loop_handoff.required.includes('progress_guard'), false);
+  assert.equal(schema.properties.loop_handoff.properties.progress_guard.deprecated, true);
 });
 
 async function createCaseFixture() {

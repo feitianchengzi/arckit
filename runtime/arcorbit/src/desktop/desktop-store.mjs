@@ -376,7 +376,7 @@ function normalizeDesktopSession(value, projectIdValue) {
       : String(value.title || (kind === "chat" ? "New chat" : "Automation")),
     thread_id: String(value.thread_id || ""),
     turn_id: String(value.turn_id || ""),
-    retry_client_request_id: kind === "chat" ? String(value.retry_client_request_id || "") : "",
+    retry_client_request_id: ["chat", "automation-task"].includes(kind) ? String(value.retry_client_request_id || "") : "",
     status,
     error: String(value.error || ""),
     draft: String(value.draft || "").slice(0, 100_000),
@@ -687,6 +687,7 @@ export function defaultAutomationState() {
     concurrency_limit: 3,
     project_bindings: {},
     project_participation: {},
+    requested_tasks: {},
     active_executions: {},
     selected_execution_id: "",
     acceptance_feedback_items: [],
@@ -747,6 +748,7 @@ export function normalizeAutomationState(value = {}) {
     concurrency_limit: Math.min(8, Math.max(1, Number.parseInt(value.concurrency_limit, 10) || 3)),
     project_bindings: stringMap(value.project_bindings),
     project_participation: booleanMap(value.project_participation),
+    requested_tasks: stringMap(value.requested_tasks),
     active_executions: activeExecutions,
     selected_execution_id: selectExecutionId(value.selected_execution_id, activeExecutions),
     acceptance_feedback_items: feedbackItems,
@@ -862,6 +864,8 @@ export function normalizeAcceptanceFeedbackItem(value) {
     intervention_kind: String(value.intervention_kind || (value.status === "external_wait" ? "external_dependency" : "")),
     created_at: String(value.created_at || ""),
     updated_at: String(value.updated_at || value.created_at || ""),
+    archived_at: String(value.archived_at || ""),
+    cancelled_at: String(value.cancelled_at || ""),
     resolved_at: String(value.resolved_at || "")
   };
 }

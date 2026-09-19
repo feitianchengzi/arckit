@@ -1,3 +1,4 @@
+import { realtimeProjection } from "./work-sync-health.mjs";
 import { EventEmitter } from "node:events";
 import { TASK_STATES, TaskSourceError, normalizeTask } from "./task-source-adapter.mjs";
 
@@ -20,6 +21,8 @@ export function createWorkSyncCoordinator({
   let requestedReconcileGeneration = 0;
   let completedReconcileGeneration = 0;
   let pendingReconcileDispatch = false;
+  let pendingAllProjects = false;
+  const pendingProjectIds = new Set();
   const pendingReconcileReasons = new Set();
   let sessionEpoch = 0;
 
@@ -42,9 +45,11 @@ export function createWorkSyncCoordinator({
     return store;
   }
 
-  async function reconcile({ dispatch = true, reason = "reconcile" } = {}) {
+  async function reconcile({ dispatch = true, reason = "reconcile", allProjects = false, projectIds = [] } = {}) {
     requestedReconcileGeneration += 1;
     pendingReconcileDispatch ||= dispatch;
+    pendingAllProjects ||= allProjects;
+    for (const id of projectIds) pendingProjectIds.add(String(id));
     pendingReconcileReasons.add(reason);
     if (!reconcilePromise) {
       reconcilePromise = (async () => {
@@ -53,9 +58,13 @@ export function createWorkSyncCoordinator({
           const targetGeneration = requestedReconcileGeneration;
           const nextDispatch = pendingReconcileDispatch;
           const nextReason = [...pendingReconcileReasons].join(",") || "reconcile";
+          const nextAllProjects = pendingAllProjects;
+          const nextProjectIds = [...pendingProjectIds];
+          pendingAllProjects = false;
+          pendingProjectIds.clear();
           pendingReconcileDispatch = false;
           pendingReconcileReasons.clear();
-          snapshot = await reconcileOnce({ dispatch: nextDispatch, reason: nextReason });
+          snapshot = await reconcileOnce({ dispatch: nextDispatch, reason: nextReason, allProjects: nextAllProjects, additionalProjectIds: nextProjectIds });
           completedReconcileGeneration = targetGeneration;
         }
         return snapshot || getSnapshot();
@@ -66,7 +75,7 @@ export function createWorkSyncCoordinator({
     return reconcilePromise;
   }
 
-  async function reconcileOnce({ dispatch, reason }) {
+  async function reconcileOnce({ dispatch, reason, allProjects, additionalProjectIds }) {
       const epoch = sessionEpoch;
       await patchTaskSync((sync) => {
         sync.source_status = "syncing";
@@ -94,7 +103,9 @@ export function createWorkSyncCoordinator({
         ]);
         if (epoch !== sessionEpoch) return getSnapshot();
         const store = await runManager.readDesktopStore();
-        const projectIds = demandedProjectIds(store, projects);
+        const accessibleProjectIds = new Set(projects.map((project) => String(project.id)));
+        const projectIds = allProjects ? [...accessibleProjectIds]
+          : [...new Set([...demandedProjectIds(store, projects), ...additionalProjectIds])].filter((id) => accessibleProjectIds.has(id));
         const results = await mapWithConcurrency(projectIds, 4, async (projectId) => loadProject(projectId, projects));
         if (epoch !== sessionEpoch) return getSnapshot();
         const errors = results.flatMap(projectResultErrors);
@@ -552,7 +563,7 @@ function demandedProjectIds(store, accessibleProjects) {
   const accessible = new Set((accessibleProjects || []).map((project) => String(project.id)));
   const platform = store.platform || {};
   const activeWorkset = (platform.worksets || []).find((item) => item.id === platform.active_workset_id) || platform.worksets?.[0];
-  const ids = new Set((activeWorkset?.project_ids || []).map(String));
+  const ids = new Set([...(activeWorkset?.project_ids || []).map(String), ...Object.values(store.automation?.requested_tasks || {}).map(String)]);
   for (const [projectId, participating] of Object.entries(store.automation?.project_participation || {})) {
     if (participating) ids.add(String(projectId));
   }
@@ -649,30 +660,6 @@ function isCurrentExecutorTask(task, project, user) {
   return Boolean(executorId) && String(task?.executor_id || "") === executorId;
 }
 
-function realtimeProjection(projects) {
-  const entries = Object.fromEntries(Object.entries(projects).map(([id, item]) => [id, {
-    state: item.state || "idle",
-    mode: item.mode || "unknown",
-    cursor: Number(item.cursor || 0),
-    last_event_at: item.last_event_at || "",
-    last_refreshed_at: item.last_refreshed_at || "",
-    updated_at: item.updated_at || "",
-    error: item.error || ""
-  }]));
-  const active = Object.values(entries).filter((item) => item.state !== "idle");
-  const states = active.map((item) => item.state);
-  const modes = [...new Set(active.map((item) => item.mode).filter((mode) => mode && mode !== "unknown"))];
-  return {
-    status: states.length === 0 ? "idle"
-      : states.every((state) => state === "connected") ? "connected"
-        : states.some((state) => state === "degraded") ? "degraded"
-          : states.some((state) => state === "reconnecting") ? "reconnecting"
-            : states.some((state) => state === "recovering") ? "recovering" : "connecting",
-    mode: modes.length === 0 ? "unknown" : modes.length === 1 ? modes[0] : "mixed",
-    last_refreshed_at: active.map((item) => item.last_refreshed_at).filter(Boolean).sort().at(-1) || "",
-    projects: entries
-  };
-}
 
 function stableIdentityKey(user, authentication) {
   return String(user?.id || authentication?.masked_identity || "authenticated");

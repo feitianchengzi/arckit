@@ -13,7 +13,8 @@
     "artifact_impacts",
     "risks",
     "unknowns",
-    "handoff"
+    "handoff",
+    "task_progress"
   ],
   "properties": {
     "schema_version": {
@@ -77,6 +78,37 @@
     },
     "handoff": {
       "$ref": "#/$defs/handoff"
+    },
+    "task_progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "advanced",
+        "reason",
+        "evidence",
+        "remaining"
+      ],
+      "properties": {
+        "advanced": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "remaining": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Agent-owned assessment of original-task progress. This declaration is evidence for context recovery, not a Runtime continuation gate. Continuation is expressed separately by handoff."
     }
   },
   "additionalProperties": false,

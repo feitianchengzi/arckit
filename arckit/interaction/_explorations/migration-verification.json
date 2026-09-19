@@ -1,0 +1,61 @@
+{
+  "ok": true,
+  "pages": [
+    {
+      "topic": "project-workbench-v2",
+      "file": "index.html",
+      "query": {
+        "autoplay": "off"
+      },
+      "loaded": true
+    },
+    {
+      "topic": "unified-work-exploration",
+      "file": "index.html",
+      "query": {},
+      "loaded": true
+    },
+    {
+      "topic": "unified-work-exploration",
+      "file": "workbench.html",
+      "query": {
+        "view": "list",
+        "autoplay": "off"
+      },
+      "loaded": true
+    },
+    {
+      "topic": "unified-work-exploration",
+      "file": "workbench.html",
+      "query": {
+        "view": "focus",
+        "autoplay": "off"
+      },
+      "loaded": true
+    },
+    {
+      "topic": "unified-work-exploration",
+      "file": "workbench.html",
+      "query": {
+        "view": "attention",
+        "autoplay": "off"
+      },
+      "loaded": true
+    },
+    {
+      "topic": "product-continuity-concept",
+      "file": "index.html",
+      "query": {},
+      "loaded": true
+    },
+    {
+      "topic": "release-workbench",
+      "file": "index.html",
+      "query": {},
+      "loaded": true
+    }
+  ],
+  "scenarioWrapper": true,
+  "errors": [],
+  "externalRequests": []
+}

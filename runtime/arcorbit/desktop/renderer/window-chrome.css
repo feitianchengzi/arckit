@@ -1,0 +1,38 @@
+/* Window controls occupy only their own corner; content has no titlebar row. */
+.desktop-app > .sidebar { grid-column: 1; grid-row: 1; }
+.desktop-app > .app-stage { grid-column: 2; grid-row: 1; }
+.window-controls { background: var(--semantic-canvas); }
+.window-control { color: var(--semantic-text); }
+.window-control:hover { background: var(--colors-ink-100); }
+.sidebar-brand, .commandbar, .pw-top, .chat-page-heading { -webkit-app-region: drag; }
+.sidebar-brand > *, .commandbar button, .commandbar input, .commandbar select,
+.commandbar label, .pw-top button, .pw-top select, .chat-page-heading button {
+  -webkit-app-region: no-drag;
+}
+:root[data-window-control-mode="native-macos"] .desktop-app > .sidebar { padding-top: 40px; }
+:root[data-window-control-mode="custom"] .commandbar,
+:root[data-window-control-mode="custom"] .pw-top,
+:root[data-window-control-mode="custom"] .chat-page-heading { padding-right: 154px; }
+.page-navigation-toggle { position: fixed; top: 9px; left: 8px; height: 36px; z-index: 90; color: var(--semantic-text); }
+:root[data-window-control-mode="native-macos"] .page-navigation-toggle { left: 82px; }
+.sidebar-footer, .project-workbench-active .sidebar-footer { grid-template-columns: minmax(0, 1fr); }
+.profile-button { min-width: 0; grid-template-columns: 28px minmax(0, 1fr); }
+.profile-button > .account-avatar { grid-row: 1 / 4; }
+.profile-button > .sync-state {
+  grid-column: 2; grid-row: 3; min-width: 0; padding: 2px 0 0;
+  text-align: left; color: var(--semantic-muted); font-size: var(--type-caption); line-height: 18px;
+}
+.profile-button .sync-state i { flex: none; }
+.profile-button .sync-state > span { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .chat-active .chat-page-heading, .project-workbench-active .pw-top { padding-left: 50px; }
+  :root[data-window-control-mode="native-macos"] .chat-page-heading,
+  :root[data-window-control-mode="native-macos"] .pw-top { padding-left: 124px; }
+  .chat-active.page-navigation-open .sidebar, .project-workbench-active.page-navigation-open .sidebar { padding-top: 54px; }
+  :root[data-window-control-mode="native-macos"] .chat-active.page-navigation-open .sidebar,
+  :root[data-window-control-mode="native-macos"] .project-workbench-active.page-navigation-open .sidebar { padding-top: 54px; }
+  :root[data-window-control-mode="custom"] .chat-page-heading,
+  :root[data-window-control-mode="custom"] .pw-top { padding-right: 12px; padding-top: 40px; min-height: 94px; }
+  :root[data-window-control-mode="custom"] .pw-shell { grid-template-rows: 94px minmax(0, 1fr); }
+  :root[data-window-control-mode="custom"] .pw-list { top: 94px; }
+}

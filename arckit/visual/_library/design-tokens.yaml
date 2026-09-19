@@ -1,58 +1,60 @@
 metadata:
   project: ArcOrbit Desktop
-  last_updated: "2026-08-25"
+  last_updated: "2026-09-17"
   brief: ./brief.md
 
 colors:
   ink:
-    "950": { value: "#0D1119", description: 深色窗口与标题栏背景 }
-    "900": { value: "#121722", description: 主侧栏背景和最深正文 }
+    "950": { value: "#0D1119", description: 兼容混合主题的窗口背景 }
+    "900": { value: "#121722", description: 兼容深侧栏背景和最深正文 }
     "800": { value: "#1D2431", description: 深色控件悬停面 }
     "700": { value: "#313A49", description: 强次级文字 }
     "600": { value: "#465267", description: 次级文字，在浅色表面保持正文级对比度 }
     "500": { value: "#566174", description: 辅助说明，在浅色表面保持正文级对比度 }
-    "400": { value: "#687386", description: 弱提示文字，只用于非关键辅助信息并保持可读对比度 }
+    "400": { value: "#596579", description: 弱提示文字，只用于非关键辅助信息并保持可读对比度 }
     "300": { value: "#B6BDC8", description: 强边界 }
-    "200": { value: "#D7DCE4", description: 控件边界 }
+    "200": { value: "#D7DCE4", description: 装饰边界，不用于输入框唯一轮廓 }
     "150": { value: "#E4E7EC", description: 常规分隔线 }
     "100": { value: "#ECEFF3", description: 选中与悬停背景 }
     "75": { value: "#F2F4F7", description: 页面背景 }
     "50": { value: "#F7F8FA", description: 次级表面 }
   paper: { value: "#FFFFFF", description: 主工作区与卡片表面 }
   accent:
-    strong: { value: "#4B46C7", description: 主操作按下态与深色文字 }
-    base: { value: "#5C55E6", description: 主操作、活动 Runtime 与当前选择 }
-    hover: { value: "#706AF2", description: 主操作悬停态 }
-    soft: { value: "#ECEBFF", description: 紫色选中和运行背景 }
-    faint: { value: "#F5F4FF", description: 紫色最低强调背景 }
+    strong: { value: "#9B572D", description: 强调色文字，在浅色面保持可读对比度 }
+    base: { value: "#F4B77D", description: 主操作、活动 Runtime 与当前选择 }
+    hover: { value: "#EFAC6B", description: 主操作悬停态 }
+    soft: { value: "#FFF4E9", description: 橙色选中和运行背景 }
+    faint: { value: "#FFFAF5", description: 橙色最低强调背景 }
+    pressed: { value: "#E6A15F", description: 主操作按下背景 }
+    "on": { value: "#332C26", description: 浅杏橙按钮上的深色文字和图标 }
   info:
-    base: { value: "#2574D8", description: 同步、外部信息与可导航证据 }
+    base: { value: "#1D60B5", description: 同步、外部信息与可导航证据 }
     soft: { value: "#E8F2FF", description: 信息提示背景 }
   accepted:
-    base: { value: "#13867B", description: 已验收和稳定外部确认 }
+    base: { value: "#096B62", description: 已验收和稳定外部确认 }
     soft: { value: "#DFF7F2", description: 已验收状态背景 }
   success:
-    base: { value: "#23875B", description: 健康、完成和恢复成功 }
+    base: { value: "#196C47", description: 健康、完成和恢复成功 }
     soft: { value: "#E4F6ED", description: 成功状态背景 }
   warning:
     strong: { value: "#A45A14", description: 阻塞和高注意文字 }
-    base: { value: "#C5741D", description: 待处理和人工注意 }
+    base: { value: "#975411", description: 待处理和人工注意 }
     soft: { value: "#FFF0D8", description: 待处理和人工事项背景 }
   danger:
-    base: { value: "#C5434D", description: 错误、取消和破坏操作 }
+    base: { value: "#B93240", description: 错误、取消和破坏操作 }
     soft: { value: "#FDE9EA", description: 错误与取消状态背景 }
 
 typography:
   family:
-    interface: { value: "Inter, -apple-system, BlinkMacSystemFont, SF Pro Display, PingFang SC, sans-serif", description: 界面默认字体 }
+    interface: { value: "-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif", description: 界面默认字体 }
     mono: { value: "SFMono-Regular, Consolas, monospace", description: 标识符、时间和命令字体 }
-  display: { size: 28, line_height: 34, weight: 750, description: 页面主标题，与正文形成克制层级 }
+  display: { size: 28, line_height: 34, weight: 700, description: 页面主标题，与正文形成克制层级 }
   title: { size: 20, line_height: 28, weight: 700, description: 主要区块标题 }
   heading: { size: 16, line_height: 22, weight: 700, description: 卡片与 Inspector 标题 }
-  body: { size: 14, line_height: 22, weight: 450, description: 页面、表格和表单正文 }
-  conversation: { size: 15, line_height: 24, weight: 450, description: 人工对话与长说明 }
-  label: { size: 13, line_height: 18, weight: 650, description: 按钮、导航、字段和状态标签 }
-  caption: { size: 12, line_height: 18, weight: 550, description: 辅助状态、时间与元数据 }
+  body: { size: 14, line_height: 22, weight: 400, description: 页面、表格和表单正文 }
+  conversation: { size: 15, line_height: 24, weight: 400, description: 人工对话与长说明 }
+  label: { size: 13, line_height: 18, weight: 600, description: 按钮、导航、字段和状态标签 }
+  caption: { size: 12, line_height: 18, weight: 400, description: 辅助状态、时间与元数据 }
   micro: { size: 11, line_height: 16, weight: 700, description: 短计数和非关键紧凑标识，不承载句子或操作含义 }
 
 spacing:
@@ -68,13 +70,17 @@ spacing:
 layout:
   sidebar_width: { value: 228, description: 项目与状态主导航宽度 }
   titlebar_height: { value: 40, description: 跨平台应用标题栏高度，容纳 macOS 原生 traffic lights 或 Windows/Linux 应用控件及拖动区域 }
+  workbench_topbar_height: { value: 54, description: 事情台唯一内容顶栏，不与旧命令栏叠加 }
+  workbench_search_height: { value: 31, description: 事情台交互指定的紧凑搜索例外 }
+  readable_width: { value: 760, description: 对话正文最大宽度 }
+  list_drawer_breakpoint: { value: 760, description: 事情列表抽屉断点 }
   commandbar_height: { value: 58, description: 顶部命令栏高度 }
   inspector_width: { value: 312, description: 运行边界和证据检查器宽度 }
   compact_control_height: { value: 32, description: 仅图标工具和极紧凑辅助控件的最小高度 }
   control_height: { value: 36, description: 常规按钮、输入框和选择控件的最小高度 }
   compact_row_height: { value: 40, description: 高频数据行的最小高度 }
   row_height: { value: 44, description: 标准可操作列表行高度 }
-  min_window_width: { value: 1100, description: 桌面布局最小宽度 }
+  min_window_width: { value: 390, description: 视觉适配检查下限，不改变原生窗口约束 }
   min_window_height: { value: 720, description: 桌面布局最小高度 }
 
 corner_radius:
@@ -91,3 +97,30 @@ animation:
   fast: { duration_ms: 120, easing: "cubic-bezier(.2,.8,.2,1)", description: hover 和状态点 }
   normal: { duration_ms: 160, easing: "cubic-bezier(.2,.8,.2,1)", description: 页面投影与控件状态 }
   deliberate: { duration_ms: 240, easing: "cubic-bezier(.2,.8,.2,1)", description: Inspector 和恢复面板进入 }
+
+# 组件消费语义角色；原始 colors 保留为基础色，不直接承担主题选择。
+semantic:
+  canvas: { value: "{colors.paper}", description: 主要内容与消息表面 }
+  sidebar: { value: "{colors.ink.50}", description: 事情台浅色项目导航 }
+  chrome: { value: "{colors.ink.50}", description: 浅色原生窗口承载面 }
+  elevated: { value: "{colors.paper}", description: 菜单与消息层表面 }
+  text: { value: "{colors.ink.900}", description: 正文 }
+  muted: { value: "{colors.ink.600}", description: 辅助信息 }
+  nav_text: { value: "{colors.ink.600}", description: 导航默认文字 }
+  nav_selected_text: { value: "{semantic.text}", description: 当前项目文字 }
+  nav_selected: { value: "{colors.accent.soft}", description: 当前项目背景 }
+  divider: { value: "{colors.ink.150}", description: 装饰分隔线 }
+  control_border: { value: "#7A8492", description: 必要输入控件边界 }
+  focus: { value: "#9B572D", description: 不透明焦点环 }
+  disabled_text: { value: "{colors.ink.500}", description: 禁用原因仍可读 }
+  disabled_bg: { value: "{colors.ink.100}", description: 禁用控件表面 }
+  scrim: { value: "rgba(13,17,25,.24)", description: 仅覆盖交互定义的受阻区域 }
+focus:
+  width: { value: 2, description: 焦点环宽度 }
+  offset: { value: 2, description: 焦点环与控件间隔 }
+layer:
+  content: { value: 0 }
+  sticky: { value: 10 }
+  popover: { value: 20 }
+  message_overlay: { value: 30 }
+  dialog: { value: 40 }

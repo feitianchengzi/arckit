@@ -46,6 +46,12 @@ const (
 	FeedbackMessageTypeSystem       = "system"
 )
 
+// FeedbackMessageState 消息状态
+const (
+	FeedbackMessageStatePendingReview = "pending_review" // 待确认（草稿）
+	FeedbackMessageStateSent          = "sent"           // 已发送
+)
+
 const (
 	FeedbackAttachmentTypeImage = "image"
 	FeedbackAttachmentTypeFile  = "file"
@@ -68,6 +74,7 @@ type FeedbackMessage struct {
 	SenderCustomUserID *string        `json:"sender_custom_user_id,omitempty" gorm:"type:varchar(128);index;uniqueIndex:uniq_feedback_messages_customer_client_active,priority:2,where:sender_type = 'customer' AND sender_custom_user_id IS NOT NULL AND client_message_id IS NOT NULL AND delete_at IS NULL"`
 	ClientMessageID    *string        `json:"client_message_id,omitempty" gorm:"type:varchar(128);index;uniqueIndex:uniq_feedback_messages_customer_client_active,priority:3,where:sender_type = 'customer' AND sender_custom_user_id IS NOT NULL AND client_message_id IS NOT NULL AND delete_at IS NULL"`
 	MessageType        string         `json:"message_type" gorm:"type:varchar(32);not null;default:'text';index"`
+	State              string         `json:"state" gorm:"type:varchar(32);not null;default:'sent';index"`
 	Content            string         `json:"content" gorm:"type:text;not null;default:''"`
 	Metadata           *string        `json:"metadata,omitempty" gorm:"type:jsonb"`
 	CreatedAt          time.Time      `json:"created_at" gorm:"autoCreateTime;index:idx_feedback_messages_feedback_created,priority:3;index:idx_feedback_messages_project_created,priority:3"`

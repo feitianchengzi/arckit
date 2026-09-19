@@ -19,6 +19,7 @@ export function normalizeCodexExecutionSettings(value = {}, fallback = {}) {
 export function normalizeCodexSettings(value = {}) {
   const legacy = normalizeCodexExecutionSettings(value);
   return {
+    yolo_mode: value?.yolo_mode === true,
     chat: normalizeCodexExecutionSettings(value?.chat, legacy),
     automation: normalizeCodexExecutionSettings(value?.automation, legacy)
   };
@@ -36,6 +37,7 @@ export function validateCodexSettingsPatch(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)
       || Object.keys(value).length === 0
       || Object.entries(value).some(([key, item]) => {
+        if (key === "yolo_mode") return typeof item !== "boolean";
         if (!["chat", "automation"].includes(key)) return true;
         try { validateCodexExecutionSettingsPatch(item); return false; } catch { return true; }
       })) {

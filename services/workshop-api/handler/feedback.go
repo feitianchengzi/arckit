@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -318,6 +319,17 @@ func CreateFeedback(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建反馈失败: "+err.Error(), nil))
 		return
 	}
+
+	// 自动触发 AI 分诊（异步，不阻塞响应）
+	go func() {
+		triage := analyzeFeedback(feedback.Title, feedback.Content)
+		data := parseFeedbackPayload(feedback.Data)
+		data["triage"] = triage
+		if raw, err := json.Marshal(data); err == nil {
+			text := string(raw)
+			db.Model(&feedback).Update("data", &text)
+		}
+	}()
 
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
@@ -689,4 +701,102 @@ func GetFeedbacks(c *gin.Context) {
 		PageSize: pagination.PageSize,
 		Total:    int(total),
 	}))
+}
+
+// GetFeedbackTaskLinks 查询反馈关联的待办列表
+// GET /api/v2/user/feedbacks/:id/task-links
+func GetFeedbackTaskLinks(c *gin.Context) {
+	feedbackID, ok := parseFeedbackIDParam(c)
+	if !ok {
+		return
+	}
+
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 加载反馈以获取 project_id
+	feedback, ok := loadFeedbackByID(c, db, feedbackID)
+	if !ok {
+		return
+	}
+
+	// 鉴权
+	if _, ok := requireFeedbackProjectMember(c, db, feedback.ProjectID, "查询反馈关联待办"); !ok {
+		return
+	}
+
+	// 查询 FeedbackTaskLink
+	var links []models.FeedbackTaskLink
+	if err := db.Where("feedback_id = ? AND project_id = ?", feedbackID, feedback.ProjectID).
+		Order("created_at ASC").
+		Find(&links).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈关联待办失败: "+err.Error(), nil))
+		return
+	}
+
+	// 转换为响应格式
+	respItems := make([]FeedbackTaskLinkResponse, 0, len(links))
+	for _, link := range links {
+		respItems = append(respItems, buildFeedbackTaskLinkResponse(link))
+	}
+
+	c.JSON(http.StatusOK, response.NewSuccessResponse(respItems))
+}
+
+// GetTaskFeedbackLinks 查询待办关联的反馈列表
+// GET /api/v2/user/tasks/:id/feedback-links
+func GetTaskFeedbackLinks(c *gin.Context) {
+	taskIDStr := c.Param("id")
+	if taskIDStr == "" {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "缺少任务ID参数", nil))
+		return
+	}
+
+	var taskID uint
+	if _, err := fmt.Sscanf(taskIDStr, "%d", &taskID); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的任务ID", nil))
+		return
+	}
+
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 加载任务以获取 project_id
+	var task models.Task
+	if err := db.First(&task, taskID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询任务失败: "+err.Error(), nil))
+		return
+	}
+
+	// 鉴权（检查用户是否是项目成员）
+	if _, ok := requireFeedbackProjectMember(c, db, task.ProjectID, "查询任务关联反馈"); !ok {
+		return
+	}
+
+	// 查询 FeedbackTaskLink
+	var links []models.FeedbackTaskLink
+	if err := db.Where("task_id = ? AND project_id = ?", taskID, task.ProjectID).
+		Order("created_at ASC").
+		Find(&links).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询任务关联反馈失败: "+err.Error(), nil))
+		return
+	}
+
+	// 转换为响应格式
+	respItems := make([]FeedbackTaskLinkResponse, 0, len(links))
+	for _, link := range links {
+		respItems = append(respItems, buildFeedbackTaskLinkResponse(link))
+	}
+
+	c.JSON(http.StatusOK, response.NewSuccessResponse(respItems))
 }

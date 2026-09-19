@@ -82,7 +82,7 @@ app.whenReady().then(async () => {
       const before = targetRow?.getAttribute("aria-selected");
       targetRow?.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
       const keyboardSelectionChanged = Boolean(targetRow && before !== "true" && targetRow.getAttribute("aria-selected") === "true");
-      const navigation = [...document.querySelectorAll(".primary-nav .nav-item")];
+      const navigation = [...document.querySelectorAll(".sidebar .nav-item")];
       const tableCell = document.querySelector(".platform-work-table td");
       const tableFontPx = Number.parseFloat(getComputedStyle(tableCell).fontSize);
       document.querySelector('[data-page="chat"]').click();
@@ -127,6 +127,7 @@ app.whenReady().then(async () => {
         work_inspector_content: workInspectorContent,
         current_run_display_title: currentRunDisplayTitle,
         current_run_single_line: currentRunSingleLine,
+        core_navigation_pages: navigation.map(item => item.dataset.page),
         core_navigation_vector_icons: navigation.filter((item) => item.querySelector("svg.ui-icon use")).length,
         core_navigation_text_icons: navigation.filter((item) => [...item.childNodes].some((node) => node.nodeType === Node.ELEMENT_NODE && node.matches("span") && node.textContent.trim())).length,
         table_font_px: tableFontPx,

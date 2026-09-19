@@ -1,0 +1,15 @@
+/* 无视觉规范时的灰度骨架；有正式规范时按来源映射并替换这些呈现值。 */
+body { margin: 0; padding: 0; font-size: 16px; }
+.preview-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  padding: 12px 20px; border-bottom: 1px solid #bbb; background: #eee; }
+.prototype { max-width: 960px; margin: 0 auto; padding: 24px; }
+form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+input, select, button { font: inherit; min-height: 36px; max-width: 100%; }
+input { min-width: 0; }
+button { cursor: pointer; padding: 4px 12px; }
+:focus-visible { outline: 2px solid #444; outline-offset: 3px; }
+dialog { max-width: min(480px, calc(100vw - 40px)); padding: 24px; border: 1px solid #777; }
+dialog::backdrop { background: rgb(0 0 0 / 35%); }
+[hidden] { display: none !important; }
+#result { overflow-wrap: anywhere; }
+@media (max-width: 480px) { .prototype { padding: 16px; } }

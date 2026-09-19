@@ -1,3 +1,5 @@
+import { selectionAssessment } from './helpers/selection-assessment.mjs';
+import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,20 +116,27 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
   assert.equal(calls[0].options.outputSchema.properties.schema_version.const, "arckit-agent-loop-result/v2");
   assert.equal("skillInputs" in calls[0].options, false);
   assert.ok(calls[0].prompt.startsWith("$using-arckit\n"));
-  assert.match(calls[0].prompt, /"workflow_authority": "\$using-arckit"/);
+  assert.match(calls[0].prompt, /Follow the skill/);
+  assert.doesNotMatch(calls[0].prompt, /renamed Gap|advanced=false|distinguish necessary preparation|no_progress_limit/);
+  assert.equal(Object.hasOwn(result.runtimeResult.loop_handoff, 'progress_guard'), false);
   assert.doesNotMatch(calls[0].prompt, /"one_gap"|"typed_refs"|"future_gap_preplanning"/);
-  const invocation = JSON.parse(calls[0].prompt.slice(calls[0].prompt.indexOf("\n\n") + 2));
+  const contextPath = calls[0].prompt.match(/Read the host context resource before acting: (.+)/)[1];
+  const invocation = JSON.parse(await readFile(resolve(repositoryRoot, contextPath), "utf8"));
+  assert.doesNotMatch(calls[0].prompt, /FACT-ROOT-CAUSE|canonical_context/);
+  assert.equal(invocation.task_context.delivery_policy, undefined);
+  assert.doesNotMatch(calls[0].prompt, /Do not commit/);
   assert.equal(invocation.task_context.case_id, caseId);
   assert.equal(invocation.task_context.case_binding.run_id, "RUN-accepted");
-  assert.equal(invocation.canonical_context.ledger_snapshot.snapshot_token, "fixture-global-snapshot");
-  assert.equal(invocation.canonical_context.ledger_snapshot.selection_tokens[caseId], "fixture-selection-token");
-  assert.equal(invocation.execution_authorization.trusted_ledger_snapshot.snapshot_token, "fixture-global-snapshot");
-  assert.equal(invocation.execution_authorization.trusted_ledger_snapshot.selection_tokens[caseId], "fixture-selection-token");
-  assert.equal(invocation.conversation_contract.user_visible_commentary.required, true);
-  assert.equal(invocation.conversation_contract.user_visible_commentary.message_channel, "commentary");
-  assert.equal(invocation.conversation_contract.final_result.output_schema_required, true);
-  assert.match(invocation.conversation_contract.final_result.separation, /do not paste its JSON into commentary/i);
-  assert.match(invocation.conversation_contract.reasoning_visibility, /reasoning token counts alone are not displayable text/i);
+  assert.equal(Object.hasOwn(invocation, 'canonical_context'), false);
+  assert.deepEqual(invocation.state_refs, ['arckit/project/state.record.json', 'arckit/cases/active/CASE-1.md']);
+  assert.doesNotMatch(JSON.stringify(invocation), /FACT-ROOT-CAUSE|The root cause is known|software_invariants|must_hold/);
+  assert.match(calls[0].prompt, /Paths are relative to the workspace/);
+  assert.match(calls[0].prompt, /not a copy of project state/);
+  assert.equal(invocation.trusted_ledger_snapshot.snapshot_token, "fixture-global-snapshot");
+  assert.equal(invocation.trusted_ledger_snapshot.selection_tokens[caseId], "fixture-selection-token");
+  assert.match(calls[0].prompt, /commentary before tools/);
+  assert.match(calls[0].prompt, /schema-bound result in final/);
+  assert.match(calls[0].prompt, /hidden chain-of-thought/);
   assert.equal("agentTasks" in result, false);
   assert.equal("agentReports" in result, false);
   assert.equal("mergeResult" in result, false);
@@ -157,6 +166,30 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
   assert.equal(freshResult.runtimeResult.case_transition.selected_gap.id, freshGap.id);
   assert.equal(freshResult.runtimeResult.ledger_stage.writeback_required, true);
   assert.equal(freshResult.validation.valid, true, JSON.stringify(freshResult.validation.issues));
+
+  const progress = { advanced: false, reason: 'Registered the feedback for subsequent investigation.', evidence: ['user:feedback'], remaining: ['Investigate the feedback.'] };
+  const creationResult = await runAgenticLoop({
+    projectRoot: repositoryRoot, snapshot, round, compiledPrompt: compilePrompt(snapshot, round, { task: 'Investigate new feedback.' }),
+    options: { task: 'Investigate new feedback.', taskId: 'TASK-3', adapter: 'codex-app-server', agentAdapter: {
+      async *runTurn() {
+        yield { type: 'runtime.agent_loop_result', result: {
+          schema_version: 'arckit-agent-loop-result/v2', action: 'case_control', summary: 'Register feedback.',
+          case_control: { action: 'create_case', title: 'New feedback', intent: 'Investigate new feedback.',
+            expected_outcome: 'Feedback is resolved with evidence.', artifact_type: 'code', selection_reason: 'An independent reported defect.',
+            initial_facts: [{ ref: 'local:fact:feedback', statement: 'A new defect was reported.', basis: 'User report.', evidence: ['user:feedback'] }],
+            initial_impacts: [], initial_gaps: [{ ref: 'local:gap:investigate', goal: 'Identify the reported defect.', reason: 'Cause unknown.',
+              derived_from: ['local:fact:feedback'], blocked_by: [], priority_basis: {}, responsibility: 'agent', evidence_required: ['reproduction'] }] },
+          case_command: null, changed_files: [], artifact_impacts: [], risks: [], unknowns: [], task_progress: progress,
+          handoff: { next_responsibility: 'agent', reason: 'Investigate after registration.', next_prompt: 'Read fresh state and investigate.', human_decision_required: false }
+        } };
+      }
+    } }
+  });
+  assert.equal(creationResult.validation.valid, true, JSON.stringify(creationResult.validation.issues));
+  assert.deepEqual(creationResult.runtimeResult.task_progress, progress);
+  assert.deepEqual(creationResult.runtimeResult.agent_loop_result.task_progress, progress);
+  assert.equal(Object.hasOwn(creationResult.runtimeResult.loop_handoff, 'progress_guard'), false);
+
 });
 
 function agentLoopResult(gap, caseId, mode = "candidate") {
@@ -173,6 +206,7 @@ function agentLoopResult(gap, caseId, mode = "candidate") {
       gap_selection: selectionTrace(gap, caseId, mode),
       selected_gap: gap,
       planned_transition: {
+        selection_assessment: selectionAssessment(),
         goal: "Implement and verify the bounded change.",
         expected_state_change: "Resolve GAP-IMPLEMENT with implementation and verification evidence."
       },

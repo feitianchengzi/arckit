@@ -1,0 +1,369 @@
+document_scope:
+  scope_kind: change
+  root: arckit/visual/
+  created:
+  - path: _map/accent-change.yaml
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 两域变更范围、事实与实际验证结果。
+  updated:
+  - path: CONVENTIONS.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: INDEX.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _library/brief.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _library/reference-research.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _library/design-tokens.yaml
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _library/state-contract.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _library/style-preview.html
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _library/generated-tokens.css
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _library/preview-data.js
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _map/RELATIONS.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _map/feature-matrix.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _map/validation.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  deleted: []
+  reorganized: []
+fact_result:
+  schema_version: arckit-fact-result/v2
+  mode: standalone
+  case_id: null
+  gap_id: null
+  outcome: updated
+  facts:
+  - statement: 橙色强调适用于主操作、选择、运行和焦点；现有交互行为与独立警示语义保持有效。
+    basis: 用户明确要求视觉重点色由紫色改为橙色。
+    source_refs:
+    - arckit/visual/_library/brief.md
+    - arckit/visual/_library/design-tokens.yaml
+    - arckit/interaction/project-workbench/interaction.md
+    evidence:
+    - 38 项对比度与组件引用检查通过
+    - 两主题组件预览及正式事情台浏览器验证通过
+  unresolved: []
+  human_decision_required: false
+exploration_result: null
+---
+document_scope:
+  scope_kind: change
+  root: arckit/interaction/
+  created: []
+  updated:
+  - path: INDEX.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _map/RELATIONS.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: _map/feature-matrix.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/interaction.md
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/verification.json
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/acceptance.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/activity.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/adjusted-direction.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/analysis-overview.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/analysis-results.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/auto-intervention.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/collaboration.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/current-plan.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/decision.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/detail.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/messages.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/narrow-activity.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/narrow-attributes.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/narrow-list.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/narrow-messages.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/narrow-results.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/narrow-runtime.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/narrow-scene.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/new-work.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/paused-direction.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/pending-direction.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/properties.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/result-document.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/results.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/running.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/runtime-idle.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/runtime-queue.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  - path: project-workbench/previews/runtime-status.png
+    source_basis: 用户明确要求视觉重点色由紫色改为橙色。
+    summary: 同步橙色强调的规范、引用或预览投影。
+  deleted: []
+  reorganized: []
+fact_result:
+  schema_version: arckit-fact-result/v2
+  mode: standalone
+  case_id: null
+  gap_id: null
+  outcome: confirmed_existing
+  facts:
+  - statement: 橙色强调适用于主操作、选择、运行和焦点；现有交互行为与独立警示语义保持有效。
+    basis: 用户明确要求视觉重点色由紫色改为橙色。
+    source_refs:
+    - arckit/visual/_library/brief.md
+    - arckit/visual/_library/design-tokens.yaml
+    - arckit/interaction/project-workbench/interaction.md
+    evidence:
+    - 38 项对比度与组件引用检查通过
+    - 两主题组件预览及正式事情台浏览器验证通过
+  unresolved: []
+  human_decision_required: false
+exploration_result: null
+---
+document_scope:
+  scope_kind: change
+  root: arckit/visual/
+  created: []
+  updated:
+  - path: INDEX.md
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _library/brief.md
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _library/design-tokens.yaml
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _library/components/foundation.yaml
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _library/state-contract.md
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _library/build-preview.py
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _library/preview.css
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _library/generated-tokens.css
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _library/preview-data.js
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _map/validation.md
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: _map/accent-change.yaml
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  deleted: []
+  reorganized: []
+fact_result:
+  schema_version: arckit-fact-result/v2
+  mode: standalone
+  case_id: null
+  gap_id: null
+  outcome: updated
+  facts:
+  - statement: '重点色调亮至 #FF8A1F；主按钮以深色文字保持可读性，正式原型同步。'
+    basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    source_refs:
+    - arckit/visual/_library/design-tokens.yaml
+    - arckit/interaction/project-workbench/visual.css
+    evidence:
+    - 38 项对比度检查通过
+    - 两主题组件浏览器检查与正式原型 30 项检查通过，截图已刷新
+  unresolved: []
+  human_decision_required: false
+exploration_result: null
+---
+document_scope:
+  scope_kind: change
+  root: arckit/interaction/
+  created: []
+  updated:
+  - path: INDEX.md
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/visual.css
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/verification.json
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/acceptance.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/activity.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/adjusted-direction.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/analysis-overview.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/analysis-results.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/auto-intervention.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/collaboration.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/current-plan.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/decision.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/detail.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/messages.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/narrow-activity.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/narrow-attributes.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/narrow-list.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/narrow-messages.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/narrow-results.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/narrow-runtime.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/narrow-scene.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/new-work.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/paused-direction.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/pending-direction.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/properties.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/result-document.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/results.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/running.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/runtime-idle.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/runtime-queue.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  - path: project-workbench/previews/runtime-status.png
+    source_basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    summary: 同步鲜橙色规范、预览或验证证据。
+  deleted: []
+  reorganized: []
+fact_result:
+  schema_version: arckit-fact-result/v2
+  mode: standalone
+  case_id: null
+  gap_id: null
+  outcome: updated
+  facts:
+  - statement: '重点色调亮至 #FF8A1F；主按钮以深色文字保持可读性，正式原型同步。'
+    basis: 用户反馈橙色过深，要求稍浅、更接近橙子的橙色。
+    source_refs:
+    - arckit/visual/_library/design-tokens.yaml
+    - arckit/interaction/project-workbench/visual.css
+    evidence:
+    - 38 项对比度检查通过
+    - 两主题组件浏览器检查与正式原型 30 项检查通过，截图已刷新
+  unresolved: []
+  human_decision_required: false
+exploration_result: null

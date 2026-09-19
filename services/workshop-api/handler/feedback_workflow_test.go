@@ -2,14 +2,20 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"todo/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestMapTaskStateToFeedbackStatus(t *testing.T) {
@@ -316,5 +322,135 @@ func TestBuildFeedbackTaskAttachmentCommentKeepsTextOnlyCustomerFollowUp(t *test
 		if !strings.Contains(content, expected) {
 			t.Fatalf("text-only follow-up comment missing %q: %s", expected, content)
 		}
+	}
+}
+
+func TestRequireFeedbackTriagePermission(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv(feedbackWorkflowPostgresDSNEnv))
+	if dsn == "" {
+		t.Skipf("set %s to run triage permission tests", feedbackWorkflowPostgresDSNEnv)
+	}
+
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name       string
+		role       string
+		wantStatus int
+	}{
+		{
+			name:       "owner can triage",
+			role:       models.ProjectRoleOwner,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "admin can triage",
+			role:       models.ProjectRoleAdmin,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "member cannot triage",
+			role:       models.ProjectRoleMember,
+			wantStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openTriagePermissionTestDB(t)
+			defer closeTriagePermissionTestDB(t, db)
+
+			user := models.User{Username: "triage-perm-test-" + tc.role}
+			if err := db.Create(&user).Error; err != nil {
+				t.Fatalf("create triage permission test user: %v", err)
+			}
+
+			project := models.Project{Name: "Triage permission test", CreatorID: user.ID}
+			if err := db.Create(&project).Error; err != nil {
+				t.Fatalf("create triage permission test project: %v", err)
+			}
+
+			member := models.ProjectMember{
+				ProjectID: project.ID,
+				UserID:    user.ID,
+				Role:      tc.role,
+			}
+			if err := db.Create(&member).Error; err != nil {
+				t.Fatalf("create triage permission test member: %v", err)
+			}
+
+			recorder := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(recorder)
+			context.Request = httptest.NewRequest(http.MethodPost, "/workshop/v2/user/feedbacks/1/ignore", nil)
+
+			context.Set("db", db)
+			context.Set("userID", user.ID)
+
+			userID, ok := requireFeedbackTriagePermission(context, db, project.ID, "忽略反馈")
+
+			if tc.wantStatus == http.StatusOK {
+				if !ok {
+					t.Fatalf("expected permission granted, got denied; body=%s", recorder.Body.String())
+				}
+				if userID != user.ID {
+					t.Fatalf("userID = %d, want %d", userID, user.ID)
+				}
+			} else {
+				if ok {
+					t.Fatalf("expected permission denied, got granted")
+				}
+				if recorder.Code != tc.wantStatus {
+					t.Fatalf("status = %d, want %d; body=%s", recorder.Code, tc.wantStatus, recorder.Body.String())
+				}
+			}
+		})
+	}
+}
+
+func openTriagePermissionTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dsn := strings.TrimSpace(os.Getenv(feedbackWorkflowPostgresDSNEnv))
+	config := &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		Logger:                                   logger.Default.LogMode(logger.Silent),
+	}
+	admin, err := gorm.Open(postgres.Open(dsn), config)
+	if err != nil {
+		t.Fatalf("open PostgreSQL admin connection: %v", err)
+	}
+	schema := fmt.Sprintf("triage_perm_test_%d", time.Now().UnixNano())
+	if err := admin.Exec(`CREATE SCHEMA "` + schema + `"`).Error; err != nil {
+		t.Fatalf("create PostgreSQL test schema: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := admin.Exec(`DROP SCHEMA IF EXISTS "` + schema + `" CASCADE`).Error; err != nil {
+			t.Errorf("drop PostgreSQL test schema: %v", err)
+		}
+	})
+
+	db, err := gorm.Open(postgres.Open(dsn+" search_path="+schema), config)
+	if err != nil {
+		t.Fatalf("open schema-scoped PostgreSQL connection: %v", err)
+	}
+
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.Project{},
+		&models.ProjectMember{},
+	); err != nil {
+		t.Fatalf("migrate PostgreSQL triage permission fixture: %v", err)
+	}
+	return db
+}
+
+func closeTriagePermissionTestDB(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Errorf("get underlying SQL DB: %v", err)
+		return
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Errorf("close triage permission test DB: %v", err)
 	}
 }

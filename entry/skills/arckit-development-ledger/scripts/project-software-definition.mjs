@@ -1,3 +1,6 @@
+// Decision areas organize software facts; catalog coverage is not execution scope.
+// A selected Gap establishes one independent conclusion, possibly recorded in
+// several areas. Other independent decisions keep their actual open/stale state.
 const CORE_DECISION_AREAS = Object.freeze([
   ['product_intent_and_scope', 'What problem does the software solve, for whom, with what success outcome and scope boundary?', 'State the project outcome, intended users, primary scenarios, success basis, and important non-goals.', 'Durable product evidence sufficient to recover the intended outcome and scope.'],
   ['product_capabilities', 'What core product capabilities must the software provide?', 'State the capability set, the problem each capability solves, and important capabilities intentionally excluded.', 'Durable product evidence sufficient to recover the capability decisions.'],

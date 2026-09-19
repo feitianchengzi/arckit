@@ -852,7 +852,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(html, /data-page-view="feedback"/);
   assert.match(html, /id="worksetSelect"/);
   assert.match(html, /不受当前产品集过滤/);
-  assert.match(source, /page: "today"/);
+  assert.match(source, /page: "command"/);
   assert.match(source, /api\.platformSnapshot/);
   assert.match(source, /api\.setActiveWorkset/);
   assert.match(source, /api\.updateWorkset\(\{ id: activeWorkset\.id, project_ids: projectIds \}\)/);
@@ -990,14 +990,14 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /Automation Coordinator \/ 任务源/);
   assert.match(source, /phase === "remote_completion_pending"/);
   assert.match(source, /api\.setProjectParticipation\(project\.id, true\)/);
-  assert.match(styles, /--sidebar-width: 244px;/);
-  assert.match(styles, /--type-body: 14px;/);
-  assert.match(styles, /--type-conversation: 15px;/);
-  assert.match(styles, /--control-default: 36px;/);
+  assert.match(styles, /--sidebar-width: var\(--layout-sidebar-width\);/);
+  assert.match(styles, /--type-body: var\(--typography-body-size\);/);
+  assert.match(styles, /--type-conversation: var\(--typography-conversation-size\);/);
+  assert.match(styles, /--control-default: var\(--layout-control-height\);/);
   assert.match(styles, /\.product-grid \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
-  assert.match(html, /PERSONAL · CODEX CHAT/);
+  assert.match(html, /class="chat-page-heading"><strong>Chat<\/strong>/);
   for (const id of ["chatProjectSelect", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
@@ -1016,9 +1016,13 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
     readFile(rendererStylesPath, "utf8")
   ]);
 
-  const sidebar = html.slice(html.indexOf('<nav class="primary-nav"'), html.indexOf('</nav>'));
+  const sidebar = html.slice(html.indexOf('id="legacyPagesMenu"'), html.indexOf('id="accountButton"'));
+  assert.ok(html.indexOf('id="legacyPagesButton"') < html.indexOf('class="sidebar"'));
+  assert.match(html, /id="legacyPagesButton"[^>]+aria-controls="legacyPagesMenu"/);
+  assert.match(sidebar, /class="primary-nav"/);
+  assert.doesNotMatch(html, /id="projectWorkbenchNav"|class="legacy-pages-menu"/);
   const orderedLabels = [
-    "PERSONAL", "Today", "Chat",
+    "PERSONAL", "Today", "Chat", "Thing", "PRODUCT", "Product",
     "PRODUCT LIFECYCLE", "Idea", "Work", "Automation", "Release", "Operations", "Feedback",
     "ORGANIZATION", "Organization", "Engineering"
   ];
@@ -1032,8 +1036,11 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
     assert.match(sidebar, new RegExp(`data-page="${page}"`));
     assert.match(html, new RegExp(`data-page-view="${page}"`));
   }
-  assert.match(html, /PERSONAL · CODEX CHAT/);
-  assert.match(html, /Chat 不创建待办、Idea、Case 或 Automation Run/);
+  assert.match(html, /class="chat-page-heading"><strong>Chat<\/strong>/);
+  const chatPage = html.slice(html.indexOf('id="chatView"'), html.indexOf('id="productView"'));
+  assert.ok(chatPage.indexOf('class="chat-main"') < chatPage.indexOf('id="chatSessionsPanel"'));
+  assert.ok(chatPage.indexOf('id="chatSessionList"') < chatPage.indexOf('id="newChatButton"'));
+  assert.doesNotMatch(chatPage, /data-page-view="command"|id="currentRunPanel"/);
   assert.match(html, /data-page-view="idea-add"/);
   assert.match(source, /createReleaseSurface/);
   assert.match(html, /id="releaseView"[^>]+data-page-view="release"/);
@@ -1857,13 +1864,13 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(html, /AUTOMATION RECOVERY CENTER/);
   assert.match(html, /data-page-view="recovery"/);
   assert.match(source, /openWorkbench\("intervention"\)/);
-  assert.match(source, /state\.workbenchMode !== "intervention"/);
+  assert.match(source, /els\.interventionComposer\.classList\.toggle\("hidden", !canSend\)/);
   assert.match(html, /id="interveneCurrentButton"/);
   assert.match(source, /state\.interventionSubmitting = true/);
-  assert.match(source, /api\.submitIntervention/);
+  assert.match(source, /api\.manageAutomationExecution/);
   assert.match(source, /api\.resolveAutomationRecovery/);
   assert.match(source, /api\.updateAutomationTaskState/);
-  assert.match(source, /state\.workbenchRun \|\| state\.snapshot\.active_run/);
+  assert.match(source, /state\.workbenchRun \|\| active\?\.active_run/);
   assert.match(source, /state\.workbenchCompletion\?\.local_project_id/);
   assert.match(source, /api\.listMessages\(localProjectId, run\.session_id\)/);
   assert.match(source, /message\.task_id/);
@@ -1991,7 +1998,7 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(preload, /confirmCodexSetup: \(input\) => ipcRenderer\.invoke\("arckit:codex-setup-confirm", input\)/);
   assert.match(preload, /migrateCodexToStandalone: \(input\) => ipcRenderer\.invoke\("arckit:codex-setup-migrate", input\)/);
   assert.match(main, /setupReadinessPreflight: async \(projectRoot\)/);
-  assert.equal((main.match(/await codexSetupManager\.assertReady\(\)/g) || []).length, 2);
+  assert.equal((main.match(/await codexSetupManager\.assertReady\(\)/g) || []).length, 3);
   assert.match(main, /activeOwners: async \(\) => activeCodexOwnersFromStore/);
   assert.match(main, /recheckReadiness: \(\{ codexProbe \}\) => skillProvisioningManager\.check\(\{ quiet: true, codexProbeResult: codexProbe \}\)/);
   assert.match(main, /codexProbe: async \(\) => codexProbeFromSetupSnapshot\(codexSetupManager\.getSnapshot\(\)\)/);
@@ -2455,8 +2462,8 @@ test("desktop account panel supports bounded verification login, expiry, and con
   assert.match(styles, /\.modal-overlay\.login-gate/);
   assert.match(styles, /\.auth-pending \.auth-boot-screen \{ display: grid; \}/);
   assert.match(styles, /\.login-gate #closeSettingsButton \{ display: none; \}/);
-  assert.match(styles, /\.auth-boot-screen[^}]+var\(--violet-100\)[^}]+var\(--ink-75\)/);
-  assert.match(styles, /\.modal-overlay\.login-gate[^}]+var\(--violet-100\)[^}]+var\(--ink-75\)/);
+  assert.match(styles, /\.auth-boot-screen[^}]+background: var\(--colors-ink-50\)/);
+  assert.match(styles, /\.modal-overlay\.login-gate[^}]+background: var\(--colors-ink-50\)/);
   assert.doesNotMatch(styles, /\.auth-boot-screen[^}]+var\(--ink-950\)/);
   assert.doesNotMatch(styles, /\.modal-overlay\.login-gate[^}]+var\(--ink-950\)/);
 });
@@ -2469,4 +2476,56 @@ test('Automation presents every current closeout disposition with the shared clo
     assert.equal(presentation.title, '任务收尾结果');
     assert.deepEqual(presentation.fields.find((field) => field.label === 'Status').values, [status]);
   }
+});
+
+test('workbench activation follows Workshop authentication through startup, login and logout', async () => {
+  const source = await readFile(rendererPath, 'utf8');
+  const start = source.indexOf('function renderPageVisibility()');
+  const end = source.indexOf('\nfunction renderNavigation()', start);
+  const activations = [], surfaces = [];
+  const state = { page: 'project-workbench', authentication: { authenticated: false }, platform: {} };
+  const context = vm.createContext({
+    state,
+    document: { body: { classList: { toggle() {} } }, querySelectorAll: () => [] },
+    renderedWorkspaceSurface: "",
+    api: { setWorkspaceSurface: surface => surfaces.push(surface) },
+    projectWorkbenchSurface: { show: active => activations.push(active) },
+    engineeringSurface: { show() {} }, releaseSurface: { show() {} }
+  });
+  vm.runInContext(source.slice(start, end), context);
+  for (const authenticated of [false, true, false]) {
+    state.authentication.authenticated = authenticated;
+    vm.runInContext('renderPageVisibility()', context);
+  }
+  assert.deepEqual(activations, [false, true, false]);
+  assert.deepEqual(surfaces, ['workbench']);
+  for (const page of ['chat', 'chat', 'command']) {
+    state.page = page;
+    vm.runInContext('renderPageVisibility()', context);
+  }
+  assert.deepEqual(surfaces, ['workbench', 'chat', 'legacy']);
+  assert.deepEqual(activations.slice(3), [false, false, false]);
+});
+
+test('workbench polling checks authentication without loading legacy snapshots', async () => {
+  const source = await readFile(rendererPath, 'utf8');
+  const start = source.indexOf('async function refreshProjectWorkbench()');
+  const end = source.indexOf('\nfunction scheduleRefresh(', start);
+  let authentication = { authenticated: true }, reads = 0, refreshes = 0, routes = 0;
+  const state = { page: 'project-workbench', authentication: {} };
+  const context = vm.createContext({ state,
+    api: { getAuthStatus: async () => { reads++;return authentication; } },
+    normalizeAuthentication: value => value,
+    renderPageVisibility() {}, renderNavigation() {}, routeAuthentication() { routes++; },
+    projectWorkbenchSurface: { refresh: async () => { refreshes++; } }
+  });
+  vm.runInContext(source.slice(start, end), context);
+  await vm.runInContext('refreshProjectWorkbench()', context);
+  assert.equal(reads, 1);assert.equal(refreshes, 1);assert.equal(routes, 1);
+  authentication = { authenticated: false, status: 'logged_out' };
+  await vm.runInContext('refreshProjectWorkbench()', context);
+  assert.equal(state.authentication.status, 'logged_out');assert.equal(refreshes, 1);assert.equal(routes, 2);
+  state.page = 'work';
+  await vm.runInContext('refreshProjectWorkbench()', context);
+  assert.equal(refreshes, 1);assert.equal(routes, 2);
 });

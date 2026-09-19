@@ -44,7 +44,13 @@ After a process or Desktop restart, the binding file is loaded before spawning R
 
 After each successful ledger transition, Runtime projects the ledger-owned round closeout, then reads the latest request's context utilization. At 80% or above it runs Codex compaction on the same loaded thread and records the compaction. It then uses the closeout's post-commit token with the trusted ledger snapshot entrypoint; only a verified fresh-read can continue to the next gap.
 
-There is no wall-clock limit, productive-round limit, or long-command watchdog. The configured automatic-round value is only a consecutive no-progress recovery budget and resets after deterministic ledger progress.
+There is no Token allowance, wall-clock limit, productive-round limit, or long-command watchdog. The Agent owns semantic task-progress assessment and the decision to continue, stop, request human input, or wait for an external dependency. Runtime follows the validated handoff and records the Agent's progress claims without scoring them or imposing a consecutive no-progress cutoff. Missing progress claims, preparatory work, and Case registration do not imply failure. Progress judgment and continuation method live in `using-arckit`; the Runtime prompt supplies context and output contracts. New handoffs omit `progress_guard`. Historical `progress_guard` objects and the deprecated `--max-no-progress-rounds` CLI option remain accepted for compatibility but are not required or used to control execution.
+
+Host-owned round observations are persisted separately from canonical Project/Case state and supplied to the same Agent thread for context recovery. Only protocol retry guards are counted: invalid claims use the configured repair budget, and stale-snapshot conflicts allow eight fresh replans. Their counters survive restart and reset after the respective failure is cleared, independently of task progress. Version 1 progress journals retain their observations on migration; the retired no-progress block is removed, while protocol failures and explicit user stops remain effective. The prompt references a context resource containing state, contracts, and progress history rather than embedding their JSON. Continuation context never expands the user's task authorization.
+
+Operator stop persists a separate stop marker and terminates the owned Runtime/app-server process tree. A restart cannot silently clear the marker; explicit recovery reuses the bound thread. Activity distinguishes stopped, failed, waiting, and accepted completion, and shows each Loop's progress evidence and remaining acceptance work. Multiple Loops can advance the same Gap.
+
+Automation with an explicit Git delivery policy withholds commit authorization during ordinary Loops and requests one final local commit only after accepted task completion, using the same thread. A durable completed delivery is not invoked again on restart; interrupted delivery must check existing commits and remaining task diff before acting. Generic State Driven Loop completion carries no Git delivery policy. These host controls belong to Runtime, not the skill's semantic method.
 
 ## State-driven loop
 
@@ -221,3 +227,31 @@ Release 使用顶部已有产品集和项目范围。项目已关联本地目录
 无 Provider 资源的普通测试运行会明确跳过场景 Provider 集成测试。分发 CI 在资源组装后设置 `ARCFORGE_REQUIRE_PROVIDER_TESTS=1` 强制运行，资源缺失即失败；本地双仓库构建通过显式 Provider 路径强制运行。
 
 安装状态、来源类型和场景启用是不同维度：统一用户 catalog 可存储所有来源类型，按需类型仍单独展示。旧版独立 catalog 目录不会自动删除；新路径不再读写 managed-catalogs 账本。普通 CLI `catalog list/resolve` 默认查询同一用户索引，支持 `--state-root <绝对路径>`；已有安装关系的 `applied list/drift/run` 支持显式 `--state-root` 并保留原目标策略。
+
+
+### 执行历史、恢复与清理
+
+Automation 的“执行历史与恢复”保留活动、异常、已停止的普通执行，以及验收问题记录。已停止问题不会重新自动领取，也不会因退出应用而从历史中消失。
+
+- **恢复执行**：重新建立原执行关联，复用原 Agent thread、Case 与执行检查点；支持启动失败而没有 Run ID 的旧记录。工作区已有其他活动执行时，先处理该执行；缺少来源待办、项目或原对话时，显示具体原因并保留历史。
+- **停止执行**：结束运行并保留未完成事项。停止控制按 Automation execution ID 隔离，不影响同一待办的另一条验收问题。
+- **取消执行**：取消误提交的问题或不再继续的执行，解除本地占位，保留历史和 Case 事实。正在运行时须先停止；不将来源待办或 Case 标记为完成。
+- **归档 / 取消归档**：控制历史默认可见性，不删除执行证据；“显示已归档”可以找回记录。
+- 执行对话中的消息只发送给选中的执行；“继续”“继续执行”不会创建验收问题。新问题通过待办详情中的“提出验收问题”提交。
+- 应用退出使用可恢复中断，不写入人工停止标记。升级前遗留的停止记录可手动恢复；恢复操作兼容旧的按待办存储的停止控制。
+
+清理误建问题时，先取消并按需归档，再恢复原问题。不要通过修改来源待办状态代替验收问题恢复。
+
+## Agent YOLO 模式
+
+在“账号与 Runtime → Codex Runtime”勾选 **YOLO 模式**并保存。设备设置 `settings.codex.yolo_mode` 默认 `false`，只接受布尔值；覆盖 Chat、Idea、Release、项目事情台、Automation 和终端 Agent 接力。开启后 Codex 使用 `never` 审批与 `dangerFullAccess` 沙箱策略，应用业务确认保持有效。保存影响后续消息、新 Run 和终端接力，活动调用保持原配置；关闭后复用线程也显式恢复场景沙箱。设置不会修改全局 Codex 配置。
+
+独立 Runtime CLI 使用 `run --yolo` 开启，`run --no-yolo` 显式恢复常规执行；直接 adapter 调用对应 `yoloMode: true/false`。仅设置 `--approval-policy never` 不会解除沙箱。
+
+## Desktop visual system
+
+Desktop consumes the approved ArcOrbit design in `arckit/visual/_library/brief.md` and its generated tokens. `desktop/renderer/visual-tokens.css` is an exact packaged copy of `arckit/visual/_library/generated-tokens.css`; `visual-system.css` applies those roles across the app shell, workbench, conversations, setup, settings and legacy pages. The application reads only bundled files. Release terminals retain a dark reading surface using the same neutral tokens.
+
+After changing the authoritative YAML, run `python3 arckit/visual/_library/build-preview.py` at the repository root, then `npm run sync:visual --workspace @arckit/arcorbit`. Development startup also synchronizes the CSS. `npm run check:visual --workspace @arckit/arcorbit` and `test/visual-system.test.mjs` detect stale projections.
+
+Run `ARCORBIT_ELECTRON_LAYOUT_TEST=1 node --test runtime/arcorbit/test/visual-system.test.mjs` at the root to check rendered controls across the legacy navigation pages. Set `ARCORBIT_VISUAL_EVIDENCE` to a temporary directory for optional screenshots; screenshots are not design source files and should not be committed. Full workbench interaction coverage remains in `test/fixtures/project-workbench-electron.mjs`.

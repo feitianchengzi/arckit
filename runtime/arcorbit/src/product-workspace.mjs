@@ -22,7 +22,7 @@ export async function inspectWorkspace({p,plan,projects=[],dataDir,run,url}) {
   if(source && target!==await realpath(source) && (workspaceContains(await realpath(source),target)||workspaceContains(target,await realpath(source))))throw new Error('材料与正式目录不能互相嵌套，请选择独立目录。');
   let root='';
   try{root=(await run('git',['-C',target,'rev-parse','--show-toplevel'])).trim();}
-  catch(e){if(!/not a git repository/i.test(e.stderr || e.message))throw e;}
+  catch(e){if(!/not a git repository|不是\s*Git\s*仓库/i.test(e.stderr || e.message))throw e;}
   if(root && await realpath(root)!==target)throw new Error('请选择 Git 仓库根目录，不能使用仓库子目录。');
   let origin='';
   if(root){const remotes=await run('git',['-C',target,'remote']);if(remotes.split(/\s+/).includes('origin'))origin=(await run('git',['-C',target,'remote','get-url','origin'])).trim();}

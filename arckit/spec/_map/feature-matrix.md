@@ -6,10 +6,10 @@
 | `arcorbit-distribution.md` | 🟡 | Runtime 分发、安装与 Chat/Automation 独立 Codex Model/Level 默认值、Chat 会话级快捷选择，定义人工 release intent、跨平台安装包、仅关联项目可发现的离线 skills provisioning、用户级 managed target 迁移、签名和可追溯验收。 |
 | `agentic-software-development/problem-background.md` | ⚪ | 问题背景，定义 AI 时代软件研发变化、Agent 采用动因、AI 能力演进、prompt 局限、Agent 限制和根问题。 |
 | `agentic-software-development/solution-principles.md` | ⚪ | 解决思路，从背景推导协作组织、语义材料、表达清晰度非主轴、阶段区分、产物角色、多事实源、低承诺沉淀、场景化预期评测和工作方式演化原则。 |
-| `agentic-software-development/product-concepts.md` | ⚪ | 产品概念，定义无独占 selection 的 Project State、可并行的 Case Loops、双 revision transition、人、Agent、Skill、事实和评测集。 |
-| `agentic-software-development/product-architecture.md` | ⚪ | 产品架构，定义 Project State 通过多个可并行 Case Loops 推进、持久 task thread、canonical commit 串行聚合，以及 Desktop/Agent/Skill 与事实系统的组合关系。 |
-| `agentic-software-development/skill-architecture.md` | ⚪ | Skill 架构，定义 Codex 原生 skill 使用、默认双能力 Runtime policy、natural trigger 与 trusted ledger。 |
-| `agentic-software-development/controller-worker-loop.md` | ⚪ | Agent Loop，定义每 gap 一次连贯 Agent turn、持久同 thread 续轮、80% 上下文压缩和双 revision ledger 门禁。 |
+| `agentic-software-development/product-concepts.md` | ⚪ | 产品概念，定义无独占 selection 的 Project State、可并行的 Case Loops、双 revision transition、人、Agent、Skill、事实和评测集；明确通用/场景边界、六个责任方向、探索与正式确立、维护对象与实现载体。 |
+| `agentic-software-development/product-architecture.md` | ⚪ | 产品架构，定义 Project State 通过多个可并行 Case Loops 推进、持久 task thread、canonical commit 串行聚合，以及 Desktop/Agent/Skill 与事实系统的组合关系；明确场景替换边界和基于事实依赖的局部推进。 |
+| `agentic-software-development/skill-architecture.md` | ⚪ | Skill 架构，定义 Codex 原生 skill 使用、默认双能力 Runtime policy、natural trigger 与 trusted ledger；入口显式识别场景规则、维护对象与实现载体。 |
+| `agentic-software-development/controller-worker-loop.md` | ⚪ | Agent Loop，定义每 gap 一次连贯 Agent turn、持久同 thread 续轮、80% 上下文压缩和双 revision ledger 门禁；补充选择资格、探索采纳、预期与正式实现分轮、适度合并与行为验收场景。 |
 | `agentic-software-development/runtime-automation-workspace.md` | 🟡 | Runtime 自动化工作区，定义 Work 本地任务状态输入、双队列、人工 Gate、同待办 thread、Chat 共享消息面和逐 Gap 执行全貌。 |
 | `agentic-software-development/arcorbit-platform-capabilities.md` | 🟡 | ArcOrbit 多产品研发平台，定义 Work-owned 同步、本地 Task Projection、自动执行、Workshop 用户反馈、产品反馈中心、多产品工作集和服务契约边界。 |
 | `agentic-software-development/arcorbit-work-management.md` | 🟡 | ArcOrbit Work 待办管理，定义本地多维筛选、Work Sync、任务树、完整详情、评论附件、新建/编辑七状态兜底、Inspector 引导动作及 Automation 消费边界。 |
@@ -18,3 +18,5 @@
 | `agentic-software-development/loop-engineering-research.md` | ⚪ | Loop Engineering 研究输入，保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。 |
 
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
+
+| `agentic-software-development/arcorbit-project-workbench.md` | ✅ | 独立事情台、主会话与新旧页面过渡。 |

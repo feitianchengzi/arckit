@@ -37,3 +37,20 @@ test("Automation execution overview marks active time and recovers one legacy la
   assert.equal(summary.gap_rounds[0].selected_gap_id, "GAP-LEGACY");
   assert.equal(summary.complete_projection, false);
 });
+
+test('overview distinguishes stopped execution, repeated Loops on one Gap, and Agent progress evidence', async () => {
+  const { applyRunEvent, finalizeRunActivity } = await import('../src/projection/run-event-projector.mjs');
+  const run = { id: 'RUN-STOP', status: 'aborted' };
+  const progress = { advanced: false, reason: 'The original acceptance deficit remains.', evidence: ['test:still-failing'], remaining: ['Undo the final point'] };
+  for (const round_index of [1, 2]) {
+    applyRunEvent(run, { parsed: { event: { type: 'runtime.round_selection', round_index, case_id: 'CASE-1', selected_gap: { id: 'GAP-1', goal: 'Find the cause' } } } });
+    applyRunEvent(run, { parsed: { event: { type: 'runtime.execution_progress', round_index,
+      progress: { recent_rounds: [{ task_progress: progress, continuation: { continue: false, reason: 'no_progress_limit' } }] } } } });
+  }
+  finalizeRunActivity(run, { status: 'aborted', parsedResult: { execution_control: { stop_requested: true }, stop_reason: 'stopped' } });
+  const summary = summarizeAutomationExecution([run]);
+  assert.equal(summary.outcome, 'stopped');
+  assert.equal(summary.distinct_gap_count, 1);
+  assert.equal(summary.gap_round_count, 2);
+  assert.deepEqual(summary.gap_rounds[1].task_progress, progress);
+});

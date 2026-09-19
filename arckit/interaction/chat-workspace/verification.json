@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "checks": [
+    "Four navigation groups; Chat centered between app navigation and right session list; 760px reading width; project history expands",
+    "Per-session drafts; new workspace switching creates no empty session; thread continuity, turn config snapshot, background generation and explicit stop",
+    "Offline and IME preserve input; approval decision and failed-turn retry remain in the same thread",
+    "Long code stays inside message width; session scroll restores; rename and draft survive reload",
+    "Workspace setup failure retains draft and choices, retry returns to same draft",
+    "Shared account popup, 390–1500px layout, right drawer Escape/focus, 200% zoom, delete confirmation/cancel"
+  ],
+  "geometry": {
+    "nav": 200,
+    "centerLeft": 200,
+    "centerRight": 1200,
+    "list": 1200,
+    "reading": 760
+  },
+  "errors": [],
+  "externalRequests": [],
+  "scope": "Local interactive fixtures only; real Codex, filesystem, sync and authentication are not executed."
+}

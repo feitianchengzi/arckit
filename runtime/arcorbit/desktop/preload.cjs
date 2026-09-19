@@ -29,6 +29,11 @@ function httpStatus(value) {
 const invokeFeedbackV2 = (channel, input) => ipcRenderer.invoke(channel, input).then(unwrapFeedbackV2Ipc);
 
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  setWorkspaceSurface: surface => ipcRenderer.invoke('arckit:workspace-surface',surface),
+  projectWorkbenchSnapshot: () => ipcRenderer.invoke('arckit:project-workbench-snapshot'),
+  projectWorkbenchDetail: id => ipcRenderer.invoke('arckit:project-workbench-detail',id),
+  projectWorkbenchCommand: (action,input) => ipcRenderer.invoke('arckit:project-workbench-command',action,input),
+  onProjectWorkbenchEvent: listener => { const handler=(_event,value)=>listener(value);ipcRenderer.on('arckit:project-workbench-event',handler);return()=>ipcRenderer.off('arckit:project-workbench-event',handler); },
   engineeringSnapshot: () => ipcRenderer.invoke('arckit:engineering-snapshot'),
   engineeringUpdate: input => ipcRenderer.invoke('arckit:engineering-update', input),
   onEngineeringEvent: listener => { const handler = (_event, value) => listener(value); ipcRenderer.on('arckit:engineering-event', handler); return () => ipcRenderer.removeListener('arckit:engineering-event', handler); },
@@ -111,6 +116,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   ),
   updateAutomationTaskState: (input) => ipcRenderer.invoke("arckit:automation-task-state", input),
   submitIntervention: (input) => ipcRenderer.invoke("arckit:automation-intervene", input),
+  manageAutomationExecution: (input) => ipcRenderer.invoke("arckit:automation-execution-manage", input),
   submitAcceptanceFeedback: (input) => ipcRenderer.invoke("arckit:automation-acceptance-feedback", input),
   stopAutomationRun: (input) => ipcRenderer.invoke("arckit:automation-stop", input),
   handoffAutomationToCli: (input) => ipcRenderer.invoke("arckit:automation-handoff-cli", input),
@@ -141,6 +147,21 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   convertFeedbackV2ToTask: (input) => invokeFeedbackV2("arckit:feedback-v2-convert", input),
   openFeedbackV2Attachment: (input) => invokeFeedbackV2("arckit:feedback-v2-attachment-open", input),
   openFeedbackAttachment: (value) => ipcRenderer.invoke("arckit:feedback-attachment-open", value),
+  
+  // 智能客服相关接口
+  retrieveFeedback: (input) => invokeFeedbackV2("arckit:feedback-retrieve", input),
+  runFeedbackTriage: (input) => invokeFeedbackV2("arckit:feedback-triage", input),
+  confirmFeedbackDraft: (input) => invokeFeedbackV2("arckit:feedback-draft-confirm", input),
+  rejectFeedbackDraft: (input) => invokeFeedbackV2("arckit:feedback-draft-reject", input),
+  createFeedbackDraft: (input) => invokeFeedbackV2("arckit:feedback-draft-create", input),
+  
+  // 客户代码仓库管理
+  listCustomerCodeRepos: (projectId) => ipcRenderer.invoke("arckit:customer-code-repos-list", projectId),
+  createCustomerCodeRepo: (input) => ipcRenderer.invoke("arckit:customer-code-repo-create", input),
+  syncCustomerCodeRepo: (input) => ipcRenderer.invoke("arckit:customer-code-repo-sync", input),
+  deleteCustomerCodeRepo: (input) => ipcRenderer.invoke("arckit:customer-code-repo-delete", input),
+  // 知识库 — 检索测试（直查项目索引）
+  searchKnowledgeCode: (input) => ipcRenderer.invoke("arckit:knowledge-search-code", input),
   previewImage: (input) => ipcRenderer.invoke("arckit:image-preview", input),
   openImageViewer: (input) => ipcRenderer.invoke("arckit:image-viewer-open", input),
   openWorkExternalLink: (value) => ipcRenderer.invoke("arckit:work-external-link-open", value),
