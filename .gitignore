@@ -25,6 +25,10 @@ coverage/
 # Generated Release editor and terminal browser assets
 runtime/arcorbit/desktop/renderer/vendor/
 
+# Compiled Go binaries
+services/workshop-api/workshop-api*
+*.exe
+
 # Generated ArcOrbit design screenshots (HTML prototypes remain authoritative)
 /arckit/interaction/**/previews/*.png
 /arckit/interaction/_explorations/release-workbench/options/original/preview*.png

@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 
 const RECONNECT_MAX_MS = 30_000;
 const INVALIDATION_DEBOUNCE_MS = 300;
+const FEEDBACK_MESSAGE_EVENT = "feedback.message.created";
 const REALTIME_MODE_UNKNOWN = "unknown";
 const REALTIME_MODE_RESUMABLE = "resumable";
 const REALTIME_MODE_LEGACY = "legacy";
@@ -13,6 +14,7 @@ export function createWorkshopRealtimeAdapter({
   readProjectState = async () => ({}),
   writeProjectState = async () => {},
   onInvalidate = async () => {},
+  onFeedbackEvent = async () => {},
   now = () => new Date().toISOString(),
   nowMs = () => Date.now(),
   setTimer = setTimeout,
@@ -34,6 +36,19 @@ export function createWorkshopRealtimeAdapter({
       if (stateWrites.get(key) === next) stateWrites.delete(key);
     });
     return next;
+  }
+
+  // 桥3事件透传：把客户反馈消息的完整载荷交给注册方路由（steer 注入）。
+  // 派发失败只记录，不降级连接——追问注入是增值链路，不能拖垮刷新主链路。
+  async function dispatchFeedbackEvents(projectId, events) {
+    for (const event of events) {
+      if (event?.event !== FEEDBACK_MESSAGE_EVENT) continue;
+      try {
+        await onFeedbackEvent(projectId, event);
+      } catch (error) {
+        console.error(`[WorkshopRealtimeAdapter] feedback event dispatch failed: ${error?.message || error}`);
+      }
+    }
   }
 
   function emit(projectId, state, details = {}) {
@@ -158,6 +173,7 @@ export function createWorkshopRealtimeAdapter({
       }
       if (recoveredEvents.length) {
         await onInvalidate(connection.projectId, { reason: "replay", event_types: unique(recoveredEvents.map((event) => event.event)) });
+        await dispatchFeedbackEvents(connection.projectId, recoveredEvents);
         refreshed = true;
         cursor = Math.max(cursor, ...recoveredEvents.map((event) => positiveInteger(event.id)));
       }
@@ -218,6 +234,7 @@ export function createWorkshopRealtimeAdapter({
       const cursor = connection.pendingCursor;
       try {
         await onInvalidate(connection.projectId, { reason: "event", event_types: unique(events.map((item) => item.event)) });
+        await dispatchFeedbackEvents(connection.projectId, events);
         if (generation !== connection.generation || stopped) return;
         const refreshedAt = now();
         const update = {

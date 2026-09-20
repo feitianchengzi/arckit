@@ -173,6 +173,9 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 	group.PUT("/projects/:id/members/role", handler.UpdateProjectMemberRole)           // 设置成员角色（仅所有者）
 	group.POST("/tasks", handler.CreateTask)                                           // 创建新任务
 	group.PUT("/tasks/:id", handler.UpdateTask)                                        // 更新任务
+	group.POST("/tasks/:id/artifact", handler.ArtifactDeliveryHandler)                 // 产物交付回写
+	group.POST("/tasks/:id/build", handler.TriggerBuildHandler)                        // 触发构建并回写产物
+	group.GET("/tasks/:id/build-status", handler.GetBuildStatusHandler)                // 查询构建状态
 	group.GET("/tasks", handler.GetTasks)                                              // 查询项目的所有任务
 	group.GET("/tasks/tree", handler.GetTaskTree)                                      // 按时间范围查询任务层级
 	group.DELETE("/tasks/:id", handler.DeleteTask)                                     // 删除任务
@@ -197,7 +200,47 @@ func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
 	group.POST("/feedbacks/:id/convert-to-task", handler.ConvertFeedbackToTask) // 将反馈流转为待办
 	group.POST("/feedbacks/:id/ignore", handler.IgnoreFeedback)                 // 标记反馈为暂不处理
 	group.POST("/feedbacks/:id/restore", handler.RestoreFeedback)               // 将已忽略反馈恢复为待处理
+	group.POST("/feedbacks/:id/delivery-notify", handler.NotifyDeliveryHandler) // 通知客户交付完成
+	group.GET("/feedbacks/:id/delivery-status", handler.GetDeliveryStatusHandler) // 查询交付状态
+	group.POST("/feedbacks/:id/triage", handler.TriageHandler)                 // AI 分诊分析
 	group.GET("/tasks/attachments/:id/oss/credentials", handler.GetFeedbackTaskAttachmentOSSCredentials)
+	
+	// 智能客服相关路由
+	group.POST("/feedbacks/retrieve", handler.RetrieveHandler)                    // 智能客服检索
+	group.POST("/feedbacks/:id/drafts", handler.CreateDraftHandler)               // 创建草稿（runtime 回写）
+	group.POST("/feedbacks/:id/messages/:messageId/confirm", handler.ConfirmDraftHandler) // 确认草稿发送
+	group.POST("/feedbacks/:id/messages/:messageId/reject", handler.RejectDraftHandler)   // 驳回草稿
+	
+	// 反馈-待办关联查询（桥1）
+	group.GET("/feedbacks/:id/task-links", handler.GetFeedbackTaskLinks)           // 查询反馈关联的待办
+	group.GET("/tasks/:id/feedback-links", handler.GetTaskFeedbackLinks)          // 查询待办关联的反馈
+	
+	// 客户代码仓库管理
+	group.POST("/projects/:id/code-repos", handler.CreateCustomerCodeRepoHandler)           // 创建客户代码仓库
+	group.GET("/projects/:id/code-repos", handler.GetCustomerCodeReposHandler)              // 查询客户代码仓库列表
+	group.POST("/projects/:id/code-repos/:repoId/sync", handler.SyncCustomerCodeRepoHandler) // 同步客户代码仓库
+	group.DELETE("/projects/:id/code-repos/:repoId", handler.DeleteCustomerCodeRepoHandler) // 删除客户代码仓库
+	
+	// OpenHands 配置管理
+	group.GET("/projects/:id/openhands-config", handler.GetOpenHandsConfigHandler)          // 查询 OpenHands 配置
+	group.PUT("/projects/:id/openhands-config", handler.UpdateOpenHandsConfigHandler)       // 更新 OpenHands 配置
+	group.GET("/projects/:id/openhands-health", handler.CheckOpenHandsHealthHandler)        // 检查 OpenHands 健康状态
+	
+	// 知识库管理
+	group.GET("/projects/:id/knowledge/sources", handler.ListKnowledgeSourcesHandler)                    // 查询知识源列表
+	group.POST("/projects/:id/knowledge/sources", handler.CreateKnowledgeSourceHandler)                  // 创建知识源
+	group.DELETE("/projects/:id/knowledge/sources/:sourceId", handler.DeleteKnowledgeSourceHandler)      // 删除知识源
+	group.POST("/projects/:id/knowledge/sources/:sourceId/reindex", handler.ReindexKnowledgeSourceHandler) // 触发重建索引
+	group.POST("/projects/:id/knowledge/retrieve-test", handler.KnowledgeRetrieveTestHandler)            // 检索测试
+	group.GET("/projects/:id/knowledge/workspace", handler.GetKnowledgeWorkspaceHandler)                 // 查看 workspace 绑定状态
+	group.POST("/projects/:id/knowledge/search-code", handler.SearchCodeChunksHandler)                   // 代码片段搜索
+	group.GET("/projects/:id/knowledge/code-stats", handler.GetCodeIndexStatsHandler)                    // 代码索引统计
+	group.POST("/projects/:id/code-repos/:repoId/index", handler.IndexCodeRepoHandler)                   // 触发代码仓库索引
+	
+	// Agent 智能客服路由
+	group.POST("/feedbacks/:id/agent-message", handler.AgentMessageHandler)                               // 发送消息给 Agent
+	group.GET("/feedbacks/:id/agent-conversations", handler.GetAgentConversationsHandler)                 // 获取反馈关联的对话列表
+	group.GET("/agent-conversations/:conversationId/messages", handler.GetAgentConversationMessagesHandler) // 获取对话消息列表
 }
 
 func registerFeedbackSessionRoutes(group *gin.RouterGroup) {

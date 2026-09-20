@@ -153,6 +153,21 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   convertFeedbackV2ToTask: (input) => invokeFeedbackV2("arckit:feedback-v2-convert", input),
   openFeedbackV2Attachment: (input) => invokeFeedbackV2("arckit:feedback-v2-attachment-open", input),
   openFeedbackAttachment: (value) => ipcRenderer.invoke("arckit:feedback-attachment-open", value),
+  
+  // 智能客服相关接口
+  retrieveFeedback: (input) => invokeFeedbackV2("arckit:feedback-retrieve", input),
+  runFeedbackTriage: (input) => invokeFeedbackV2("arckit:feedback-triage", input),
+  confirmFeedbackDraft: (input) => invokeFeedbackV2("arckit:feedback-draft-confirm", input),
+  rejectFeedbackDraft: (input) => invokeFeedbackV2("arckit:feedback-draft-reject", input),
+  createFeedbackDraft: (input) => invokeFeedbackV2("arckit:feedback-draft-create", input),
+  
+  // 客户代码仓库管理
+  listCustomerCodeRepos: (projectId) => ipcRenderer.invoke("arckit:customer-code-repos-list", projectId),
+  createCustomerCodeRepo: (input) => ipcRenderer.invoke("arckit:customer-code-repo-create", input),
+  syncCustomerCodeRepo: (input) => ipcRenderer.invoke("arckit:customer-code-repo-sync", input),
+  deleteCustomerCodeRepo: (input) => ipcRenderer.invoke("arckit:customer-code-repo-delete", input),
+  // 知识库 — 检索测试（直查项目索引）
+  searchKnowledgeCode: (input) => ipcRenderer.invoke("arckit:knowledge-search-code", input),
   previewImage: (input) => ipcRenderer.invoke("arckit:image-preview", input),
   openImageViewer: (input) => ipcRenderer.invoke("arckit:image-viewer-open", input),
   openWorkExternalLink: (value) => ipcRenderer.invoke("arckit:work-external-link-open", value),

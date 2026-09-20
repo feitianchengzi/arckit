@@ -146,7 +146,8 @@ export function createCodexUpdateChecker({
   processRunner,
   fetchImpl = globalThis.fetch,
   now = Date.now,
-  ttlMs = 15 * 60_000
+  ttlMs = 15 * 60_000,
+  updateFetchTimeoutMs = 15_000
 } = {}) {
   const cache = new Map();
   return async function checkUpdate(installation, { force = false, env = process.env, networkFetch = fetchImpl } = {}) {
@@ -159,7 +160,7 @@ export function createCodexUpdateChecker({
       return updateSnapshot(installation.owner_conflict ? "owner-conflict" : "unsupported-owner", installedVersion, "", ownerChannel(installation));
     }
     try {
-      const latestVersion = await latestVersionForOwner(installation, { env, processRunner, fetchImpl: networkFetch });
+      const latestVersion = await latestVersionForOwner(installation, { env, processRunner, fetchImpl: networkFetch, updateFetchTimeoutMs });
       const comparison = compareCodexVersions(installedVersion, latestVersion);
       if (comparison === null) return updateSnapshot("channel-mismatch", installedVersion, latestVersion, ownerChannel(installation));
       const state = comparison < 0 ? "update-available" : comparison > 0 ? "ahead-of-channel" : "up-to-date";
@@ -195,10 +196,25 @@ export function ownerUpdateSpec(installation, { platform = process.platform, env
   throw lifecycleError("CODEX_OWNER_UNSUPPORTED", "当前 Codex owner 不支持由 ArcOrbit 更新。", "owner");
 }
 
-async function latestVersionForOwner(installation, { env, processRunner, fetchImpl }) {
+async function latestVersionForOwner(installation, { env, processRunner, fetchImpl, updateFetchTimeoutMs = 15_000 }) {
   if (installation.owner === "standalone") {
     if (typeof fetchImpl !== "function") throw lifecycleError("UPDATE_FETCH_UNAVAILABLE", "无法查询 Codex release channel。", "update-check");
-    const response = await fetchImpl(RELEASE_CHANNEL_URL, { redirect: "follow", cache: "no-store", credentials: "omit" });
+    const abortController = new AbortController();
+    const timeoutError = Object.assign(new Error("Codex release channel request timed out."), { name: "TimeoutError" });
+    // 显式 timer 会在纯 Node 检查中保持事件循环存活；AbortSignal.timeout 的内部 timer 不会。
+    const timeout = setTimeout(() => abortController.abort(timeoutError), updateFetchTimeoutMs);
+    let response;
+    try {
+      response = await fetchImpl(RELEASE_CHANNEL_URL, {
+        redirect: "follow",
+        cache: "no-store",
+        credentials: "omit",
+        // release channel 元数据必须短超时返回，否则挂起的请求会占住 setup 检查串行锁。
+        signal: abortController.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) throw lifecycleError("UPDATE_HTTP_FAILED", `Codex release channel 返回 HTTP ${response.status}。`, "update-check");
     const payload = await response.json();
     const version = parseCodexVersion(payload?.tag_name || payload?.version || payload?.name)?.value;
@@ -317,6 +333,9 @@ function ownerChannel(installation) {
 }
 
 function classifyUpdateError(error) {
+  if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+    return updateError("UPDATE_NETWORK_TIMEOUT", "Codex 更新检查请求超时；请检查代理或网络后重试。");
+  }
   const code = String(error?.code || error?.cause?.code || "UPDATE_CHECK_FAILED");
   if (/ENOTFOUND|EAI_AGAIN/iu.test(code)) return updateError("UPDATE_DNS_FAILED", "Codex 更新检查 DNS 解析失败；请检查代理或网络后重试。");
   if (/PROXY/iu.test(code)) return updateError("UPDATE_PROXY_FAILED", "Codex 更新检查无法连接代理；请核对 ArcOrbit 代理设置。");

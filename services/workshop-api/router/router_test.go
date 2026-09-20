@@ -55,6 +55,7 @@ func TestFeedbackWorkflowRoutesAreV2Only(t *testing.T) {
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedbacks/:id/convert-to-task")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedbacks/:id/ignore")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedbacks/:id/restore")
+	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedbacks/:id/triage")
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/user/tasks/attachments/:id/oss/credentials")
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/apikey/feedbacks/:id/messages")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/apikey/feedbacks/:id/messages")

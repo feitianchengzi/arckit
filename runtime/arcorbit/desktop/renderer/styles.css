@@ -497,6 +497,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .status-pill.in_progress { color: var(--colors-accent-strong); background: var(--colors-accent-soft); }
 .status-pill.completed { color: var(--green-600); background: var(--green-100); }
 .status-pill.accepted { color: var(--teal-600); background: var(--teal-100); }
+.status-pill.high { color: var(--green-600); background: var(--green-100); }
+.status-pill.medium { color: var(--amber-700); background: var(--amber-100); }
+.status-pill.low { color: var(--red-600); background: var(--red-100); }
 .status-pill.cancelled { color: var(--red-600); background: var(--red-100); }
 .status-pill.blocked { border-color: var(--amber-600); color: var(--amber-700); background: var(--amber-100); }
 .completion-list { display: grid; }
@@ -554,9 +557,17 @@ body.is-resizing-work-inspector { cursor: col-resize; user-select: none; }
 .work-inspector-section-heading h3 { color: var(--ink-800); font-size: var(--type-label); letter-spacing: .01em; }
 .work-inspector-content .task-markdown-detail { margin: 0; }
 .work-inspector-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.fact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .work-inspector-facts .fact-row { min-width: 0; margin: 0; padding: 8px 9px; border: 0; border-radius: 7px; background: var(--ink-50); }
+.fact-grid .fact-row { min-width: 0; margin: 0; padding: 8px 9px; border: 0; border-radius: 7px; background: var(--ink-50); }
 .work-inspector-facts .fact-row.is-wide { grid-column: 1 / -1; }
 .work-inspector-facts .fact-row strong { overflow-wrap: anywhere; }
+.fact-grid .fact-row strong { overflow-wrap: anywhere; }
+.score-meter { height: 5px; margin-top: 6px; border-radius: 3px; background: var(--ink-100); overflow: hidden; }
+.score-meter > div { height: 100%; border-radius: 3px; background: var(--violet-600); transition: width .3s var(--ease, ease); }
+.insight-callout { padding: 9px 11px; border-left: 3px solid var(--violet-600); border-radius: 0 7px 7px 0; background: var(--violet-50); }
+.insight-callout small { display: block; margin-bottom: 4px; color: var(--violet-700); font-size: var(--type-micro); font-weight: 800; }
+.insight-callout p { margin: 0; color: var(--ink-800); font-size: var(--type-caption); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .work-inspector-collaboration .platform-work-management { margin-top: 0; }
 .platform-work-layout.is-inspector-narrow .work-inspector-facts { grid-template-columns: 1fr; }
 .platform-work-layout.is-inspector-narrow .work-inspector-facts .fact-row.is-wide { grid-column: auto; }
@@ -861,7 +872,7 @@ body.is-resizing-work-inspector { cursor: col-resize; user-select: none; }
 .feedback-image-preview small { color: inherit; }
 .feedback-unread-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--red-600); vertical-align: 1px; }
 .feedback-conversation { display: grid; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--ink-150); }
-.feedback-conversation .section-title-row h3 { margin: 0; color: var(--ink-900); font-size: var(--type-body); }
+.feedback-conversation .section-title-row h3, .ai-triage-panel .section-title-row h3, .retrieval-card .section-title-row h3 { margin: 0; color: var(--ink-900); font-size: var(--type-body); }
 .feedback-conversation .section-title-row p { margin: 3px 0 0; color: var(--ink-500); font-size: var(--type-micro); }
 .feedback-message-list { display: grid; gap: 8px; max-height: 360px; overflow-y: auto; }
 .feedback-message { max-width: 88%; padding: 10px 12px; border: 1px solid var(--ink-150); border-radius: 10px; background: var(--semantic-canvas); }
@@ -873,11 +884,13 @@ body.is-resizing-work-inspector { cursor: col-resize; user-select: none; }
 .feedback-message-attachments button { max-width: 100%; overflow: hidden; padding: 5px 7px; border: 1px solid var(--ink-200); border-radius: 6px; color: var(--colors-accent-strong); background: var(--semantic-canvas); font-size: var(--type-micro); text-overflow: ellipsis; white-space: nowrap; }
 .feedback-message-attachments .feedback-image-preview { width: min(100%, 320px); min-height: 84px; padding: 0; white-space: normal; }
 .feedback-message-attachments .feedback-image-preview.is-loading, .feedback-message-attachments .feedback-image-preview.is-error { padding: 10px; }
-.feedback-reply-composer { display: grid; grid-template-columns: minmax(0, 1fr) 180px auto; gap: 8px; align-items: end; }
+.feedback-reply-composer { display: grid; gap: 8px; }
 .feedback-reply-composer textarea { min-height: 72px; resize: vertical; }
-.feedback-reply-composer label { display: grid; gap: 4px; color: var(--ink-600); font-size: var(--type-micro); font-weight: 750; }
-.feedback-reply-composer label small { overflow: hidden; color: var(--ink-400); text-overflow: ellipsis; white-space: nowrap; }
-.feedback-reply-composer input { width: 100%; font-size: var(--type-micro); }
+.feedback-reply-actions { display: flex; align-items: center; gap: 10px; }
+.feedback-reply-actions .primary-button { margin-left: auto; }
+.feedback-reply-attach { position: relative; overflow: hidden; }
+.feedback-reply-attach input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.feedback-reply-file-hint { overflow: hidden; color: var(--ink-400); font-size: var(--type-micro); text-overflow: ellipsis; white-space: nowrap; }
 .feedback-conversation-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--semantic-divider); border-radius: 7px; color: var(--red-600); background: var(--colors-danger-soft); font-size: var(--type-caption); }
 .feedback-read-error { color: var(--amber-700); font-size: var(--type-micro); }
 .feedback-conversation-loading { padding: 18px; color: var(--ink-500); background: var(--ink-50); text-align: center; font-size: var(--type-caption); }
@@ -1371,6 +1384,83 @@ summary { display: flex; align-items: center; }
   .today-operator-scroll { padding: 20px; }
   .today-facts { grid-template-columns: 1fr; }
 }
+
+/* ══ 智能客服区块（AI 分诊 / 知识库检索 / 客户代码仓库 / 草稿确认）══
+   与 .feedback-content-card 同节奏：白卡、ink-150 边、9px 圆角、block-end 14px；
+   区块头复用 .section-title-row + .section-icon；语义色一律成对 token。 */
+.ai-triage-panel, .retrieval-card, .customer-code-repos { margin-block: 0 14px; border: 1px solid var(--ink-150); border-radius: 9px; background: var(--paper); overflow: hidden; }
+.ai-triage-panel > summary { list-style: none; cursor: pointer; }
+.ai-triage-panel > summary::-webkit-details-marker { display: none; }
+.ai-triage-panel > summary::after { content: "▾"; color: var(--ink-400); font-size: var(--type-caption); font-weight: 800; }
+.ai-triage-panel[open] > summary::after { content: "▴"; }
+.ai-triage-panel .section-title-row h3, .retrieval-card .section-title-row h3, .customer-code-repos .section-title-row h2 { margin: 0; color: var(--ink-900); }
+.ai-triage-body, .retrieval-body, .customer-code-repos-body { display: grid; gap: 10px; padding: 12px 15px; }
+
+.retrieval-hits { display: grid; gap: 8px; }
+.retrieval-hit { padding: 9px 11px; border: 1px solid var(--ink-150); border-radius: 7px; background: var(--ink-50); }
+.retrieval-hit-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.retrieval-source { padding: 1px 7px; border-radius: 5px; font-size: var(--type-micro); font-weight: 800; }
+.retrieval-source.customer_lib { color: var(--violet-700); background: var(--violet-100); }
+.retrieval-source.product_lib { color: var(--blue-600); background: var(--blue-100); }
+.retrieval-type { color: var(--ink-500); font-size: var(--type-micro); }
+.retrieval-score { margin-left: auto; color: var(--ink-400); font-family: "SFMono-Regular", monospace; font-size: var(--type-micro); font-style: normal; }
+.retrieval-hit strong { display: block; margin-bottom: 2px; overflow: hidden; color: var(--ink-800); font-size: var(--type-caption); font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.retrieval-hit p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0; color: var(--ink-600); font-size: var(--type-caption); line-height: 1.45; }
+.retrieval-empty { margin: 0; color: var(--ink-500); font-size: var(--type-caption); }
+
+.customer-code-repos-empty { padding: 14px 15px; margin: 0; color: var(--ink-500); font-size: var(--type-caption); }
+
+/* 通用 dialog 外壳：替代浏览器默认 <dialog> 外观；backdrop 与 .modal-overlay 同源 */
+dialog.app-dialog { width: min(640px, calc(100vw - 64px)); max-height: calc(100vh - 64px); border: 0; padding: 0; border-radius: 14px; background: #fff; box-shadow: var(--shadow-lg); overflow: hidden; }
+dialog.app-dialog::backdrop { background: rgba(13, 17, 25, .55); backdrop-filter: blur(5px); }
+dialog.app-dialog[open] { display: flex; flex-direction: column; animation: app-dialog-in .16s ease; }
+@keyframes app-dialog-in { from { opacity: 0; transform: translateY(8px); } }
+dialog.app-dialog [hidden] { display: none !important; }
+
+/* 弹窗内仓库行式列表：一行一仓库，替代 6 列宽表格 */
+.kb-repo-list { display: grid; gap: 8px; }
+.kb-repo-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid var(--ink-150); border-radius: 9px; background: var(--paper); }
+.kb-repo-main { min-width: 0; }
+.kb-repo-line1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kb-repo-line1 code { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption); }
+.kb-repo-line1 .status-pill { flex: none; }
+.kb-repo-line2 { margin-top: 3px; color: var(--ink-500); font-size: var(--type-micro); }
+.kb-repo-actions { display: flex; flex: none; gap: 6px; }
+
+/* 知识库配置弹窗：单弹窗双视图（列表 ⇄ 添加表单），header/body/footer 三段式 */
+.knowledge-dialog-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 22px 14px; border-bottom: 1px solid var(--ink-150); }
+.knowledge-dialog-header h2 { margin: 0; font-size: var(--type-title); }
+.knowledge-dialog-hint { margin: 5px 0 0; color: var(--ink-500); font-size: var(--type-caption); line-height: 1.55; }
+.knowledge-dialog-dismiss { flex: none; width: 28px; height: 28px; border: 0; border-radius: 7px; color: var(--ink-500); background: transparent; font-size: 15px; line-height: 1; }
+.knowledge-dialog-dismiss:hover { color: var(--ink-900); background: var(--ink-100); }
+.knowledge-dialog-body { display: grid; gap: 14px; padding: 16px 22px; overflow-y: auto; max-height: min(56vh, 520px); overscroll-behavior: contain; }
+.knowledge-dialog-project { display: flex; flex-direction: column; gap: 4px; }
+.knowledge-dialog-project span { color: var(--ink-500); font-size: var(--type-micro); }
+.knowledge-dialog-project select { min-height: var(--row-compact); padding: 0 10px; border: 1px solid var(--ink-200); border-radius: 7px; background: var(--paper); color: var(--ink-900); font: inherit; font-size: var(--type-label); }
+.knowledge-dialog form[data-kb-add-form] { display: grid; gap: 12px; }
+.knowledge-dialog .field { margin-bottom: 0; }
+.knowledge-dialog .field small { display: block; margin-top: 5px; color: var(--ink-500); font-size: var(--type-micro); line-height: 1.5; }
+.knowledge-dialog-test { border: 1px solid var(--ink-150); border-radius: 9px; background: var(--paper); overflow: hidden; }
+.knowledge-dialog-test-row { display: flex; gap: 8px; padding: 12px 15px 0; }
+.knowledge-dialog-test-row input { flex: 1 1 auto; min-height: 32px; padding: 0 10px; border: 1px solid var(--ink-200); border-radius: 7px; background: var(--paper); color: var(--ink-900); font: inherit; font-size: var(--type-label); }
+.knowledge-dialog-test-result { padding: 10px 15px 12px; }
+.knowledge-dialog-test-result .retrieval-hits { margin-bottom: 0; }
+.knowledge-dialog-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 22px 20px; border-top: 1px solid var(--ink-150); }
+.knowledge-dialog-status { flex: 1 1 auto; margin: 0; color: var(--ink-500); font-size: var(--type-caption); line-height: 1.5; }
+.knowledge-dialog-status.is-ok { color: var(--green-600); }
+.knowledge-dialog-status.is-error { color: var(--red-600); }
+.knowledge-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* 草稿确认面板：对齐 .feedback-link-recovery 的 amber 通知惯用法（实线 + 左侧强调条），状态用 status-pill */
+.draft-list { display: grid; gap: 8px; }
+.draft-confirm-panel { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid #ead0a8; border-left: 3px solid var(--amber-600); border-radius: 9px; background: var(--amber-100); }
+.draft-confirm-header { display: flex; justify-content: space-between; align-items: center; }
+.draft-confirm-title { color: var(--ink-700); font-size: var(--type-caption); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.draft-confirm-label { color: var(--ink-500); font-size: var(--type-micro); }
+.draft-confirm-text { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-800); font-size: var(--type-caption); line-height: 1.55; }
+.draft-confirm-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.draft-confirm-source { padding: 2px 7px; border-radius: 5px; color: var(--ink-600); background: var(--ink-100); font-family: "SFMono-Regular", monospace; font-size: var(--type-micro); font-style: normal; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -1,10 +1,37 @@
 package models
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 )
+
+// StringSlice 用于 jsonb 列的 []string 自定义类型
+type StringSlice []string
+
+// Value 实现 driver.Valuer
+func (s StringSlice) Value() (driver.Value, error) {
+	if s == nil {
+		return "[]", nil
+	}
+	return json.Marshal(s)
+}
+
+// Scan 实现 sql.Scanner
+func (s *StringSlice) Scan(value interface{}) error {
+	if value == nil {
+		*s = StringSlice{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("StringSlice.Scan: expected []byte, got %T", value)
+	}
+	return json.Unmarshal(bytes, s)
+}
 
 // Project 项目表
 // 使用项目成员表（project_members）管理项目成员和权限，不再使用团队概念
@@ -39,15 +66,16 @@ func (Project) TableName() string {
 // 替代原来的 teams 和 user_teams 表
 // 用户通过此表直接关联到项目，并包含角色信息
 type ProjectMember struct {
-	ID         uint           `json:"id" gorm:"primaryKey;autoIncrement"`                                                                // 主键
-	ProjectID  uint           `json:"project_id" gorm:"not null;index;uniqueIndex:uniq_project_user,priority:1,where:delete_at IS NULL"` // 外键：项目ID
-	UserID     uint           `json:"user_id" gorm:"not null;index;uniqueIndex:uniq_project_user,priority:2,where:delete_at IS NULL"`    // 外键：用户ID
-	Role       string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"`                                            // 角色：owner, admin, member等
-	Duty       *string        `json:"duty,omitempty" gorm:"type:varchar(200)"`                                                           // 职能/职责（可为空）
-	IsExternal bool           `json:"is_external" gorm:"not null;default:false"`                                                         // 是否为组织外部成员，默认为false
-	CreatedAt  time.Time      `json:"created_at" gorm:"autoCreateTime"`                                                                  // 加入时间
-	UpdatedAt  time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                                                                  // 更新时间
-	DeletedAt  gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`                                                // 软删除时间
+	ID           uint           `json:"id" gorm:"primaryKey;autoIncrement"`                                                                // 主键
+	ProjectID    uint           `json:"project_id" gorm:"not null;index;uniqueIndex:uniq_project_user,priority:1,where:delete_at IS NULL"` // 外键：项目ID
+	UserID       uint           `json:"user_id" gorm:"not null;index;uniqueIndex:uniq_project_user,priority:2,where:delete_at IS NULL"`    // 外键：用户ID
+	Role         string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"`                                            // 角色：owner, admin, member等
+	Duty         *string        `json:"duty,omitempty" gorm:"type:varchar(200)"`                                                           // 职能/职责（可为空）
+	IsExternal   bool           `json:"is_external" gorm:"not null;default:false"`                                                         // 是否为组织外部成员，默认为false
+	Capabilities StringSlice    `json:"capabilities" gorm:"type:jsonb;not null;default:'[]'"`                                              // 细粒度能力列表，如 ["triage", "manage_code_repos"]
+	CreatedAt    time.Time      `json:"created_at" gorm:"autoCreateTime"`                                                                  // 加入时间
+	UpdatedAt    time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                                                                  // 更新时间
+	DeletedAt    gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`                                                // 软删除时间
 
 	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
 	User    User    `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID"`
@@ -58,11 +86,27 @@ func (ProjectMember) TableName() string {
 	return "project_members"
 }
 
+// BeforeCreate GORM hook：确保 Capabilities 非 nil，避免 NOT NULL 约束冲突
+func (m *ProjectMember) BeforeCreate(tx *gorm.DB) error {
+	if m.Capabilities == nil {
+		m.Capabilities = StringSlice{}
+	}
+	return nil
+}
+
 // 项目成员角色常量
 const (
 	ProjectRoleOwner  = "owner"  // 所有者（项目创建者）
 	ProjectRoleAdmin  = "admin"  // 管理员
 	ProjectRoleMember = "member" // 成员
+)
+
+// 项目成员能力常量
+const (
+	CapabilityTriage           = "triage"            // 反馈分诊
+	CapabilityManageCodeRepos  = "manage_code_repos" // 管理代码仓库
+	CapabilityManageKnowledge  = "manage_knowledge"  // 管理知识库
+	CapabilityManageOpenHands  = "manage_open_hands" // 管理 OpenHands 配置
 )
 
 // IsValidProjectRole 验证角色是否有效
@@ -78,6 +122,40 @@ func IsValidProjectRole(role string) bool {
 		}
 	}
 	return false
+}
+
+// HasCapability 检查成员是否具有指定能力
+// 支持两种模式：
+// 1. 显式 capabilities 字段检查
+// 2. 角色默认能力映射（owner/admin 默认拥有 triage 能力）
+func (m *ProjectMember) HasCapability(capability string) bool {
+	// 首先检查显式设置的 capabilities
+	for _, c := range m.Capabilities {
+		if c == capability {
+			return true
+		}
+	}
+
+	// 然后检查角色默认能力
+	switch m.Role {
+	case ProjectRoleOwner, ProjectRoleAdmin:
+		// owner 和 admin 默认拥有 triage 能力
+		if capability == CapabilityTriage {
+			return true
+		}
+	}
+
+	return false
+}
+
+// DefaultCapabilitiesForRole 返回角色的默认能力列表
+func DefaultCapabilitiesForRole(role string) []string {
+	switch role {
+	case ProjectRoleOwner, ProjectRoleAdmin:
+		return []string{CapabilityTriage}
+	default:
+		return []string{}
+	}
 }
 
 // ProjectInvitation 项目邀请表

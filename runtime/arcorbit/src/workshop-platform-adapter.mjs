@@ -23,6 +23,9 @@ export function createWorkshopPlatformAdapter({
   const v2Request = typeof requestV2 === "function" ? requestV2 : unavailableFeedbackV2;
 
   return {
+    // 智能客服相关端点只存在于 v2（反馈工作流路由），协调器经此发起 v2 请求。
+    requestV2,
+
     isFeedbackV2ProjectEnabled(projectId) {
       return v2Projects(requiredId(projectId, "Project"));
     },
@@ -422,7 +425,7 @@ export function normalizeFeedbackV1(value, fallbackProjectId = "") {
     user_phone: String(value.user_phone || ""),
     user_email: String(value.user_email || ""),
     file: String(value.file || ""),
-    data: String(value.data || ""),
+    data: metadata,
     metadata,
     priority: normalizeFeedbackPriority(metadata),
     ignored: metadata.ignored === true || processingState === "ignored",
@@ -462,6 +465,8 @@ export function normalizeFeedbackV2Message(value) {
     sender_type: senderType,
     message_type: String(value.message_type || "text"),
     content: String(value.content || ""),
+    state: String(value.state || ""),
+    metadata: value.metadata && typeof value.metadata === "object" ? value.metadata : null,
     attachments: Array.isArray(value.attachments) ? value.attachments.map(normalizeFeedbackV2Attachment).filter(Boolean) : [],
     created_at: String(value.created_at || ""),
     updated_at: String(value.updated_at || "")

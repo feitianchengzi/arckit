@@ -24,7 +24,12 @@ test("Codex resolver finds and verifies an NVM installation outside a GUI-like P
     const result = await resolveCodexExecutable({
       platform: "darwin",
       env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin" },
-      homeDir
+      homeDir,
+      // 隔离真实机器状态：/opt/homebrew 与 /usr/local 的已知路径探测不得穿透本测试。
+      accessFile: async (candidate) => (
+        candidate === codexBin
+        || (!candidate.startsWith("/opt/homebrew/") && !candidate.startsWith("/usr/local/"))
+      )
     });
 
     assert.equal(result.available, true);

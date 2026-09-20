@@ -5,6 +5,7 @@ import { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
 export { selectTaskCloseoutResult } from './task-closeout-contract.mjs';
 import { checkpointFromRun, isExecutionCheckpoint } from './automation/execution-checkpoint.mjs';
 import { executionOutcome, executionHandoff } from './automation/execution-outcome.mjs';
+import { createWorkshopDraftAdapter } from './workshop-draft-adapter.mjs';
 import { EventEmitter } from "node:events";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -394,6 +395,34 @@ export function createAutomationCoordinator(options) {
     return ensureLane(laneKey).resolveRecovery(input);
   }
 
+  // 桥3硬关联门控：仅当客户反馈命中一个活跃执行时，把追问经 steer 注入同一线程；
+  // 未命中、非客户消息、项目不匹配或运行未激活时静默跳过，由人工回复兜底。
+  async function handleCustomerFeedbackEvent(input = {}) {
+    const payload = input && typeof input === "object" ? input : {};
+    const feedbackId = String(payload.feedback_id ?? payload.feedbackId ?? "").trim();
+    const projectId = String(payload.project_id ?? payload.projectId ?? "").trim();
+    const senderType = String(payload.sender_type ?? payload.senderType ?? "").trim();
+    const content = String(payload.content ?? "").trim();
+    if (!feedbackId) return { matched: false, steered: false, reason: "missing_feedback_id" };
+    if (senderType && senderType !== "customer") return { matched: false, steered: false, reason: "not_customer_message" };
+    const { store } = await ensureKnownLanes();
+    const automation = ensureExecutionCollections(store.automation || {});
+    const execution = Object.values(automation.active_executions || {}).find((item) => (
+      String(item.customer_feedback_id || "") === feedbackId
+    ));
+    if (!execution) return { matched: false, steered: false, reason: "no_active_case" };
+    if (projectId && String(execution.project_id || "") !== projectId) {
+      return { matched: false, steered: false, reason: "project_mismatch" };
+    }
+    const message = buildCustomerFeedbackSteerMessage({ feedbackId, content });
+    if (!message) return { matched: true, steered: false, reason: "empty_content" };
+    const run = await getRunDetail(runManager, [], execution.run_id, { projectId: execution.local_project_id });
+    if (run?.status !== "running") return { matched: true, steered: false, reason: "run_not_running" };
+    await runManager.controlRun(run.id, { type: "steer", message });
+    emit("automation.changed", { reason: "customer-feedback-steered", taskId: execution.task_id, feedbackId, runId: run.id });
+    return { matched: true, steered: true, runId: run.id, reason: "steered" };
+  }
+
   return {
     onEvent(listener) { emitter.on("event", listener); return () => emitter.off("event", listener); },
     dispose() {
@@ -425,6 +454,7 @@ export function createAutomationCoordinator(options) {
     resumeRuntimeFromCodexCli(input = "") { return routeByExecution("resumeRuntimeFromCodexCli", typeof input === "object" ? input.execution_id : input); },
     confirmExternalDependency(input = "") { return routeByExecution("confirmExternalDependency", typeof input === "object" ? input.execution_id : input); },
     resolveRecovery,
+    handleCustomerFeedbackEvent,
     maybeStartNext
   };
 }
@@ -641,6 +671,7 @@ function compareSupervisorCandidates(left, right) {
 function createLaneAutomationCoordinator({
   runManager,
   workSync,
+  taskSource = null,
   workspaceKey = "*",
   now = () => new Date().toISOString(),
   cliLauncher = createInteractiveCodexCliLauncher(),
@@ -1628,6 +1659,7 @@ function createLaneAutomationCoordinator({
           next.active_task = {
             task_id: claimed.id,
             project_id: claimed.project_id,
+            customer_feedback_id: String(claimed.source_feedback_id ?? candidate.source_feedback_id ?? "").trim(),
             task_title: taskDisplayTitle(claimed.content, claimed.title || claimed.id),
             local_project_id: candidate.local_project_id,
             local_project_path: candidate.local_project_path,
@@ -2512,6 +2544,32 @@ function createLaneAutomationCoordinator({
         || !["closeout_failed", "closeout_start_failed", "runtime_process_missing"].includes(item.type)
       ));
     });
+    
+    // 桥2：客户反馈来源的任务在 Git 收尾后回写进展草稿；验收反馈（AF-*）不写客户草稿。
+    const draftTarget = closeoutDraftTarget(active);
+    if (draftTarget) {
+      try {
+        const draftAdapter = createWorkshopDraftAdapter({
+          taskSource: taskSource || runManager.getTaskSource?.(),
+          settings: runManager.getSettings?.() || {}
+        });
+
+        const draftResult = await draftAdapter.createDraftFromCloseout({
+          closeoutResult: result,
+          projectId: draftTarget.projectId,
+          feedbackId: draftTarget.feedbackId,
+          taskId: active.task_id,
+        });
+
+        if (draftResult.success) {
+          console.log(`[AutomationCoordinator] 草稿回写成功: feedback_id=${draftTarget.feedbackId}, message_id=${draftResult.messageId}`);
+        } else {
+          console.error(`[AutomationCoordinator] 草稿回写失败: ${draftResult.error}`);
+        }
+      } catch (error) {
+        console.error(`[AutomationCoordinator] 草稿回写异常: ${error.message}`);
+      }
+    }
   }
 
   async function addRecovery({ type, task, message, actions, freezeScope = "lane", replaceRecoveryIds = [], responsibility = "runtime" }) {
@@ -3357,12 +3415,32 @@ function median(values) {
 
 export function continuationContext(active, task = null) {
   const binding = persistedCaseBinding(active);
+  const customerFeedbackRef = active?.customer_feedback_id ? `customer-feedback:${active.customer_feedback_id}` : "";
   return {
     execution_product: "automation", delivery_policy: automationDeliveryPolicy(),
     task_id: String(active?.task_id || ''), original_task: task?.content || task?.title || active?.task_title || '',
+    // 桥1受控来源：Agent 在 ledger 中记录 Gap.derived_from 时引用，不得当作推理依据。
+    ...(customerFeedbackRef ? { customer_feedback_ref: customerFeedbackRef } : {}),
     case_id: binding.status === 'bound' ? binding.case_id : '',
     case_binding: binding,
     execution_id: active?.execution_id || '',
     ...(isExecutionCheckpoint(active?.execution_checkpoint) ? { execution_checkpoint: active.execution_checkpoint } : {})
   };
+}
+
+// 桥2门控：只有客户反馈来源的执行才回写客户可见草稿；验收反馈（AF-*）与本地任务不回写。
+export function closeoutDraftTarget(active) {
+  if (!active || active.execution_kind === "acceptance_feedback") return null;
+  const feedbackId = String(active.customer_feedback_id || "").trim();
+  const projectId = String(active.local_project_id || "").trim();
+  if (!feedbackId || !projectId) return null;
+  return { feedbackId, projectId };
+}
+
+// 桥3载荷：把客户追问转成注入同一线程的 steer 消息，带受控前缀供 Agent 识别来源。
+export function buildCustomerFeedbackSteerMessage({ feedbackId, content } = {}) {
+  const id = String(feedbackId || "").trim();
+  const text = String(content || "").trim();
+  if (!id || !text) return "";
+  return `[customer-follow-up feedback:${id}] ${text}`;
 }

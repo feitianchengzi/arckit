@@ -69,7 +69,11 @@ func initDB(forceMigration bool) error {
 	}
 	password := os.Getenv("DB_PASSWORD")
 	if password == "" {
-		password = "postgres"
+		if forceMigration {
+			password = "postgres"
+		} else {
+			return fmt.Errorf("DB_PASSWORD is required in production; set it in environment")
+		}
 	}
 	dbname := os.Getenv("DB_NAME")
 	if dbname == "" {
