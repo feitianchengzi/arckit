@@ -317,7 +317,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .task-project-fields { display: contents; }
 .platform-action-field { display: grid; align-content: start; gap: 6px; color: var(--ink-700); font-size: var(--type-body); font-weight: 650; }
 .platform-action-field:has(textarea) { grid-column: 1 / -1; }
-.platform-action-field input, .platform-action-field select, .platform-action-field textarea { width: 100%; border: 1px solid var(--ink-200); border-radius: 8px; background: white; color: var(--ink-900); padding: 9px 10px; font: inherit; font-weight: 450; box-sizing: border-box; }
+.platform-action-field input, .platform-action-field select, .platform-action-field textarea { width: 100%; border: 1px solid var(--semantic-control-border); border-radius: 8px; background: var(--semantic-elevated); color: var(--semantic-text); padding: 9px 10px; font: inherit; font-weight: 450; box-sizing: border-box; }
 .platform-action-field small, .parent-task-ref, .task-tags { display: block; color: var(--ink-500); font-size: var(--type-body); font-weight: 450; }
 .task-tag-field { grid-column: 1 / -1; margin: 0; padding: 12px; border: 1px solid var(--ink-150); border-radius: 10px; }
 .task-tag-field legend { padding: 0 5px; }
