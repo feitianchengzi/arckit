@@ -206,3 +206,20 @@ test("selection is preserved while valid and falls to the adjacent first item af
   input.platform.tasks = input.platform.tasks.filter((task) => task.id !== "two");
   assert.equal(deriveTodayWorkspace(input).selected_item_id, "work:one:pending_review");
 });
+
+test("view scope bounds local all, stale selection, responsibilities and configuration", () => {
+  const platform = { user: {id: 'me'}, active_workset: {project_ids: ['a', 'b']},
+    projects: [project('a'), project('b')],
+    today_tasks: ['a', 'b'].map(id => ({id: `${id}-review`, project_id: id, executor_id: 'me', state: 'pending_review'})) };
+  for (const selectedProjectId of ['all', 'b']) {
+    const view = deriveTodayWorkspace({platform, projectScopeIds: ['a'], selectedProjectId});
+    assert.deepEqual(view.projects.map(p => p.id), ['a']);
+    assert.equal(view.selected_project_id, 'all');
+    assert.ok(view.interventions.every(item => item.project_id === 'a'));
+    assert.deepEqual(view.configurations.map(item => item.project_id), ['a']);
+  }
+  const empty = deriveTodayWorkspace({platform, projectScopeIds: [], selectedProjectId: 'b'});
+  assert.deepEqual(empty.projects, []);
+  assert.deepEqual(empty.interventions, []);
+  assert.deepEqual(empty.configurations, []);
+});

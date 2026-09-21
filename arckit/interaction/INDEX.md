@@ -141,7 +141,7 @@
 - _shared/ 全局产品上下文原型：共享范围、顶部能力、页面适配及浏览器验证。
   - global-context.js 本地产品集、范围、对象记忆和状态。
   - global-shell.js / global-context.css 单行顶部、菜单、同步和运行控制。
-  - context-pages.js Product 等页面的范围与对象连续操作、Today 成员选择和初始化模拟。
+  - context-pages.js Product 等页面的范围与对象连续操作、Today 查看范围内成员选择和初始化模拟。
   - verify-global-context.cjs / global-context-verification.json 实际跨页、草稿和窄窗验证。
 
   - appearance.js 本机外观三选项、系统模式与隔离偏好模拟。

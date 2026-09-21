@@ -2024,7 +2024,7 @@ function todayWorkspaceView() {
     chat: chatState().snapshot,
     feedbackLinkRecoveries: state.feedbackLinkRecoveries,
     selectedProjectId: state.todaySelectedProjectId,
-    projectScopeIds: (state.platform.active_workset?.project_ids || []).map(String),
+    projectScopeIds: globalScope().projectIds,
     selectedMode: state.todayMode,
     selectedItemId: state.todaySelectedItemId
   });

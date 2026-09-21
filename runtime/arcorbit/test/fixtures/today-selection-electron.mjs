@@ -25,6 +25,10 @@ try {
   await click('[data-page="today"]');await until(()=>members().includes('12'));
   const initial=members();
   await chooseTop('11');const underSingle=members();
+  await click('[data-today-project="all"]');
+  const scopedAll={members:members(),top:top(),local:local()};
+  await chooseTop('12');const otherSingle=members();
+  await chooseTop('all');
   await click('[data-today-project="12"]');
   await click('[data-today-mode="configuration"]');
   const switched={top:top(),local:local(),members:members(),operator:document.querySelector('#todayOperator').textContent};
@@ -47,20 +51,22 @@ try {
   document.querySelectorAll('#platformActionFields input[name="project_ids"]').forEach(e=>{e.checked=false;});
   document.querySelector('#platformActionForm').requestSubmit();await until(()=>members().length===1);
   const empty=document.querySelector('#todayResponsibilityList').textContent;
-  return {initial,underSingle,switched,saved,workScope,returned,refreshed,manager,removed,empty,calls:await window.arckitDesktop.getTestCalls()};
+  return {initial,underSingle,scopedAll,otherSingle,switched,saved,workScope,returned,refreshed,manager,removed,empty,calls:await window.arckitDesktop.getTestCalls()};
  })()`);
  assert.deepEqual(result.initial,['all','11','12']);
- assert.deepEqual(result.underSingle,['all','11','12']);
- assert.equal(result.switched.top,'11');assert.equal(result.switched.local,'12');
+ assert.deepEqual(result.underSingle,['all','11']);
+ assert.deepEqual(result.scopedAll,{members:['all','11'],top:'11',local:'all'});
+ assert.deepEqual(result.otherSingle,['all','12']);
+ assert.equal(result.switched.top,'all');assert.equal(result.switched.local,'12');
  assert.match(result.switched.operator,/选择当前设备上的本地目录/);
- assert.equal(result.saved.selected_project_id,'12');assert.equal(result.workScope,'11');
+ assert.equal(result.saved.selected_project_id,'12');assert.equal(result.workScope,'all');
  assert.equal(result.returned,'12');assert.equal(result.refreshed,'12');
  assert.match(result.manager,/管理 核心推进/);
  assert.deepEqual(result.removed,{members:['all','11'],local:'all',top:'all'});
  assert.match(result.empty,/产品集暂无项目/);
  assert.equal(result.calls.some(([name])=>['bindAutomationProject','setTodayProjects','project.create'].includes(name)),false);
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({ok:true,checks:['empty legacy roster still shows all workset members','single top scope does not trim project rail','local and repeated clicks preserve top scope','unbound project displays configuration without setup mutation','selection preference, page return and background refresh preserve local choice','shared workset manager removes members and handles empty set'],errors,scope:'real development renderer with isolated synthetic preload; no live account, Agent or installed app mutation'}));
+ console.log(JSON.stringify({ok:true,checks:['empty legacy roster still shows all workset members','single top scope trims project rail and local all cannot escape scope','local and repeated clicks preserve top scope','unbound project displays configuration without setup mutation','selection preference, page return and background refresh preserve local choice','shared workset manager removes members and handles empty set'],errors,scope:'real development renderer with isolated synthetic preload; no live account, Agent or installed app mutation'}));
 }catch(error){console.error(error);code=1;}finally{win.destroy();await rm(userData,{recursive:true,force:true});app.exit(code);}
 
 }).catch(error=>{console.error(error);app.exit(1);});

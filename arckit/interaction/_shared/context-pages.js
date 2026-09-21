@@ -13,7 +13,7 @@
   const items=C.state.pageObjects[page]??=C.projects.flatMap(p=>[1,2].map(n=>({id:page+'-'+p.id+'-'+n,project:p.id,name:p.name+' · '+(names[page]?.[n-1]||titles[page]||page)})));
   return items.filter(p=>page==='Today'?todayMembers().some(m=>m.id===p.project)&&(C.state.today.project==='all'||C.state.today.project===p.project):C.includes(p.project));
  }
- function todayMembers(){return C.projects.filter(p=>C.sets.find(s=>s.id===C.state.set).ids.includes(p.id));}
+ function todayMembers(){return C.projects.filter(p=>C.includes(p.id));}
  function chooseToday(id){
   const t=C.state.today;t.project=id;selected='';
   if(id!=='all'&&!['ready','loading'].includes(t.configs[id])){

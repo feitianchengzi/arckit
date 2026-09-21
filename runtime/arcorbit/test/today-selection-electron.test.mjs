@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import electron from 'electron';
 import test from 'node:test';
 import {electronFixtureArguments} from './electron-fixture-launch.mjs';
-test('Today follows workset members while project clicks remain local',{
+test('Today follows viewed workset scope while project clicks remain local',{
  skip:process.env.ARCORBIT_ELECTRON_TODAY_SELECTION_TEST!=='1'&&'set ARCORBIT_ELECTRON_TODAY_SELECTION_TEST=1 to run Electron'
 },async()=>{
  const env={...process.env,ELECTRON_DISABLE_SECURITY_WARNINGS:'true'};delete env.ELECTRON_RUN_AS_NODE;
