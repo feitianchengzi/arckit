@@ -47,7 +47,8 @@ export function createChatNative({runManager,workSync,workbench,automation,chat,
   let ctx=null,error='';try{ctx=await projectContext(projectId,input.session_id);if(input.refresh)ctx=await sync(ctx)}catch(e){error=e.message}
   const binding=await resolveSceneSkills(local.path);
   const skills=(binding?.skills||[]).filter(s=>!s.disabled).map(s=>({id:s.name,kind:'skill',label:s.name,path:s.skillPath,project_id:projectId}));
-  const files=await listWorkspaceFiles(local.path,input.path||'');
+  // The composer offers root files, not directory browsing; Chat's file tree owns navigation.
+  const files=await listWorkspaceFiles(local.path,'',{filesOnly:true});
   let filterMembers=[],filterError='';
   if(ctx&&input.include_task_filters){try{filterMembers=await listProjectMembers(String(ctx.project.id))}catch(e){filterError='筛选成员读取失败：'+e.message}}
   const projectTasks=ctx?(ctx.work.tasks||[]).filter(t=>String(t.project_id)===String(ctx.project.id)):[];

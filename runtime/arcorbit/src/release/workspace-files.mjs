@@ -40,9 +40,9 @@ export async function saveWorkspaceFile(root, input) {
   } finally { await unlink(tmp).catch(e => { if(e.code !== 'ENOENT') throw e; }); }
   return readWorkspaceFile(root, input.path);
 }
-export async function listWorkspaceFiles(root, directory = '') {
+export async function listWorkspaceFiles(root, directory = '', { filesOnly = false } = {}) {
   const path = await workspacePath(root, directory); const entries = await readdir(path, { withFileTypes: true });
-  return entries.filter(e => !hidden.has(e.name) && !e.name.startsWith('.env.') && !e.isSymbolicLink()).slice(0, 1000)
+  return entries.filter(e => !hidden.has(e.name) && !e.name.startsWith('.env.') && !e.isSymbolicLink() && (!filesOnly || e.isFile())).slice(0, 1000)
     .map(e => ({ name: e.name, path: directory ? `${directory}/${e.name}` : e.name, directory: e.isDirectory() }))
     .sort((a,b) => Number(b.directory)-Number(a.directory) || a.name.localeCompare(b.name));
 }

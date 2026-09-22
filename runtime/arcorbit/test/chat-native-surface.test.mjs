@@ -11,11 +11,27 @@ function setup(){
  let project={id:'P1'},session={id:'S1',task_id:'T1',status:'completed'};
  const state={draft:'',configuration:{},native_context:{capability:null,refs:[]}};
  const calls=[];
- const surface=createChatNativeSurface({api:{chatNativeCatalog(query){return new Promise((resolve,reject)=>calls.push({query,resolve,reject}))}},coordinator:{getState:()=>state},getProject:()=>project,getSession:()=>session,render(){},performAction:fn=>fn(),closeList(){}});
+ const surface=createChatNativeSurface({api:{chatNativeCatalog(query){return new Promise((resolve,reject)=>calls.push({query,resolve,reject}))}},coordinator:{getState:()=>state,setNativeContext:value=>state.native_context=value,setDraft:value=>state.draft=value},getProject:()=>project,getSession:()=>session,render(){},performAction:fn=>fn(),closeList(){}});
  const result=title=>({tasks:[{id:'T1',title,state:title}],task_list:[{id:'T1',title,state:title}],filter_members:[],filter_tags:[]});
  const startLoad=async()=>{surface.render();};
- return {document,window,surface,calls,result,startLoad,setOwner(p,s){project=p;session=s}};
+ return {document,window,surface,state,calls,result,startLoad,setOwner(p,s){project=p;session=s}};
 }
+test('picker excludes directory candidates and preserves file, task and capability selection',async()=>{
+ const h=setup(),picker=h.document.querySelector('.chat-capability-menu');
+ picker.open=true;picker.close=()=>{};
+ await h.startLoad();
+ h.calls[0].resolve({...h.result('task'),capabilities:[{id:'create',kind:'native',label:'创建待办'}],skills:[{id:'skill',kind:'skill',label:'Skill'}],files:[{id:'src',path:'src',label:'src',kind:'file',directory:true},{id:'README.md',path:'README.md',label:'README.md',kind:'file',directory:false}]});
+ await tick();
+ const picks=[...picker.querySelectorAll('[data-pick]')];
+ assert.deepEqual(picks.map(b=>b.dataset.pick),['native:create','skill:skill','file:README.md','task:T1']);
+ assert.equal(picker.querySelector('[data-up]'),null);
+ assert.doesNotMatch(picker.textContent,/文件夹|上级目录/);
+ assert.equal(h.calls[0].query.path,undefined);
+ for(const button of picks)button.click();
+ assert.equal(h.state.native_context.capability.id,'skill');
+ assert.deepEqual(h.state.native_context.refs.map(r=>r.id),['README.md','T1']);
+ assert.equal(h.calls.length,1,'selecting references does not load a directory');
+});
 test('native rendering is read-only and identical in-flight catalog requests are shared',async()=>{
  const h=setup();await h.startLoad();const count=h.calls.length;
  for(let i=0;i<100;i++)h.surface.render();

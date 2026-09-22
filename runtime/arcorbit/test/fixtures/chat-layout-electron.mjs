@@ -12,12 +12,13 @@ app.setPath('userData',join(base,'user'));app.disableHardwareAcceleration();
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
 let preload=(await readFile(join(here,'organization-center-preload.cjs'),'utf8')).replace('const testChatSnapshotValue =', 'const layoutDrafts = new Map(); const testChatSnapshotValue =').replace('text: "" }\n});','text: layoutDrafts.get(requested) || "" }\n});').replace('calls.push(["createChat", input]);', 'calls.push(["createChat", input]); layoutDrafts.set(input.session_id || "", input.text);');
+preload=preload.replace("files:[{id:'README.md'", "files:[{id:'src',path:'src',kind:'file',label:'src',directory:true},{id:'README.md'");
 await writeFile(join(base,'preload.cjs'),preload.replace('const testChatSnapshotValue =', `chatSessions.push(...Array.from({length:10},(_,i)=>({id:'HISTORY-'+i,project_id:'local-11',title:'历史会话 '+i,status:'completed',created_at:'2026-09-'+String(i+1).padStart(2,'0'),updated_at:'2026-09-01'}))); const testChatSnapshotValue =`));
 const win=new BrowserWindow({show:false,width:1440,height:960,webPreferences:{preload:join(base,'preload.cjs'),contextIsolation:true,sandbox:false}});
 const errors=[],checks=[],sizes=[];
 let exitStatus=0;
 win.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
-const js=code=>win.webContents.executeJavaScript(code);
+const js=async code=>{try{return await win.webContents.executeJavaScript(code)}catch(error){throw new Error(`Renderer check failed: ${code}\n${errors.join('\n')}`,{cause:error})}};
 const pause=()=>new Promise(r=>setTimeout(r,250));
 try {
  if(process.argv.includes("--force-failure")) assert.fail("Forced assertion verifies the Electron runner exit status.");
@@ -35,6 +36,7 @@ try {
   win.setSize(width,960);await pause();await js(`document.querySelector('#chatNativeInvoke').click()`);await pause();
   const menu=await js(`(()=>{const p=document.querySelector('.chat-capability-menu').getBoundingClientRect(),b=document.querySelector('#chatNativeInvoke').getBoundingClientRect(),l=document.querySelector('.chat-native-options'),f=document.querySelector('.chat-capability-menu footer').getBoundingClientRect();return {height:p.height,top:p.top,bottom:p.bottom,anchor:b.top,list:l.clientHeight,footer:f.bottom,count:l.querySelectorAll('[data-pick]').length}})()`);
   assert.ok(menu.height>500&&menu.list>300&&menu.top>=11&&Math.abs(menu.anchor-menu.bottom-8)<2&&menu.footer<=menu.bottom,JSON.stringify(menu));assert.equal(menu.count,5);
+  assert.equal(await js(`!!document.querySelector('[data-pick="file:src"],[data-up]')`),false);
   await writeFile(join(out,`native-menu-${width}.png`),(await win.webContents.capturePage()).toPNG());
   await js(`document.querySelector('[data-pick="native:create"]').click()`);assert.equal(await js(`document.querySelector('.chat-native-chips').textContent.includes('创建待办')`),true);
   await js(`document.querySelector('[data-remove]').click()`);await js(`document.querySelector('#chatModelSettings').click()`);await pause();
@@ -43,6 +45,11 @@ try {
  }
  checks.push('Capability and model menus anchor above own trigger; candidates/footer visible; removable capability chips at 1440/760/390.');
  checks.push('Right sessions and centered composer at 1440/1000; no overflow at 760/390.');
+ if(process.argv.includes('--native-picker-only')){
+  assert.deepEqual(errors,[]);
+  await writeFile(join(out,'chat-electron.json'),JSON.stringify({status:'passed',scope:'native-picker',checks,sizes,renderer_errors:errors},null,2)+'\n');
+  return;
+ }
  win.setSize(1440,960);await pause();
  assert.equal(await js(`document.querySelectorAll('[data-chat-session-id]').length`),5);
  await js(`document.querySelector('[data-chat-history-project-id]').click()`);

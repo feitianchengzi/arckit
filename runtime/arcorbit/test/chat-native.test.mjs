@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createDesktopStore} from '../src/desktop/desktop-store.mjs';
@@ -8,6 +8,7 @@ import {createChatCoordinator} from '../src/chat-coordinator.mjs';
 import {createChatNative} from '../src/chat-native.mjs';
 import {createProjectWorkbench} from '../src/workbench/coordinator.mjs';
 import {acquireTaskTurn} from '../src/workbench/task-turn-lock.mjs';
+import {listWorkspaceFiles} from '../src/release/workspace-files.mjs';
 async function fixture(t){
  const root=await mkdtemp(join(tmpdir(),'chat-native-'));t.after(()=>rm(root,{recursive:true,force:true}));await writeFile(join(root,'README.md'),'file context');
  const db=createDesktopStore({dataDir:root,runsDir:join(root,'runs'),storePath:join(root,'store.json')});
@@ -57,6 +58,23 @@ test('first-turn context is snapshotted and references cannot escape project; ca
  const native_context={capability:{kind:'native',id:'create',label:'创建待办'},refs:[{kind:'file',id:'README.md',path:'README.md',project_id:'local',label:'README'}]};
  let a=await f.send('',async o=>{assert.ok(o.dynamicTools.some(t=>t.name==='arcorbit_todo'));return 'ok'},{text:'',native_context});assert.equal(a.error,undefined);assert.equal(a.snapshot.messages[0].native_context.capability.id,'create');
  a=await f.send(a.id,()=>assert.fail('bad reference must not run'),{native_context:{refs:[{kind:'file',path:'../outside',project_id:'local'}]}});assert.match(a.snapshot.sessions.find(s=>s.id===a.id).error,/ENOENT|工作区/);
+});
+
+test('composer catalog loads root files only and never follows a directory request',async t=>{
+ const f=await fixture(t),root=(await f.db.readStore()).projects.find(p=>p.id==='local').path;
+ await mkdir(join(root,'src'));
+ await writeFile(join(root,'src','nested.mjs'),'nested context');
+ await writeFile(join(root,'.env'),'not a candidate');
+ for(const path of ['', 'src', 'missing-directory']){
+  const cat=await f.native.catalog({project_id:'local',path});
+  assert.ok(cat.files.some(file=>file.path==='README.md'));
+  assert.ok(cat.files.every(file=>!file.directory&&!file.path.includes('/')));
+  assert.ok(!cat.files.some(file=>['src','.env','nested.mjs'].includes(file.path)));
+  assert.ok(cat.tasks.some(task=>task.id==='1'));
+  assert.ok(cat.capabilities.some(capability=>capability.id==='create'));
+ }
+ assert.ok((await listWorkspaceFiles(root)).some(file=>file.path==='src'&&file.directory),'shared browser still returns directories');
+ assert.ok((await listWorkspaceFiles(root,'src')).some(file=>file.path==='src/nested.mjs'),'shared browser still navigates directories');
 });
 
 test('snapshot lists sessions by their own creation time despite todo creation and later activity', async t => {
