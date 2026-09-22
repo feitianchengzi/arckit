@@ -73,3 +73,6 @@ body, body.project-workbench-active { --commandbar-height:var(--layout-commandba
 }
 #globalRuntimeObjects { display:grid; gap:6px; max-height:40vh; overflow:auto; margin:8px 0; }
 #globalRuntimeObjects button { white-space:normal; text-align:left; overflow-wrap:anywhere; }
+
+/* Quick capture stays outside the compact status menu. */
+.commandbar #globalCreateTaskButton { flex:none; -webkit-app-region:no-drag; }

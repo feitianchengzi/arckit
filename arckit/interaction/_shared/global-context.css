@@ -40,3 +40,10 @@
  .gc-topbar #gc-manage{border:1px solid var(--semantic-divider);border-radius:6px;height:36px}
  #gc-sync .gc-popup,#gc-runtime .gc-popup{position:static;width:auto}.gc-feedback strong{display:inline}
 }
+
+/* Global creation reuses the established dialog and semantic surface roles. */
+.gc-task-create{box-sizing:border-box;width:min(520px,calc(100vw - 32px));max-height:85vh;overflow:auto}
+.gc-task-create label{display:grid;gap:6px;margin:12px 0}
+.gc-task-create input,.gc-task-create select,.gc-task-create textarea,.gc-task-create button{font:inherit;color:var(--semantic-text);background:var(--semantic-canvas);border:1px solid var(--semantic-divider);border-radius:6px;padding:8px;min-height:36px;box-sizing:border-box;max-width:100%}
+.gc-task-create textarea{width:100%;min-height:120px}
+.gc-create-notice:not(:empty){position:fixed;bottom:16px;right:16px;max-width:calc(100vw - 64px);padding:12px;background:var(--semantic-elevated);color:var(--semantic-text);border:1px solid var(--semantic-divider);border-radius:6px;z-index:50}

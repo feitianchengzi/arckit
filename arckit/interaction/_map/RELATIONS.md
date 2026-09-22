@@ -121,3 +121,5 @@ Chat 会话标签以 session 为准，待办标签以 task 为准；关联身份
 Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保留关联、整理、引用与读写待办能力。
 
 - Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../chat-workspace/interaction.md`。
+
+全局创建待办：`CONVENTIONS.md#全局创建待办` 约束所有共享顶部消费者，`task-browser/interaction.md` 提供相同 Sheet 字段和产品联动规则；`_shared/global-shell.js` 在原页面模拟创建，Work 局部入口复用此路径。

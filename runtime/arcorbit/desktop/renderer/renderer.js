@@ -226,6 +226,8 @@ const state = {
 };
 
 let platformActionResolver = null;
+let platformActionReturnFocus = null;
+let platformActionBackgroundInert = false;
 let platformActionSubmitter = null;
 let activeMemberAddSheet = null;
 let platformActionBusy = false;
@@ -858,7 +860,9 @@ function wireEvents() {
     state.organizationSection = button.dataset.organizationSection;
     renderOrganization();
   }));
-  els.createTaskButton.addEventListener("click", () => runAction(createTask));
+  els.createTaskButton.addEventListener("click", () => runAction(() => createTask(els.createTaskButton)));
+  els.globalCreateTaskButton.addEventListener("click", () => runAction(() => createTask(els.globalCreateTaskButton)));
+  document.addEventListener("keydown", handlePlatformActionKeydown, true);
   els.createTagButton.addEventListener("click", () => runAction(createTag));
   els.openTaskReferenceButton.addEventListener("click", () => runAction(openWorkTaskReference));
   els.feedbackSearchInput.addEventListener("input", () => {
@@ -1308,12 +1312,12 @@ function upgradeDispositionLabel(value) {
 function setupCheckLabel(id) { return ({source:"内置技能目录",migration:"旧项目技能清理",resources:"受信安装资源",provider:"ArcForge provider",skills:"Arckit skills",codex:"Codex discoverability"})[id] || id; }
 function shortDigest(value) { return value ? `${value.slice(0, 10)}…${value.slice(-8)}` : "--"; }
 
-async function refreshSnapshot({ quiet = false, surface = "all", afterMutation = false } = {}) {
+async function refreshSnapshot({ quiet = false, surface = "all", afterMutation = false, renderCurrentPage = true } = {}) {
   if (state.refreshing) {
     if (!afterMutation) return;
     // A snapshot already in flight may predate the confirmed mutation.
     await state.snapshotRefreshPromise;
-    return refreshSnapshot({ quiet, surface, afterMutation });
+    return refreshSnapshot({ quiet, surface, afterMutation, renderCurrentPage });
   }
   let finishRefresh;
   state.snapshotRefreshPromise = new Promise((resolve) => { finishRefresh = resolve; });
@@ -1366,7 +1370,8 @@ async function refreshSnapshot({ quiet = false, surface = "all", afterMutation =
       state.selectedTaskId = visibleTasks[0].id;
     }
     if (state.page === "workbench") await loadTranscript();
-    if (workSurface && state.page === "work") renderWorkSurface();
+    if (!renderCurrentPage) { renderCommandBar(); renderWorkset(); }
+    else if (workSurface && state.page === "work") renderWorkSurface();
     else render();
     routeAuthentication();
   } finally {
@@ -4236,26 +4241,40 @@ async function deleteProjectMember(memberId, projectId) {
   await executeManagedAction("project.member.delete", { project_id: projectId, target_user_id: member.user_id }, "项目成员已移除");
 }
 
-async function createTask() {
+async function createTask(trigger = document.activeElement) {
+  if (!state.authentication.authenticated) throw new Error("请在设置中登录 Workshop 后创建待办。");
   const projects = workspaceOptions().filter(project=>includesProject(globalScope(),project.value));
-  if (!projects.length) throw new Error("当前产品集没有可创建待办的产品。");
+  if (!projects.length) throw new Error("当前范围没有可创建待办的产品，请在顶部管理产品集。");
   const defaultProjectId = taskCreationDefaultProjectId(projects);
   const action = openPlatformAction({
     title: "创建待办",
     lead: "待办写入 Workshop；是否进入 Automation 仍由分配对象、状态和项目授权共同决定。",
     confirmLabel: "创建待办",
+    initialFocus: '[name="content"]',
+    returnFocus: trigger,
     fields: [
       platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
       platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions(), help: "可直接选择任一待办状态；Automation 只消费创建成功后的状态。" }),
       taskProjectFields(defaultProjectId, { includeExecutorAutomationHelp: true, taskState: "pending_review" }),
       platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions(), help: "最高优先处理；无优先级表示创建时不设置该字段。" })
-    ]
+    ],
+    onSubmit: async (rawValues) => {
+      const values = normalizeTaskFormValues(rawValues);
+      if (!String(values.content || "").trim()) throw new Error("请填写待办内容。");
+      if (!includesProject(globalScope(), values.project_id)) throw new Error("所选产品已不在当前范围内，请重新选择。");
+      await executeManagedAction("task.create", values, "待办已创建", { refresh: false });
+      try {
+        // Refresh shared facts without rebuilding unrelated editors beneath the Sheet.
+        await refreshSnapshot({ quiet: true, surface: "work", afterMutation: true, renderCurrentPage: false });
+        if (state.page === "work") await refreshWorkQuery({ quiet: true });
+      } catch (error) {
+        showToast(`待办已创建，但刷新失败，请使用顶部同步恢复显示：${error?.message || String(error)}`);
+      }
+    }
   });
   bindTaskFormProjectScope(defaultProjectId, { includeExecutorAutomationHelp: true });
-  const values = normalizeTaskFormValues(await action);
-  if (!values) return;
-  await executeManagedAction("task.create", values, "待办已创建");
+  await action;
 }
 
 async function editTask(taskId, { focusField = "" } = {}) {
@@ -4623,8 +4642,13 @@ async function executeManagedAction(command, input, message, { refresh = true, t
   }
 }
 
-function openPlatformAction({ title, lead = "", confirmLabel = "确认", fields = [], onSubmit = null }) {
+function openPlatformAction({ title, lead = "", confirmLabel = "确认", fields = [], onSubmit = null, initialFocus = "", returnFocus = document.activeElement }) {
+  if (platformActionBusy) return Promise.resolve(null);
   if (platformActionResolver) closePlatformAction(null);
+  platformActionReturnFocus = returnFocus;
+  const background = document.querySelector(".desktop-app");
+  platformActionBackgroundInert = background?.inert || false;
+  if (background) background.inert = true;
   els.platformActionTitle.textContent = title;
   els.platformActionLead.textContent = lead;
   els.confirmPlatformActionButton.textContent = confirmLabel;
@@ -4635,7 +4659,8 @@ function openPlatformAction({ title, lead = "", confirmLabel = "确认", fields 
   clearPlatformActionStatus();
   setPlatformActionBusy(false);
   els.platformActionOverlay.classList.remove("hidden");
-  els.platformActionFields.querySelector("input, textarea, select")?.focus();
+  (initialFocus ? els.platformActionFields.querySelector(initialFocus) : els.platformActionFields.querySelector("input, textarea, select"))?.focus({ preventScroll: true });
+  els.platformActionOverlay.querySelector(".platform-action-panel").scrollTop = 0;
   return new Promise((resolve) => { platformActionResolver = resolve; });
 }
 
@@ -4646,7 +4671,29 @@ function closePlatformAction(value) {
   platformActionSubmitter = null;
   clearPlatformActionStatus();
   els.platformActionOverlay.classList.add("hidden");
+  const background = document.querySelector(".desktop-app");
+  if (background) background.inert = platformActionBackgroundInert;
+  platformActionReturnFocus?.focus({ preventScroll: true });
+  platformActionReturnFocus = null;
   resolve(value);
+}
+
+function handlePlatformActionKeydown(event) {
+  if (els.platformActionOverlay.classList.contains("hidden")) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closePlatformAction(null);
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const controls = [...els.platformActionOverlay.querySelectorAll('button, input, textarea, select, a[href], [tabindex="0"]')]
+    .filter(control => !control.disabled && control.getClientRects().length && !control.closest('[hidden], .hidden'));
+  const first = controls[0], last = controls.at(-1);
+  if (!first || !els.platformActionOverlay.contains(document.activeElement) || (event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first)?.focus();
+  }
 }
 
 async function submitManagedPlatformAction() {

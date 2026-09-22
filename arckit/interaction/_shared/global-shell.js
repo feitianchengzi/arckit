@@ -4,8 +4,41 @@
  const page=native?(window.ChatViews?'Chat':'Thing'):document.body.dataset.page;
  const header=document.createElement('header');header.className='gc-topbar';header.setAttribute('aria-label','全局顶部栏');
  const nav=C.pages.map(([name])=>`<a href="${C.href(name)}" ${name===page?'aria-current="page"':''}>${name}</a>`).join('');
- header.innerHTML=`<details class="gc-navigation"><summary aria-label="页面导航">☰</summary><nav>${nav}</nav></details><details class="gc-scope"><summary>产品范围</summary><div class="gc-scope-content"><label><span>产品集</span><select id="gc-set" aria-label="当前产品集">${C.sets.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></label><label><span>查看</span><select id="gc-project" aria-label="产品观察范围"></select></label><button id="gc-manage" title="管理当前产品集">管理</button></div></details><details class="gc-controls"><summary id="gc-compact-status">状态与操作</summary><div class="gc-controls-content"><details id="gc-sync"><summary id="gc-sync-label">尚未同步</summary><div class="gc-popup"><p id="gc-sync-detail"></p></div></details><details id="gc-runtime"><summary id="gc-runtime-label">运行状态</summary><div class="gc-popup"><strong>所有已授权产品 · 本设备</strong><div id="gc-runs"></div><label><input id="gc-enabled" type="checkbox">自动领取</label><button id="gc-pause">暂停领取</button></div></details><a class="gc-feedback" href="../product-feedback-center/default.html" title="给 ArcOrbit 提反馈" aria-label="产品反馈"><svg class="gc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14v11H9l-4 3V5Z"></path><path d="M8 9h8M8 12h6"></path></svg><strong>产品反馈</strong></a><button id="gc-refresh" class="gc-icon-button" title="同步任务源" aria-label="同步任务源"><svg class="gc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"></path><path d="M6.2 8A7 7 0 0 1 18.8 7M17.8 16A7 7 0 0 1 5.2 17"></path></svg></button><button class="gc-icon-button" data-account-open title="设置" aria-label="设置"><svg class="gc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"></path></svg></button></div></details>`;
+ header.innerHTML=`<details class="gc-navigation"><summary aria-label="页面导航">☰</summary><nav>${nav}</nav></details><details class="gc-scope"><summary>产品范围</summary><div class="gc-scope-content"><label><span>产品集</span><select id="gc-set" aria-label="当前产品集">${C.sets.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select></label><label><span>查看</span><select id="gc-project" aria-label="产品观察范围"></select></label><button id="gc-manage" title="管理当前产品集">管理</button></div></details><button id="gc-create-task" class="gc-icon-button" title="创建待办" aria-label="创建待办"><svg class="gc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button><details class="gc-controls"><summary id="gc-compact-status">状态与操作</summary><div class="gc-controls-content"><details id="gc-sync"><summary id="gc-sync-label">尚未同步</summary><div class="gc-popup"><p id="gc-sync-detail"></p></div></details><details id="gc-runtime"><summary id="gc-runtime-label">运行状态</summary><div class="gc-popup"><strong>所有已授权产品 · 本设备</strong><div id="gc-runs"></div><label><input id="gc-enabled" type="checkbox">自动领取</label><button id="gc-pause">暂停领取</button></div></details><a class="gc-feedback" href="../product-feedback-center/default.html" title="给 ArcOrbit 提反馈" aria-label="产品反馈"><svg class="gc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14v11H9l-4 3V5Z"></path><path d="M8 9h8M8 12h6"></path></svg><strong>产品反馈</strong></a><button id="gc-refresh" class="gc-icon-button" title="同步任务源" aria-label="同步任务源"><svg class="gc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"></path><path d="M6.2 8A7 7 0 0 1 18.8 7M17.8 16A7 7 0 0 1 5.2 17"></path></svg></button><button class="gc-icon-button" data-account-open title="设置" aria-label="设置"><svg class="gc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"></path></svg></button></div></details>`;
  const q=id=>header.querySelector('#'+id);
+ const createDialog=document.createElement('dialog');
+ createDialog.className='gc-dialog gc-task-create';createDialog.setAttribute('aria-label','创建待办');createDialog.dataset.kit='Sheet';document.body.append(createDialog);
+ const notice=document.createElement('span');notice.className='gc-create-notice';notice.setAttribute('role','status');document.body.append(notice);
+ let createBusy=false,createTrigger=null;
+ function openCreate(trigger=q('gc-create-task')){
+  if(createDialog.open)return;
+  createTrigger=trigger;
+  const projects=C.projects.filter(p=>C.includes(p.id));
+  if(C.state.sync==='offline'||!projects.length){notice.textContent=C.state.sync==='offline'?'请在设置中登录后创建待办。':'当前范围没有可创建待办的产品，请在顶部管理产品集。';return;}
+  notice.textContent='';
+  const states=[['pending_review','待评审'],['pending','待处理'],['in_progress','进行中'],['completed','已完成'],['accepted','已验收'],['cancelled','已取消'],['blocked','已阻塞']];
+  createDialog.innerHTML=`<form><h2>创建待办</h2><label>产品<select name="project" required>${projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>待办内容<textarea name="content" required></textarea></label><label>状态<select name="state">${states.map(([v,n])=>`<option value="${v}">${n}</option>`).join('')}</select></label><p>执行人默认未分配。此原型仅模拟产品、内容和状态；完整字段见 Work 表单说明。</p><p data-create-status role="status"></p><div><button type="button" data-create-cancel>取消</button> <button type="submit">创建待办</button></div></form>`;
+  createDialog.querySelector('[data-create-cancel]').onclick=()=>createDialog.close();
+  createDialog.querySelector('form').onsubmit=async e=>{
+   e.preventDefault();if(createBusy)return;
+   const data=new FormData(e.target),content=String(data.get('content')).trim(),project=String(data.get('project'));
+   const status=createDialog.querySelector('[data-create-status]');
+   if(!content||!C.includes(project)){status.textContent='请填写内容并选择当前范围内的产品。';return;}
+   createBusy=true;createDialog.setAttribute('aria-busy','true');
+   const controls=[...createDialog.querySelectorAll('button,input,textarea,select')];controls.forEach(e=>e.disabled=true);status.textContent='正在提交…';
+   await new Promise(resolve=>setTimeout(resolve,150));
+   createBusy=false;createDialog.removeAttribute('aria-busy');controls.forEach(e=>e.disabled=false);
+   if(C.state.failCreate){status.textContent='创建失败，请重试。已保留输入。';return;}
+   C.state.pageObjects??={};C.state.pageObjects.Work??=[];
+   C.state.pageObjects.Work.push({id:crypto.randomUUID(),project,name:content,state:data.get('state'),executor:''});C.save();
+   createDialog.close();notice.textContent='待办已创建（本地模拟）';
+  };
+  createDialog.showModal();createDialog.querySelector('textarea').focus();
+ }
+ createDialog.addEventListener('cancel',e=>{if(createBusy)e.preventDefault();});
+ createDialog.addEventListener('close',()=>createTrigger?.focus({preventScroll:true}));
+ q('gc-create-task').onclick=()=>openCreate();
+ document.addEventListener('click',e=>{if(e.target.closest('#gc-new')){e.preventDefault();e.stopImmediatePropagation();openCreate(e.target.closest('#gc-new'));}},true);
  const compact=matchMedia('(max-width:760px)');
  function fit(){for(const cls of ['gc-scope','gc-controls'])header.querySelector('.'+cls).open=!compact.matches;}
  compact.addEventListener('change',fit);fit();

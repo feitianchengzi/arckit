@@ -30,3 +30,5 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 - 本机外观：CONVENTIONS.md → _shared/appearance.js 与 project-workbench/account-settings.js；共享设置消费者加载统一主题模拟。颜色来源为 visual/themes/light.yaml、dark.yaml。生产接入与旧页面全部状态的暗色覆盖尚未验证。
 
 - Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../chat-workspace/interaction.md`。
+
+- 全局创建待办：共享顶部与 Work 入口复用当前页模态；产品范围、默认待评审、取消/焦点、提交防重和失败保留输入。原型仅模拟产品/内容/状态，生产验收独立进行。
