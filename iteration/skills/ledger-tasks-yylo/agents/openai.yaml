@@ -1,0 +1,10 @@
+interface:
+  display_name: "Ledger Tasks (YYLO)"
+  short_description: "YYLO Ledger 任务看板与依赖顺序的受边界读写工作流"
+  default_prompt: >-
+    使用 $ledger-tasks-yylo 处理用户明确提出的 YYLO Ledger 任务管理请求：create/list/search/
+    get/mark/update/archive、deps 依赖、ready 就绪队列、order 执行顺序与冷归档检索。入口先执行
+    授权门禁：预检已安装版本的 --help 命令面；只读浏览可直接执行；写操作需要用户本轮明确要求，
+    mark 必须携带 --response 说明；绝不绕过 CLI 直接编辑 .juno_task 状态文件。冷归档 pack 维护
+    是高影响操作，必须先获所有者显式授权、仓库干净、报告写入仓库外持久路径，缺一即停。未安装
+    或版本不支持时如实报告，不猜测命令；本 skill 不负责 YYLO 安装、Git 分支策略或发布授权。
