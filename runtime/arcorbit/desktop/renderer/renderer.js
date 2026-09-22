@@ -1,3 +1,4 @@
+import { executorLabel } from './executor-label.mjs';
 import { defaultWorkFilters } from './task-filter-defaults.mjs';
 import { createChatNativeSurface } from './chat-native-surface.mjs';
 let chatNativeSurface=null;
@@ -2199,7 +2200,7 @@ function renderTodaySourceContext(item) {
   if (item.source === "work") {
     const feedbackItems = item.acceptance_feedback_items || [];
     const acceptanceIssues = item.state === "completed" ? `<div class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((issue) => `<div class="acceptance-feedback-item" data-today-acceptance-feedback="${escapeHtml(issue.feedback_id || "")}"><span><strong>${escapeHtml(issue.original_feedback || issue.title || issue.feedback_id || "验收问题")}</strong><small>${escapeHtml(issue.feedback_id || "")}${issue.progress ? ` · ${escapeHtml(issue.progress)}` : ""}</small></span><span class="status-pill ${feedbackTone(issue.status)}">${escapeHtml(issue.status || "unknown")}</span></div>`).join("") : `<div class="empty-state compact">尚未提出验收问题。</div>`}</div></div>` : "";
-    return `<section class="today-operator-section"><h3>完整待办上下文</h3><p class="today-source-copy">${escapeHtml(item.content || item.blocked_reason || "来源未提供更多内容。")}</p><dl class="today-facts">${todayFactRows([["状态", item.state], ["提交者", item.creator_name || item.creator_id], ["执行人", item.executor_name || item.executor_id], ["版本", item.version], ["优先级", item.priority ?? item.raw?.priority]])}</dl>${acceptanceIssues}</section>`;
+    return `<section class="today-operator-section"><h3>完整待办上下文</h3><p class="today-source-copy">${escapeHtml(item.content || item.blocked_reason || "来源未提供更多内容。")}</p><dl class="today-facts">${todayFactRows([["状态", item.state], ["提交者", item.creator_name || item.creator_id], ["执行人", taskExecutorName(item)], ["版本", item.version], ["优先级", item.priority ?? item.raw?.priority]])}</dl>${acceptanceIssues}</section>`;
   }
   if (item.source === "feedback") return todayContextSection("关联事务", [
     ["Feedback", item.feedback_id || item.source_object_id],
@@ -2503,7 +2504,8 @@ async function createTaskForArcOrbit(defaultProjectId = "") {
   const projects = workspaceOptions().filter((project) => !defaultProjectId || String(project.value) === String(defaultProjectId));
   if (!projects.length) throw new Error("当前没有可由你创建待处理任务的产品。");
   const initialProjectId = defaultProjectId || projects[0].value;
-  if (!projectCurrentUserExecutorId(initialProjectId)) {
+  const currentUserId = projectCurrentUserExecutorId(initialProjectId);
+  if (!currentUserId) {
     throw new Error("无法确认当前用户在所选产品中的执行人身份，请刷新项目后重试。");
   }
   await openPlatformAction({
@@ -2513,7 +2515,7 @@ async function createTaskForArcOrbit(defaultProjectId = "") {
     fields: [
       platformField("project_id", "产品", { type: "select", required: true, value: initialProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
-      platformField("executor", "执行人", { value: `${currentWorkshopUserName()} · 我`, readonly: true }),
+      platformField("executor", "执行人", { value: executorLabel(currentWorkshopUserName(), currentUserId, currentUserId), readonly: true }),
       platformField("task_state", "状态", { value: "待处理 · 进入 Automation 候选", readonly: true }),
       platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions() })
     ],
@@ -2704,7 +2706,7 @@ function renderWorkFilterControls() {
   const queryTags = state.workQuery.projection?.tags || [];
   const tags = (queryTags.length > 0 ? queryTags : state.platform.tags || []).filter((item) => selectedProjectIds.has(String(item.project_id)));
   setMultiSelectOptions(els.workCreatorFilter, memberOptions, state.platformWorkFilters.creator_ids);
-  setMultiSelectOptions(els.workExecutorFilter, memberOptions, state.platformWorkFilters.executor_ids);
+  setMultiSelectOptions(els.workExecutorFilter, uniqueMembers.map((item) => ({ value: item.user_id, label: executorMemberName(item) })), state.platformWorkFilters.executor_ids);
   setMultiSelectOptions(els.workTagFilter, tags.map((item) => ({ value: item.id, label: `${item.project_name || "产品"} · ${parseWorkshopTag(item.name).displayName}` })), state.platformWorkFilters.tag_ids);
   setMultiSelectOptions(els.workPriorityFilter, [
     { value: "0", label: "最高" }, { value: "1", label: "高" }, { value: "2", label: "中" }, { value: "3", label: "低" }
@@ -5017,7 +5019,7 @@ function taskCreationDefaultProjectId(projects) {
     : projects[0]?.value || "";
 }
 function organizationOptions() { return (state.platform.organizations || []).map((item) => ({ value: item.id, label: item.name })); }
-function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: memberName(item) }))]; }
+function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: executorMemberName(item) }))]; }
 function taskSelectOptions(projectId = "", excludedTaskId = "") { return [{ value: "", label: "根待办" }, ...(state.platform.tasks || []).filter((item) => (!projectId || String(item.project_id) === String(projectId)) && String(item.id) !== String(excludedTaskId)).map((item) => ({ value: item.id, label: `${projectId ? "" : `${item.project_name} · `}${item.id} · ${item.title}` }))]; }
 function findProject(id) { const value = state.platform.projects.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品。"); return value; }
 function currentOrganizationScope() { return (state.platform.organization_scopes || []).find((item) => String(item.id) === String(state.organizationScopeId)) || null; }
@@ -6187,15 +6189,19 @@ function memberName(member) {
   return personName(member) || "成员姓名不可用";
 }
 
+function executorMemberName(member) {
+  return executorLabel(memberName(member), member.user_id, projectCurrentUserExecutorId(member.project_id));
+}
+
 function taskExecutorName(task) {
-  const embeddedName = personName(task?.assignee);
-  if (embeddedName) return embeddedName;
   const executorId = String(task?.executor_id || "").trim();
-  if (!executorId) return "未分配";
+  const embeddedName = personName(task?.assignee) || String(task?.executor_name || "").trim();
+  if (!executorId) return embeddedName || "未分配";
   const projectId = String(task?.project_id || "");
   const member = [...(state.platform.members || []), ...(state.platform.project_members || [])]
     .find((item) => String(item.project_id || "") === projectId && String(item.user_id || "") === executorId);
-  return personName(member) || "执行人姓名不可用";
+  const name = embeddedName || personName(member) || "执行人姓名不可用";
+  return executorLabel(name, executorId, projectCurrentUserExecutorId(projectId));
 }
 
 function uniqueMembers(members = []) {

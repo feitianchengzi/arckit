@@ -5,7 +5,7 @@ export function workbenchDetailKey(snapshot, taskId) {
   const project = snapshot?.projects?.find(item => String(item.id) === String(task?.project_id));
   const runtime = Object.fromEntries(Object.entries(snapshot?.runtime || {}).filter(([, value]) => Array.isArray(value))
     .map(([key, items]) => [key, items.filter(item => String(item.task_id || item.source_task_id || item.id) === String(taskId))]));
-  const binding = project && { id: project.id, name: project.name, local_project_id: project.local_project_id, members: project.members };
+  const binding = project && { id: project.id, name: project.name, current_user_id: project.current_user_id, local_project_id: project.local_project_id, members: project.members };
   return JSON.stringify([snapshot?.account_scope, snapshot?.user, task, binding,
     snapshot?.scenes?.[taskId], runtime,
     snapshot?.tasks?.filter(item => String(item.father_id) === String(taskId))]);

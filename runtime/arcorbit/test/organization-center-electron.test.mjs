@@ -16,14 +16,14 @@ test("production todo surfaces resolve executor names without exposing ids", {
   const { stdout } = await execFileAsync(electron, [fixturePath], { env, timeout: 20_000, maxBuffer: 1024 * 1024 });
   const result = JSON.parse(stdout.trim());
 
-  assert.equal(result.workInspectorExecutor, "Glare");
+  assert.equal(result.workInspectorExecutor, "Glare（我）");
   assert.deepEqual(result.workExecutorCells, [
-    { id: "W-11", label: "Glare" },
+    { id: "W-11", label: "Glare（我）" },
     { id: "W-NAMELESS", label: "执行人姓名不可用" },
     { id: "W-UNKNOWN", label: "执行人姓名不可用" },
     { id: "W-UNASSIGNED", label: "未分配" }
   ]);
-  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · Glare"), true);
+  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · Glare（我）"), true);
   assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · 执行人姓名不可用"), true);
   assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · 未分配"), true);
   assert.equal(result.switchedProductExecutorOptions.find((item) => item.value === "9")?.label, "成员姓名不可用");
@@ -52,7 +52,7 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.ordinaryQueueHidden, true);
   assert.equal(result.feedbackQueueVisible, true);
   assert.equal(result.selectedProductTaskDefault, "12");
-  assert.deepEqual(result.selectedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "8", label: "Lin" }]);
+  assert.deepEqual(result.selectedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "8", label: "Lin（我）" }]);
   assert.match(result.initialExecutorAutomationHelp, /未分配.*不会进入 Automation 候选/);
   assert.match(result.currentUserReviewAutomationHelp, /当前状态不是待处理/);
   assert.match(result.currentUserPendingAutomationHelp, /项目连接、项目授权和全局领取/);
@@ -62,7 +62,7 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.executorGuidanceCallCountAfter, result.executorGuidanceCallCountBefore);
   assert.deepEqual(result.selectedProductTagLabels, ["Docs"]);
   assert.deepEqual(result.priorityOptionLabels, ["无优先级", "最高 · 紧急且重要", "高 · 优先处理", "中 · 正常处理", "低 · 可以延后"]);
-  assert.deepEqual(result.switchedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare" }, { value: "8", label: "Lin" }, { value: "9", label: "成员姓名不可用" }]);
+  assert.deepEqual(result.switchedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare（我）" }, { value: "8", label: "Lin" }, { value: "9", label: "成员姓名不可用" }]);
   assert.deepEqual(result.switchedProductParentIds, ["", "W-RUNNING", "W-11", "W-NAMELESS", "W-UNKNOWN", "W-UNASSIGNED", "W-COMPLETED", "W-ACCEPTED"]);
   assert.deepEqual(result.switchedProductTagLabels, ["Bug", "Desktop"]);
   assert.notEqual(result.createdTaskTagId, "");
@@ -78,15 +78,15 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.workInspectorHasProductProperty, false);
   assert.match(result.workInspectorText, /Verify Work state scope/);
   assert.match(result.workInspectorText, /不在当前用户 Automation 范围/);
-  assert.equal(result.workInspectorExecutor, "Glare");
+  assert.equal(result.workInspectorExecutor, "Glare（我）");
   assert.deepEqual(result.workExecutorCells, [
-    { id: "W-11", label: "Glare" },
+    { id: "W-11", label: "Glare（我）" },
     { id: "W-NAMELESS", label: "执行人姓名不可用" },
     { id: "W-UNKNOWN", label: "执行人姓名不可用" },
     { id: "W-UNASSIGNED", label: "未分配" }
   ]);
   assert.equal(result.selectedWorkRows, 1);
-  assert.deepEqual(result.editExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare" }, { value: "8", label: "Lin" }, { value: "9", label: "成员姓名不可用" }]);
+  assert.deepEqual(result.editExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare（我）" }, { value: "8", label: "Lin" }, { value: "9", label: "成员姓名不可用" }]);
   assert.equal(result.editPriorityValue, "1");
   assert.deepEqual(result.editSelectedTagIds, ["201"]);
   assert.equal(result.completedHasAcceptanceComposer, true);
@@ -122,7 +122,7 @@ test("production Organization Center keeps governance independent and invitation
   assert.match(result.acceptedInspectorText, /验收通过/);
   assert.match(result.acceptedInspectorText, /不再接受新的验收问题/);
   assert.deepEqual(result.todayProductIds, ["11"]);
-  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · Glare"), true);
+  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · Glare（我）"), true);
   assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · 执行人姓名不可用"), true);
   assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · 未分配"), true);
   assert.deepEqual(result.ordinaryFeedbackIds, ["F-11", "F-11-LINKED"]);
@@ -149,7 +149,7 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.feedbackTaskContent, "Visible in the selected product");
   assert.deepEqual(result.feedbackExecutorOptions, [
     { value: "", label: "未分配" },
-    { value: "7", label: "Glare" },
+    { value: "7", label: "Glare（我）" },
     { value: "8", label: "Lin" },
     { value: "9", label: "成员姓名不可用" }
   ]);

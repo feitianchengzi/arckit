@@ -49,7 +49,7 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
   async function snapshot() {
     const scope = await authority();
     const [work, runtime, store, local, db] = await Promise.all([workSync.getSnapshot(), automation.getSnapshot({}), runManager.readDesktopStore(), runManager.listProjects(), scenes.read(scope)]);
-    const projects = (work.project_catalog?.length ? work.project_catalog : work.projects || []).map(project => ({ id:String(project.id), name:project.name,
+    const projects = (work.project_catalog?.length ? work.project_catalog : work.projects || []).map(project => ({ id:String(project.id), name:project.name, current_user_id:String(project.current_user_id || ''),
       local_project_id:store.automation.project_bindings?.[project.id] || '', participating:Boolean(store.automation.project_participation?.[project.id]), members:project.raw?.members || project.members || [],
       state:work.project_states?.[project.id]?.state || 'not_loaded' }));
     const ids = new Set(projects.map(p => p.id));

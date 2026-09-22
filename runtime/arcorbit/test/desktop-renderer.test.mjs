@@ -910,7 +910,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   const managedActionHandler = source.slice(source.indexOf("async function executeManagedAction"), source.indexOf("function openPlatformAction"));
   assert.match(managedActionHandler, /result\?\.status === "partial"/);
   assert.match(managedActionHandler, /partialError\.partial_result = result\.partial_result/);
-  assert.match(source, /function memberSelectOptions\(projectId = ""\).*filter\(\(item\) => !projectId \|\| String\(item\.project_id\) === String\(projectId\)\).*label: memberName\(item\)/);
+  assert.match(source, /function memberSelectOptions\(projectId = ""\).*filter\(\(item\) => !projectId \|\| String\(item\.project_id\) === String\(projectId\)\).*label: executorMemberName\(item\)/);
   assert.doesNotMatch(source, /label: `\$\{item\.project_name\} · \$\{item\.username\}`/);
   assert.match(source, /function taskExecutorName\(task\)/);
   assert.match(source, /String\(item\.project_id \|\| ""\) === projectId && String\(item\.user_id \|\| ""\) === executorId/);

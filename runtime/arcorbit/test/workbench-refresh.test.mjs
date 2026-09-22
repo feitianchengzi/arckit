@@ -64,6 +64,42 @@ test('connection notices perform zero reads; unrelated content and automation re
   assert.deepEqual(h.counts, { snapshot: 5, detail: 3 });
 });
 
+test('Thing executor labels follow project identity in details and filters after identity refresh', async t => {
+  const h = await harness(t);
+  h.snapshot.user = { id: 'account-uuid' };
+  h.snapshot.projects[0].current_user_id = '7';
+  Object.assign(h.snapshot.tasks[0], { executor_id: '7', executor_name: 'Same' });
+  Object.assign(h.snapshot.tasks[1], { executor_id: '8', executor_name: 'Same' });
+  await h.surface.refresh();
+  assert.match(h.root.querySelector('.pw-heading').textContent, /Same（我）/);
+  assert.equal(h.root.querySelector('[data-filter=executor] option[value="7"]').textContent, 'Same（我）');
+  assert.equal(h.root.querySelector('[data-filter=executor] option[value="8"]').textContent, 'Same');
+  const createElement = document.createElement.bind(document);
+  document.createElement = name => {
+    const element = createElement(name);
+    if (name === 'dialog') { element.showModal = () => {}; element.close = () => {}; }
+    return element;
+  };
+  h.surface.state.detail.local_project = { id: 'local' };
+  h.root.querySelector('[data-pw-action=properties]').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(document.querySelector('dialog').textContent, /执行人：Same（我）/);
+  assert.equal(document.querySelector('dialog input[name=executor_id]').value, '7');
+  document.querySelector('dialog [data-pw-action="dialog.cancel"]').click();
+  h.snapshot.tasks[0].state = 'accepted';
+  await h.surface.refresh();
+  h.root.querySelector('[data-pw-action=properties]').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(document.querySelector('dialog pre').textContent, /Same（我）/);
+  document.querySelector('dialog [data-pw-action="dialog.cancel"]').click();
+  const reads = h.counts.detail;
+  h.snapshot.projects[0].current_user_id = '8';
+  await h.surface.refresh({ detail: false });
+  assert.equal(h.counts.detail, reads + 1);
+  assert.doesNotMatch(h.root.querySelector('.pw-heading').textContent, /（我）/);
+  assert.equal(h.root.querySelector('[data-filter=executor] option[value="7"]').textContent, 'Same');
+});
+
 test('selected execution changes refresh details and errors remain retryable', async t => {
   const h = await harness(t);
   h.snapshot.runtime.attention_items = [{ task_id: '1', reason: 'intervention' }];

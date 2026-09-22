@@ -48,7 +48,7 @@ test('workbench scene versions reject concurrent edits, preserve accepted criter
  f.setAccount('account:8');assert.equal((await f.c.detail('1')).scene.revision,0);f.setAccount('');await assert.rejects(f.c.snapshot(),/登录/);
 });
 test('first Chat creation is self-assigned pending review; retry does not duplicate a task',async t=>{
- const f=await fixture(t);const request={project_id:'p',content:'分析目标',request_id:'new-1'};
+ const f=await fixture(t);const snapshot=await f.c.snapshot();assert.equal(snapshot.projects[0].current_user_id,'7');assert.equal(snapshot.user.id,'account-uuid');const request={project_id:'p',content:'分析目标',request_id:'new-1'};
  const a=await f.c.command('task.create',request),b=await f.c.command('task.create',request);assert.deepEqual(a,b);assert.equal(f.work.tasks.length,2);assert.equal(f.work.tasks[1].executor_id,'7');assert.equal(f.work.tasks[1].state,'pending_review');
  await assert.rejects(f.c.command('task.create',{...request,content:'changed'}),/另一件/);
 });
