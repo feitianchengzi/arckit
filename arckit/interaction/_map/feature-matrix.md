@@ -28,3 +28,5 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 | 全局顶部上下文 | ✅ | 所有主入口统一产品集与范围、同步、运行控制、反馈与设置；Chat/Thing/Product 对象和草稿恢复、空范围、窄窗菜单 | `_shared/verify-global-context.cjs` 实际原型验证；专项旧状态图不作为全局壳验证 |
 
 - 本机外观：CONVENTIONS.md → _shared/appearance.js 与 project-workbench/account-settings.js；共享设置消费者加载统一主题模拟。颜色来源为 visual/themes/light.yaml、dark.yaml。生产接入与旧页面全部状态的暗色覆盖尚未验证。
+
+- Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../chat-workspace/interaction.md`。

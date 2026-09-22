@@ -119,3 +119,5 @@ Chat 会话标签以 session 为准，待办标签以 task 为准；关联身份
 采纳来源：_explorations/chat-todo/exploration.md（2026-09-19）。验证：chat-workspace/verification.json、verification-native.json。spec/agentic-software-development/arcorbit-planned-workspaces.md 与 tech/arcorbit/project-workbench-solution.md 的能力边界需依正式交互同步；本轮未宣称生产实现完成。visual 组件目录可进一步登记能力选择器/上下文标签/回执卡片，现页面消费既有正式 Token 和通用组件规则。
 
 Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保留关联、整理、引用与读写待办能力。
+
+- Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../chat-workspace/interaction.md`。

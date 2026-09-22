@@ -52,3 +52,5 @@ swift arckit/interaction/chat-workspace/verify-layout-webkit.swift "$PWD"
 verification-layout.json 专门检查顶部入口同排、菜单高度、固定搜索/技能设置，以及逐个滚动到候选后真实命中点击区域；覆盖 390–1500px 宽、640–1000px 高。
 
 verify-layout-webkit.swift 使用 macOS WKWebView 复核 1500×800 桌面布局；本次结果记录在 verification-layout-webkit.json。
+
+Work 的 `../task-browser/default.html` 提供待办“打开 Chat”路径；Chat 右栏支持“会话列表 / 待办详情”切换。两页的详情样本通过 `../_shared/work-chat-detail.js` 呈现。该样本仅模拟入口、绑定和详情切换，完整业务字段与权限以 interaction.md 及生产共享详情渲染器为准。

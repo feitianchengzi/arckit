@@ -90,3 +90,23 @@ test('Chat task filters use Work semantics while references and session identiti
  assert.equal((await query({...filters,priorities:['0','1']})).task_list.length,1);
  assert.equal((await f.chat.getSnapshot()).sessions.filter(s=>s.id===created.id).length,1);
 });
+
+test('Work opening is idempotent and preserves the task thread for versioned Agent edits', async t => {
+ const f=await fixture(t);
+ f.bindings.set('1',{threadId:'WORK-THREAD'});
+ const opened=await Promise.all(Array.from({length:4},()=>f.native.openTask({project_id:'local',task_id:'1'})));
+ assert.equal(new Set(opened.map(x=>x.session_id)).size,1);
+ const id=opened[0].session_id;
+ assert.equal((await f.db.readStore()).sessions.local.filter(s=>s.task_id==='1').length,1);
+ assert.equal((await f.db.readStore()).sessions.local.find(s=>s.id===id).thread_id,'WORK-THREAD');
+ assert.equal(f.calls.length,0,'opening does not mutate or execute the todo');
+ const turn=await f.send(id,async options=>{
+  assert.equal(options.threadId,'WORK-THREAD');
+  const {task}=await f.call(options,{action:'read'});
+  return f.call(options,{action:'update',version:task.version,content:'Updated from Work-bound Chat',request_id:'work-chat-update'});
+ });
+ assert.equal(turn.error,undefined);assert.equal(turn.result.task.content,'Updated from Work-bound Chat');
+ assert.equal(f.work.tasks[0].content,turn.result.task.content);
+ assert.equal((await f.native.openTask({project_id:'local',task_id:'1'})).session_id,id);
+ await assert.rejects(f.native.openTask({project_id:'local',task_id:'foreign'}),/项目/);
+});

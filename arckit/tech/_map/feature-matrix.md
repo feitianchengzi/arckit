@@ -20,3 +20,5 @@ Engineering / Chat skills：✅ 已实现；技术源为 `arcorbit/scene-skills-
 | `arcorbit/project-workbench-solution.md` | ✅ | 独立事情台、主会话与新旧页面过渡。 |
 
 无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。
+
+- Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../arcorbit/project-workbench-solution.md`。

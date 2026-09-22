@@ -74,3 +74,13 @@ html:has(body.chat-active), body.chat-active { min-width:0; min-height:0; }
  #chatView .chat-sidebar-resize { display:none; }
  #chatView .chat-composer-setting select { max-width:125px; }
 }
+
+#chatView .chat-sidebar-tabs { display:flex; flex-wrap:wrap; gap:4px; }
+#chatView .chat-sidebar-tabs [aria-pressed="true"] { color:var(--semantic-text); background:var(--semantic-nav-selected); font-weight:600; }
+#chatView .chat-sidebar > [hidden] { display:none; }
+#chatView .chat-sidebar.is-task-detail { grid-template-rows:auto minmax(0,1fr); }
+#chatView .chat-task-inspector { position:static; min-width:0; min-height:0; overflow:auto; overscroll-behavior:contain; }
+#chatView .chat-task-inspector .work-inspector-facts { grid-template-columns:1fr; }
+#chatView .chat-task-inspector .task-actions { flex-wrap:wrap; }
+#chatView .chat-task-inspector textarea { width:100%; min-width:0; box-sizing:border-box; }
+#chatView .chat-task-inspector .work-inspector-section { overflow-wrap:anywhere; }

@@ -21,3 +21,5 @@
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
 
 | `agentic-software-development/arcorbit-project-workbench.md` | ✅ | 独立事情台、主会话与新旧页面过渡。 |
+
+- Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../agentic-software-development/arcorbit-planned-workspaces.md`。

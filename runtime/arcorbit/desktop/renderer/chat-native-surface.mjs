@@ -1,6 +1,6 @@
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const empty=()=>({capability:null,refs:[]});
-export function createChatNativeSurface({api,coordinator,getProject,getSession,render,performAction,closeList}){
+export function createChatNativeSurface({api,coordinator,getProject,getSession,render,performAction,closeList,onTaskOpened=()=>{}}){
  const input=document.getElementById('chatInput'),foot=document.querySelector('.chat-composer-foot');
  const state=()=>coordinator.getState();
  const owner=()=>({session_id:getSession()?.id||'',project_id:getProject()?.id||''});
@@ -54,7 +54,7 @@ export function createChatNativeSurface({api,coordinator,getProject,getSession,r
  picker.querySelector('input').addEventListener('input',options);
  picker.addEventListener('keydown',e=>{const buttons=[...picker.querySelectorAll('[data-pick]')];if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();const i=buttons.indexOf(document.activeElement);buttons[(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus()}if(e.key==='Enter'&&e.target.matches('input')){e.preventDefault();buttons[0]?.click()}});
  const trigger=()=>{if(input.value==='/'||input.value==='@')performAction(()=>open(input.value==='/'?'capabilities':'refs',input.value))};input.addEventListener('input',e=>{if(!e.isComposing)trigger()});input.addEventListener('compositionend',trigger);
- async function openTask(id){await coordinator.flushDraft();const result=await api.chatNativeOpen({...owner(),task_id:id});await coordinator.selectSession(result.session_id);closeList();render();if(!state().snapshot.messages.length){await coordinator.send({text:'读取这个待办，继续在这里分析和讨论。',preserve_draft:true});render()}await load(true)}
+ async function openTask(id){await coordinator.flushDraft();const result=await api.chatNativeOpen({...owner(),task_id:id});await coordinator.selectSession(result.session_id);closeList();onTaskOpened();render();if(!state().snapshot.messages.length){await coordinator.send({text:'读取这个待办，继续在这里分析和讨论。',preserve_draft:true});render()}await load(true)}
  document.getElementById('chatView').addEventListener('click',e=>{const b=e.target.closest('[data-native-task]');if(b)performAction(()=>openTask(b.dataset.nativeTask))});
  function paint(){
   const s=getSession(),t=catalog?.tasks?.find(t=>t.id===s?.task_id);identity.innerHTML=s? s.task_id?`本会话对应待办 #${esc(s.task_id)} · ${esc(t?.state||'待读取')} <button type="button" data-read>查看最新内容</button>${s.source_session_id?` <button data-source="${esc(s.source_session_id)}">创建来源</button>`:''}`:'<button type="button" data-convert>整理为待办</button>':'';

@@ -266,7 +266,11 @@ let chatCodexCatalogPromise = null;
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
-let platformWorkInspectorRender = { taskId: "", html: "" };
+const taskInspectorRenders = new WeakMap();
+let chatTaskPanelMode = "sessions";
+let chatTaskDetailOwner = "";
+let chatTaskDetailStatus = "idle";
+let chatTaskDetailError = "";
 let workInspectorResizeSession = null;
 let workInspectorResizeObserver = null;
 const workInspectorWidthPersistence = createWorkInspectorWidthPersistence({
@@ -402,7 +406,9 @@ const projectWorkbenchSurface = createProjectWorkbenchSurface({
   }
 });
 const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
-chatNativeSurface=createChatNativeSurface({api,coordinator:chatStateCoordinator,getProject:selectedChatProject,getSession:selectedChatSession,render:renderChat,performAction:runAction,closeList:()=>setChatSessionsOpen(false)});
+document.getElementById('chatSidebarSessions').addEventListener('click', () => setChatTaskPanel('sessions'));
+document.getElementById('chatSidebarTask').addEventListener('click', () => setChatTaskPanel('detail'));
+chatNativeSurface=createChatNativeSurface({api,coordinator:chatStateCoordinator,getProject:selectedChatProject,getSession:selectedChatSession,render:renderChat,performAction:runAction,closeList:()=>setChatSessionsOpen(false),onTaskOpened:()=>setChatTaskPanel("detail")});
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
   jumpButton: els.jumpToLatestButton,
@@ -1454,7 +1460,7 @@ function scheduleRefresh(delay = 80) {
   window.setTimeout(async () => {
     refreshQueued = false;
     if (state.page === "project-workbench") return;
-    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
+    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true, afterMutation: state.page === "chat" });
     await refresh.catch((error) => showToast(error.message));
   }, delay);
 }
@@ -1670,6 +1676,7 @@ function renderChatSessionGroups(chat) {
 
 function renderChat() {
   if (!els.chatTranscript) return;
+  renderChatTaskPanel();
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
@@ -2775,9 +2782,97 @@ function workInspectorRuntimeNavigation(task, automationTask, workspace) {
     : { destination: "recovery", execution: null };
 }
 
+async function openWorkTaskChat(task) {
+  const workspace = state.platform.product_workspaces.find(item => String(item.id) === String(task.project_id));
+  if (!workspace?.local_project_id) throw new Error("请先为该待办所属项目绑定本地工作区，再打开 Chat。");
+  await chatStateCoordinator.flushDraft();
+  const result = await api.chatNativeOpen({ project_id: workspace.local_project_id, task_id: String(task.id) });
+  await chatStateCoordinator.selectSession(result.session_id);
+  chatTaskPanelMode = 'detail';
+  showPage('chat');
+  setChatSessionsOpen(true);
+}
+
+function setChatTaskPanel(mode) {
+  chatTaskPanelMode = mode;
+  renderChatTaskPanel();
+}
+
+function chatTaskOwner() {
+  const session = selectedChatSession();
+  return session?.task_id ? JSON.stringify([session.id, session.project_id, session.remote_project_id, session.task_id]) : '';
+}
+
+async function refreshChatTaskDetail() {
+  const owner = chatTaskOwner();
+  if (!owner || state.page !== 'chat') return;
+  if (owner === chatTaskDetailOwner && chatTaskDetailStatus === 'loading') return;
+  chatTaskDetailOwner = owner;
+  chatTaskDetailStatus = 'loading';
+  chatTaskDetailError = '';
+  renderChatTaskPanel();
+  try {
+    await refreshSnapshot({ quiet: true, afterMutation: true });
+    if (owner !== chatTaskOwner() || owner !== chatTaskDetailOwner) return;
+    chatTaskDetailStatus = 'ready';
+  } catch (error) {
+    if (owner !== chatTaskOwner() || owner !== chatTaskDetailOwner) return;
+    chatTaskDetailStatus = 'error';
+    chatTaskDetailError = error.message;
+  }
+  renderChatTaskPanel();
+}
+
+function renderChatTaskPanel() {
+  const host = document.getElementById('chatTaskInspector');
+  const detail = chatTaskPanelMode === 'detail';
+  const panel = document.getElementById('chatSessionsPanel');
+  panel.classList.toggle('is-task-detail', detail);
+  document.getElementById('chatSidebarSessions').setAttribute('aria-pressed', String(!detail));
+  document.getElementById('chatSidebarTask').setAttribute('aria-pressed', String(detail));
+  els.chatSessionList.hidden = detail;
+  els.newChatButton.hidden = detail;
+  host.hidden = !detail;
+  const owner = chatTaskOwner();
+  if (owner !== chatTaskDetailOwner) {
+    chatTaskDetailOwner = owner;
+    chatTaskDetailStatus = 'idle';
+    updateTaskInspector(host, '', '<div class="empty-state">正在读取待办详情…</div>');
+    if (owner && state.page === 'chat') void refreshChatTaskDetail();
+  }
+  if (!detail) return;
+  const session = selectedChatSession();
+  if (!owner) {
+    updateTaskInspector(host, '', '<div class="empty-state">当前会话尚未关联待办。可通过“整理为待办”建立关联。</div>');
+    return;
+  }
+  if (chatTaskDetailStatus === 'idle' || chatTaskDetailStatus === 'loading') return;
+  const task = state.platform.tasks.find(item => String(item.id) === String(session.task_id) && String(item.project_id) === String(session.remote_project_id));
+  const errors = (state.platform.errors || []).filter(item => !item.project_id || String(item.project_id) === String(session.remote_project_id));
+  const error = chatTaskDetailError || errors.map(item => item.message).filter(Boolean).join('；');
+  if (error || !task) {
+    updateTaskInspector(host, '', `<div class="empty-state" role="status">${escapeHtml(error || '待办不存在或已无权访问。')}<button type="button" class="secondary-button" data-chat-task-retry>重试读取</button></div>`);
+    host.querySelector('[data-chat-task-retry]').onclick = () => void refreshChatTaskDetail();
+    return;
+  }
+  renderTaskDetail(task, host);
+}
+
+function refreshTaskInspectors(taskId) {
+  if (state.page === 'work' && String(state.selectedPlatformTaskId) === String(taskId)) {
+    const task = (state.workQuery.projection?.tasks || state.platform.tasks).find(item => String(item.id) === String(taskId));
+    renderPlatformWorkInspector(task);
+  }
+  if (state.page === 'chat' && String(selectedChatSession()?.task_id) === String(taskId)) renderChatTaskPanel();
+}
+
 function renderPlatformWorkInspector(task) {
+  renderTaskDetail(task, els.platformWorkInspector);
+}
+
+function renderTaskDetail(task, host) {
   if (!task) {
-    updatePlatformWorkInspector("", `<div class="empty-state">选择待办查看详情与允许操作。</div>`);
+    updateTaskInspector(host, "", `<div class="empty-state">选择待办查看详情与允许操作。</div>`);
     return;
   }
   const workspace = state.platform.product_workspaces.find((item) => String(item.id) === String(task.project_id));
@@ -2813,38 +2908,39 @@ function renderPlatformWorkInspector(task) {
     ["本地工作区", automationTask?.local_project_path || workspace?.local_path || "未绑定", { wide: true }],
     ["自动执行资格", automationTask ? (automationTask.eligible ? `队列第 ${automationTask.queue_position} 项` : automationTask.eligibility_reason || "不适用于当前状态") : "不在当前用户 Automation 范围", { wide: true }],
     ["关联 Runtime", workInspectorRuntimeSummary(task.id), { wide: true }]
-  ])}</div></section><section class="work-inspector-section work-inspector-collaboration"><div class="work-inspector-section-heading"><h3>协作</h3></div><div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}</section>${acceptanceFeedback}`;
-  if (!updatePlatformWorkInspector(String(task.id), inspectorHtml)) {
+  ])}</div></section><section class="work-inspector-section work-inspector-collaboration"><div class="work-inspector-section-heading"><h3>协作</h3></div><div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-chat="${escapeHtml(task.id)}" type="button">打开 Chat</button><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}</section>${acceptanceFeedback}`;
+  if (!updateTaskInspector(host, String(task.id), inspectorHtml)) {
     if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
     else loadMissingTaskAttachmentPreviews(task);
     return;
   }
-  els.platformWorkInspector.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
-  els.platformWorkInspector.querySelector("[data-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(eligibilityGuidance, { task, workspace })));
-  els.platformWorkInspector.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
-  els.platformWorkInspector.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
-  els.platformWorkInspector.querySelector("[data-work-inspector-subtask]")?.addEventListener("click", () => runAction(() => createSubtask(task.id)));
-  els.platformWorkInspector.querySelector("[data-work-inspector-reparent]")?.addEventListener("click", () => runAction(() => reparentTask(task.id)));
-  els.platformWorkInspector.querySelector("[data-work-inspector-attachment]")?.addEventListener("click", () => runAction(() => manageTaskAttachments(task.id)));
-  els.platformWorkInspector.querySelector("[data-task-attachment-retry]")?.addEventListener("click", () => loadTaskAttachments(task.id));
-  els.platformWorkInspector.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
-  els.platformWorkInspector.querySelector("[data-task-replacement-retry]")?.addEventListener("click", (event) => runAction(() => retryTaskProjectReplacement(event.currentTarget.dataset.taskReplacementRetry)));
-  els.platformWorkInspector.querySelector("[data-task-replacement-keep]")?.addEventListener("click", (event) => runAction(() => keepTaskProjectReplacement(event.currentTarget.dataset.taskReplacementKeep)));
-  els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeWorkTaskAction(task, automationTask, workspace, button.dataset.workTaskAction))));
-  els.platformWorkInspector.querySelector("[data-task-comment-submit]")?.addEventListener("click", () => runAction(() => createTaskComment(task.id)));
-  els.platformWorkInspector.querySelector("[data-task-comment-add-link]")?.addEventListener("click", () => runAction(() => addTaskCommentLink(task.id)));
-  els.platformWorkInspector.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
-  els.platformWorkInspector.querySelector("[data-task-comment-add-file]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "file")));
-  els.platformWorkInspector.querySelectorAll("[data-task-comment-resource-remove]").forEach((button) => button.addEventListener("click", () => removeTaskCommentResource(task.id, button.dataset.taskCommentResourceRemove)));
-  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openImageViewer(taskAttachmentResourceInput(button)))));
-  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image-retry]").forEach((button) => button.addEventListener("click", () => queueTaskAttachmentPreview(taskAttachmentResourceInput(button), { force: true })));
-  els.platformWorkInspector.querySelectorAll("[data-task-attachment-file]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskAttachment(taskAttachmentResourceInput(button)))));
-  els.platformWorkInspector.querySelectorAll("[data-work-task-feedback]").forEach((button) => button.addEventListener("click", () => {
+  host.querySelector("[data-work-inspector-chat]")?.addEventListener("click", () => runAction(() => openWorkTaskChat(task)));
+  host.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
+  host.querySelector("[data-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(eligibilityGuidance, { task, workspace })));
+  host.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
+  host.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
+  host.querySelector("[data-work-inspector-subtask]")?.addEventListener("click", () => runAction(() => createSubtask(task.id)));
+  host.querySelector("[data-work-inspector-reparent]")?.addEventListener("click", () => runAction(() => reparentTask(task.id)));
+  host.querySelector("[data-work-inspector-attachment]")?.addEventListener("click", () => runAction(() => manageTaskAttachments(task.id)));
+  host.querySelector("[data-task-attachment-retry]")?.addEventListener("click", () => loadTaskAttachments(task.id));
+  host.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
+  host.querySelector("[data-task-replacement-retry]")?.addEventListener("click", (event) => runAction(() => retryTaskProjectReplacement(event.currentTarget.dataset.taskReplacementRetry)));
+  host.querySelector("[data-task-replacement-keep]")?.addEventListener("click", (event) => runAction(() => keepTaskProjectReplacement(event.currentTarget.dataset.taskReplacementKeep)));
+  host.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeWorkTaskAction(task, automationTask, workspace, button.dataset.workTaskAction))));
+  host.querySelector("[data-task-comment-submit]")?.addEventListener("click", () => runAction(() => createTaskComment(task.id, host)));
+  host.querySelector("[data-task-comment-add-link]")?.addEventListener("click", () => runAction(() => addTaskCommentLink(task.id, host)));
+  host.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
+  host.querySelector("[data-task-comment-add-file]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "file")));
+  host.querySelectorAll("[data-task-comment-resource-remove]").forEach((button) => button.addEventListener("click", () => removeTaskCommentResource(task.id, button.dataset.taskCommentResourceRemove)));
+  host.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openImageViewer(taskAttachmentResourceInput(button)))));
+  host.querySelectorAll("[data-task-attachment-image-retry]").forEach((button) => button.addEventListener("click", () => queueTaskAttachmentPreview(taskAttachmentResourceInput(button), { force: true })));
+  host.querySelectorAll("[data-task-attachment-file]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskAttachment(taskAttachmentResourceInput(button)))));
+  host.querySelectorAll("[data-work-task-feedback]").forEach((button) => button.addEventListener("click", () => {
     const item = feedbackItems.find((entry) => entry.feedback_id === button.dataset.workTaskFeedback);
     if (item) openWorkbench("review", item.current_run_id || item.source_run_id, { task: automationTask, feedbackId: item.feedback_id });
   }));
-  els.platformWorkInspector.querySelector("#submitWorkAcceptanceFeedbackButton")?.addEventListener("click", () => runAction(async () => {
-    const input = els.platformWorkInspector.querySelector("#workAcceptanceFeedbackInput");
+  host.querySelector("#submitWorkAcceptanceFeedbackButton")?.addEventListener("click", () => runAction(async () => {
+    const input = host.querySelector("#workAcceptanceFeedbackInput");
     const message = input.value.trim();
     if (!message) throw new Error("请先描述验收问题。");
     const key = globalThis.crypto?.randomUUID?.() || `${task.id}-${Date.now()}`;
@@ -2863,12 +2959,13 @@ function renderInlineGuidance(guidance) {
   return `<section class="inline-guidance ${guidance.tone === "info" ? "is-ready" : ""}"><strong>${escapeHtml(guidance.title)}</strong><p>${escapeHtml(guidance.reason)}</p>${guidance.responsibility === "project_admin" ? `<small>责任角色：Project owner / admin。不会展示必然失败的修改按钮。</small>` : ""}${button}</section>`;
 }
 
-function updatePlatformWorkInspector(taskId, html) {
+function updateTaskInspector(host, taskId, html) {
+  const platformWorkInspectorRender = taskInspectorRenders.get(host) || { taskId: "", html: "" };
   const sameTask = platformWorkInspectorRender.taskId === taskId;
   if (sameTask && platformWorkInspectorRender.html === html) return false;
   const preservedEditors = sameTask
     ? ["[data-task-comment-input]", "#workAcceptanceFeedbackInput"]
-      .map((selector) => [selector, els.platformWorkInspector.querySelector(selector)])
+      .map((selector) => [selector, host.querySelector(selector)])
       .filter(([, editor]) => editor)
     : [];
   const template = document.createElement("template");
@@ -2876,8 +2973,12 @@ function updatePlatformWorkInspector(taskId, html) {
   for (const [selector, editor] of preservedEditors) {
     template.content.querySelector(selector)?.replaceWith(editor);
   }
-  els.platformWorkInspector.replaceChildren(template.content);
-  platformWorkInspectorRender = { taskId, html };
+  const scrollTop = sameTask ? host.scrollTop : 0;
+  const focused = host.contains(document.activeElement) ? document.activeElement : null;
+  host.replaceChildren(template.content);
+  host.scrollTop = scrollTop;
+  if (focused?.isConnected) focused.focus({ preventScroll: true });
+  taskInspectorRenders.set(host, { taskId, html });
   return true;
 }
 
@@ -2984,12 +3085,12 @@ async function loadTaskAttachments(taskId) {
     if (!isTaskAttachmentRequestCurrent(state, request)) return;
     state.platformTaskAttachments[key] = { status: "error", items: [], error: error?.message || String(error) };
   }
-  if (String(state.selectedPlatformTaskId) === key) renderPlatformWorkInspector(findPlatformTask(key));
+  refreshTaskInspectors(key);
 }
 
-async function createTaskComment(taskId) {
+async function createTaskComment(taskId, host = els.platformWorkInspector) {
   const request = captureTaskAttachmentRequest(state, { identityOnly: true });
-  const input = els.platformWorkInspector.querySelector("[data-task-comment-input]");
+  const input = host.querySelector("[data-task-comment-input]");
   const pending = state.pendingTaskCommentResources[String(taskId)] || [];
   const content = buildTaskCommentContent({
     text: String(input?.value || ""),
@@ -3004,8 +3105,8 @@ async function createTaskComment(taskId) {
   await loadTaskAttachments(taskId);
 }
 
-async function addTaskCommentLink(taskId) {
-  const input = els.platformWorkInspector.querySelector("[data-task-comment-input]");
+async function addTaskCommentLink(taskId, host = els.platformWorkInspector) {
+  const input = host.querySelector("[data-task-comment-input]");
   const value = window.prompt("输入要添加的 http、https 或 mailto 链接：", "https://");
   if (value === null) return;
   const url = normalizeTaskAttachmentUrl(value);
@@ -3020,13 +3121,13 @@ async function pickTaskCommentResource(task, kind) {
   if (!resource || !isTaskAttachmentRequestCurrent(state, request)) return;
   const key = String(task.id);
   state.pendingTaskCommentResources[key] = [...(state.pendingTaskCommentResources[key] || []), resource];
-  renderPlatformWorkInspector(task);
+  refreshTaskInspectors(task.id);
 }
 
 function removeTaskCommentResource(taskId, index) {
   const key = String(taskId);
   state.pendingTaskCommentResources[key] = (state.pendingTaskCommentResources[key] || []).filter((_item, itemIndex) => itemIndex !== Number(index));
-  renderPlatformWorkInspector(findPlatformTask(taskId));
+  refreshTaskInspectors(taskId);
 }
 
 function loadMissingTaskAttachmentPreviews(task) {
@@ -3047,7 +3148,7 @@ function queueTaskAttachmentPreview(input, { force = false } = {}) {
   if (!force && ["loading", "loaded"].includes(existing?.status)) return;
   state.platformTaskAttachmentPreviews[key] = { status: "loading", data_url: "", error: "" };
   taskAttachmentPreviewQueue.push({ input, key, request: captureTaskAttachmentRequest(state) });
-  if (String(state.selectedPlatformTaskId) === String(input.task_id)) renderPlatformWorkInspector(findPlatformTask(input.task_id));
+  refreshTaskInspectors(input.task_id);
   pumpTaskAttachmentPreviewQueue();
 }
 
@@ -3063,8 +3164,8 @@ function pumpTaskAttachmentPreviewQueue() {
       state.platformTaskAttachmentPreviews[job.key] = { status: "error", data_url: "", error: error?.message || "评论图片不可用。" };
     }).finally(() => {
       activeTaskAttachmentPreviews -= 1;
-      if (isTaskAttachmentRequestCurrent(state, job.request) && String(state.selectedPlatformTaskId) === String(job.input.task_id)) {
-        renderPlatformWorkInspector(findPlatformTask(job.input.task_id));
+      if (isTaskAttachmentRequestCurrent(state, job.request)) {
+        refreshTaskInspectors(job.input.task_id);
       }
       pumpTaskAttachmentPreviewQueue();
     });
@@ -4879,8 +4980,8 @@ function findOrganizationMember(id, organizationId) { const value = state.platfo
 function findWorkspace(id) { const value = state.platform.product_workspaces.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品工作区。"); return value; }
 function findProjectMember(id, projectId) { const value = (state.platform.project_members || []).find((item) => String(item.id) === String(id) && String(item.project_id) === String(projectId)); if (!value) throw new Error("未找到项目成员。"); return value; }
 function findPlatformTask(id) {
-  const value = (state.workQuery.projection?.tasks || []).find((item) => String(item.id) === String(id))
-    || state.platform.tasks.find((item) => String(item.id) === String(id));
+  const sources = state.page === "chat" ? state.platform.tasks : [...(state.workQuery.projection?.tasks || []), ...state.platform.tasks];
+  const value = sources.find((item) => String(item.id) === String(id));
   if (!value) throw new Error("未找到待办。");
   return value;
 }
@@ -5675,6 +5776,7 @@ function showPage(page) {
     renderNavigation();
     renderCommandBar();
     renderChat();
+    void refreshChatTaskDetail();
     void chatNativeSurface?.refresh(false);
     refreshChat().catch((error) => showToast(error.message));
     return;

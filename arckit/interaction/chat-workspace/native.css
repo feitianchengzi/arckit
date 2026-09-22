@@ -39,3 +39,11 @@
 
 
 .chat-sessions{min-width:0;overflow:hidden}.chat-sessions>.native-search{flex:none}.chat-sessions>.session-groups{min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden}
+
+.chat-sessions:has(.sample-task-detail){grid-template-rows:auto minmax(0,1fr)}
+.chat-sessions>[hidden]{display:none}
+.sample-task-detail{min-height:0;overflow:auto;overflow-wrap:anywhere}
+.sample-task-detail section{border-bottom:1px solid var(--semantic-divider);padding:12px 0}
+.sample-task-detail textarea{width:100%;box-sizing:border-box}
+.chat-sessions header h2{display:flex;gap:4px}
+.chat-sessions header [aria-pressed="true"]{background:var(--semantic-nav-selected)}

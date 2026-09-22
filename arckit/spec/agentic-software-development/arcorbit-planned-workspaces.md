@@ -34,7 +34,7 @@ Organization 保留组织治理职责。Engineering 位于其下方，是本机 
 - Operations 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
 - 计划示例优先来自 ArcOrbit 当前真实对象与约束，不虚构已接入的远端接口、权限或自动化结果。
 - 未建立真实写入合约的计划动作以“计划动作”“示意”或不可用状态表达，不产生远端记录、Runtime Run、Project State transition 或发布授权。
-- Chat 与 Idea、Work 等正式形态之间没有转换、关联或来源写入；自由对话只保留为独立 Chat 会话。
+- Chat 支持原生待办创建、主待办关联、来源与版本化读写；关联保留同一会话与 thread，不自动启动 Automation。
 - Work、Automation、Feedback、Organization 和产品反馈中心的既有真实行为不因这些计划页面而改变。
 - 顶部产品范围统一筛选 Chat 会话及新建可选工作区，单产品时继承归属；它不得改变自动领取资格、成员关系、状态真相源或发布授权。
 
@@ -78,11 +78,18 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 ### 边界
 
-Chat 不替代一个待办一个持久 thread 的 Automation 对话，也不复用 Automation task session、task thread binding、Case、Run、队列或 human Gate。普通问答和 Agent 操作不自动写入 Project State、Case、Workshop Task、Idea 或其他正式对象。Chat 不提供任何“转为 Idea”“创建 Work”或类似转换动作。
+Chat 可恢复待办对应 session 和可信 task thread；创建、读取及修改待办通过受控原生能力执行，业务成功以工具回执为准。普通问答不自动写入 Project State、Case 或 Idea，不自动进入 Automation 队列或解除 human Gate。
 
 Chat 与 Automation 共享 Conversation Surface 不表示共享消息数据或执行能力。Automation 专属的 gap、round、ledger、证据、耗时、用量、恢复和提交能力只存在于 Automation 左右面板；Chat 不读取也不显示这些对象。
 
 Chat 不提供附件、语音、共享链接、跨设备同步、会话分支或模型管理；它使用 ArcOrbit 当前配置的 Codex 能力，集中保证文本自由对话及其会话、消息、停止和恢复体验。
+
+### Work 入口与右侧待办详情
+
+- Work 待办详情支持“打开 Chat”，建立或恢复与该待办绑定的持续会话，并显示当前待办详情；重复打开复用同一 session/thread。
+- Chat 右栏可以切换会话列表和待办详情。详情内容、属性、附件、评论、状态操作及适用的验收反馈与 Work 同源一致，遵守相同权限与版本规则。
+- 切换侧栏不丢失对话草稿、消息阅读位置或正在生成的回复。切换会话后详情跟随主待办；自由会话显示未关联空态。
+- Agent 读取最新待办版本后写回，成功结果刷新两处详情。工作区未绑定、对象失权、删除和同步失败明确反馈，不创建替代任务或启动 Automation。
 
 ## Idea
 
@@ -128,7 +135,7 @@ Automation 固定使用官方 using-arckit 与 arckit-development-ledger 两个�
 6. Feedback 保持用户反馈处理工作台职责，为产品生命周期提供外部输入。
 7. Organization 描述谁在协作；Engineering 只管理 ArcOrbit 内置 Skills 在本机 Chat / Automation 的使用方式。
 
-Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户看见来源、目标形态和确认动作。Chat 当前不参与这些转换关系。
+Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户看见来源、目标形态和确认动作。Chat 的待办关联与来源遵循原生待办能力边界。
 
 ## 验收口径
 
@@ -141,7 +148,7 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 - Chat 支持工作区绑定、新建/切换/重命名/删除会话、持久 thread、流式消息、工具活动、停止、重试、错误恢复和重启恢复。
 - Chat 与 Automation Intervention 的消息列表由同一 Conversation Surface 呈现；对 Markdown、代码复制、reasoning、工具/权限状态、流式消息和滚动行为的修改不需要在两处重复实现或验收。
 - Chat 停止后保留部分回答并以新 turn 继续；删除活动会话先完成 interrupt，且不会误删其他会话。
-- Chat 不调用 state-driven Runtime、trusted ledger、Workshop mutation 或其他对象转换；Automation task session 与 thread 不进入 Chat 列表。
+- Chat 不自动调用 state-driven Runtime 或 trusted ledger；待办会话可进入 Chat 列表，待办写入使用原生能力及版本约束。
 - Idea 展示探索、讨论与确认后建项目。
 - Release 同时覆盖发版准备与线上监控；Operations 覆盖对外市场化动作。
 - 现有 Today、Work、Automation、Feedback、Organization 和账号入口保持可用。

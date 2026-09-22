@@ -1702,7 +1702,7 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /executeManagedAction\("task\.subtask\.create"/);
   assert.match(source, /executeManagedAction\("task\.reparent"/);
   assert.match(source, /function taskAttachmentPanel\(task\)/);
-  assert.match(source, /function updatePlatformWorkInspector\(taskId, html\)/);
+  assert.match(source, /function updateTaskInspector\(host, taskId, html\)/);
   assert.match(source, /platformWorkInspectorRender\.html === html/);
   assert.match(source, /template\.content\.querySelector\(selector\)\?\.replaceWith\(editor\)/);
   assert.doesNotMatch(source, /work(?:Comment|Acceptance)Draft/);

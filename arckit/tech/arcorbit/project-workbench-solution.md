@@ -89,3 +89,9 @@ Chat 与 Thing 的交互式讨论共用 Chat coordinator、session、消息存�
 模型和推理级别仍使用既有配置与 turn 快照接口，Composer 仅合并其交互入口。菜单独立锚定入口向上展开；能力候选区独立滚动，搜索与技能设置常驻。顶部栏沿用生产实现，不复制原型中的共享壳脚本。
 
 接入依据：`src/chat-coordinator.mjs` 的 getTurnContext/onThreadBound 钩子、`src/workbench/agent-bridge.mjs` 的逐授权 MCP、`src/workbench/task-turn-lock.mjs` 的跨讨论/Runtime 锁，以及 `src/desktop-run-manager.mjs` 的不可替换 task thread binding。方案规定需兑现的行为，生产验证由对应实施证据提供。
+
+## Work 与 Chat 共享待办详情
+
+Work 的 Chat 入口通过待办远端 project id 查找已绑定本地 workspace，调用现有受限 `chatNativeOpen`，再由 Chat State Coordinator 选择返回的 session id。主进程仍负责账号、项目、待办可见性校验以及同一 task thread 恢复；打开不获取 Automation 执行权。绑定缺失时反馈恢复要求，不选择当前 Chat 项目代替待办归属。
+
+Chat 右栏保存本机会话列表/详情选择；详情身份来自当前 session 的 task_id 与 remote_project_id。Work 与 Chat 共用详情渲染器、操作绑定和 Work-owned Task Projection，包含属性、Markdown、评论、附件、状态动作与验收反馈。渲染缓存、滚动和编辑器按宿主隔离，异步刷新核对当前对象及账号。内容更新消费现有 Work 同步事件，Agent 写入沿用原生工具的版本与权限契约。侧栏切换不重建会话或 Composer；错误、空态与重试不得借用旧会话详情。
