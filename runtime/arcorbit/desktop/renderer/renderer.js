@@ -2194,7 +2194,9 @@ function renderTodayOperator(item, view) {
   const contextRows = [
     ["项目", project.name || projectName(item.project_id)],
     ["来源", todayKindLabel(item.kind)],
-    ["对象", item.source_object_id || "—"],
+    ["对象", item.source === "work" && item.kind !== "work_replacement_recovery"
+      ? `待办 ${item.source_object_id || ""} · ${displayTaskTitle(item)}`
+      : `${todayKindLabel(item.kind)} · ${item.source_object_id || "—"}`],
     ["最近同步", item.updated_at ? formatDateTime(item.updated_at) : "当前快照"]
   ];
   const needsDraft = item.source === "automation" || item.actions.includes("raise_acceptance_issue");
@@ -2222,7 +2224,7 @@ function renderTodaySourceContext(item) {
   if (item.source === "work") {
     const feedbackItems = item.acceptance_feedback_items || [];
     const acceptanceIssues = item.state === "completed" ? `<div class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((issue) => `<div class="acceptance-feedback-item" data-today-acceptance-feedback="${escapeHtml(issue.feedback_id || "")}"><span><strong>${escapeHtml(issue.original_feedback || issue.title || issue.feedback_id || "验收问题")}</strong><small>${escapeHtml(issue.feedback_id || "")}${issue.progress ? ` · ${escapeHtml(issue.progress)}` : ""}</small></span><span class="status-pill ${feedbackTone(issue.status)}">${escapeHtml(issue.status || "unknown")}</span></div>`).join("") : `<div class="empty-state compact">尚未提出验收问题。</div>`}</div></div>` : "";
-    return `<section class="today-operator-section"><h3>完整待办上下文</h3><p class="today-source-copy">${escapeHtml(item.content || item.blocked_reason || "来源未提供更多内容。")}</p><dl class="today-facts">${todayFactRows([["状态", item.state], ["提交者", item.creator_name || item.creator_id], ["执行人", taskExecutorName(item)], ["版本", item.version], ["优先级", item.priority ?? item.raw?.priority]])}</dl>${acceptanceIssues}</section>`;
+    return `<section class="today-operator-section"><h3>完整待办上下文</h3><p class="today-source-copy">${escapeHtml(item.content || item.blocked_reason || "来源未提供更多内容。")}</p><dl class="today-facts">${todayFactRows([["状态", STATE_LABELS[item.state] || item.state], ["提交者", taskCreatorName(item)], ["执行人", taskExecutorName(item)], ["版本", item.version], ["优先级", formatPriority(item.task_priority)]])}</dl>${acceptanceIssues}</section>`;
   }
   if (item.source === "feedback") return todayContextSection("关联事务", [
     ["Feedback", item.feedback_id || item.source_object_id],
@@ -3016,6 +3018,7 @@ function updateTaskInspector(host, taskId, html) {
 
 function taskCreatorName(task) {
   if (task.creator?.username || task.creator?.name) return task.creator.username || task.creator.name;
+  if (task.creator_name) return task.creator_name;
   const member = (state.platform.members || []).find((item) => String(item.project_id) === String(task.project_id) && String(item.user_id) === String(task.creator_id));
   return member?.username || member?.name || task.creator_id || "未知";
 }

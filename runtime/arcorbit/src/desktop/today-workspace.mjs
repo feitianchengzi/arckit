@@ -162,6 +162,8 @@ function workInterventions(tasks = [], projectsById) {
     kind: `work_${task.state}`,
     source: "work",
     source_object_id: task.id,
+    // Keep the normalized task priority separate from the responsibility sort rank.
+    task_priority: task.priority,
     title: task.state === "pending_review" ? "确认待办可处理" : task.state === "completed" ? "验收已完成待办" : "处理已阻塞待办",
     reason: task.state === "pending_review" ? task.content || "待办需要确认后才能进入待处理。" : task.state === "completed" ? "完成结果需要验收或提出验收问题。" : task.blocked_reason || task.content || "待办已阻塞，需要选择恢复路径。",
     actions: WORK_ACTIONS[task.state]

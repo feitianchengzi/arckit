@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from "electron";
-import { rm } from "node:fs/promises";
+import { rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +38,7 @@ app.whenReady().then(async () => {
       if (!row) throw new Error('Missing completed Today work row: ' + [...document.querySelectorAll('[data-today-item]')].map((item) => item.dataset.todayItem).join(','));
       row.click();
       await wait();
+      const displayFacts = Object.fromEntries([...document.querySelectorAll('#todayOperator .today-facts > div')].map(row => [row.querySelector('dt').textContent, row.querySelector('dd').textContent]));
       const selectedBefore = document.querySelector('#todayResponsibilityList .today-responsibility-row.is-active')?.dataset.todayItem || '';
       const editButtonVisible = Boolean(document.querySelector('[data-today-edit-task="W-COMPLETED"]'));
       if (!editButtonVisible) throw new Error('Missing Today task edit button: ' + document.querySelector('#todayOperator').textContent);
@@ -59,8 +60,16 @@ app.whenReady().then(async () => {
       const selectedAfterSuccess = document.querySelector('#todayResponsibilityList .today-responsibility-row.is-active')?.dataset.todayItem || '';
       const detailAfterSuccess = document.querySelector('#todayOperator').textContent;
       const calls = await window.arckitDesktop.getTestCalls();
-      return { selectedBefore, editButtonVisible, initialDraft, failureSheetVisible, failureStatus, failureDraft, selectedAfterFailure, successSheetClosed, selectedAfterSuccess, detailAfterSuccess, calls };
+      return { displayFacts, selectedBefore, editButtonVisible, initialDraft, failureSheetVisible, failureStatus, failureDraft, selectedAfterFailure, successSheetClosed, selectedAfterSuccess, detailAfterSuccess, calls };
     })()`);
+    if (process.env.ARCORBIT_TEST_OUTPUT_DIR) {
+      await mkdir(process.env.ARCORBIT_TEST_OUTPUT_DIR, { recursive: true });
+      for (const width of [1440, 1000]) {
+        window.setSize(width, 900);
+        await new Promise(resolve => setTimeout(resolve, 120));
+        await writeFile(join(process.env.ARCORBIT_TEST_OUTPUT_DIR, `today-${width}.png`), (await window.webContents.capturePage()).toPNG());
+      }
+    }
     await new Promise((resolve) => process.stdout.write(`${JSON.stringify({ ...result, errors })}\n`, resolve));
   } catch (error) {
     exitCode = 1;

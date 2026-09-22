@@ -22,6 +22,11 @@ test("Today edits Work task content through the confirmed mutation and preserves
   });
   const result = JSON.parse(stdout.trim());
 
+  assert.equal(result.displayFacts['状态'], '已完成');
+  assert.equal(result.displayFacts['提交者'], '测试提交者');
+  assert.equal(result.displayFacts['执行人'], 'Glare（我）');
+  assert.equal(result.displayFacts['优先级'], 'P1');
+  assert.equal(result.displayFacts['对象'], '待办 W-COMPLETED · Ready for acceptance check');
   assert.equal(result.editButtonVisible, true);
   assert.equal(result.initialDraft, "Ready for acceptance check");
   assert.equal(result.failureSheetVisible, true);
