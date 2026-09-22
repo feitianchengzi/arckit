@@ -2,6 +2,7 @@ import { taskCreationAutomation } from './task-creation-automation.mjs';
 import { taskCreationSettingsKey, taskCreationSelection, readTaskCreationSettings, writeTaskCreationSettings, restoreTaskCreationSettings } from './task-creation-settings.mjs';
 import { executorLabel } from './executor-label.mjs';
 import { defaultWorkFilters } from './task-filter-defaults.mjs';
+import { createChatFilesSurface } from './chat-files-surface.mjs';
 import { createChatNativeSurface } from './chat-native-surface.mjs';
 let chatNativeSurface=null;
 import { initializeGlobalTopbarMenus } from './global-topbar-menus.mjs';
@@ -413,6 +414,12 @@ const engineeringSurface = createEngineeringSurface({root: document.getElementBy
 document.getElementById('chatSidebarSessions').addEventListener('click', () => setChatTaskPanel('sessions'));
 document.getElementById('chatSidebarTask').addEventListener('click', () => setChatTaskPanel('detail'));
 chatNativeSurface=createChatNativeSurface({api,coordinator:chatStateCoordinator,getProject:selectedChatProject,getSession:selectedChatSession,render:renderChat,performAction:runAction,closeList:()=>setChatSessionsOpen(false),onTaskOpened:()=>setChatTaskPanel("detail")});
+document.getElementById('chatSidebarFiles').addEventListener('click', () => setChatTaskPanel('files'));
+globalThis.arcorbitChatFiles=createChatFilesSurface({api,coordinator:chatStateCoordinator,
+  setChatSuspended:value=>chatConversationSurface.setSuspended(value),
+  getOwner:()=>({session_id:selectedChatSession()?.id||'',project_id:selectedChatProject()?.id||''}),
+  isVisible:()=>state.page==='chat',getPanel:()=>chatTaskPanelMode,setPanel:setChatTaskPanel,
+  closeList:()=>setChatSessionsOpen(false),openList:()=>setChatSessionsOpen(true),notify:showToast});
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
   jumpButton: els.jumpToLatestButton,
@@ -1694,6 +1701,7 @@ function renderChatSessionGroups(chat) {
 function renderChat() {
   if (!els.chatTranscript) return;
   renderChatTaskPanel();
+  globalThis.arcorbitChatFiles?.sync();
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
@@ -1949,6 +1957,7 @@ function setChatSessionsOpen(open, restoreFocus = false) {
   else if (restoreFocus) document.getElementById('chatSessionsToggle').focus();
 }
 function renderPageVisibility() {
+  if(state.page!=='chat')chatConversationSurface.setSuspended(true);
   document.body.classList.toggle('chat-active', state.page === 'chat');
   const workspaceSurface = state.page === 'project-workbench' ? 'workbench' : state.page === 'chat' ? 'chat' : 'legacy';
   if (workspaceSurface !== renderedWorkspaceSurface) {
@@ -1961,6 +1970,7 @@ function renderPageVisibility() {
   if(state.page==='operations')renderOperationsScope();
   releaseSurface.show({active:state.page === "release", projectId:state.selectedProjectId, workset:state.platform.active_workset});
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
+  if(state.page==='chat')chatConversationSurface.setSuspended(Boolean(globalThis.arcorbitChatFiles?.fileActive()));
   const navigationPage = state.page === "product-detail" ? "product" : state.page === "idea-add" ? "idea" : state.page === "tasks" ? "work" : ["workbench", "recovery"].includes(state.page) ? "command" : state.page;
   document.querySelectorAll("[data-page]").forEach((button) => button.classList.toggle("is-active", button.dataset.page === navigationPage));
 }
@@ -2815,6 +2825,7 @@ async function openWorkTaskChat(task) {
 function setChatTaskPanel(mode) {
   chatTaskPanelMode = mode;
   renderChatTaskPanel();
+  globalThis.arcorbitChatFiles?.sync();
 }
 
 function chatTaskOwner() {
@@ -2844,13 +2855,15 @@ async function refreshChatTaskDetail() {
 
 function renderChatTaskPanel() {
   const host = document.getElementById('chatTaskInspector');
-  const detail = chatTaskPanelMode === 'detail';
+  const detail = chatTaskPanelMode === 'detail', files = chatTaskPanelMode === 'files';
   const panel = document.getElementById('chatSessionsPanel');
   panel.classList.toggle('is-task-detail', detail);
-  document.getElementById('chatSidebarSessions').setAttribute('aria-pressed', String(!detail));
+  panel.classList.toggle('is-files', files);
+  document.getElementById('chatSidebarFiles').setAttribute('aria-pressed', String(files));
+  document.getElementById('chatSidebarSessions').setAttribute('aria-pressed', String(!detail&&!files));
   document.getElementById('chatSidebarTask').setAttribute('aria-pressed', String(detail));
-  els.chatSessionList.hidden = detail;
-  els.newChatButton.hidden = detail;
+  els.chatSessionList.hidden = detail || files;
+  els.newChatButton.hidden = detail || files;
   host.hidden = !detail;
   const owner = chatTaskOwner();
   if (owner !== chatTaskDetailOwner) {
@@ -6046,6 +6059,7 @@ async function login() {
       code: els.authCode.value
     }));
     state.settings = normalizeSettings(await api.getSettings());
+    globalThis.arcorbitChatFiles?.reset();
     productSurface.reset();
     releaseSurface.reset();
     workQueryState.clear();
@@ -6075,6 +6089,7 @@ async function logout() {
       result = await api.logoutAuth({ confirm_active_task: true });
     }
     state.authentication = normalizeAuthentication(result.authentication);
+    globalThis.arcorbitChatFiles?.reset();
     productSurface.reset();
     releaseSurface.reset();
     invalidatePlatformTaskSelectionContext();

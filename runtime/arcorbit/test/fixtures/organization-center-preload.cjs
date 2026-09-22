@@ -199,13 +199,14 @@ if (todayCreateIdentityMode) {
 }
 
 const noOp = async () => ({});
+const fileNavigationDrafts = new Map();
 const testChatSnapshotValue = (requested = selectedChatSessionId) => ({
   generated_at: new Date().toISOString(),
   projects: chatFixtureEnabled ? [{ id: "local-11", name: "ArcOrbit Local" }] : [],
   sessions: chatSessions,
   selected_session_id: requested,
   messages: chatMessages[requested] || [],
-  draft: { project_id: "local-11", text: "" }
+  draft: { project_id: "local-11", text: process.env.ARCORBIT_CHAT_FILES_FIXTURE === '1' ? fileNavigationDrafts.get(requested) || '' : '' }
 });
 const testChatSnapshot = async (input = {}) => {
   calls.push(["chatSnapshot", input]);
@@ -215,6 +216,9 @@ const testChatSnapshot = async (input = {}) => {
   return testChatSnapshotValue(requested);
 };
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  ...(process.env.ARCORBIT_CHAT_FILES_FIXTURE === "1" ? {
+    chatFiles: (action,input) => ipcRenderer.invoke('arckit:chat-files',action,input)
+  } : {}),
   ...(process.env.ARCORBIT_RELEASE_FIXTURE === "1" ? {
     releaseSnapshot: () => ipcRenderer.invoke("fixture:release-snapshot"),
     releaseDetail: id => ipcRenderer.invoke("fixture:release-detail", id),
@@ -260,6 +264,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   chatSnapshot: testChatSnapshot,
   createChat: async (input = {}) => {
     calls.push(["createChat", input]);
+    if (process.env.ARCORBIT_CHAT_FILES_FIXTURE === '1') {fileNavigationDrafts.set(input.session_id || '',input.text || '');return testChatSnapshotValue();}
     if (process.env.ARCORBIT_CHAT_SWITCH_STORAGE_FIXTURE === "1") return ipcRenderer.invoke("test:chat-switch-draft", input);
     if (process.env.ARCORBIT_CHAT_DRAFT_STORAGE_FIXTURE === "1") return ipcRenderer.invoke("test:chat-draft-save", input);
     return codexSettingsFixture ? testChatSnapshotValue("") : {};

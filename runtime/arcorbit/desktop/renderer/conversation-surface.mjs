@@ -25,6 +25,8 @@ export function createConversationSurface({
   let nextFrameToken = 0;
   let restoreGeneration = 0;
   let settlingLatest = false;
+  let suspended = false;
+  let deferredRender = null;
   const contextScrollStates = new Map();
   let renderedOrder = [];
   let renderedSignatures = new Map();
@@ -32,7 +34,7 @@ export function createConversationSurface({
   const isNearBottom = () => element.scrollHeight - element.scrollTop - element.clientHeight < 72;
   const updateJumpButton = () => jumpButton.classList.toggle("hidden", followingLatest || isNearBottom());
   const saveContextScrollState = (captureAnchor = false) => {
-    if (activeContextId === null) return;
+    if (suspended || activeContextId === null) return;
     let anchor = contextScrollStates.get(activeContextId)?.anchor || null;
     if (captureAnchor && deferOffscreenLayout && !followingLatest) {
       const top = element.getBoundingClientRect().top + element.clientTop;
@@ -49,7 +51,7 @@ export function createConversationSurface({
     const generation = ++restoreGeneration;
     node.scrollIntoView({ block: "start", behavior: "instant" });
     const align = () => {
-      if (generation !== restoreGeneration || !element.contains(node)) return;
+      if (suspended || generation !== restoreGeneration || !element.contains(node)) return;
       element.scrollTop += node.getBoundingClientRect().top - element.getBoundingClientRect().top - element.clientTop - restored.anchor.offset;
       saveContextScrollState();
       updateJumpButton();
@@ -58,6 +60,7 @@ export function createConversationSurface({
     requestFrame(() => { align(); requestFrame(align); });
   };
   const scrollToLatest = ({ behavior = "instant" } = {}) => {
+    if (suspended) { followingLatest = true; return; }
     restoreGeneration += 1;
     followingLatest = true;
     explicitSmoothScroll = behavior === "smooth";
@@ -77,11 +80,13 @@ export function createConversationSurface({
     }
   };
   const handleScroll = () => {
+    if (suspended) return;
     if (!explicitSmoothScroll && !settlingLatest) followingLatest = isNearBottom();
     saveContextScrollState();
     updateJumpButton();
   };
   const handleUserScrollIntent = () => {
+    if (suspended) return;
     restoreGeneration += 1;
     settlingLatest = false;
     explicitSmoothScroll = false;
@@ -91,6 +96,7 @@ export function createConversationSurface({
     updateJumpButton();
   };
   const handleScrollEnd = () => {
+    if (suspended) return;
     if (settlingLatest) return;
     if (deferOffscreenLayout && explicitSmoothScroll) { scrollToLatest(); return; }
     explicitSmoothScroll = false;
@@ -152,6 +158,7 @@ export function createConversationSurface({
   }
 
   function render({ contextId, messages = [], emptyHtml = "" } = {}) {
+    if (suspended) { deferredRender = {contextId, messages, emptyHtml}; return; }
     const context = activateContext(contextId);
     const visibleMessages = messages.filter(isConversationSurfaceMessageVisible);
     const entries = visibleMessages.map((message, index) => {
@@ -217,6 +224,28 @@ export function createConversationSurface({
 
   return {
     render,
+    // Call before hiding and after showing. Chat event consumption continues;
+    // only DOM/layout work waits until geometry is available again.
+    setSuspended(value) {
+      if (suspended === Boolean(value)) return;
+      if (value) {
+        saveContextScrollState(true);
+        suspended = true;
+        restoreGeneration += 1;
+        pendingRenderScroll = null;
+        settlingLatest = false;
+        explicitSmoothScroll = false;
+        return;
+      }
+      suspended = false;
+      const restored = contextScrollStates.get(activeContextId);
+      if (!followingLatest && restored) restoreReadingPosition(restored);
+      const queued = deferredRender;
+      deferredRender = null;
+      if (queued) render(queued);
+      if (followingLatest) scrollToLatest();
+      else updateJumpButton();
+    },
     followLatest() { followingLatest = true; saveContextScrollState(); },
     isFollowingLatest() { return followingLatest; },
     isNearBottom,

@@ -95,3 +95,25 @@ Chat 与 Thing 的交互式讨论共用 Chat coordinator、session、消息存�
 Work 的 Chat 入口通过待办远端 project id 查找已绑定本地 workspace，调用现有受限 `chatNativeOpen`，再由 Chat State Coordinator 选择返回的 session id。主进程仍负责账号、项目、待办可见性校验以及同一 task thread 恢复；打开不获取 Automation 执行权。绑定缺失时反馈恢复要求，不选择当前 Chat 项目代替待办归属。
 
 Chat 右栏保存本机会话列表/详情选择；详情身份来自当前 session 的 task_id 与 remote_project_id。Work 与 Chat 共用详情渲染器、操作绑定和 Work-owned Task Projection，包含属性、Markdown、评论、附件、状态动作与验收反馈。渲染缓存、滚动和编辑器按宿主隔离，异步刷新核对当前对象及账号。内容更新消费现有 Work 同步事件，Agent 写入沿用原生工具的版本与权限契约。侧栏切换不重建会话或 Composer；错误、空态与重试不得借用旧会话详情。
+
+## Chat 项目文件工作区
+
+Chat 文件树与编辑器使用独立受限 IPC，主进程从已验证的 session 或临时草稿本地 project id 解析当前根目录。每次操作核对账号、会话归属、项目绑定与 expected workspace；Renderer 提交相对路径和枚举操作，不提交任意根目录或 shell。Release 的远端项目 id 不充当 Chat 的本地项目 id；共享文件服务默认过滤策略不因 Chat 全量展示而放宽。
+
+文件命令集合为 list、read、save、create-file、create-directory、rename、trash、reveal；复制和输入引用由 Renderer 的剪贴板及既有 Composer 草稿通道完成。根目录不能 rename/trash。新建名称和重命名名称均为单个目录项，拒绝空名称、点路径、分隔符和 NUL；目标存在时拒绝覆盖。文件正文及路径均作为数据，不进入 HTML 或命令执行。
+
+list 按层读取目录元数据，不按隐藏名或 Git ignore 过滤；目录优先、名称稳定排序，响应携带 entries 与明确的分页终点/继续标识。客户端提供加载更多，刷新使旧分页失效并重新读取，不能静默遗漏超过 1000 项的目录。entries 区分目录、普通文件、符号链接和特殊节点；链接可见但不递归、不读写目标内容。reveal 定位原始链接本身，trash 移除原始链接本身，不跟随目标。
+
+所有路径拒绝绝对路径、上级穿越和根外 realpath；新建检查真实父目录。内容读写拒绝任一路径段的符号链接，普通文件使用 no-follow 打开并复核文件身份；变更串行化到真实工作区，在执行前重新确认归属和路径。列举的完整性不授予跨工作区权限。不能检查的身份变化以冲突结束，不声称 Node 路径检查可以消除任意恶意外部进程的所有 TOCTOU 风险。
+
+read 对普通文件执行 UTF-8 严格解码及 2 MiB 大小检查，返回完整正文与 SHA-256 revision。save 必须携带已读取 revision，采用同目录临时文件、保留文件权限及替换前版本复核；冲突、外部删除、读取上限或权限失败均保留客户端草稿，不自动覆盖或创建。rename 保持父目录且不覆盖目标；trash 仅通过系统废纸篓 API，失败不回退永久删除。操作回执确认后刷新受影响目录和文件身份；未知结果先重读核对，不盲目重试变更。
+
+Monaco 复用已有本地 vendor、通用 worker、CSS 和许可证构建；选择依据是已存在的桌面接入、model/视图分离及主题支持，不引入远端 CDN 或第二套编辑器依赖。语言着色沿用已有注册项，其他文本使用纯文本模式，不承诺 VS Code 扩展或完整语言服务器。加载失败保留 Tab 与草稿并提供重试，不把空编辑器视为成功。
+
+文件会话 key 包含账号、本地 project id 和 canonical root，文件 key 另含相对路径；Monaco URI 使用独立 Chat 命名空间并编码完整 key，避免与 Release model 冲突。一个文件一个 model，Tab 切换保留 model、撤销栈和 view state，仅在用户确认关闭后释放。目录 rename 对后代文件 key/URI 和标题进行一致迁移，保留正文及编辑状态；不能迁移时先解决脏状态，不悄悄丢失。
+
+文件会话是独立于 Chat transcript/Composer 的 Renderer 状态，不创建 Codex session、thread 或 Automation 执行。跨会话与页内导航保留当前窗口文件状态；窗口退出、重载和账号切换通过脏状态拦截完成保存/放弃/取消。根绑定变化隔离旧草稿并禁用保存，避免对新工作区写入。当前约定不提供崩溃或跨设备文件草稿恢复。
+
+异步列表、文件加载和保存结果绑定账号、工作区 generation 与文件身份；过期结果不能恢复旧项目内容。保存捕获请求时文本与本地编辑版本，成功只推进相应基线，后续输入继续 dirty。重新激活文件、窗口恢复焦点和显式刷新检查磁盘版本；冲突保留草稿，用户明确放弃后才重新载入。后台 Chat 消息更新不能重建编辑器，隐藏 Chat 仍持续消费会话事件。
+
+验证边界包括 main 身份和路径校验、全部目录项可达、UTF-8/大小/链接限制、版本冲突和变更失败，以及真实 Electron 中 vendor/worker 加载、Tab/model 释放、脏内容保护、项目隔离和 Chat 连续性。原型只证明模拟交互，不能替代这些生产验证。

@@ -1,5 +1,6 @@
 const {app,BrowserWindow}=require('electron');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
+const output=process.env.ARCORBIT_TEST_OUTPUT||fs.mkdtempSync(path.join(os.tmpdir(),'chat-native-evidence-'));fs.mkdirSync(output,{recursive:true});
 app.setPath('userData',fs.mkdtempSync(path.join(os.tmpdir(),'chat-formal-native-')));app.disableHardwareAcceleration();
 app.whenReady().then(async()=>{
  const w=new BrowserWindow({width:1500,height:1000,show:false,webPreferences:{sandbox:true,contextIsolation:true}}),errors=[],requests=[],checks=[];
@@ -12,7 +13,7 @@ app.whenReady().then(async()=>{
  const submit=async text=>{await type(text);await run('document.querySelector("#chat-compose").requestSubmit()');await ticks()};
  const anchored=async(dialog,trigger)=>assert.ok(await run(`(()=>{const p=document.querySelector('${dialog}').getBoundingClientRect(),a=document.querySelector('${trigger}').getBoundingClientRect();return Math.abs(a.top-p.bottom-8)<2&&Math.abs(p.left-Math.max(12,Math.min(a.left,innerWidth-p.width-12)))<2&&p.top>=11&&p.right<=innerWidth-11})()`),'menu anchored above '+trigger);
  const state=s=>run(`(()=>{const M=ChatModel,N=ChatNative;return (${s})})()`);
- const shot=async name=>{fs.mkdirSync(path.join(__dirname,'previews'),{recursive:true});fs.writeFileSync(path.join(__dirname,'previews',name+'.png'),(await w.webContents.capturePage()).toPNG())};
+ const shot=async name=>{fs.mkdirSync(path.join(output,'previews'),{recursive:true});fs.writeFileSync(path.join(output,'previews',name+'.png'),(await w.webContents.capturePage()).toPNG())};
  try{
   await w.loadFile(path.join(__dirname,'default.html'),{query:{autoplay:'off'}});await wait();await shot('native-default');
   assert.deepEqual(await run('[...document.querySelectorAll(".session-group:first-child .session-row")].map(e=>e.dataset.id)'),await state('M.state.sessions.filter(s=>s.project==="atlas").sort((a,b)=>(b.created||0)-(a.created||0)||a.id.localeCompare(b.id)).slice(0,5).map(s=>s.id)'));
@@ -56,6 +57,6 @@ app.whenReady().then(async()=>{
   for(const width of [1500,1024,820,760,390]){w.setContentSize(width,1000);await wait();assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));assert.ok(await run('(()=>{const row=document.querySelector(".chat-compose-controls").getBoundingClientRect(),send=document.querySelector("#chat-compose button[type=submit]").getBoundingClientRect();return Math.abs(row.right-send.right)<2})()'));await click('[data-native-action=model-settings]');assert.ok(await run('document.querySelector("#model-settings").getBoundingClientRect().right<=innerWidth'));await anchored('#model-settings','[data-native-action=model-settings]');await shot('model-settings-'+width);await click('#model-settings-close');await click('[data-native-action=invoke]');assert.ok(await run('document.querySelector("#native-picker").getBoundingClientRect().right<=innerWidth'));await anchored('#native-picker','[data-native-action=invoke]');await shot('native-picker-'+width);await click('[data-native-close]');if(width<=760){await click('[data-chat-action=toggle-list]');await shot('native-list-'+width);await click('.chat-list-close')}await shot('native-'+width)}
   await run('document.documentElement.dataset.theme="dark"');await shot('native-dark');await click('[data-native-action=invoke]');await shot('native-picker-dark');await click('[data-native-close]');w.setContentSize(1500,1000);w.webContents.setZoomFactor(2);await wait();assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));
   checks.push('两个菜单分别紧贴自身入口向上展开、视口边缘避让；输入法、1500/1024/820/760/390px、窄窗抽屉/选择器、暗色角色及 200% 缩放');
-  assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);const report={ok:true,checks,errors,externalRequests:requests,scope:'正式交互原型本地样本；真实 Agent、Skill、文件、待办 API、跨进程 thread/幂等/执行资格未验证'};fs.writeFileSync(path.join(__dirname,'verification-native.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));app.exit(0);
- }catch(e){console.error(e,errors);await shot('native-failure');app.exit(1)}
+  assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);const report={ok:true,checks,errors,externalRequests:requests,scope:'正式交互原型本地样本；真实 Agent、Skill、文件、待办 API、跨进程 thread/幂等/执行资格未验证'};fs.writeFileSync(path.join(output,'verification-native.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));w.destroy();app.exit(0);
+ }catch(e){console.error(e,errors);await shot('native-failure');w.destroy();app.exit(1)}
 });

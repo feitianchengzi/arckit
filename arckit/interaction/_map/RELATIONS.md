@@ -125,3 +125,7 @@ Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保�
 全局创建待办：`CONVENTIONS.md#全局创建待办` 约束所有共享顶部消费者，`task-browser/interaction.md` 提供相同 Sheet 字段和产品联动规则；`_shared/global-shell.js` 在原页面模拟创建，Work 局部入口复用此路径；普通创建的“沿用上次创建设置”规则归 task-browser，共享原型模拟本地成功选项复用与范围回退，不代表生产账户隔离或服务验证。
 
 普通创建 Automation 提示：`task-browser/interaction.md` 定义状态优先级、原因与开启指引，共享 `global-shell.js` 模拟动态合并提示；开启使用既有 success 语义，不表示任务已运行。
+
+## Chat 项目文件工作区
+
+`arckit/interaction/chat-workspace/interaction.md` 定义文件树、常见操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能通过 files-model.js / files-ui.js / files.css 接入完整原型；浏览器验证记录在 arckit/cases/evidence/CASE-20260922-006/files-prototype-final/，生产兑现待验证。

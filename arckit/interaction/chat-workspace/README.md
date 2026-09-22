@@ -43,7 +43,7 @@ runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/ve
 swift arckit/interaction/chat-workspace/verify-layout-webkit.swift "$PWD"
 ```
 
-结果分别在 verification.json、verification-native.json。前者覆盖原有会话、模型、草稿、滚动、权限、失败、工作区、账户与布局；后者覆盖同一 thread、能力/引用标签、待办创建与来源、读写、冲突、占用、失权、停止、恢复、输入法、暗色及 390–1500px/200% 缩放。
+基础脚本旧结果在 verification.json；verify-native.cjs 新运行输出由 ARCORBIT_TEST_OUTPUT 指定，默认临时目录，写入 verification-native.json。前者覆盖原有会话、模型、草稿、滚动、权限、失败、工作区、账户与布局；后者覆盖同一 thread、能力/引用标签、待办创建与来源、读写、冲突、占用、失权、停止、恢复、输入法、暗色及 390–1500px/200% 缩放。
 
 本地截图位于 previews/native-*.png。states.html 与 workspace-setup.html 为专项辅助稿；新增原生能力以完整入口和正式说明为准。
 
@@ -54,3 +54,16 @@ verification-layout.json 专门检查顶部入口同排、菜单高度、固定�
 verify-layout-webkit.swift 使用 macOS WKWebView 复核 1500×800 桌面布局；本次结果记录在 verification-layout-webkit.json。
 
 Work 的 `../task-browser/default.html` 提供待办“打开 Chat”路径；Chat 右栏支持“会话列表 / 待办详情”切换。两页的详情样本通过 `../_shared/work-chat-detail.js` 呈现。该样本仅模拟入口、绑定和详情切换，完整业务字段与权限以 interaction.md 及生产共享详情渲染器为准。
+
+## 项目文件与编辑 Tab
+
+右栏“文件”显示完整项目目录样本（包括隐藏/忽略条目和符号链接），逐层展开并分页加载；右键或 Shift+F10 打开文件操作菜单，可把相对路径插入 Chat 光标处。点击文件进入中央多 Tab，Chat 保留，文件用 × 关闭。新建、重命名、模拟废纸篓、未保存关闭、保存失败、磁盘冲突、重新读取与项目切换均可操作。场景页提供文件故障、外部改动和慢响应入口。
+
+files-model.js 管理隔离内存目录；files-ui.js 保持编辑草稿、光标与后台 Chat 的独立性；files.css 使用既有明暗主题 Tokens。编辑区 textarea 仅表达交互，不是 Monaco。真实目录权限、IPC、Monaco 模型与 Worker、系统废纸篓、账户/重绑定/退出保存保护由生产验证；样本只用 beforeunload 提示刷新丢失。内存文件不跨刷新持久化。
+
+```sh
+env -u ELECTRON_RUN_AS_NODE ARCORBIT_TEST_OUTPUT="$PWD/arckit/cases/evidence/CASE-20260922-006/files-prototype-final" runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-files.cjs
+env -u ELECTRON_RUN_AS_NODE ARCORBIT_TEST_OUTPUT="$PWD/arckit/cases/evidence/CASE-20260922-006/files-native-regression" runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-native.cjs
+```
+
+每次复测使用新的输出目录保留历史。最新文件行为证据为 `../../cases/evidence/CASE-20260922-006/files-prototype-final/verification.json`；既有 Chat 原生路径回归见 `../../cases/evidence/CASE-20260922-006/files-native-regression/verification-native.json`。前几次失败和修复后的中间截图仍保存在相邻 run 目录中，不作为最终通过依据。

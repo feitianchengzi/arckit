@@ -1,4 +1,7 @@
 import { createChatNative } from '../src/chat-native.mjs';
+import { createChatFiles } from '../src/chat-files.mjs';
+import { createChatFilesLeaveGuard } from './chat-files-leave.mjs';
+import { registerChatFilesIpc } from './chat-files-ipc.mjs';
 import { createAppearance, appearanceBackground, registerAppearanceIpc } from '../src/desktop/appearance.mjs';
 import { createSoftwareCapabilities } from '../src/workbench/software-capabilities.mjs';
 import { createProjectWorkbench } from '../src/workbench/coordinator.mjs';
@@ -71,6 +74,8 @@ let runManager;
 let automationCoordinator;
 let chatCoordinator;
 let chatNative;
+let chatFiles;
+const chatFilesLeave=createChatFilesLeaveGuard(()=>mainWindow);
 let projectWorkbench;
 let workbenchAgentBridge;
 let productCoordinator;
@@ -255,6 +260,9 @@ app.whenReady().then(async () => {
     resolveSceneSkills: root => sceneSkillManager.resolveScene('chat', root)
   });
   chatNative=createChatNative({listProjectMembers:id=>workshopService.platform.listProjectMembers(id),runManager,workSync:workSyncCoordinator,workbench:projectWorkbench,automation:automationCoordinator,chat:chatCoordinator,getAccountScope:workbenchAccountScope,resolveSceneSkills:root=>sceneSkillManager.resolveScene('chat',root)});
+  chatFiles=createChatFiles({runManager,getAccountScope:workbenchAccountScope,
+    authorizeSession:(session,context)=>chatNative.authorizeSession(session,context),
+    trashItem:path=>shell.trashItem(path),revealItem:path=>shell.showItemInFolder(path)});
   workbenchAgentBridge = createWorkbenchAgentBridge({coordinator:projectWorkbench,getAccountScope:workbenchAccountScope});
   projectWorkbench.onEvent(event => { if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send('arckit:project-workbench-event',event); });
   runManager.onEvent(event => { if(event.type==='run.finished') workbenchAgentBridge.revoke(event.run?.id || event.runId); });
@@ -402,6 +410,8 @@ app.on("before-quit", async (event) => {
     return;
   }
   event.preventDefault();
+  if (!await chatFilesLeave.request()) return;
+  if (quitAfterCleanup) return;
   quitAfterCleanup = true;
   try {
     if (syncTimer) {
@@ -464,6 +474,7 @@ async function createWindow({ show = true } = {}) {
     }
   });
 
+  chatFilesLeave.install(mainWindow, {isQuitting: () => quitAfterCleanup, resumeQuit: () => app.quit()});
   const rendererEntry = join(desktopDir, "renderer/index.html");
   const rendererUrl = pathToFileURL(rendererEntry).href;
   installMainWindowNavigationBoundary(mainWindow.webContents, rendererUrl);
@@ -485,11 +496,12 @@ async function runRendererLoadSmoke() {
     title: document.title,
     preload_api: Boolean(window.arckitDesktop?.getSetupReadiness),
     setup_surface: Boolean(document.getElementById("setupReadiness")),
+    chat_files_surface: Boolean(globalThis.arcorbitChatFiles?.prepareLeave),
     theme: document.documentElement.dataset.theme,
     appearance_preload: window.arckitDesktop?.initialAppearance,
     stylesheet_count: document.styleSheets.length
   })`);
-  if (snapshot.title !== "ArcOrbit" || !snapshot.preload_api || !snapshot.setup_surface || snapshot.stylesheet_count < 1 || snapshot.theme !== appearance.snapshot().resolved || snapshot.appearance_preload?.preference !== appearance.snapshot().preference) {
+  if (snapshot.title !== "ArcOrbit" || !snapshot.preload_api || !snapshot.setup_surface || !snapshot.chat_files_surface || snapshot.stylesheet_count < 1 || snapshot.theme !== appearance.snapshot().resolved || snapshot.appearance_preload?.preference !== appearance.snapshot().preference) {
     throw new Error(`Packaged Renderer load smoke failed: ${JSON.stringify(snapshot)}`);
   }
   process.stdout.write(`${JSON.stringify({ schema_version: "arcorbit-renderer-load-smoke/v1", status: "passed", ...snapshot })}\n`);
@@ -623,6 +635,7 @@ function registerIpc() {
     assertMainRenderer(event); return productCoordinator.chatAction(input);
   });
   ipcMain.handle("arckit:chat-native-catalog", async (event,input) => {assertMainRenderer(event);return chatNative.catalog(input || {});});
+  registerChatFilesIpc({ipcMain,assertMainRenderer,files:chatFiles});
   ipcMain.handle("arckit:chat-native-open", async (event,input) => {assertMainRenderer(event);return chatNative.openTask(input || {});});
   ipcMain.handle("arckit:chat-snapshot", async (event, input) => {
     assertMainRenderer(event);
@@ -668,6 +681,7 @@ function registerIpc() {
   ipcMain.handle("arckit:auth-status", async () => workshopService.getAuthStatus());
   ipcMain.handle("arckit:auth-send-verification", async (_event, input) => workshopService.sendVerification(input));
   ipcMain.handle("arckit:auth-login", async (_event, input) => {
+    if (!await chatFilesLeave.request()) throw new Error("已取消账号切换，文件草稿保留。");
     const authentication = await workshopService.loginWithCode(input);
     await workSyncCoordinator.reconcile({ reason: "login" });
     productFeedbackService.refreshUnread().catch(() => {});
@@ -683,6 +697,7 @@ function registerIpc() {
         authentication: await workshopService.getAuthStatus()
       };
     }
+    if (!await chatFilesLeave.request()) throw new Error("已取消退出登录，文件草稿保留。");
     if (snapshot.active_executions?.length) {
       await automationCoordinator.stopAll();
     }

@@ -1,0 +1,39 @@
+.chat-center > [hidden], .chat-sessions > [hidden], #file-menu[hidden] { display:none !important; }
+.chat-sessions > header { padding:var(--spacing-3); gap:var(--spacing-2); }
+.chat-sessions > header h2 { display:flex; flex-wrap:wrap; gap:var(--spacing-1); min-width:0; }
+.chat-sessions [data-detail-mode] { padding:var(--spacing-2); font-size:var(--typography-label-size); }
+.chat-sessions [aria-pressed="true"] { background:var(--semantic-nav-selected); }
+.chat-files { flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.file-tools { display:flex; gap:var(--spacing-2); flex-wrap:wrap; padding:var(--spacing-3); }
+.file-tools strong { flex-basis:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.file-tools button { padding:var(--spacing-2); font-size:var(--typography-label-size); }
+.file-tree { flex:1; min-height:0; overflow:auto; padding:var(--spacing-2); }
+.file-row { display:flex; align-items:center; min-height:32px; padding-left:calc((var(--depth) - 1)*14px); }
+.file-row[aria-selected="true"] { background:var(--semantic-nav-selected); }
+.file-name { display:flex; justify-content:flex-start; gap:var(--spacing-2); align-items:center; flex:1; min-width:0; text-align:left; padding:var(--spacing-2); border:0; background:transparent; }
+.file-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.file-name small { color:var(--semantic-muted); }
+.file-more { flex:none; padding:var(--spacing-2); border:0; background:transparent; }
+.file-empty { padding:var(--spacing-3); color:var(--semantic-muted); }
+.file-tabs { display:flex; min-width:0; max-width:100%; flex:none; overflow-x:auto; border-bottom:1px solid var(--semantic-divider); background:var(--semantic-chrome); }
+.file-tab-wrap { display:flex; flex:none; border-right:1px solid var(--semantic-divider); }
+.file-tabs button { white-space:nowrap; border:0; border-radius:0; background:transparent; }
+.file-tabs [role="tab"] { max-width:240px; overflow:hidden; text-overflow:ellipsis; }
+.file-tabs [aria-selected="true"] { background:var(--semantic-nav-selected); box-shadow:inset 0 -2px var(--colors-accent-base); }
+.file-editor-pane { display:flex; flex:1; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
+.file-editor-tools { display:flex; gap:var(--spacing-2); flex-wrap:wrap; align-items:center; padding:var(--spacing-3); border-bottom:1px solid var(--semantic-divider); }
+.file-editor-tools strong { flex-basis:100%; overflow-wrap:anywhere; font-size:var(--typography-label-size); }
+.file-editor-tools button { padding:var(--spacing-2); font-size:var(--typography-label-size); }
+.file-status { min-height:1.5em; padding:var(--spacing-2) var(--spacing-3); color:var(--semantic-muted); font-size:var(--typography-label-size); }
+.file-edit-body { flex:1; min-height:0; display:flex; overflow:hidden; }
+.file-line-numbers { flex:none; margin:0; padding:var(--spacing-3); text-align:right; overflow:hidden; user-select:none; color:var(--semantic-muted); background:var(--colors-ink-50); font:13px/1.6 monospace; }
+.file-text { flex:1; width:0; min-width:0; height:100%; padding:var(--spacing-3); border:0; border-radius:0; resize:none; overflow:auto; background:var(--semantic-canvas); color:var(--semantic-text); font:13px/1.6 monospace; tab-size:2; }
+.file-edit-body > p { padding:var(--spacing-5); }
+#file-menu { position:fixed; z-index:80; width:240px; max-width:calc(100vw - 16px); max-height:calc(100dvh - 16px); overflow:auto; padding:var(--spacing-2); background:var(--semantic-elevated); color:var(--semantic-text); border:1px solid var(--semantic-divider); border-radius:var(--corner-radius-small); box-shadow:var(--shadows-small); }
+#file-menu button { display:block; width:100%; text-align:left; border:0; background:transparent; }
+#file-dialog { width:min(520px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); overflow:auto; }
+#file-dialog label { display:flex; flex-direction:column; gap:var(--spacing-2); margin-block:var(--spacing-4); }
+#file-dialog footer { display:flex; justify-content:flex-end; gap:var(--spacing-2); flex-wrap:wrap; margin-top:var(--spacing-4); }
+#file-dialog [role="alert"] { color:var(--colors-danger-base); }
+.file-disk { white-space:pre-wrap; overflow-wrap:anywhere; max-height:50vh; overflow:auto; }
+.file-row:focus-visible, .file-tabs button:focus-visible, #file-menu button:focus-visible { outline:2px solid var(--colors-accent-base); outline-offset:-2px; }

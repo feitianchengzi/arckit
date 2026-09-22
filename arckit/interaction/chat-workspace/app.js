@@ -6,7 +6,7 @@
   function notice(text) { document.getElementById('chat-notice').textContent = text; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => document.getElementById('chat-notice').textContent = '', 4000); }
   function capture() {
     const thread = document.querySelector('.chat-thread'), s = M.current();
-    if (thread && s) { s.scroll = thread.scrollTop; s.follow = thread.scrollHeight - thread.clientHeight - thread.scrollTop < 45; }
+    if (thread && s && !window.ChatFileUI?.activeEditor()) { s.scroll = thread.scrollTop; s.follow = thread.scrollHeight - thread.clientHeight - thread.scrollTop < 45; }
     listScroll = document.querySelector('.session-groups')?.scrollTop || 0;
   }
   function render({ capturePosition = true } = {}) {
@@ -164,7 +164,7 @@
   });
   dialog.addEventListener('cancel', event => { event.preventDefault(); if (!dialog.querySelector('[data-busy]')) close(); });
   document.addEventListener('scroll', event => {
-    if (event.target.matches?.('.chat-thread')) {
+    if (event.target.matches?.('.chat-thread') && !window.ChatFileUI?.activeEditor()) {
       const s = M.current(); if (!s) return;
       s.scroll = event.target.scrollTop; s.follow = event.target.scrollHeight - event.target.clientHeight - event.target.scrollTop < 45;
       if (s.follow) s.unread = 0;

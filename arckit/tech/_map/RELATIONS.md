@@ -50,3 +50,7 @@ Engineering 内置 Skills 管理以 arcorbit-scene-skills.md 为产品源，scen
 `arcorbit/project-workbench-solution.md` 的 Chat 原生待办接入承接 `interaction/chat-workspace/interaction.md`，与 Desktop execution 共享 session/thread、消息持久化及任务执行锁。
 
 - Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../arcorbit/project-workbench-solution.md`。
+
+## Chat 项目文件工作区
+
+`arckit/interaction/chat-workspace/interaction.md` 定义文件树、常见操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能原型尚待同步，生产兑现待验证。

@@ -2,7 +2,7 @@
 (() => {
  const C=GlobalContext,esc=C.esc;
  const project=id=>({orbit:'atlas',feedback:'borealis'})[id]||id;
- function workTask(id){const item=C.state.pageObjects.Work?.find(t=>t.id===id);return item&&{id:item.id,project:project(item.project),title:item.name,content:C.state.drafts['Work:'+id]||item.name,state:'待处理',revision:1};}
+ function workTask(id){const item=C.state.pageObjects?.Work?.find(t=>t.id===id);return item&&{id:item.id,project:project(item.project),title:item.name,content:C.state.drafts['Work:'+id]||item.name,state:'待处理',revision:1};}
  function detail(task){return `<section><h2>待办 ${esc(task.id)}</h2><p>${esc(task.state)}</p></section><section><h3>内容</h3><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(task.content)}</div></section><section><h3>属性</h3><p>所属项目：${esc(task.project)}</p><p>优先级：${esc(task.priority??'普通')}</p></section><section><h3>协作</h3><p>暂无附件和评论。</p><label>评论草稿<textarea data-sample-comment="${esc(task.id)}">${esc(C.state.drafts['comment:'+task.id]||'')}</textarea></label></section>`;}
  document.addEventListener('input',e=>{if(e.target.dataset.sampleComment){C.state.drafts['comment:'+e.target.dataset.sampleComment]=e.target.value;C.save();}});
  if(document.body.dataset.page==='Work'){
