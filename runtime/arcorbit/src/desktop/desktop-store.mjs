@@ -434,6 +434,11 @@ function normalizeDesktopSession(value, projectIdValue) {
     id: String(value.id),
     project_id: String(value.project_id || projectIdValue),
     kind,
+    // Older background task sessions had no visibility flag. CHAT identities
+    // originate in the interactive composer and remain visible after linking.
+    chat_hidden: typeof value.chat_hidden === "boolean"
+      ? value.chat_hidden
+      : kind === "automation-task" && !String(value.id).startsWith("CHAT-"),
     title: kind === "automation-task"
       ? normalizeAutomationSessionTitle(value.title)
       : String(value.title || (kind === "chat" ? "New chat" : "Automation")),

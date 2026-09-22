@@ -358,6 +358,7 @@ export function createDesktopRunManager({
         project_id: projectIdValue,
         title: input.title || "New chat",
         kind: input.kind || "chat",
+        chat_hidden: input.kind === "automation-task",
         task_id: String(input.task_id || ""),
         remote_project_id: String(input.remote_project_id || ""),
         created_at: new Date().toISOString(),

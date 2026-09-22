@@ -153,7 +153,7 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     const session=await ensureSession(ctx);
     const release=acquireTaskTurn(ctx.local.id,ctx.task.id,`chat:${session.id}`);
     turnLeases.set(session.id,release);
-    try { const result=await chat.send({session_id:session.id,project_id:ctx.local.id,text:input.text,client_request_id:input.request_id,model:input.model,reasoning_effort:input.reasoning_effort});if(!activeChat(result.sessions.find(s=>s.id===session.id)?.status)){release();turnLeases.delete(session.id);}return result; }
+    try { const result=await chat.send({session_id:session.id,project_id:ctx.local.id,text:input.text,client_request_id:input.request_id,model:input.model,reasoning_effort:input.reasoning_effort});if(!activeChat((await runManager.listSessions(ctx.local.id)).find(s=>s.id===session.id)?.status)){release();turnLeases.delete(session.id);}return result; }
     catch(error) {release();turnLeases.delete(session.id);throw error;}
   }
   async function create(input) {

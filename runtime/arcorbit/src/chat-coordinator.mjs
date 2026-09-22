@@ -236,6 +236,7 @@ export function createChatCoordinator({
           id: sessionId,
           project_id: project.id,
           kind: sessionKind,
+          chat_hidden: false,
           title: boundedTitle(text),
           thread_id: "",
           turn_id: "",
