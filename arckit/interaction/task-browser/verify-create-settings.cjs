@@ -1,0 +1,57 @@
+const {app,BrowserWindow}=require('electron');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
+const output=process.env.ARCORBIT_TEST_OUTPUT||fs.mkdtempSync(path.join(os.tmpdir(),'arcorbit-create-settings-evidence-'));
+const profile=fs.mkdtempSync(path.join(os.tmpdir(),'arcorbit-create-settings-prototype-'));
+app.setPath('userData',profile);app.disableHardwareAcceleration();
+app.whenReady().then(async()=>{
+ const win=new BrowserWindow({width:1200,height:1000,show:false,webPreferences:{sandbox:true,contextIsolation:true}});
+ const errors=[],checks=[];let exitCode=0;
+ win.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
+ const js=code=>win.webContents.executeJavaScript(code),wait=()=>new Promise(resolve=>setTimeout(resolve,220));
+ const open=()=>js("document.querySelector('#gc-create-task').click()");
+ const close=()=>js("document.querySelector('[data-create-cancel]').click()");
+ const get=name=>js(`document.querySelector('.gc-task-create [name=${name}]').value`);
+ const set=(name,value)=>js(`(()=>{const field=document.querySelector('.gc-task-create [name=${name}]');field.value=${JSON.stringify(value)};field.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+ const toggle=()=>js("document.querySelector('.gc-task-create [name=reuse]').click()");
+ const submit=async()=>{await js("document.querySelector('.gc-task-create form').requestSubmit()");await wait();};
+ try{
+  await win.loadFile(path.join(__dirname,'default.html'));await js('GlobalContext.reset()');await open();
+  assert.equal(await get('content'),'');assert.equal(await get('state'),'pending_review');assert.equal(await get('executor'),'');
+  assert.equal(await js("document.activeElement.name"),'content');
+  await set('content','首次成功');await set('project','feedback');await set('state','pending');await set('executor','feedback-me');await set('father','feedback-parent');await set('priority','1');
+  await js("document.querySelector('[name=tags][value=feedback-bug]').click()");await toggle();assert.equal(await get('content'),'首次成功');
+  await submit();await open();
+  assert.equal(await get('content'),'');assert.equal(await get('project'),'feedback');assert.equal(await get('state'),'pending');assert.equal(await get('executor'),'feedback-me');assert.equal(await get('father'),'feedback-parent');assert.equal(await get('priority'),'1');
+  assert.equal(await js("document.querySelector('[name=tags][value=feedback-bug]').checked"),true);
+  assert.equal(await js("'content' in GlobalContext.state.lastCreatedSettings || 'name' in GlobalContext.state.lastCreatedSettings"),false);
+  checks.push('首次默认值、内容焦点、切换不覆盖草稿、成功后六类选项恢复且正文不记忆');
+  await set('content','取消草稿');await set('priority','3');await close();await open();assert.equal(await get('priority'),'1');assert.equal(await get('content'),'');
+  await set('content','失败草稿');await set('priority','2');await js('GlobalContext.state.failCreate=true');await submit();
+  assert.equal(await js("document.querySelector('.gc-task-create').open"),true);assert.equal(await get('content'),'失败草稿');assert.equal(await js('GlobalContext.state.lastCreatedSettings.priority'),'1');
+  await js('GlobalContext.state.failCreate=false');await submit();await open();assert.equal(await get('priority'),'2');
+  checks.push('取消不覆盖成功记录；失败保留当前草稿且不覆盖记录；重试成功更新记录');
+  await toggle();assert.equal(await get('priority'),'2');await close();await open();assert.equal(await get('state'),'pending_review');assert.equal(await get('executor'),'');assert.equal(await get('priority'),'');
+  await set('content','关闭时成功');await set('priority','3');await submit();await open();await toggle();await close();await open();assert.equal(await get('priority'),'3');
+  checks.push('关闭后恢复默认；关闭期间成功记录可在重新开启后使用');
+  await close();await js("GlobalContext.state.lastCreatedSettings={project:'feedback',state:'pending',executor:'feedback-me',father:'feedback-parent',tags:['feedback-bug'],priority:'1'};GlobalContext.change('orbit')");await open();
+  assert.equal(await get('project'),'orbit');assert.equal(await get('executor'),'');assert.equal(await get('father'),'');assert.equal(await get('state'),'pending');assert.equal(await get('priority'),'1');
+  assert.match(await js("document.querySelector('[data-create-restore]').textContent"),/上次产品不在当前范围/);
+  await close();await js("GlobalContext.change('all');GlobalContext.state.lastCreatedSettings={project:'orbit',state:'unknown',executor:'removed',father:'removed',tags:['orbit-bug','removed'],priority:'bad'};GlobalContext.save()");await open();
+  assert.equal(await get('state'),'pending_review');assert.equal(await get('priority'),'');assert.equal(await get('executor'),'');assert.equal(await get('father'),'');assert.equal(await js("document.querySelector('[name=tags][value=orbit-bug]').checked"),true);
+  assert.match(await js("document.querySelector('[data-create-restore]').textContent"),/部分上次选项已不可用/);
+  await set('executor','orbit-me');await set('project','feedback');await set('project','orbit');assert.equal(await get('executor'),'');
+  checks.push('范围外产品回退保留状态/优先级；非法选项回退；手动切换产品不恢复旧关联');
+  await close();await win.loadFile(path.join(__dirname,'default.html'));await open();assert.equal(await js("document.querySelector('[name=reuse]').checked"),true);
+  await js("document.querySelector('[name=reuse]').focus()");win.webContents.sendInputEvent({type:'keyDown',keyCode:'Space'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Space'});await wait();assert.equal(await js("document.querySelector('[name=reuse]').checked"),false);
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});await wait();assert.equal(await js("document.querySelector('.gc-task-create').open"),false);assert.equal(await js('document.activeElement.id'),'gc-create-task');
+  checks.push('重新加载恢复偏好；Space 操作开关；Escape 关闭并恢复入口焦点');
+  await js("document.querySelector('#gc-new').click()");assert.equal(await get('content'),'');checks.push('Work 局部新建入口复用同一 Sheet');await js("document.querySelector('.gc-task-create button[type=submit]').focus()");win.webContents.sendInputEvent({type:'keyDown',keyCode:'Tab'});win.webContents.sendInputEvent({type:'keyUp',keyCode:'Tab'});await wait();assert.equal(await js("document.querySelector('.gc-task-create').contains(document.activeElement)"),true);
+  fs.mkdirSync(output,{recursive:true});
+  for(const theme of ['light','dark']){await js(`document.documentElement.dataset.theme='${theme}';document.querySelector('.gc-task-create').scrollTop=0`);await wait();fs.writeFileSync(path.join(output,theme+'.png'),(await win.webContents.capturePage()).toPNG());}
+  win.setSize(600,800);await wait();await js("document.querySelector('.gc-task-create').scrollTop=0");assert.equal(await js("(()=>{const d=document.querySelector('.gc-task-create');return d.scrollWidth<=d.clientWidth&&d.getBoundingClientRect().right<=innerWidth;})()"),true);
+  fs.writeFileSync(path.join(output,'narrow.png'),(await win.webContents.capturePage()).toPNG());checks.push('模态 Tab 范围和 600px 窄窗无横向溢出；采集明暗截图');
+  assert.deepEqual(errors,[]);
+ }catch(error){exitCode=1;errors.push(error.stack);}
+ fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({status:exitCode?'failed':'passed',checks,errors,scope:'本地交互原型；不验证生产账户隔离、磁盘保存失败、服务确认或远端候选新鲜度。'},null,2));
+ console.log(JSON.stringify({status:exitCode?'failed':'passed',output,checks,errors}));win.destroy();app.quit();process.exitCode=exitCode;
+}).catch(error=>{console.error(error);app.exit(1);});

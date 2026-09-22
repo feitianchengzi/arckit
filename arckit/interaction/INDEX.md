@@ -8,7 +8,7 @@
 
 <!-- 直接写文件名/目录名（不用链接语法），每级一句总结，行数如 (285行)；依赖关系在 _map/RELATIONS.md -->
 
-- CONVENTIONS.md 跨页面体验契约：单条全局顶部范围、同步状态及无标题栏、macOS 原生 traffic lights、Windows/Linux 应用控件、可读字号、状态反馈、键盘焦点和对比度。✅ (108行)
+- CONVENTIONS.md 跨页面体验契约：单条全局顶部范围、同步状态及无标题栏、macOS 原生 traffic lights、Windows/Linux 应用控件、可读字号、状态反馈、键盘焦点和对比度。✅ (119行)
 
 - login/ 登录页面：七天滚动会话恢复、临时错误保活与不可绕过的 Workshop 验证码登录门禁。✅
   - default.html 登录线框：会话恢复、未登录入口、验证码已发送和登录失败。✅ (65行)
@@ -87,9 +87,11 @@
   - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
   - page-states.html Work 任务浏览线框：顶部产品范围、Inspector 引导动作、编辑兜底提示、Automation 消费、运行/验收、恢复与冲突。辅助状态说明 (218行)
   - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、可调宽分区 Inspector 与图片浏览。✅ (96行)
-  - task-form.html 待办表单子视图：创建/编辑产品切换、执行人 Automation 资格提示、跨产品复制确认、目标字段联动和分步失败恢复。✅ (45行)
+  - task-form.html 待办表单子视图：创建/编辑产品切换、Automation 合并提示、跨产品复制确认、目标字段联动和分步失败恢复。✅ (46行)
   - readiness-guidance.html 执行资格子视图：待评审确认、执行人不匹配、成员本地连接动作和远端治理责任交接。✅ (39行)
-  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、新建执行人 Automation 提示、编辑七状态兜底、Inspector 引导动作、持久宽度、紧凑分区、跨产品受控替换与图片浏览。✅ (317行)
+  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、沿用上次创建设置、新建 Automation 状态/原因/开启方法、编辑七状态兜底、Inspector 引导动作、持久宽度、紧凑分区、跨产品受控替换与图片浏览。✅ (357行)
+  - verify-automation-hint.cjs 合并提示的本地场景、动态更新和主题验证；证据目录可配置。
+  - verify-create-settings.cjs 复用设置的本地原型验证；ARCORBIT_TEST_OUTPUT 指定证据输出，默认临时目录。
 - product-list/ Product 列表：浏览全部可访问项目与本机 Idea，查找并进入产品长期上下文。✅
   - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
   - page-states.html Product 列表状态与恢复。辅助状态说明 (62行)
@@ -140,7 +142,7 @@
 
 - _shared/ 全局产品上下文原型：共享范围、顶部能力、页面适配及浏览器验证。
   - global-context.js 本地产品集、范围、对象记忆和状态。
-  - global-shell.js / global-context.css 单行顶部、菜单、同步、运行控制及全局创建待办模态。
+  - global-shell.js / global-context.css 单行顶部、菜单、同步、运行控制及全局创建待办模态；普通创建支持沿用上次设置（正文留空）。
   - context-pages.js Product 等页面的范围与对象连续操作、Today 查看范围内成员选择和初始化模拟。
   - verify-global-context.cjs / global-context-verification.json 实际跨页、草稿和窄窗验证。
 

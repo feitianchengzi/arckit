@@ -47,3 +47,16 @@
 .gc-task-create input,.gc-task-create select,.gc-task-create textarea,.gc-task-create button{font:inherit;color:var(--semantic-text);background:var(--semantic-canvas);border:1px solid var(--semantic-divider);border-radius:6px;padding:8px;min-height:36px;box-sizing:border-box;max-width:100%}
 .gc-task-create textarea{width:100%;min-height:120px}
 .gc-create-notice:not(:empty){position:fixed;bottom:16px;right:16px;max-width:calc(100vw - 64px);padding:12px;background:var(--semantic-elevated);color:var(--semantic-text);border:1px solid var(--semantic-divider);border-radius:6px;z-index:50}
+
+.gc-task-create .gc-reuse-setting{display:flex;align-items:center;gap:10px;min-height:36px}
+.gc-task-create .gc-reuse-setting input{min-height:0;width:18px;height:18px;flex:none;accent-color:var(--colors-accent-strong)}
+.gc-task-create .gc-reuse-setting small{display:block;margin-top:4px;font-size:12px;color:var(--semantic-muted)}
+.gc-task-create{font:14px/1.6 var(--typography-font-family,system-ui)}
+.gc-task-create fieldset{border:1px solid var(--semantic-divider);border-radius:6px}
+.gc-task-create [data-create-restore]:empty{display:none}
+
+.gc-create-automation { padding:12px 0; border-top:1px solid var(--semantic-divider); border-bottom:1px solid var(--semantic-divider); }
+.gc-create-automation p { margin:8px 0 0; font-size:13px; line-height:1.6; }
+.gc-automation-badge { display:inline-block; padding:3px 8px; border-radius:6px; font-size:13px; color:var(--semantic-text); background:var(--semantic-chrome); }
+.gc-automation-badge[data-tone="success"] { color:var(--colors-success-base); background:var(--colors-success-soft); }
+.gc-automation-badge[data-tone="warning"] { color:var(--colors-warning-strong); background:var(--colors-warning-soft); }

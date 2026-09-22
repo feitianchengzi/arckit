@@ -13,7 +13,7 @@
 | `engineering-profile/` | ✅ | 选择、编辑、比较和应用由 State Model、Capability Mapping 与 Lifecycle Mapping 组成的 Domain Profile | Profile Library、草稿编辑、跨行业比较、兼容性检查、Apply 确认、稳定 Loop Kernel |
 | `product-feedback-center/` | ✅ | 在 ArcOrbit 内向固定 Project 107 提交反馈、查看当前账户反馈并感知未读变化 | 未读角标、SDK 加载、提交反馈、我的反馈、需要登录、SDK 失败恢复 |
 | `automation-workspace/` | ✅ | 登录后只消费 Work 发布的本地待办状态，以本地 workspace lane 串行仲裁普通待办与验收问题，并在最多 3 条独立 lane 间并行；账号设置分别维护 Chat 与 Automation 的 Codex 默认值 | Chat/Automation 两组 Model/Level、Automation Run 配置固定、Work 同步健康摘要、资格原因引导、双队列总览、活动执行选择、槽位容量、lane 串行、跨 workspace 并行、问题等待/运行/待人工/阻塞、external dependency 人工介入与同 thread 恢复、项目范围切换、CLI 接管、人工介入、外部等待、执行停止、完成续接、Work 动作失败、领取冲突与用量诊断 |
-| `task-browser/` | ✅ | 在 Work 的单行控制轨中组合本地查询，并用 Work-owned 同步和任务树/可持久调宽 Inspector 完成分区详情、评论附件、产品限定维护、编辑七状态兜底及引导式状态动作；Automation 只消费确认结果 | 本地查询、Work Sync、单行控制轨与窄窗口收敛、多维筛选、任务树、Inspector 440px 默认/拖拽/键盘/跨重启恢复、内容/紧凑属性/协作/验收分区、评论附件、新建/编辑七状态 Picker、新建执行人 Automation 资格提示、Inspector 下一步动作、待评审/执行人/项目连接引导、标签生命周期、运行/验收查看、外部状态恢复、空态与冲突 |
+| `task-browser/` | ✅ | 在 Work 的单行控制轨中组合本地查询，并用 Work-owned 同步和任务树/可持久调宽 Inspector 完成分区详情、评论附件、产品限定维护、编辑七状态兜底及引导式状态动作；Automation 只消费确认结果 | 本地查询、Work Sync、单行控制轨与窄窗口收敛、多维筛选、任务树、Inspector 440px 默认/拖拽/键盘/跨重启恢复、内容/紧凑属性/协作/验收分区、评论附件、新建/编辑七状态 Picker、新建 Automation 合并提示、条件解释和开启方法、Inspector 下一步动作、待评审/执行人/项目连接引导、标签生命周期、运行/验收查看、外部状态恢复、空态与冲突 |
 
 | Product / Idea / Today 续接 | ✅ | 产品目录与详情、空白/材料接入、双区协作、显式状态、Git 共享冲突与来源恢复。 |
 
@@ -31,4 +31,6 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 
 - Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../chat-workspace/interaction.md`。
 
-- 全局创建待办：共享顶部与 Work 入口复用当前页模态；产品范围、默认待评审、取消/焦点、提交防重和失败保留输入。原型仅模拟产品/内容/状态，生产验收独立进行。
+- 全局创建待办：共享顶部与 Work 入口复用当前页模态；产品范围、默认待评审、取消/焦点、提交防重和失败保留输入。普通创建新增“沿用上次创建设置”，正文留空，恢复有效选项；原型使用本地成员/父待办/标签样本演示成功、取消、失败与范围回退，生产验收独立进行。
+
+普通创建 Automation 提示：`task-browser/interaction.md` 定义状态优先级、原因与开启指引，共享 `global-shell.js` 模拟动态合并提示；开启使用既有 success 语义，不表示任务已运行。

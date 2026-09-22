@@ -10,18 +10,92 @@
  createDialog.className='gc-dialog gc-task-create';createDialog.setAttribute('aria-label','创建待办');createDialog.dataset.kit='Sheet';document.body.append(createDialog);
  const notice=document.createElement('span');notice.className='gc-create-notice';notice.setAttribute('role','status');document.body.append(notice);
  let createBusy=false,createTrigger=null;
+ // Local samples demonstrate the form contract; they never call Workshop or Automation.
+ const createStates=[['pending_review','待评审'],['pending','待处理'],['in_progress','进行中'],['completed','已完成'],['accepted','已验收'],['cancelled','已取消'],['blocked','已阻塞']];
+ const priorities=[['','无优先级'],['0','最高'],['1','高'],['2','中'],['3','低']];
+ const options=rows=>rows.map(([value,label])=>`<option value="${esc(value)}">${esc(label)}</option>`).join('');
+ function sampleFields(project){return {
+  executor:[['','未分配'],[project+'-me','Glare（我）'],[project+'-lin','Lin']],
+  father:[['','根待办'],[project+'-parent','示例父待办']],
+  tags:[[project+'-bug','Bug'],[project+'-desktop','Desktop']]
+ };}
+ // Prototype-only facts; production must use current scoped platform/runtime snapshots.
+ let automationScenario={};
+ function updateCreateAutomation(){
+  const form=createDialog.querySelector('form'),host=form?.querySelector('[data-create-automation]');
+  if(!host)return;
+  const project=form.elements.project.value,taskState=form.elements.state.value,executor=form.elements.executor.value;
+  const facts={known:C.state.sync!=='offline',bound:true,participating:true,admin:true,enabled:C.state.enabled,paused:C.state.paused,setupReady:true,attention:false,busy:false,...automationScenario};
+  let label='',message='',tone='neutral';
+  if(!facts.known){label='Automation 待确认';tone='warning';message='当前产品的账户或自动领取状态尚未确认。请使用顶部同步后重试；仍可创建普通待办。';}
+  else if(taskState!=='pending'||executor!==project+'-me'){
+   label='本待办不自动领取';const reasons=[],steps=[];
+   if(taskState!=='pending'){reasons.push('当前状态为「'+createStates.find(([v])=>v===taskState)[1]+'」');steps.push('将状态改为「待处理」');}
+   if(executor!==project+'-me'){reasons.push(executor?'执行人是其他成员，本机不会代其领取':'执行人未分配');steps.push('将执行人设为「我」');}
+   message=reasons.join('，')+'。若希望由本机自动执行，请'+steps.join('，并')+'。';
+  }else if(!facts.bound){label='Automation 尚未就绪';tone='warning';message='当前产品尚未绑定本地工作区。请在 Today 为该产品绑定本地目录，再检查自动领取条件。';}
+  else if(!facts.participating){label='Automation 尚未就绪';tone='warning';message='当前产品尚未允许自动领取。'+(facts.admin?'请在 Today 允许该产品参与自动领取。':'请联系项目管理员开启该产品的自动领取。');}
+  else if(!facts.enabled){label='Automation 已关闭';message='本机自动领取已关闭。请在顶部「运行」中开启「自动领取」。';}
+  else if(facts.paused){label='Automation 已暂停';message='本机已暂停领取新待办。请在顶部「运行」中继续领取；正在运行的任务不受此开关影响。';}
+  else if(!facts.setupReady||facts.attention){label='Automation 等待处理';tone='warning';message=!facts.setupReady?'项目环境尚未就绪，请在 Today 检查环境。':'自动领取正在等待恢复或人工处理，请到 Automation 处理后继续。';}
+  else {label='Automation 已开启';tone='success';message='待办已分配给你、状态为「待处理」，且项目与本机均已允许自动领取。'+(facts.busy?'当前有任务正在执行，创建后将等待空位。':'创建成功后将按队列顺序领取，启动前仍会检查环境。');}
+  const html='<strong class="gc-automation-badge" data-tone="'+tone+'">'+(tone==='success'?'✓ ':'')+esc(label)+'</strong><p>'+esc(message)+'</p>';
+  if(host.innerHTML!==html)host.innerHTML=html;
+ }
+ window.CreateAutomationPreview={set(values){automationScenario={...automationScenario,...values};updateCreateAutomation();},reset(){automationScenario={};updateCreateAutomation();}};
+ C.on(updateCreateAutomation);
  function openCreate(trigger=q('gc-create-task')){
   if(createDialog.open)return;
   createTrigger=trigger;
   const projects=C.projects.filter(p=>C.includes(p.id));
   if(C.state.sync==='offline'||!projects.length){notice.textContent=C.state.sync==='offline'?'请在设置中登录后创建待办。':'当前范围没有可创建待办的产品，请在顶部管理产品集。';return;}
   notice.textContent='';
-  const states=[['pending_review','待评审'],['pending','待处理'],['in_progress','进行中'],['completed','已完成'],['accepted','已验收'],['cancelled','已取消'],['blocked','已阻塞']];
-  createDialog.innerHTML=`<form><h2>创建待办</h2><label>产品<select name="project" required>${projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>待办内容<textarea name="content" required></textarea></label><label>状态<select name="state">${states.map(([v,n])=>`<option value="${v}">${n}</option>`).join('')}</select></label><p>执行人默认未分配。此原型仅模拟产品、内容和状态；完整字段见 Work 表单说明。</p><p data-create-status role="status"></p><div><button type="button" data-create-cancel>取消</button> <button type="submit">创建待办</button></div></form>`;
+  const previous=C.state.reuseCreateSettings?C.state.lastCreatedSettings:null;
+  const validProject=previous&&projects.some(p=>p.id===previous.project);
+  const project=validProject?previous.project:projects[0].id;
+  createDialog.innerHTML=`<form><h2>创建待办</h2>
+   <label class="gc-reuse-setting"><input name="reuse" type="checkbox" role="switch" ${C.state.reuseCreateSettings?'checked':''}><span>沿用上次创建设置<small>下次新建时保留其他选项，待办内容留空</small></span></label>
+   <p data-create-restore role="status"></p>
+   <label>产品<select name="project" required>${options(projects.map(p=>[p.id,p.name]))}</select></label>
+   <label>待办内容<textarea name="content" required></textarea></label>
+   <label>状态<select name="state">${options(createStates)}</select></label>
+   <div data-create-project-fields></div>
+   <label>优先级<select name="priority">${options(priorities)}</select></label>
+   <p data-create-status role="status"></p><div><button type="button" data-create-cancel>取消</button> <button type="submit">创建待办</button></div></form>`;
+  const form=createDialog.querySelector('form'),field=name=>form.elements.namedItem(name);
+  field('project').value=project;
+  let invalid=false;
+  for(const [name,rows] of [['state',createStates],['priority',priorities]]){
+   const value=previous?.[name];
+   if(previous&&rows.some(([v])=>v===value))field(name).value=value;
+   else if(previous)invalid=true;
+  }
+  function renderFields(project,restore=null){
+   const samples=sampleFields(project);
+   createDialog.querySelector('[data-create-project-fields]').innerHTML=`
+    <label>执行人<select name="executor">${options(samples.executor)}</select></label>
+    <section class="gc-create-automation" data-create-automation role="status" aria-live="polite"></section>
+    <label>父待办<select name="father">${options(samples.father)}</select></label>
+    <fieldset><legend>标签</legend>${samples.tags.map(([id,label])=>`<label class="gc-reuse-setting"><input type="checkbox" name="tags" value="${esc(id)}"><span>${esc(label)}</span></label>`).join('')}</fieldset>`;
+   if(!restore)return;
+   for(const name of ['executor','father']){
+    if(samples[name].some(([v])=>v===restore[name]))field(name).value=restore[name];
+    else invalid=true;
+   }
+   const tags=Array.isArray(restore.tags)?restore.tags:[];
+   form.querySelectorAll('[name=tags]').forEach(el=>{el.checked=tags.includes(el.value);});
+   if(tags.some(id=>!samples.tags.some(([v])=>v===id)))invalid=true;
+  }
+  renderFields(project,validProject?previous:null);
+  createDialog.querySelector('[data-create-restore]').textContent=previous&&!validProject?'上次产品不在当前范围，已使用当前产品；请重新选择执行人、父待办和标签。':invalid?'部分上次选项已不可用，已恢复为可用默认值，请检查后创建。':'';
+  field('project').onchange=()=>{renderFields(field('project').value);updateCreateAutomation();};
+  form.addEventListener('change',updateCreateAutomation);
+  updateCreateAutomation();
+  field('reuse').onchange=()=>{C.state.reuseCreateSettings=field('reuse').checked;C.save();};
   createDialog.querySelector('[data-create-cancel]').onclick=()=>createDialog.close();
-  createDialog.querySelector('form').onsubmit=async e=>{
+  form.onsubmit=async e=>{
    e.preventDefault();if(createBusy)return;
-   const data=new FormData(e.target),content=String(data.get('content')).trim(),project=String(data.get('project'));
+   const data=new FormData(form),content=String(data.get('content')).trim(),project=String(data.get('project'));
    const status=createDialog.querySelector('[data-create-status]');
    if(!content||!C.includes(project)){status.textContent='请填写内容并选择当前范围内的产品。';return;}
    createBusy=true;createDialog.setAttribute('aria-busy','true');
@@ -29,11 +103,13 @@
    await new Promise(resolve=>setTimeout(resolve,150));
    createBusy=false;createDialog.removeAttribute('aria-busy');controls.forEach(e=>e.disabled=false);
    if(C.state.failCreate){status.textContent='创建失败，请重试。已保留输入。';return;}
+   const settings={project,state:String(data.get('state')),executor:String(data.get('executor')),father:String(data.get('father')),tags:data.getAll('tags'),priority:String(data.get('priority'))};
    C.state.pageObjects??={};C.state.pageObjects.Work??=[];
-   C.state.pageObjects.Work.push({id:crypto.randomUUID(),project,name:content,state:data.get('state'),executor:''});C.save();
+   C.state.pageObjects.Work.push({id:crypto.randomUUID(),...settings,name:content});
+   C.state.lastCreatedSettings=settings;C.save();
    createDialog.close();notice.textContent='待办已创建（本地模拟）';
   };
-  createDialog.showModal();createDialog.querySelector('textarea').focus();
+  createDialog.showModal();createDialog.querySelector('textarea').focus({preventScroll:true});createDialog.scrollTop=0;
  }
  createDialog.addEventListener('cancel',e=>{if(createBusy)e.preventDefault();});
  createDialog.addEventListener('close',()=>createTrigger?.focus({preventScroll:true}));

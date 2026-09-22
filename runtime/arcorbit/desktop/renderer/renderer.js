@@ -1,3 +1,5 @@
+import { taskCreationAutomation } from './task-creation-automation.mjs';
+import { taskCreationSettingsKey, taskCreationSelection, readTaskCreationSettings, writeTaskCreationSettings, restoreTaskCreationSettings } from './task-creation-settings.mjs';
 import { executorLabel } from './executor-label.mjs';
 import { defaultWorkFilters } from './task-filter-defaults.mjs';
 import { createChatNativeSurface } from './chat-native-surface.mjs';
@@ -63,7 +65,6 @@ import {
 import {
   canManageProject,
   deriveAutomationGuidance,
-  deriveTaskExecutorAutomationHelp,
   deriveWorkEligibilityGuidance,
   isCurrentProjectUser
 } from "../../src/desktop/today-guidance.mjs";
@@ -465,16 +466,19 @@ async function boot() {
     if (state.todaySetupOperationProjectId) {
       state.todaySetupByProject[state.todaySetupOperationProjectId] = readiness;
       state.todayActionError = "";
+      updateTaskCreationAutomation();
       if (state.page === "today") renderToday();
       return;
     }
     state.setup = readiness;
     state.setupActionError = "";
+    updateTaskCreationAutomation();
     renderSetup();
   });
   api.onAutomationEvent(() => scheduleAutomationRefresh());
   api.onWorkSyncEvent((event) => {
     if (applyWorkSyncHealth(state.snapshot, event)) {
+      updateTaskCreationAutomation();
       renderNavigation(); renderGlobalStatus();
       if (state.page === 'command') renderCommandSyncSummary();
       return;
@@ -1363,6 +1367,9 @@ async function refreshSnapshot({ quiet = false, surface = "all", afterMutation =
       state.workbenchTask = snapshot.tasks.find((task) => String(task.id) === String(state.workbenchTask.id)) || state.workbenchTask;
     }
     state.authentication = authentication;
+    taskCreationSourceReadFailed = false;
+    if (!workSurface) taskCreationSetupChecks.clear();
+    updateTaskCreationAutomation();
     const visibleTasks = state.snapshot.tasks.filter(scopedTaskFilter);
     if (state.selectedTaskId && !visibleTasks.some((task) => String(task.id) === state.selectedTaskId)) {
       state.selectedTaskId = visibleTasks[0]?.id || "";
@@ -1375,6 +1382,10 @@ async function refreshSnapshot({ quiet = false, surface = "all", afterMutation =
     else if (workSurface && state.page === "work") renderWorkSurface();
     else render();
     routeAuthentication();
+  } catch (error) {
+    taskCreationSourceReadFailed = true;
+    updateTaskCreationAutomation();
+    throw error;
   } finally {
     state.refreshing = false;
     finishRefresh();
@@ -1900,6 +1911,7 @@ function chatStatusLabel(status) {
 }
 
 function render() {
+  updateTaskCreationAutomation();
   dismissStaleMemberAddSheet();
   renderPageVisibility();
   renderNavigation();
@@ -4243,11 +4255,24 @@ async function deleteProjectMember(memberId, projectId) {
   await executeManagedAction("project.member.delete", { project_id: projectId, target_user_id: member.user_id }, "项目成员已移除");
 }
 
+function currentTaskCreationSettingsKey() {
+  return taskCreationSettingsKey({ authentication: state.authentication, platform: state.platform, taskSource: state.settings.task_source });
+}
+
 async function createTask(trigger = document.activeElement) {
   if (!state.authentication.authenticated) throw new Error("请在设置中登录 Workshop 后创建待办。");
   const projects = workspaceOptions().filter(project=>includesProject(globalScope(),project.value));
   if (!projects.length) throw new Error("当前范围没有可创建待办的产品，请在顶部管理产品集。");
-  const defaultProjectId = taskCreationDefaultProjectId(projects);
+  taskCreationSetupChecks.clear();
+  const settingsKey = currentTaskCreationSettingsKey();
+  let creationSettings = readTaskCreationSettings(localStorage, settingsKey);
+  const restored = restoreTaskCreationSettings(creationSettings, {
+    projects, defaultProjectId: taskCreationDefaultProjectId(projects),
+    states: taskStateOptions(), priorities: taskPriorityOptions(),
+    candidatesForProject: projectId => ({ executor_id: memberSelectOptions(projectId), father_id: taskSelectOptions(projectId), tag_ids: projectTags(projectId).map(tag => tag.id) })
+  });
+  const defaults = restored.values;
+  const defaultProjectId = defaults.project_id;
   const action = openPlatformAction({
     title: "创建待办",
     lead: "待办写入 Workshop；是否进入 Automation 仍由分配对象、状态和项目授权共同决定。",
@@ -4255,27 +4280,57 @@ async function createTask(trigger = document.activeElement) {
     initialFocus: '[name="content"]',
     returnFocus: trigger,
     fields: [
+      `<section class="task-create-settings"><label class="task-create-reuse"><input data-task-create-reuse type="checkbox" role="switch" aria-describedby="taskCreateReuseHelp" ${creationSettings.enabled ? "checked" : ""} ${settingsKey ? "" : "disabled"}><span><strong>沿用上次创建设置</strong><small id="taskCreateReuseHelp">下次新建时保留其他选项，待办内容留空</small></span></label><p data-task-create-settings-status role="status" ${restored.notice ? "" : "hidden"}>${escapeHtml(restored.notice)}</p></section>`,
       platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
-      platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions(), help: "可直接选择任一待办状态；Automation 只消费创建成功后的状态。" }),
-      taskProjectFields(defaultProjectId, { includeExecutorAutomationHelp: true, taskState: "pending_review" }),
-      platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions(), help: "最高优先处理；无优先级表示创建时不设置该字段。" })
+      platformField("state", "状态", { type: "select", value: defaults.state, options: taskStateOptions() }),
+      taskProjectFields(defaultProjectId, { includeExecutorAutomationHelp: true, taskState: defaults.state }),
+      platformField("priority", "优先级", { type: "select", value: defaults.priority, options: taskPriorityOptions(), help: "最高优先处理；无优先级表示创建时不设置该字段。" })
     ],
     onSubmit: async (rawValues) => {
       const values = normalizeTaskFormValues(rawValues);
       if (!String(values.content || "").trim()) throw new Error("请填写待办内容。");
+      if (!state.authentication.authenticated || settingsKey !== currentTaskCreationSettingsKey()) throw new Error("登录账户已变化，请关闭后重新创建。");
       if (!includesProject(globalScope(), values.project_id)) throw new Error("所选产品已不在当前范围内，请重新选择。");
       await executeManagedAction("task.create", values, "待办已创建", { refresh: false });
+      const warnings = [];
+      // Persist only the submitted selection, after server confirmation and before refresh.
+      // An account change during the request must not save old selections into the new account.
+      if (settingsKey && settingsKey === currentTaskCreationSettingsKey()) {
+        try {
+          const next = { ...creationSettings, last: taskCreationSelection(rawValues) };
+          writeTaskCreationSettings(localStorage, settingsKey, next);
+          creationSettings = next;
+        } catch { warnings.push("创建设置未能保存，下次可能无法沿用"); }
+      }
       try {
         // Refresh shared facts without rebuilding unrelated editors beneath the Sheet.
         await refreshSnapshot({ quiet: true, surface: "work", afterMutation: true, renderCurrentPage: false });
         if (state.page === "work") await refreshWorkQuery({ quiet: true });
       } catch (error) {
-        showToast(`待办已创建，但刷新失败，请使用顶部同步恢复显示：${error?.message || String(error)}`);
+        warnings.push(`刷新失败，请使用顶部同步恢复显示：${error?.message || String(error)}`);
       }
+      if (warnings.length) showToast(`待办已创建；${warnings.join("；")}`);
     }
   });
-  bindTaskFormProjectScope(defaultProjectId, { includeExecutorAutomationHelp: true });
+  bindTaskFormProjectScope(defaultProjectId, { executorId: defaults.executor_id, fatherId: defaults.father_id, tags: defaults.tag_ids, includeExecutorAutomationHelp: true });
+  const reuseSwitch = els.platformActionFields.querySelector('[data-task-create-reuse]');
+  reuseSwitch.disabled = !settingsKey;
+  reuseSwitch.addEventListener("change", () => {
+    const status = els.platformActionFields.querySelector('[data-task-create-settings-status]');
+    try {
+      if (settingsKey !== currentTaskCreationSettingsKey()) throw new Error("登录账户已变化");
+      const next = { ...creationSettings, enabled: reuseSwitch.checked };
+      writeTaskCreationSettings(localStorage, settingsKey, next);
+      creationSettings = next;
+      status.textContent = restored.notice;
+      status.hidden = !restored.notice;
+    } catch {
+      reuseSwitch.checked = creationSettings.enabled;
+      status.textContent = "创建设置未能保存，已恢复原开关状态。请重试。";
+      status.hidden = false;
+    }
+  });
   await action;
 }
 
@@ -4671,6 +4726,7 @@ function closePlatformAction(value) {
   const resolve = platformActionResolver;
   platformActionResolver = null;
   platformActionSubmitter = null;
+  taskCreationSetupChecks.clear();
   clearPlatformActionStatus();
   els.platformActionOverlay.classList.add("hidden");
   const background = document.querySelector(".desktop-app");
@@ -4806,6 +4862,32 @@ function platformCheckboxGroup(name, label, options) {
   return `<fieldset class="platform-action-field platform-checkbox-group" data-multiple-field="${escapeHtml(name)}"><legend>${escapeHtml(label)}</legend>${options.length ? options.map((option) => `<label><input name="${escapeHtml(name)}" type="checkbox" value="${escapeHtml(option.value)}" ${option.checked ? "checked" : ""}><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.detail || "")}</small></span></label>`).join("") : `<div class="empty-state compact">尚无可访问项目。</div>`}</fieldset>`;
 }
 
+let taskCreationSourceReadFailed = false;
+const taskCreationSetupChecks = new Map();
+function updateTaskCreationAutomation() {
+  const host = els.platformActionFields?.querySelector('[data-task-create-automation]');
+  if (!host || els.platformActionOverlay.classList.contains('hidden')) return;
+  const field = name => els.platformActionForm.elements.namedItem(name)?.value || '';
+  const projectId = field('project_id');
+  const project = (state.snapshot.projects || []).find(p => String(p.id) === projectId);
+  const setupKey = JSON.stringify([currentTaskCreationSettingsKey(), projectId, project?.local_project_id, project?.local_project_path]);
+  let check = taskCreationSetupChecks.get(setupKey);
+  if (!check && project?.local_project_id && project?.local_project_path) {
+    check = { result: {} };
+    taskCreationSetupChecks.set(setupKey, check);
+    const entry = check;
+    Promise.resolve().then(() => api.checkSetupReadiness({ projectId: project.local_project_id }))
+      .then(readiness => { entry.result = readiness || {}; })
+      .catch(() => { entry.result = {}; })
+      .finally(() => { if (taskCreationSetupChecks.get(setupKey) === entry) updateTaskCreationAutomation(); });
+  }
+  const hint = taskCreationAutomation({ projectId, taskState: field('state'), executorId: field('executor_id'),
+    platform: state.platform, automation: state.snapshot, authentication: state.authentication,
+    setup: check?.result || {}, sourceReadFailed: taskCreationSourceReadFailed });
+  const html = `<strong class="task-create-automation-badge" data-tone="${hint.tone}">${hint.tone === 'success' ? '✓ ' : ''}${escapeHtml(hint.label)}</strong><p>${escapeHtml(hint.message)}</p>`;
+  if (host.innerHTML !== html) host.innerHTML = html;
+}
+
 function taskProjectFields(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "", includeFather = true, includeExecutorAutomationHelp = false, taskState = "" } = {}) {
   return `<div class="task-project-fields" data-task-project-fields data-project-id="${escapeHtml(projectId)}">${taskProjectFieldControls(projectId, { executorId, fatherId, excludedTaskId, tags, includeFather, includeExecutorAutomationHelp, taskState })}</div>`;
 }
@@ -4816,8 +4898,9 @@ function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", e
       type: "select",
       value: executorId,
       options: memberSelectOptions(projectId),
-      help: includeExecutorAutomationHelp ? deriveTaskExecutorAutomationHelp({ executorId, currentUserId: projectCurrentUserExecutorId(projectId), state: taskState }) : ""
+      help: ""
     }),
+    ...(includeExecutorAutomationHelp ? [`<section class="task-create-automation" data-task-create-automation role="status" aria-live="polite"></section>`] : []),
     ...(includeFather ? [platformField("father_id", "父待办", { type: "select", value: fatherId, options: taskSelectOptions(projectId, excludedTaskId) })] : []),
     taskTagField(projectId, tags)
   ].join("");
@@ -4831,15 +4914,7 @@ function bindTaskFormProjectScope(defaultProjectId, initial = {}) {
   const projectInitial = { ...initial };
   delete projectInitial.includeExecutorAutomationHelp;
   const updateExecutorAutomationHelp = () => {
-    if (!includeExecutorAutomationHelp) return;
-    const executorSelect = els.platformActionForm.querySelector('[name="executor_id"]');
-    const help = executorSelect?.closest(".platform-action-field")?.querySelector("small");
-    if (!executorSelect || !help) return;
-    help.textContent = deriveTaskExecutorAutomationHelp({
-      executorId: executorSelect.value,
-      currentUserId: projectCurrentUserExecutorId(projectSelect.value),
-      state: stateSelect?.value || ""
-    });
+    if (includeExecutorAutomationHelp) updateTaskCreationAutomation();
   };
   const bindExecutorAutomationHelp = () => {
     if (!includeExecutorAutomationHelp) return;

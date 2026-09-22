@@ -1477,3 +1477,17 @@ dialog.app-dialog [hidden] { display: none !important; }
 .execution-history-item p { margin: 6px 0 0; font-size: 12px; opacity: .75; }
 .execution-history-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 @media (max-width: 900px) { .execution-history-item { align-items: flex-start; flex-direction: column; } }
+
+/* Ordinary task creation preferences stay local and outside the API payload. */
+.task-create-settings { grid-column: 1 / -1; }
+.task-create-reuse { display: flex; align-items: center; gap: 10px; min-height: 36px; cursor: pointer; }
+.task-create-reuse input { width: 18px; height: 18px; flex: none; accent-color: var(--colors-accent-strong); }
+.task-create-reuse strong { display: block; font-size: var(--type-body); color: var(--semantic-text); }
+.task-create-reuse small, .task-create-settings p { display: block; margin: 4px 0 0; font-size: var(--type-body); color: var(--semantic-muted); font-weight: 450; }
+.task-create-settings p[hidden] { display: none; }
+
+.task-create-automation { grid-column:1 / -1; padding:12px 0; border-block:1px solid var(--semantic-divider); }
+.task-create-automation p { margin:8px 0 0; font-size:13px; line-height:1.6; color:var(--semantic-muted); }
+.task-create-automation-badge { display:inline-block; padding:3px 8px; border-radius:6px; font-size:13px; color:var(--semantic-text); background:var(--semantic-chrome); }
+.task-create-automation-badge[data-tone="success"] { color:var(--colors-success-base); background:var(--colors-success-soft); }
+.task-create-automation-badge[data-tone="warning"] { color:var(--colors-warning-strong); background:var(--colors-warning-soft); }
