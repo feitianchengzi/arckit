@@ -79,10 +79,12 @@ func main() {
 	log.Printf("Available auth levels: public, user, apikey")
 
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      r,
+		Addr:    addr,
+		Handler: r,
+		// 读超时保持紧凑（请求体很小）；写超时放宽以支撑 Agent 问答等
+		// 同步 LLM 长调用（OpenHands + DeepSeek 可达 1-2 分钟）。
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 300 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 

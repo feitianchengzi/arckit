@@ -35,6 +35,9 @@ services:
       - DB_PORT=5432      # Docker 网络内部端口
     ports:
       - "${PORT:-8081}:${PORT:-8081}"
+    volumes:
+      # 挂载宿主机项目路径到容器内，供代码索引使用
+      - /Users/zqs/Downloads/project/arckit:/repo/arckit:ro
     depends_on:
       postgres:
         condition: service_healthy

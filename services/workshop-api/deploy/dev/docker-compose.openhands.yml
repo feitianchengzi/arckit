@@ -9,6 +9,7 @@ services:
     environment:
       - OH_SESSION_API_KEYS_0=${OH_SESSION_API_KEYS_0:-$(openssl rand -hex 32)}
       - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
       - LLM_MODEL=${LLM_MODEL:-anthropic/claude-sonnet-4-5-20250929}
       - OH_PERSISTENCE_DIR=/home/openhands/.openhands
       - SANDBOX_VOLUMES=/projects:/projects:ro

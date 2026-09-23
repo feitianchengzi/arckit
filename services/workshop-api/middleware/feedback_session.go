@@ -67,3 +67,19 @@ func RequireFeedbackSessionScope(c *gin.Context) (FeedbackSessionScope, bool) {
 	c.JSON(http.StatusUnauthorized, response.NewErrorResponse(response.CodeUnauthorized, "缺少有效的反馈会话范围", nil))
 	return FeedbackSessionScope{}, false
 }
+
+// TryFeedbackSessionScope returns the gateway-injected feedback session scope
+// without writing an error response. Used by WebSocket handshake auth where the
+// caller wants to control the 401 response itself and must not emit a 500 when
+// the gateway secret is simply not configured for that deployment.
+func TryFeedbackSessionScope(c *gin.Context) (FeedbackSessionScope, bool) {
+	value, ok := c.Get(feedbackSessionScopeKey)
+	if !ok {
+		return FeedbackSessionScope{}, false
+	}
+	scope, ok := value.(FeedbackSessionScope)
+	if !ok || scope.ProjectID == 0 || scope.CustomUserID == "" || scope.SessionID == "" {
+		return FeedbackSessionScope{}, false
+	}
+	return scope, true
+}

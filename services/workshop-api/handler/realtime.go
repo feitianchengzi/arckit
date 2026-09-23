@@ -53,6 +53,112 @@ func websocketSubprotocols(r *http.Request) []string {
 	return protocols
 }
 
+// ConnectFeedbackSDKWebsocket upgrades a WebSocket connection for the embedded
+// Feedback SDK (V2 session mode). Unlike ConnectProjectWebsocket, the SDK runs
+// in a browser iframe/WebView and cannot set custom Authorization headers on the
+// WebSocket handshake, so the feedback session token is carried in the
+// Sec-WebSocket-Protocol field as "nebula-auth.<token>". workshop-api verifies
+// the self-signed fbs_ token itself (no gateway header injection required),
+// derives the project scope, and joins the same project room so the SDK receives
+// "feedback.message.created" broadcasts alongside the desktop/console clients.
+// Websocket route: GET /{service}/v2/feedback/projects/:id/ws
+func ConnectFeedbackSDKWebsocket(c *gin.Context) {
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库连接未初始化"})
+		return
+	}
+
+	scope, ok := resolveFeedbackSDKWebsocketScope(c)
+	if !ok {
+		return
+	}
+	projectID := scope.ProjectID
+
+	upgrader := wsUpgrader
+	upgrader.Subprotocols = websocketSubprotocols(c.Request)
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+
+	// SDK session 客户没有内部 userID，仅按 projectID 入房；actor 置空。
+	client := realtime.NewClient(conn, 0)
+	realtime.DefaultHub.Join(projectID, client)
+	defer func() {
+		realtime.DefaultHub.Leave(projectID, client)
+		client.Close()
+	}()
+
+	store := realtime.DefaultStore
+	if store == nil {
+		store = realtime.NewStore(db)
+	}
+	earliestID, latestID, err := store.Bounds(projectID)
+	if err != nil {
+		return
+	}
+	connected := realtime.Event{SchemaVersion: realtime.EventSchemaVersion, Event: "system.connected", ProjectID: projectID, Actor: realtime.Actor{}, OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Data: gin.H{
+		"message":           "connected",
+		"earliest_event_id": earliestID,
+		"latest_event_id":   latestID,
+	}}
+	done := make(chan struct{})
+	go func() {
+		_ = client.WritePump(wsPingPeriod, connected)
+		close(done)
+		client.Close()
+	}()
+
+	conn.SetReadLimit(wsReadLimit)
+	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
+
+	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
+		if _, _, err := conn.ReadMessage(); err != nil {
+			break
+		}
+	}
+}
+
+// resolveFeedbackSDKWebsocketScope resolves the feedback session scope for a
+// SDK WebSocket handshake. It prefers a token carried in the
+// "nebula-auth.<token>" WebSocket subprotocol (browser WebSocket cannot set
+// Authorization headers), and falls back to gateway-injected scope headers
+// when the gateway already validated the session.
+func resolveFeedbackSDKWebsocketScope(c *gin.Context) (middleware.FeedbackSessionScope, bool) {
+	// 1) Subprotocol 携带的 session token：workshop-api 自验证。
+	for _, protocol := range websocket.Subprotocols(c.Request) {
+		protocol = strings.TrimSpace(protocol)
+		if !strings.HasPrefix(protocol, wsAuthSubprotocolPrefix) {
+			continue
+		}
+		token := strings.TrimPrefix(protocol, wsAuthSubprotocolPrefix)
+		if token == "" {
+			continue
+		}
+		scope, err := verifyFeedbackSessionToken(token, time.Now())
+		if err == nil {
+			return scope, true
+		}
+	}
+
+	// 2) 网关已校验并注入 scope header 的场景（session 模式）。
+	if scope, ok := middleware.TryFeedbackSessionScope(c); ok {
+		return scope, true
+	}
+
+	c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少有效的反馈会话凭证"})
+	return middleware.FeedbackSessionScope{}, false
+}
+
 // ConnectProjectWebsocket upgrades the connection and joins the project room.
 // Websocket route: GET /{service}/v1/{auth_level}/projects/:id/ws
 func ConnectProjectWebsocket(c *gin.Context) {

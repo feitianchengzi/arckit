@@ -32,7 +32,18 @@ func NotifyDeliveryHandler(c *gin.Context) {
 		return
 	}
 
-	userID, ok := requireFeedbackTriagePermission(c, db, 0, "发送交付通知")
+	// 先查询反馈获取 projectID，再执行鉴权
+	var feedback models.Feedback
+	if err := db.First(&feedback, feedbackID).Error; err != nil {
+		if gorm.ErrRecordNotFound == err {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeFeedbackNotFound, "反馈不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈失败: "+err.Error(), nil))
+		return
+	}
+
+	userID, ok := requireFeedbackTriagePermission(c, db, feedback.ProjectID, "发送交付通知")
 	if !ok {
 		return
 	}
@@ -41,17 +52,6 @@ func NotifyDeliveryHandler(c *gin.Context) {
 	var req DeliveryNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
-		return
-	}
-
-	// 查询反馈
-	var feedback models.Feedback
-	if err := db.First(&feedback, feedbackID).Error; err != nil {
-		if gorm.ErrRecordNotFound == err {
-			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeFeedbackNotFound, "反馈不存在", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈失败: "+err.Error(), nil))
 		return
 	}
 

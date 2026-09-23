@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"todo/middleware"
 	"todo/models"
 	"todo/response"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -154,8 +156,8 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 		db.Model(&src).Update("status", models.KnowledgeSourceStatusIndexing)
 	}
 
-	// 清除旧的 chunks
-	db.Where("project_id = ? AND source_id = ?", projectID, src.ID).Delete(&models.CodeChunk{})
+	// 注意：不在这里提前删除旧 chunks。删除与插入将在同一事务中原子完成，
+	// 检索查询在提交前始终看到旧索引，消除重建窗口内的空结果（"一会有内容一会没内容"）。
 
 	config := DefaultCodeIndexConfig()
 
@@ -165,6 +167,17 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 		absPath string
 	}
 	var files []fileEntry
+
+	// 路径缺失不得静默当"0文件"：Walk 对根不存在直接失败且 err 被吞，
+	// 此前会走 len(files)==0 分支标成伪 synced，检索永远为空。
+	if strings.TrimSpace(repo.RepoPath) == "" {
+		failCodeIndexSource(db, src, "仓库路径为空，无法索引")
+		return
+	}
+	if fi, err := os.Stat(repo.RepoPath); err != nil || !fi.IsDir() {
+		failCodeIndexSource(db, src, fmt.Sprintf("仓库路径不存在或不是目录: %s", repo.RepoPath))
+		return
+	}
 
 	_ = filepath.Walk(repo.RepoPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -186,11 +199,7 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 	})
 
 	if len(files) == 0 {
-		now := time.Now()
-		db.Model(&src).Updates(map[string]interface{}{
-			"status":          models.KnowledgeSourceStatusSynced,
-			"last_indexed_at": &now,
-		})
+		failCodeIndexSource(db, src, fmt.Sprintf("未扫描到可索引文件（路径: %s）", repo.RepoPath))
 		return
 	}
 
@@ -214,13 +223,7 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 	// 批量获取 embeddings
 	embeddings, err := batchEmbed(allTexts, config)
 	if err != nil {
-		now := time.Now()
-		errStr := err.Error()
-		db.Model(&src).Updates(map[string]interface{}{
-			"status":           models.KnowledgeSourceStatusSyncFailed,
-			"last_index_error": &errStr,
-			"last_indexed_at":  &now,
-		})
+		failCodeIndexSource(db, src, err.Error())
 		return
 	}
 
@@ -241,16 +244,27 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 		allChunks = append(allChunks, chunk)
 	}
 
-	// 批量插入（每 50 条一批）
-	batchSize := 50
-	for i := 0; i < len(allChunks); i += batchSize {
-		end := i + batchSize
-		if end > len(allChunks) {
-			end = len(allChunks)
+	// 原子重建：删除旧索引与写入新索引在同一事务内完成。
+	// 事务失败自动回滚，保留旧索引可用（而非先删后插留下的空窗或半截数据）。
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("project_id = ? AND source_id = ?", projectID, src.ID).Delete(&models.CodeChunk{}).Error; err != nil {
+			return err
 		}
-		if err := db.Create(allChunks[i:end]).Error; err != nil {
-			continue
+		batchSize := 50
+		for i := 0; i < len(allChunks); i += batchSize {
+			end := i + batchSize
+			if end > len(allChunks) {
+				end = len(allChunks)
+			}
+			if err := tx.Create(allChunks[i:end]).Error; err != nil {
+				return err
+			}
 		}
+		return nil
+	}); err != nil {
+		log.Printf("[code-index] rebuild transaction failed project=%d repo=%d: %v", projectID, repo.ID, err)
+		failCodeIndexSource(db, src, err.Error())
+		return
 	}
 
 	now := time.Now()
@@ -258,6 +272,30 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 		"status":          models.KnowledgeSourceStatusSynced,
 		"last_indexed_at": &now,
 	})
+	// 索引成功后把 repo 从 syncing 收口为 ready。
+	db.Model(&CustomerCodeRepo{}).Where("id = ?", repo.ID).
+		Update("status", "ready")
+}
+
+// failCodeIndexSource 将索引失败写入 knowledge_source（状态 + 原因 + 时间）。
+// 失败必须可观测，禁止静默伪 synced；同时把 repo 状态收口为 error。
+func failCodeIndexSource(db *gorm.DB, src models.KnowledgeSource, reason string) {
+	now := time.Now()
+	errStr := reason
+	log.Printf("[code-index] source=%s failed: %s", src.Name, reason)
+	db.Model(&src).Updates(map[string]interface{}{
+		"status":           models.KnowledgeSourceStatusSyncFailed,
+		"last_index_error": &errStr,
+		"last_indexed_at":  &now,
+	})
+	if src.ProjectID != nil {
+		// code-repo-{id} 命名约定：从 source 反推 repo 并收口状态。
+		var repoID uint
+		if _, err := fmt.Sscanf(src.Name, "code-repo-%d", &repoID); err == nil && repoID > 0 {
+			db.Model(&CustomerCodeRepo{}).Where("id = ?", repoID).
+				Update("status", "error")
+		}
+	}
 }
 
 // chunkedSymbol 分块结果
@@ -485,6 +523,7 @@ func batchEmbed(texts []string, config CodeIndexConfig) ([][]float64, error) {
 		resp, err := client.Post(embedURL, "application/json", bytes.NewReader(jsonPayload))
 		if err != nil {
 			// 降级：生成伪 embedding（基于文本哈希的确定性向量）
+			log.Printf("[code-index] embedding service unreachable, falling back to pseudo embeddings: %v", err)
 			for range batch {
 				allEmbeddings = append(allEmbeddings, generatePseudoEmbedding())
 			}
@@ -495,6 +534,7 @@ func batchEmbed(texts []string, config CodeIndexConfig) ([][]float64, error) {
 		body, _ := io.ReadAll(resp.Body)
 		var embResp EmbeddingServiceEmbedResponse
 		if err := json.Unmarshal(body, &embResp); err != nil {
+			log.Printf("[code-index] embedding response decode failed, falling back to pseudo embeddings: %v", err)
 			for range batch {
 				allEmbeddings = append(allEmbeddings, generatePseudoEmbedding())
 			}
@@ -552,14 +592,28 @@ func SearchCodeChunksHandler(c *gin.Context) {
 	// 获取查询的 embedding
 	queryEmb, err := batchEmbed([]string{req.Query}, config)
 	if err != nil || len(queryEmb) == 0 {
-		// 降级：文本匹配搜索
-		results := searchCodeChunksBySQL(db, projectID, req.Query, req.Limit)
+		// 降级：文本匹配搜索（SQL 失败必须上抛，不得吞成空命中）
+		results, searchErr := searchCodeChunksBySQL(db, projectID, req.Query, req.Limit)
+		if searchErr != nil {
+			log.Printf("[code-index] search-by-sql failed project=%d: %v", projectID, searchErr)
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(
+				response.CodeFeedbackQueryFailed,
+				"知识库检索失败（索引表不可用）: "+searchErr.Error(), nil))
+			return
+		}
 		c.JSON(http.StatusOK, response.NewSuccessResponse(results))
 		return
 	}
 
 	// 向量相似度搜索
-	results := searchCodeChunksByVector(db, projectID, queryEmb[0], req.Limit)
+	results, searchErr := searchCodeChunksByVector(db, projectID, queryEmb[0], req.Limit)
+	if searchErr != nil {
+		log.Printf("[code-index] search-by-vector failed project=%d: %v", projectID, searchErr)
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(
+			response.CodeFeedbackQueryFailed,
+			"知识库检索失败（索引表不可用）: "+searchErr.Error(), nil))
+		return
+	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(results))
 }
 
@@ -575,31 +629,25 @@ type CodeChunkResult struct {
 	Score      float64 `json:"score"`
 }
 
-// searchCodeChunksByVector 向量相似度搜索
-func searchCodeChunksByVector(db *gorm.DB, projectID uint, queryEmb []float64, limit int) []CodeChunkResult {
+// searchCodeChunksByVector 向量相似度搜索。
+// DB 错误必须上抛：此前 return nil 被 Handler 包成 200 空结果，前端只能显示"未命中"。
+func searchCodeChunksByVector(db *gorm.DB, projectID uint, queryEmb []float64, limit int) ([]CodeChunkResult, error) {
 	var chunks []models.CodeChunk
 	if err := db.Where("project_id = ?", projectID).Find(&chunks).Error; err != nil {
-		return nil
+		return nil, err
 	}
 
-	type scored struct {
-		chunk models.CodeChunk
-		score float64
-	}
-
-	var scoredChunks []scored
+	var scoredChunks []scoredChunk
 	for _, ch := range chunks {
 		var emb []float64
 		if err := json.Unmarshal([]byte(ch.Embedding), &emb); err != nil {
 			continue
 		}
 		sim := cosineSimilarity(queryEmb, emb)
-		scoredChunks = append(scoredChunks, scored{chunk: ch, score: sim})
+		scoredChunks = append(scoredChunks, scoredChunk{chunk: ch, score: sim})
 	}
 
-	sort.Slice(scoredChunks, func(i, j int) bool {
-		return scoredChunks[i].score > scoredChunks[j].score
-	})
+	sortScoredChunks(scoredChunks)
 
 	if len(scoredChunks) > limit {
 		scoredChunks = scoredChunks[:limit]
@@ -623,17 +671,35 @@ func searchCodeChunksByVector(db *gorm.DB, projectID uint, queryEmb []float64, l
 		})
 	}
 
-	return results
+	return results, nil
 }
 
-// searchCodeChunksBySQL 降级：SQL LIKE 搜索
-func searchCodeChunksBySQL(db *gorm.DB, projectID uint, query string, limit int) []CodeChunkResult {
+// searchCodeChunksBySQL 降级：SQL LIKE 搜索。
+// 规格（retrieval 稳定性）：
+// - 整段反馈正文不可直接 LIKE（恒不命中）→ localSearchTerms 切词；
+// - LIKE 通配符必须转义（escapeLike），否则 %/_ 导致误命中或全表扫；
+// - 必须确定性排序（ORDER BY id ASC），否则 LIMIT 结果抖动；
+// - DB 错误必须上抛，禁止吞成空命中。
+func searchCodeChunksBySQL(db *gorm.DB, projectID uint, query string, limit int) ([]CodeChunkResult, error) {
+	terms := localSearchTerms(query)
+	if len(terms) == 0 {
+		return nil, nil
+	}
+
+	conds := []string{"project_id = ?"}
+	args := []interface{}{projectID}
+	for _, term := range terms {
+		pattern := "%" + escapeLike(term) + "%"
+		conds = append(conds, "(chunk_text LIKE ? OR symbol_name LIKE ? OR file_path LIKE ?)")
+		args = append(args, pattern, pattern, pattern)
+	}
+
 	var chunks []models.CodeChunk
-	likeQuery := "%" + query + "%"
-	if err := db.Where("project_id = ? AND (chunk_text LIKE ? OR symbol_name LIKE ? OR file_path LIKE ?)",
-		projectID, likeQuery, likeQuery, likeQuery).
-		Limit(limit).Find(&chunks).Error; err != nil {
-		return nil
+	if err := db.Where(strings.Join(conds, " AND "), args...).
+		Order("id ASC").
+		Limit(limit).
+		Find(&chunks).Error; err != nil {
+		return nil, err
 	}
 
 	var results []CodeChunkResult
@@ -658,7 +724,79 @@ func searchCodeChunksBySQL(db *gorm.DB, projectID uint, query string, limit int)
 		})
 	}
 
-	return results
+	return results, nil
+}
+
+// escapeLike 转义 LIKE 模式中的通配符与转义符本身。
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// localSearchTermMaxRunes 单个查询词最大长度（整段正文切片，避免整段 LIKE 恒不命中）。
+const localSearchTermMaxRunes = 32
+
+// localSearchTermMaxCount 参与 OR LIKE 的最大词数（控制 SQL 体积）。
+const localSearchTermMaxCount = 5
+
+// localSearchTerms 从原始 query（可能是整段反馈正文）提取用于本地 LIKE 检索的词/短语。
+// 按空白与中英文标点切分，丢弃单字符碎片，超长片段截断；同一输入结果确定。
+func localSearchTerms(query string) []string {
+	normalized := strings.TrimSpace(query)
+	if normalized == "" {
+		return nil
+	}
+
+	fields := strings.FieldsFunc(normalized, func(r rune) bool {
+		if unicode.IsSpace(r) {
+			return true
+		}
+		return strings.ContainsRune("，。？！、；：,.?!;:\"'“”‘’（）()【】[]《》<>~…—-_/#&@*", r)
+	})
+
+	terms := make([]string, 0, localSearchTermMaxCount)
+	seen := make(map[string]bool, localSearchTermMaxCount)
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		runes := []rune(field)
+		if len(runes) > localSearchTermMaxRunes {
+			field = string(runes[:localSearchTermMaxRunes])
+		}
+		if len([]rune(field)) < 2 {
+			continue
+		}
+		if seen[field] {
+			continue
+		}
+		seen[field] = true
+		terms = append(terms, field)
+		if len(terms) >= localSearchTermMaxCount {
+			break
+		}
+	}
+	if len(terms) == 0 {
+		return nil
+	}
+	return terms
+}
+
+// scoredChunk 向量检索打分中间结果
+type scoredChunk struct {
+	chunk models.CodeChunk
+	score float64
+}
+
+// sortScoredChunks 分数降序；同分按 chunk ID 升序 tie-break。
+// 全序比较保证同一数据集输出唯一，消除"一会有内容一会没内容"的排序抖动。
+func sortScoredChunks(items []scoredChunk) {
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].score != items[j].score {
+			return items[i].score > items[j].score
+		}
+		return items[i].chunk.ID < items[j].chunk.ID
+	})
 }
 
 // cosineSimilarity 计算余弦相似度
