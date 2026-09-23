@@ -148,11 +148,14 @@ private enum FeedbackThemeStorage {
 private enum FeedbackWebConfig {
     // Load the deployed SPA entry. Direct /sdk/submit and /sdk/status are history routes
     // and can 404 on OSS before the React app has a chance to handle them.
+    // 外部客户封装时请将此地址替换为自己部署的 SDK 入口。
     static let sdkEntryURL = URL(string: "https://feedback.feitianchengzi.com/sdk/index.html")!
 
     // 如需在 iOS 端直接注入配置，填入值即可；留空则只做纯展示。
-    static let apiKey: String? = "ak_633eab98dd6fcfea50f433ed01534be2f769598f5ebf4f23ef6540ec2470b2cd"
-    static let projectId: Int? = 85
+    // ⚠️ 请勿提交真实凭证：apiKey 与 projectId 应由宿主 App 在运行时注入，
+    //    推荐使用 session 模式（宿主后端创建 fbs_ token）以避免在客户端暴露长期 apiKey。
+    static let apiKey: String? = nil  // 例：从安全配置服务动态拉取
+    static let projectId: Int? = nil   // 例：从 App 配置注入
     static let customUserId: String? = FeedbackGuestIdentity.resolveCustomUserId()
 }
 

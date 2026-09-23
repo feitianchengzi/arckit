@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArcOrbit - 智能客服对话</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --bg: #F9FAFB;
+      --card-bg: #FFFFFF;
+      --text-primary: #111827;
+      --text-secondary: #6B7280;
+      --border: #E5E7EB;
+      --success: #10B981;
+      --user-bubble: #4F46E5;
+      --agent-bubble: #F3F4F6;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.6;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 对话窗口容器 */
+    .chat-widget {
+      width: 100%;
+      height: 100vh;
+      background: var(--card-bg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 头部 */
+    .chat-header {
+      background: var(--primary);
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .chat-header-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .chat-header-info {
+      flex: 1;
+    }
+
+    .chat-header-title {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .chat-header-status {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    .chat-header-close {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 4px;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .chat-header-close:hover {
+      opacity: 1;
+    }
+
+    /* 消息区域 */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 消息气泡 */
+    .message {
+      display: flex;
+      gap: 8px;
+      max-width: 85%;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .message.user .message-avatar {
+      background: var(--user-bubble);
+      color: white;
+    }
+
+    .message.agent .message-avatar {
+      background: var(--agent-bubble);
+      color: var(--text-primary);
+    }
+
+    .message-content {
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .message.user .message-content {
+      background: var(--user-bubble);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.agent .message-content {
+      background: var(--agent-bubble);
+      color: var(--text-primary);
+      border-bottom-left-radius: 4px;
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .message.user .message-time {
+      text-align: right;
+    }
+
+    /* 输入区域 */
+    .chat-input {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      background: var(--card-bg);
+    }
+
+    .chat-input-wrapper {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .chat-input-field {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 10px 16px;
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      max-height: 100px;
+      transition: border-color 0.2s;
+    }
+
+    .chat-input-field:focus {
+      border-color: var(--primary);
+    }
+
+    .chat-input-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .chat-input-btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .chat-input-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .chat-input-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 6px;
+    }
+
+    .escalate-btn {
+      background: #FEF3C7;
+      color: #92400E;
+      border: 1px solid #FCD34D;
+      border-radius: 14px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .escalate-btn:hover {
+      background: #FDE68A;
+    }
+
+    .escalate-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .chat-input-btn:disabled {
+      background: #D1D5DB;
+      cursor: not-allowed;
+    }
+
+    /* 加载动画 */
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 12px 16px;
+      background: var(--agent-bubble);
+      border-radius: 16px;
+      border-bottom-left-radius: 4px;
+      width: fit-content;
+    }
+
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      background: #9CA3AF;
+      border-radius: 50%;
+      animation: typing 1.4s infinite ease-in-out;
+    }
+
+    .typing-dot:nth-child(1) { animation-delay: 0s; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-4px); }
+    }
+
+    /* 欢迎消息 */
+    .welcome-message {
+      text-align: center;
+      padding: 20px;
+      color: var(--text-secondary);
+    }
+
+    .welcome-message h3 {
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    /* 快捷操作 */
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .quick-action-btn {
+      padding: 6px 12px;
+      background: var(--agent-bubble);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-action-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    /* 错误消息 */
+    .error-message {
+      background: #FEE2E2;
+      color: #DC2626;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    /* 滚动条样式 */
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: #D1D5DB;
+      border-radius: 3px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background: #9CA3AF;
+    }
+
+    /* Markdown 样式 */
+    .markdown-content {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .markdown-content h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 16px 0 8px 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .markdown-content h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 14px 0 6px 0;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .markdown-content h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 12px 0 4px 0;
+    }
+
+    .markdown-content h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 10px 0 4px 0;
+    }
+
+    .markdown-content p {
+      margin: 8px 0;
+    }
+
+    .markdown-content ul, .markdown-content ol {
+      margin: 8px 0;
+      padding-left: 24px;
+    }
+
+    .markdown-content li {
+      margin: 4px 0;
+    }
+
+    .markdown-content code {
+      background: #E5E7EB;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+      font-size: 13px;
+    }
+
+    .markdown-content pre {
+      background: #1F2937;
+      color: #F9FAFB;
+      padding: 12px 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .markdown-content pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+      font-size: 13px;
+    }
+
+    .markdown-content blockquote {
+      border-left: 4px solid var(--primary);
+      padding-left: 12px;
+      margin: 8px 0;
+      color: var(--text-secondary);
+    }
+
+    .markdown-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0;
+    }
+
+    .markdown-content th, .markdown-content td {
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    .markdown-content th {
+      background: var(--agent-bubble);
+      font-weight: 600;
+    }
+
+    .markdown-content strong {
+      font-weight: 600;
+    }
+
+    .markdown-content a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .markdown-content a:hover {
+      text-decoration: underline;
+    }
+
+    .markdown-content hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 12px 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- 对话窗口（默认显示） -->
+  <div class="chat-widget" id="chatWidget">
+    <!-- 头部 -->
+    <div class="chat-header">
+      <div class="chat-header-avatar">🤖</div>
+      <div class="chat-header-info">
+        <div class="chat-header-title">小橙 · ArcOrbit 智能客服</div>
+        <div class="chat-header-status">在线</div>
+      </div>
+      <button class="chat-header-close" onclick="window.close()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- 消息区域 -->
+    <div class="chat-messages" id="chatMessages">
+      <div class="welcome-message">
+        <h3>👋 你好！</h3>
+        <p>我是小橙，ArcOrbit 平台的智能客服，有什么可以帮你的吗？</p>
+        <div class="quick-actions">
+          <button class="quick-action-btn" onclick="sendQuickMessage('我想咨询订单系统的问题')">订单问题</button>
+          <button class="quick-action-btn" onclick="sendQuickMessage('如何使用项目管理功能？')">功能咨询</button>
+          <button class="quick-action-btn" onclick="sendQuickMessage('我遇到了一个 Bug')">Bug 反馈</button>
+          <button class="quick-action-btn" onclick="sendQuickMessage('希望增加新功能')">功能建议</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="chat-input">
+      <div class="chat-input-toolbar">
+        <button class="escalate-btn" id="escalateBtn" onclick="escalateToHuman()" title="无法解决时转人工">
+          转人工
+        </button>
+      </div>
+      <div class="chat-input-wrapper">
+        <textarea
+          class="chat-input-field"
+          id="chatInput"
+          placeholder="输入你的问题..."
+          rows="1"
+          onkeydown="handleKeyDown(event)"
+          oncompositionstart="handleCompositionStart()"
+          oncompositionend="handleCompositionEnd()"
+        ></textarea>
+        <button class="chat-input-btn" id="sendBtn" onclick="sendMessage()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 配置
+    const API_BASE = 'http://localhost:8081';
+    const USER_ID = '11111111-1111-1111-1111-111111111111';
+    const USERNAME = 'demo-user';
+    const PROJECT_ID = 13;  // Arckit 智能客服演示项目
+    const CUSTOM_USER_ID = 'user_demo_001';
+
+    let currentFeedbackId = null;
+    let isLoading = false;
+    let lastMessageId = 0;
+    let pollTimer = null;
+    const renderedMsgs = new Set(); // 去重：sender|content
+
+    // 初始化
+    async function initChat() {
+      const savedFeedbackId = localStorage.getItem(`feedback_${CUSTOM_USER_ID}_${PROJECT_ID}`);
+      if (savedFeedbackId) {
+        currentFeedbackId = Number(savedFeedbackId);
+        await loadHistory(currentFeedbackId);
+        startPolling();
+      }
+    }
+
+    // 全量加载历史（初始化用）
+    async function loadHistory(feedbackId) {
+      try {
+        const response = await fetch(`${API_BASE}/workshop/v2/user/feedbacks/${feedbackId}/agent-messages`, {
+          headers: { 'X-User-ID': USER_ID, 'X-User-Username': USERNAME }
+        });
+        const data = await response.json();
+        if (data.code === 'OK' && Array.isArray(data.data) && data.data.length > 0) {
+          const messagesContainer = document.getElementById('chatMessages');
+          messagesContainer.innerHTML = '';
+          for (const msg of data.data) {
+            const type = msg.sender === 'customer' ? 'user' : msg.sender;
+            appendMessage(type, msg.content, false);
+            renderedMsgs.add(`${type}|${msg.content}`);
+          }
+          lastMessageId = data.data[data.data.length - 1].id;
+        }
+      } catch (_) {}
+    }
+
+    // 轮询新消息（增量）
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(async () => {
+        if (!currentFeedbackId) return;
+        try {
+          const response = await fetch(`${API_BASE}/workshop/v2/user/feedbacks/${currentFeedbackId}/agent-messages`, {
+            headers: { 'X-User-ID': USER_ID, 'X-User-Username': USERNAME }
+          });
+          const data = await response.json();
+          if (data.code !== 'OK' || !Array.isArray(data.data)) return;
+          for (const msg of data.data) {
+            if (msg.id > lastMessageId) {
+              const type = msg.sender === 'customer' ? 'user' : msg.sender;
+              const key = `${type}|${msg.content}`;
+              if (!renderedMsgs.has(key)) {
+                appendMessage(type, msg.content, false);
+                renderedMsgs.add(key);
+              }
+              lastMessageId = msg.id;
+            }
+          }
+        } catch (_) {}
+      }, 3000);
+    }
+
+    // 发送快捷消息
+    function sendQuickMessage(message) {
+      document.getElementById('chatInput').value = message;
+      sendMessage();
+    }
+
+    // IME 合成态：compositionstart→end 之间为 true。
+    // 某些浏览器（Safari）会在确认回车的 keydown 之前先派发 compositionend，
+    // 用 justComposed 吞掉紧随其后的同一次 Enter，避免"第一次回车只确认候选却误发送"。
+    let imeComposing = false;
+    let imeJustComposed = false;
+
+    function handleCompositionStart() {
+      imeComposing = true;
+      imeJustComposed = false;
+    }
+
+    function handleCompositionEnd() {
+      imeComposing = false;
+      imeJustComposed = true;
+      setTimeout(() => { imeJustComposed = false; }, 0);
+    }
+
+    // 输入法合成期 / 合成刚结束的 Enter：只确认候选上屏，不发送。
+    function shouldSendOnEnter(event) {
+      if (event.isComposing || event.keyCode === 229 || imeComposing || imeJustComposed) {
+        return false;
+      }
+      return event.key === 'Enter' && !event.shiftKey;
+    }
+
+    // 处理键盘事件
+    function handleKeyDown(event) {
+      if (shouldSendOnEnter(event)) {
+        event.preventDefault();
+        sendMessage();
+      }
+    }
+
+    // 发送消息
+    async function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+      
+      if (!message || isLoading) return;
+
+      // 显示用户消息
+      appendMessage('user', message);
+      renderedMsgs.add(`user|${message}`);
+      input.value = '';
+      input.style.height = 'auto';
+
+      // 显示加载状态
+      isLoading = true;
+      document.getElementById('sendBtn').disabled = true;
+      const loadingId = showLoading();
+
+      try {
+        // 如果没有反馈ID，先创建反馈
+        if (!currentFeedbackId) {
+          currentFeedbackId = await createFeedback(message);
+        }
+
+        // 发送消息到智能客服
+        let response;
+        try {
+          response = await sendMessageToAgent(currentFeedbackId, message);
+        } catch (agentError) {
+          // 404 说明反馈已被删除，清空旧 ID 并重建
+          if (agentError.status === 404 || String(agentError.message || '').includes('不存在')) {
+            currentFeedbackId = null;
+            localStorage.removeItem(`feedback_${CUSTOM_USER_ID}_${PROJECT_ID}`);
+            currentFeedbackId = await createFeedback(message);
+            response = await sendMessageToAgent(currentFeedbackId, message);
+          } else {
+            throw agentError;
+          }
+        }
+        
+        // 移除加载状态
+        removeLoading(loadingId);
+        
+        // 显示智能客服回复
+        appendMessage('agent', response);
+        renderedMsgs.add(`agent|${response}`);
+      } catch (error) {
+        removeLoading(loadingId);
+        addErrorMessage(error.message);
+      } finally {
+        isLoading = false;
+        document.getElementById('sendBtn').disabled = false;
+      }
+    }
+
+    // 创建反馈
+    async function createFeedback(content) {
+      const response = await fetch(`${API_BASE}/workshop/v1/user/feedbacks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': USER_ID,
+          'X-User-Username': USERNAME
+        },
+        body: JSON.stringify({
+          project_id: PROJECT_ID,
+          custom_user_id: CUSTOM_USER_ID,
+          title: content.substring(0, 24),
+          content: content,
+          data: JSON.stringify({
+            source: 'agent_chat',
+            agent_session: true
+          }),
+          url: window.location.href,
+          user_agent: navigator.userAgent,
+          screen_width: window.screen.width,
+          screen_height: window.screen.height
+        })
+      });
+
+      const data = await response.json();
+      if (data.code !== 'OK') {
+        throw new Error(data.error?.message || '创建反馈失败');
+      }
+
+      // 持久化 feedbackId，刷新后可恢复对话
+      localStorage.setItem(`feedback_${CUSTOM_USER_ID}_${PROJECT_ID}`, data.data.id);
+      return data.data.id;
+    }
+
+    // 发送消息到智能客服（调用 agent-message 接口）
+    async function sendMessageToAgent(feedbackId, content) {
+      // 调用 agent-message 接口，触发 OpenHands Agent 处理
+      // 注意：agent-message 路由只在 v2 版本中注册
+      const response = await fetch(`${API_BASE}/workshop/v2/user/feedbacks/${feedbackId}/agent-message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': USER_ID,
+          'X-User-Username': USERNAME
+        },
+        body: JSON.stringify({
+          content: content
+        })
+      });
+
+      // 处理非 200 响应（如 404 反馈不存在）
+      if (!response.ok) {
+        const err = new Error(`发送消息失败 (${response.status})`);
+        err.status = response.status;
+        throw err;
+      }
+
+      const data = await response.json();
+      if (data.code !== 'OK') {
+        const err = new Error(data.error?.message || '发送消息失败');
+        err.status = response.status;
+        throw err;
+      }
+
+      // 返回 Agent 回复
+      return data.data?.content || '感谢您的反馈，我们会尽快处理。';
+    }
+
+    // 转人工：仅对智能客服无法解决的问题升级拆条
+    async function escalateToHuman() {
+      if (isLoading) return;
+      if (!currentFeedbackId) {
+        appendMessage('agent', '当前还没有对话记录，请先发送问题后再转人工。');
+        return;
+      }
+
+      const reason = (document.getElementById('chatInput').value || '').trim() ||
+        '客户点击转人工，智能客服无法解决当前问题';
+      const btn = document.getElementById('escalateBtn');
+      if (btn) btn.disabled = true;
+      isLoading = true;
+      document.getElementById('sendBtn').disabled = true;
+      const loadingId = showLoading();
+
+      try {
+        const response = await fetch(`${API_BASE}/workshop/v2/user/feedbacks/${currentFeedbackId}/escalate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': USER_ID,
+            'X-User-Username': USERNAME
+          },
+          body: JSON.stringify({ reason })
+        });
+        const data = await response.json();
+        removeLoading(loadingId);
+        if (!response.ok || data.code !== 'OK') {
+          throw new Error(data.error?.message || `转人工失败 (${response.status})`);
+        }
+        const count = data.data?.problem_count ?? 0;
+        if (count > 0) {
+          appendMessage('agent', `已为您记录 ${count} 个未解决问题并转交人工处理，平台团队会尽快跟进。`);
+        } else {
+          appendMessage('agent', data.data?.message || '已转交人工处理，我们会尽快跟进。');
+        }
+      } catch (error) {
+        removeLoading(loadingId);
+        addErrorMessage(error.message);
+      } finally {
+        isLoading = false;
+        document.getElementById('sendBtn').disabled = false;
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // 添加消息到界面
+    function appendMessage(type, content) {
+      const messagesContainer = document.getElementById('chatMessages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type}`;
+      
+      const avatarMap = { user: '张', agent: '🤖', developer: '👨‍💻' };
+      const avatar = avatarMap[type] || '💬';
+      const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      
+      const renderedContent = (type === 'agent' || type === 'developer') ? renderMarkdown(content) : escapeHtml(content);
+      
+      messageDiv.innerHTML = `
+        <div class="message-avatar">${avatar}</div>
+        <div>
+          <div class="message-content ${type === 'agent' || type === 'developer' ? 'markdown-content' : ''}">${renderedContent}</div>
+          <div class="message-time">${time}</div>
+        </div>
+      `;
+      
+      messagesContainer.appendChild(messageDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // 渲染 Markdown
+    function renderMarkdown(text) {
+      try {
+        // 配置 marked
+        marked.setOptions({
+          breaks: true,
+          gfm: true,
+          headerIds: false,
+          mangle: false
+        });
+        
+        // 渲染 Markdown 并转义 HTML（防止 XSS）
+        const rendered = marked.parse(text);
+        return rendered;
+      } catch (error) {
+        console.error('Markdown 渲染失败:', error);
+        return escapeHtml(text);
+      }
+    }
+
+    // 添加错误消息
+    function addErrorMessage(error) {
+      const messagesContainer = document.getElementById('chatMessages');
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error-message';
+      errorDiv.textContent = `❌ ${error}`;
+      messagesContainer.appendChild(errorDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // 显示加载状态
+    function showLoading() {
+      const messagesContainer = document.getElementById('chatMessages');
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'message agent';
+      loadingDiv.id = 'loading-' + Date.now();
+      
+      loadingDiv.innerHTML = `
+        <div class="message-avatar">🤖</div>
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      `;
+      
+      messagesContainer.appendChild(loadingDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      
+      return loadingDiv.id;
+    }
+
+    // 移除加载状态
+    function removeLoading(id) {
+      const loadingDiv = document.getElementById(id);
+      if (loadingDiv) {
+        loadingDiv.remove();
+      }
+    }
+
+    // HTML 转义
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 自动调整输入框高度
+    document.getElementById('chatInput').addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+    });
+
+    // 页面加载后恢复历史对话
+    initChat();
+  </script>
+</body>
+</html>

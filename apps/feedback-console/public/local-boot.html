@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>本地 Console 登录引导</title>
+  <script>
+    (function () {
+      var now = Date.now();
+      // 长效假 token：本地 API 只认 proxy 注入的 X-User-ID，不校验 JWT 内容
+      var info = {
+        accessToken: 'local-dev-token',
+        refreshToken: 'local-dev-refresh',
+        tokenObtainedAt: now,
+        tokenExpiresIn: 7 * 24 * 3600,
+        refreshTokenObtainedAt: now,
+        refreshExpiresIn: 30 * 24 * 3600,
+        username: 'testuser',
+      };
+      localStorage.setItem('auth_info', JSON.stringify(info));
+      document.cookie = 'auth_token=local-dev-token; path=/; max-age=' + info.tokenExpiresIn + '; SameSite=Lax';
+      location.replace('/feedbacks/projects/13');
+    })();
+  </script>
+</head>
+<body>正在进入本地反馈控制台…</body>
+</html>

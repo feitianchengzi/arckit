@@ -28,6 +28,15 @@ export default defineConfig(({ mode }) => {
           secure: true,
           rewrite: (path) => path.replace(/^\/api-proxy/, ''),
         },
+        // 本地 workshop-api：注入网关同款用户头，浏览器侧仍带 Bearer
+        '/workshop': {
+          target: 'http://localhost:8081',
+          changeOrigin: true,
+          headers: {
+            'X-User-ID': env.VITE_LOCAL_USER_ID || '11111111-1111-1111-1111-111111111111',
+            'X-User-Username': env.VITE_LOCAL_USERNAME || 'demo-user',
+          },
+        },
       },
     },
     preview: {

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArcOrbit - 项目管理系统</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="#4F46E5"/>
+            <path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>ArcOrbit</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-page="dashboard">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+          </svg>
+          仪表盘
+        </a>
+        <a href="#" class="nav-item" data-page="projects">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          项目
+        </a>
+        <a href="#" class="nav-item" data-page="tasks">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 11l3 3L22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+          任务
+        </a>
+        <a href="#" class="nav-item" data-page="team">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          团队
+        </a>
+      </nav>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 顶部栏 -->
+      <header class="top-bar">
+        <div class="page-title">
+          <h1 id="currentPageTitle">仪表盘</h1>
+        </div>
+        <div class="top-bar-actions">
+          <div class="user-menu">
+            <div class="avatar">张</div>
+            <span>张三</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- 页面内容 -->
+      <div class="page-content" id="pageContent">
+        <!-- 仪表盘页面 -->
+        <div class="page active" id="dashboard-page">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon blue">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">12</span>
+                <span class="stat-label">进行中项目</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon green">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 11l3 3L22 4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">48</span>
+                <span class="stat-label">待办任务</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon yellow">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12,6 12,12 16,14"/>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">5</span>
+                <span class="stat-label">即将到期</span>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon purple">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">8</span>
+                <span class="stat-label">团队成员</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="content-grid">
+            <div class="card">
+              <div class="card-header">
+                <h3>最近任务</h3>
+              </div>
+              <div class="card-body">
+                <div class="task-list">
+                  <div class="task-item">
+                    <span class="task-status completed">已完成</span>
+                    <span class="task-title">用户登录模块开发</span>
+                    <span class="task-date">2026-09-20</span>
+                  </div>
+                  <div class="task-item">
+                    <span class="task-status in-progress">进行中</span>
+                    <span class="task-title">订单系统重构</span>
+                    <span class="task-date">2026-09-22</span>
+                  </div>
+                  <div class="task-item">
+                    <span class="task-status pending">待开始</span>
+                    <span class="task-title">支付接口对接</span>
+                    <span class="task-date">2026-09-25</span>
+                  </div>
+                  <div class="task-item">
+                    <span class="task-status in-progress">进行中</span>
+                    <span class="task-title">性能优化</span>
+                    <span class="task-date">2026-09-23</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3>系统通知</h3>
+              </div>
+              <div class="card-body">
+                <div class="notification-list">
+                  <div class="notification-item">
+                    <div class="notification-icon info">ℹ️</div>
+                    <div class="notification-content">
+                      <p>系统将于今晚 22:00 进行维护</p>
+                      <span class="notification-time">2 小时前</span>
+                    </div>
+                  </div>
+                  <div class="notification-item">
+                    <div class="notification-icon success">✅</div>
+                    <div class="notification-content">
+                      <p>订单系统 v2.0 已部署成功</p>
+                      <span class="notification-time">5 小时前</span>
+                    </div>
+                  </div>
+                  <div class="notification-item">
+                    <div class="notification-icon warning">⚠️</div>
+                    <div class="notification-content">
+                      <p>检测到异常登录尝试</p>
+                      <span class="notification-time">1 天前</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 项目页面 -->
+        <div class="page" id="projects-page">
+          <div class="page-header">
+            <h2>项目列表</h2>
+            <button class="btn btn-primary">新建项目</button>
+          </div>
+          <div class="project-grid">
+            <div class="project-card">
+              <div class="project-header">
+                <span class="project-icon">🛒</span>
+                <span class="project-status active">进行中</span>
+              </div>
+              <h3>电商平台</h3>
+              <p>全功能电商系统开发</p>
+              <div class="project-meta">
+                <span>6 个任务</span>
+                <span>3 个成员</span>
+              </div>
+            </div>
+            <div class="project-card">
+              <div class="project-header">
+                <span class="project-icon">📱</span>
+                <span class="project-status active">进行中</span>
+              </div>
+              <h3>移动端 App</h3>
+              <p>iOS/Android 跨平台应用</p>
+              <div class="project-meta">
+                <span>12 个任务</span>
+                <span>5 个成员</span>
+              </div>
+            </div>
+            <div class="project-card">
+              <div class="project-header">
+                <span class="project-icon">🔧</span>
+                <span class="project-status completed">已完成</span>
+              </div>
+              <h3>内部工具</h3>
+              <p>运维监控平台</p>
+              <div class="project-meta">
+                <span>8 个任务</span>
+                <span>2 个成员</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 任务页面 -->
+        <div class="page" id="tasks-page">
+          <div class="page-header">
+            <h2>任务看板</h2>
+            <button class="btn btn-primary">新建任务</button>
+          </div>
+          <div class="kanban-board">
+            <div class="kanban-column">
+              <div class="column-header">
+                <span class="column-title">待开始</span>
+                <span class="column-count">3</span>
+              </div>
+              <div class="kanban-cards">
+                <div class="kanban-card">
+                  <span class="card-priority high">高</span>
+                  <h4>支付接口对接</h4>
+                  <p>对接第三方支付平台</p>
+                  <div class="card-footer">
+                    <span class="card-assignee">李四</span>
+                    <span class="card-date">09-25</span>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <span class="card-priority medium">中</span>
+                  <h4>数据报表开发</h4>
+                  <p>销售数据统计分析</p>
+                  <div class="card-footer">
+                    <span class="card-assignee">王五</span>
+                    <span class="card-date">09-28</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="kanban-column">
+              <div class="column-header">
+                <span class="column-title">进行中</span>
+                <span class="column-count">2</span>
+              </div>
+              <div class="kanban-cards">
+                <div class="kanban-card">
+                  <span class="card-priority high">高</span>
+                  <h4>订单系统重构</h4>
+                  <p>优化订单处理流程</p>
+                  <div class="card-footer">
+                    <span class="card-assignee">张三</span>
+                    <span class="card-date">09-22</span>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <span class="card-priority low">低</span>
+                  <h4>性能优化</h4>
+                  <p>提升系统响应速度</p>
+                  <div class="card-footer">
+                    <span class="card-assignee">赵六</span>
+                    <span class="card-date">09-23</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="kanban-column">
+              <div class="column-header">
+                <span class="column-title">已完成</span>
+                <span class="column-count">4</span>
+              </div>
+              <div class="kanban-cards">
+                <div class="kanban-card">
+                  <span class="card-priority high">高</span>
+                  <h4>用户登录模块</h4>
+                  <p>支持多种登录方式</p>
+                  <div class="card-footer">
+                    <span class="card-assignee">张三</span>
+                    <span class="card-date">09-20</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 团队页面 -->
+        <div class="page" id="team-page">
+          <div class="page-header">
+            <h2>团队成员</h2>
+            <button class="btn btn-primary">邀请成员</button>
+          </div>
+          <div class="team-grid">
+            <div class="member-card">
+              <div class="member-avatar">张</div>
+              <h3>张三</h3>
+              <span class="member-role">管理员</span>
+              <span class="member-email">zhangsan@example.com</span>
+            </div>
+            <div class="member-card">
+              <div class="member-avatar">李</div>
+              <h3>李四</h3>
+              <span class="member-role">开发者</span>
+              <span class="member-email">lisi@example.com</span>
+            </div>
+            <div class="member-card">
+              <div class="member-avatar">王</div>
+              <h3>王五</h3>
+              <span class="member-role">设计师</span>
+              <span class="member-email">wangwu@example.com</span>
+            </div>
+            <div class="member-card">
+              <div class="member-avatar">赵</div>
+              <h3>赵六</h3>
+              <span class="member-role">开发者</span>
+              <span class="member-email">zhaoliu@example.com</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 反馈 SDK iframe（已弃用，使用 chat-widget.html 替代） -->
+  <!--
+  <iframe
+    id="feedback-sdk"
+    src="http://localhost:3100/sdk/index.html?embed=web"
+    style="position: fixed; inset: 0; width: 100%; height: 100%; border: none; z-index: 9999; display: none;"
+  ></iframe>
+  -->
+
+  <!-- 反馈按钮 - 使用对话窗口 -->
+  <a href="chat-widget.html" target="_blank" class="feedback-trigger" title="智能客服">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+    <span class="feedback-badge" id="feedback-badge" style="display: none;">0</span>
+  </a>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Acme CRM - 客户业务系统（SDK 集成示例）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; background: #f1f5f9; color: #0f172a; }
+
+  .topbar {
+    height: 56px; background: #1e293b; color: #fff;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; position: sticky; top: 0; z-index: 10;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; }
+  .brand-logo { width: 28px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .top-actions { display: flex; align-items: center; gap: 12px; }
+  .user-chip { font-size: 13px; color: #cbd5e1; background: rgba(255,255,255,.08); padding: 4px 12px; border-radius: 999px; }
+
+  .layout { display: flex; min-height: calc(100vh - 56px); }
+  .sidebar { width: 200px; background: #fff; border-right: 1px solid #e2e8f0; padding: 16px 0; }
+  .nav-item { display: flex; align-items: center; gap: 8px; padding: 10px 20px; font-size: 14px; color: #475569; cursor: default; }
+  .nav-item.active { color: #2563eb; background: #eff6ff; font-weight: 600; border-right: 2px solid #2563eb; }
+
+  .main { flex: 1; padding: 24px 32px; }
+  .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .page-sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; }
+  .stat-label { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+  .stat-value { font-size: 24px; font-weight: 700; }
+  .stat-delta { font-size: 12px; margin-top: 4px; }
+  .up { color: #16a34a; } .down { color: #dc2626; }
+
+  table { width: 100%; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; border-collapse: collapse; }
+  th { text-align: left; font-size: 12px; color: #64748b; background: #f8fafc; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+  td { font-size: 13px; padding: 12px 14px; border-bottom: 1px solid #f1f5f9; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+  .b-green { background: #dcfce7; color: #15803d; }
+  .b-amber { background: #fef3c7; color: #b45309; }
+  .b-blue { background: #dbeafe; color: #1d4ed8; }
+
+  /* 反馈入口 */
+  .feedback-entry {
+    position: fixed; right: 24px; bottom: 24px; z-index: 40;
+    display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(135deg, #2563eb, #4f46e5); color: #fff;
+    border: none; border-radius: 999px; padding: 12px 20px; font-size: 14px; font-weight: 600;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, .35); cursor: pointer;
+  }
+  .feedback-entry:hover { filter: brightness(1.06); }
+  .feedback-entry .dot { width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; display: none; }
+  .feedback-entry.has-unread .dot { display: block; }
+
+  /* SDK 弹层 */
+  .sdk-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); z-index: 50; display: none; align-items: center; justify-content: center; }
+  .sdk-overlay.open { display: flex; }
+  .sdk-frame-wrap { position: relative; width: 420px; height: min(640px, 86vh); background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,.3); }
+  .sdk-frame-wrap iframe { width: 100%; height: 100%; border: 0; }
+  .sdk-close { position: absolute; top: 10px; right: 12px; z-index: 2; width: 28px; height: 28px; border: none; background: rgba(15,23,42,.06); color: #334155; border-radius: 50%; font-size: 15px; cursor: pointer; line-height: 1; }
+  .sdk-close:hover { background: rgba(15,23,42,.12); }
+  .sdk-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #64748b; background: #fff; }
+
+  .hint { margin-top: 16px; font-size: 12px; color: #94a3b8; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><div class="brand-logo">A</div>Acme CRM 客户业务系统</div>
+    <div class="top-actions">
+      <span class="user-chip">张经理 · 销售一部</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="nav-item">📊 工作台</div>
+      <div class="nav-item active">👥 客户管理</div>
+      <div class="nav-item">💰 商机管理</div>
+      <div class="nav-item">📈 销售报表</div>
+      <div class="nav-item">⚙️ 系统设置</div>
+    </div>
+
+    <div class="main">
+      <div class="page-title">客户管理</div>
+      <div class="page-sub">本页为模拟的外部客户业务系统，右下角为通过 iframe 集成的官方反馈 SDK 入口</div>
+
+      <div class="cards">
+        <div class="stat-card"><div class="stat-label">本月新增客户</div><div class="stat-value">128</div><div class="stat-delta up">↑ 12% 环比</div></div>
+        <div class="stat-card"><div class="stat-label">跟进中商机</div><div class="stat-value">36</div><div class="stat-delta up">↑ 5 个本周</div></div>
+        <div class="stat-card"><div class="stat-label">成交金额（万）</div><div class="stat-value">482</div><div class="stat-delta down">↓ 3% 环比</div></div>
+        <div class="stat-card"><div class="stat-label">客户满意度</div><div class="stat-value">96.2%</div><div class="stat-delta up">↑ 0.8pt</div></div>
+      </div>
+
+      <table>
+        <thead><tr><th>客户名称</th><th>负责人</th><th>阶段</th><th>金额（万）</th><th>更新时间</th></tr></thead>
+        <tbody>
+          <tr><td>华辰科技有限公司</td><td>李明</td><td><span class="badge b-green">已成交</span></td><td>88</td><td>今天 10:24</td></tr>
+          <tr><td>蓝海国际贸易</td><td>王芳</td><td><span class="badge b-amber">商务谈判</span></td><td>120</td><td>今天 09:15</td></tr>
+          <tr><td>星野制造集团</td><td>李明</td><td><span class="badge b-blue">需求确认</span></td><td>65</td><td>昨天 18:40</td></tr>
+          <tr><td>云杉数据服务</td><td>赵倩</td><td><span class="badge b-amber">方案报价</span></td><td>42</td><td>昨天 14:02</td></tr>
+          <tr><td>峰岚物流股份</td><td>王芳</td><td><span class="badge b-green">已成交</span></td><td>167</td><td>09-19</td></tr>
+        </tbody>
+      </table>
+
+      <div class="hint">说明：点击右下角“反馈”打开嵌入式 SDK，提交后由智能客服基于项目代码库进行大模型推理回答，无法解决时自动转人工内部流转。</div>
+    </div>
+  </div>
+
+  <!-- 反馈 SDK 入口 -->
+  <button class="feedback-entry" id="feedbackEntry">
+    <span class="dot"></span>
+    💬 反馈
+  </button>
+
+  <!-- SDK 弹层 -->
+  <div class="sdk-overlay" id="sdkOverlay">
+    <div class="sdk-frame-wrap">
+      <button class="sdk-close" id="sdkClose" title="关闭">✕</button>
+      <iframe id="sdkFrame" title="反馈 SDK" src="http://localhost:3100/?embed=web"></iframe>
+      <div class="sdk-loading" id="sdkLoading">反馈 SDK 加载中…</div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  // ===== SDK 集成配置（真实场景由客户系统后端下发）=====
+  var SDK_CONFIG = {
+    apiKey: '18B780174D86',
+    projectId: 10,
+    customUserId: 'crm-user-zhangsan-001',
+    feedbackV2Enabled: true,
+    feedbackV2AuthMode: 'apiKey',
+    feedbackV2NotificationsEnabled: true,
+    theme: 'light'
+  };
+
+  var entry = document.getElementById('feedbackEntry');
+  var overlay = document.getElementById('sdkOverlay');
+  var frame = document.getElementById('sdkFrame');
+  var loading = document.getElementById('sdkLoading');
+  var closeBtn = document.getElementById('sdkClose');
+
+  var sdkReady = false;
+  var pendingMode = null;
+  var unreadRequestSeq = 0;
+
+  function sendToSDK(message) {
+    frame.contentWindow.postMessage(Object.assign({ source: 'feedback-sdk-host' }, message), 'http://localhost:3100');
+  }
+
+  window.addEventListener('message', function (event) {
+    if (event.origin !== 'http://localhost:3100' || !event.data || event.data.source !== 'feedback-sdk-web') return;
+
+    if (event.data.type === 'feedback-sdk:ready') {
+      sdkReady = true;
+      sendToSDK({ type: 'feedback-sdk:configure', config: SDK_CONFIG });
+      loading.style.display = 'none';
+      refreshUnread();
+      if (pendingMode) {
+        sendToSDK({ type: 'feedback-sdk:open', mode: pendingMode });
+        pendingMode = null;
+      }
+      return;
+    }
+
+    if (event.data.type === 'feedback-sdk:close') {
+      overlay.classList.remove('open');
+      refreshUnread();
+      return;
+    }
+
+    if (event.data.type === 'feedback-sdk:unread-changed') {
+      applyUnread(event.data.unread_count);
+    }
+  });
+
+  function applyUnread(count) {
+    entry.classList.toggle('has-unread', Number(count) > 0);
+  }
+
+  function refreshUnread() {
+    if (!sdkReady) return;
+    sendToSDK({ type: 'feedback-sdk:get-unread-count', request_id: 'unread-' + (++unreadRequestSeq) });
+  }
+
+  entry.addEventListener('click', function () {
+    overlay.classList.add('open');
+    if (sdkReady) {
+      sendToSDK({ type: 'feedback-sdk:open', mode: 'submit' });
+    } else {
+      pendingMode = 'submit';
+    }
+  });
+
+  closeBtn.addEventListener('click', function () {
+    overlay.classList.remove('open');
+  });
+
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>
