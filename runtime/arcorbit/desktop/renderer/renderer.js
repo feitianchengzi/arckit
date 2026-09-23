@@ -61,6 +61,7 @@ import {
   isCurrentProjectUser
 } from "../../src/desktop/today-guidance.mjs";
 import { deriveTodayWorkspace } from "../../src/desktop/today-workspace.mjs";
+import { createRetrievalStore, isCurrentSelection, createTriageGate } from "./retrieval-state.mjs";
 
 const api = window.arckitDesktop;
 
@@ -138,6 +139,9 @@ const state = {
   setup: null,
   setupBusy: false,
   setupActionError: "",
+  // 用户显式进入/停留在全屏 Setup（冷启动未就绪、presentSetup 检查、Setup 内动作）。
+  // 为 false 时，后台 setup 事件不得把非阻塞状态弹成全屏「检测安装与登录状态」页。
+  setupPresentationRequested: false,
   setupCleanupPlanDigest: "",
   setupCleanupPaths: [],
   setupRecoveryAssessmentDigest: "",
@@ -286,6 +290,9 @@ const taskAttachmentPreviewQueue = [];
 let activeTaskAttachmentPreviews = 0;
 const TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3;
 const feedbackImagePreviewQueue = [];
+// 检索状态按 feedback id 独立缓存（与快照对象解耦），AI 分诊失败退避走 triageGate。
+const retrievalStore = createRetrievalStore();
+const triageGate = createTriageGate();
 let activeFeedbackImagePreviews = 0;
 const FEEDBACK_IMAGE_PREVIEW_CONCURRENCY = 3;
 const expandedChatProjectIds = new Set();
@@ -372,6 +379,7 @@ async function boot() {
   state.authentication = normalizeAuthentication(authentication);
   state.productFeedback = normalizeProductFeedbackStatus(productFeedback);
   await chatStateCoordinator.initialize(chat);
+  state.setupPresentationRequested = Boolean(setup) && (setup.status !== "ready" || Boolean(setup.first_install));
   renderSetup();
   await refreshSnapshot();
   api.onProductFeedbackUnread((count) => {
@@ -393,7 +401,18 @@ async function boot() {
     }
     state.setup = readiness;
     state.setupActionError = "";
-    renderSetup();
+    if (state.setupPresentationRequested || isBlockingSetupStatus(readiness)) {
+      state.setupPresentationRequested = true;
+      renderSetup();
+      return;
+    }
+    // 非阻塞（checking / codex-action-required 等）后台同步：不抢占 organization/Chat 等当前页
+    if (readiness.status === "ready" && !readiness.first_install) {
+      els.setupReadiness.classList.add("hidden");
+      state.setupPresentationRequested = false;
+      api.continueFromSetup().catch((error) => console.error("Setup continuation failed:", error));
+    }
+    render();
   });
   api.onAutomationEvent(() => scheduleAutomationRefresh());
   api.onWorkSyncEvent((event) => {
@@ -401,6 +420,20 @@ async function boot() {
       renderNavigation();
       if (state.page === 'command') renderCommandSyncSummary();
       return;
+    }
+    // 客服/客户在 feedback 详情页的新消息：命中当前打开的反馈时刷新会话并滚动到底，
+    // 否则给出通知提醒（unread badge 由 snapshot 刷新更新）。
+    if (event?.type === "feedback.message.created" && event?.feedback_id != null) {
+      const eventFeedbackId = String(event.feedback_id);
+      const viewingThisFeedback = state.page === "feedback" && String(state.selectedFeedbackId) === eventFeedbackId;
+      if (viewingThisFeedback) {
+        refreshFeedbackWorkspace({ quiet: true }).then(() => scrollFeedbackConversationToBottom()).catch((error) => console.error("feedback realtime refresh failed:", error));
+        return;
+      }
+      const feedback = (state.platform.feedback_v1 || []).find((item) => String(item.id) === eventFeedbackId);
+      const label = feedback?.title ? `「${feedback.title}」` : "反馈";
+      const actor = event?.actor?.username ? `${event.actor.username} ` : "";
+      showToast(`${actor}在${label}有新消息`);
     }
     scheduleRefresh();
   });
@@ -547,6 +580,7 @@ function wireEvents() {
   }));
   els.setupContinueButton.addEventListener("click", () => runAction(async () => {
     await api.continueFromSetup();
+    state.setupPresentationRequested = false;
     els.setupReadiness.classList.add("hidden");
     await refreshSnapshot();
   }));
@@ -892,12 +926,20 @@ function persistWorkInspectorWidth(width) {
   return workInspectorWidthPersistence.persist(width);
 }
 
+// isBlockingSetupStatus 仅安装/迁移/冲突/阻塞类状态允许在非 Setup 入口抢占全屏。
+function isBlockingSetupStatus(readiness) {
+  if (!readiness) return false;
+  if (readiness.first_install) return true;
+  return ["needs-install", "drifted", "conflict", "blocked", "applying"].includes(readiness.status);
+}
+
 function renderSetup() {
   const setup = state.setup;
   if (!setup) return;
   const ready = setup.status === "ready";
   els.setupReadiness.classList.toggle("hidden", ready && !setup.first_install);
   if (ready && !setup.first_install) {
+    state.setupPresentationRequested = false;
     api.continueFromSetup().catch((error) => console.error("Setup continuation failed:", error));
   }
   const labels = {
@@ -1245,7 +1287,9 @@ async function refreshSnapshot({ quiet = false, surface = "all", afterMutation =
       }),
       api.platformSnapshot({
         sections: workSurface ? ["tasks"] : ["overview", "organizations", "members", "tasks", "feedback", "today"],
-        task_filters: state.page === "work" ? platformTaskFilters() : {}
+        task_filters: state.page === "work" ? platformTaskFilters() : {},
+        // 内部工作台不显示已解决的反馈
+        feedback_filters: { show_resolved: false }
       }),
       workSurface ? Promise.resolve(state.authentication) : api.getAuthStatus()
     ]);
@@ -1262,6 +1306,8 @@ async function refreshSnapshot({ quiet = false, surface = "all", afterMutation =
     }
     invalidateTaskAttachmentCaches(state, { clearPending: identityChanged });
     state.snapshot = snapshot;
+    // 检索结果由 retrievalStore 按 feedback id 独立缓存，
+    // 快照刷新替换 platform 对象不再丢失/闪烁（旧版把 retrieval 挂在对象上做拷贝保留）。
     state.platform = platform;
     hydrateTodayPreference(platform.ui_preferences?.today);
     if (!workSurface) state.feedbackSnapshotEpoch += 1;
@@ -1702,7 +1748,7 @@ async function openChatWorkspaceSetup() {
       if (!localProject) return { keepOpen: true };
       await bindAutomationWorkspace(values.project_id, localProject.id);
       await refreshChat({ quiet: true, resetOwner: true });
-      showToast("Product Workspace 已绑定；聊天草稿已保留。");
+      showToast("已绑定本地目录；聊天草稿已保留");
       return { close: true };
     }
   });
@@ -2214,7 +2260,7 @@ async function performTodayAction(item, action) {
       await refreshSnapshot({ quiet: true });
     } else if (action === "enable_project") {
       await api.setProjectParticipation(item.project_id, true);
-      await refreshSnapshot({ quiet: true });
+      await refreshSnapshot({ quiet: true, afterMutation: true });
     } else if (action === "retry_project_source") {
       await refreshSnapshot({ quiet: true });
     } else {
@@ -2361,10 +2407,13 @@ async function performGuidanceAction(guidance, { task = guidance.task, workspace
       else showPage("organization");
       return;
     case "bind_workspace": await bindProjectWorkspace(workspace); return;
-    case "check_setup": await checkSetupReadinessForSelection(workspace?.local_project_id); return;
+    case "check_setup": await checkSetupReadinessForSelection(workspace?.local_project_id, {
+      presentSetup: !["organization", "today", "chat"].includes(state.page)
+    }); return;
     case "enable_project":
       await api.setProjectParticipation(workspace.id, true);
-      await refreshSnapshot();
+      await refreshSnapshot({ quiet: true, afterMutation: true });
+      showToast("已允许此项目自动领取");
       return;
     case "review_task": openWorkGuidanceTask(task, "pending_review"); return;
     case "create_for_arcorbit": await createTaskForArcOrbit(workspace?.id); return;
@@ -2401,25 +2450,32 @@ function openWorkGuidanceTask(task, targetState = task?.state || "pending") {
   showPage("work");
 }
 
-async function bindProjectWorkspace(workspace, { surface = "setup" } = {}) {
+async function bindProjectWorkspace(workspace, { surface = "inline" } = {}) {
   if (!workspace?.id) throw new Error("未找到要绑定的远端项目。");
   const localProject = await api.pickProject();
   if (!localProject) return;
-  await bindAutomationWorkspace(workspace.id, localProject.id, { surface });
-  showToast(`${workspace.name || "项目"} 已绑定本地目录；正在使用 fresh 状态计算下一步。`);
+  await bindAutomationWorkspace(workspace.id, localProject.id, {
+    surface,
+    successMessage: `${workspace.name || "项目"}已绑定本地目录`
+  });
 }
 
-async function bindAutomationWorkspace(remoteProjectId, localProjectId, { surface = "setup" } = {}) {
+async function bindAutomationWorkspace(remoteProjectId, localProjectId, { surface = "inline", successMessage = "" } = {}) {
   await api.bindAutomationProject(remoteProjectId, localProjectId);
+  // 写入成功即反馈；setup 检查与快照刷新静默进行，不把过程细节甩给用户。
+  if (successMessage) showToast(successMessage);
   let setupError = null;
   if (localProjectId) {
     try {
-      await checkSetupReadinessForSelection(localProjectId, { presentSetup: surface !== "today" });
+      // 本地目录绑定是个人工作区设置：默认原位检查，不弹全屏 Setup/登录检测页。
+      // 仅显式 surface === "setup" 才呈现全屏（与 Today/organization/Chat 原位语义一致）。
+      await checkSetupReadinessForSelection(localProjectId, { presentSetup: surface === "setup" });
     } catch (error) {
       setupError = error;
     }
   }
-  await refreshSnapshot({ quiet: true });
+  await refreshSnapshot({ quiet: true, afterMutation: true });
+  if (state.page === "organization") renderOrganization();
   if (setupError) throw setupError;
 }
 
@@ -2524,8 +2580,7 @@ function renderOrganizationProjects(scope, personalProjects) {
   const members = selected ? (state.platform.project_members || []).filter((member) => String(member.project_id) === String(selected.id)) : [];
   const canManage = selected && ["owner", "admin"].includes(selected.current_user_role);
   const selectedScopeLabel = personal ? (selected?.external_participation ? "外部参与" : "个人项目") : scope?.name || "";
-  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><p>${escapeHtml(selected.git_url || "未设置 Git 地址")}</p><div class="project-connection-list"><span><strong>组织归属</strong><small>${escapeHtml(selectedScopeLabel)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>本地项目</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span><span><strong>知识库</strong><small data-knowledge-summary="${escapeHtml(selected.id)}">加载中…</small></span></div>${organizationProjectGuidance(selected, canManage)}<div class="row-actions project-detail-actions"><button data-knowledge-configure="${escapeHtml(selected.id)}" type="button">配置知识库</button><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${canManage && !personal ? `<button data-project-member-add="${escapeHtml(selected.id)}" type="button">从组织添加成员</button>` : ""}${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
-  if (selected) void loadKnowledgeFactSummary(selected);
+  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><div class="inspector-binding-block" data-binding-block="repository"><h3>代码仓库</h3><div class="project-connection-list"><span><strong>Git 地址</strong><small>${escapeHtml(selected.git_url || "未设置 Git 地址")}</small></span><span><strong>本地目录</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span></div>${organizationProjectGuidance(selected, canManage)}</div><div class="inspector-binding-block" data-binding-block="knowledge"><h3>知识库</h3><div class="project-connection-list"><span><strong>外部数据连接器</strong><small>本期预留 · 后续对接三方知识库平台</small></span></div></div><div class="project-connection-list"><span><strong>组织归属</strong><small>${escapeHtml(selectedScopeLabel)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span></div><div class="row-actions project-detail-actions"><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${canManage && !personal ? `<button data-project-member-add="${escapeHtml(selected.id)}" type="button">从组织添加成员</button>` : ""}${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
 }
 
 function organizationProjectGuidance(project, canManage) {
@@ -2568,11 +2623,11 @@ function wireOrganizationActions() {
   els.organizationContent.querySelectorAll("[data-product-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteProject(button.dataset.productInvite))));
   els.organizationContent.querySelectorAll("[data-product-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProduct(button.dataset.productDelete))));
   els.organizationContent.querySelectorAll("[data-project-workset-toggle]").forEach((button) => button.addEventListener("click", () => runAction(() => toggleProjectInWorkset(button.dataset.projectWorksetToggle))));
-  els.organizationContent.querySelectorAll("[data-knowledge-configure]").forEach((button) => button.addEventListener("click", () => openKnowledgeBaseDialog(button.dataset.knowledgeConfigure, () => renderOrganization())));
-  els.organizationContent.querySelectorAll("[data-organization-bind-workspace]").forEach((button) => button.addEventListener("click", () => runAction(() => bindProjectWorkspace(findWorkspace(button.dataset.organizationBindWorkspace)))));
+  els.organizationContent.querySelectorAll("[data-organization-bind-workspace]").forEach((button) => button.addEventListener("click", () => runAction(() => bindProjectWorkspace(findWorkspace(button.dataset.organizationBindWorkspace), { surface: "organization" }))));
   els.organizationContent.querySelectorAll("[data-organization-enable-project]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
     await api.setProjectParticipation(button.dataset.organizationEnableProject, true);
-    await refreshSnapshot();
+    await refreshSnapshot({ quiet: true, afterMutation: true });
+    showToast("已允许此项目自动领取");
   })));
   els.organizationContent.querySelectorAll("[data-organization-copy-handoff]").forEach((button) => button.addEventListener("click", () => runAction(() => performGuidanceAction({ action_id: "copy_handoff", title: "完成项目连接准备", reason: "需要绑定本地目录或允许项目自动领取。", workspace: findWorkspace(button.dataset.organizationCopyHandoff) }))));
   els.organizationContent.querySelectorAll("[data-organization-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editOrganizationMember(button.dataset.organizationMemberEdit, button.dataset.memberOrganization))));
@@ -3073,11 +3128,15 @@ function renderFeedbackInspector(feedback) {
     ["提交时间", formatFeedbackDate(feedback.created_at)],
     ["最近更新", formatFeedbackDate(feedback.updated_at)],
     ["关联待办", feedback.linked_task_id ? `${feedback.linked_task_id}${feedback.linked_task_state ? ` · ${STATE_LABELS[feedback.linked_task_state] || feedback.linked_task_state}` : ""}` : "未关联"]
-  ])}${renderAITriagePanel(feedback)}${renderRetrievalCard(feedback.retrieval)}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}</div>`;
+  ])}${renderAITriagePanel(feedback)}${renderRetrievalCard(feedback, retrievalStore.view(feedback.id))}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}</div>`;
   els.feedbackInspector.querySelector("[data-feedback-priority]")?.addEventListener("change", (event) => runAction(() => updateFeedbackPriority(feedback.id, event.currentTarget.value)));
   els.feedbackInspector.querySelector("[data-feedback-ignore]")?.addEventListener("click", () => runAction(() => ignoreFeedback(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-restore]")?.addEventListener("click", (event) => runAction(() => restoreFeedback(feedback.id, event.currentTarget)));
-  els.feedbackInspector.querySelector("[data-feedback-refresh]")?.addEventListener("click", () => runAction(refreshFeedbackWorkspace));
+  els.feedbackInspector.querySelector("[data-feedback-refresh]")?.addEventListener("click", () => runAction(() => {
+    // 手动刷新：清掉检索缓存，error/旧结果后允许重新发起检索
+    retrievalStore.invalidate(feedback.id);
+    return refreshFeedbackWorkspace();
+  }));
   els.feedbackInspector.querySelector("[data-feedback-task]")?.addEventListener("click", () => runAction(() => feedbackToTask(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-link-retry]")?.addEventListener("click", () => runAction(() => retryFeedbackTaskLink(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-delete]")?.addEventListener("click", () => runAction(() => deleteFeedback(feedback.id)));
@@ -3092,10 +3151,13 @@ function renderFeedbackInspector(feedback) {
       force: Boolean(state.feedbackConversations[String(feedback.id)])
     });
   }
-  if (!feedback.retrieval && feedback.content) {
-    void loadFeedbackRetrieval(feedback);
-  }
-  if (useV2 && !feedback.data?.triage) {
+  // 检索区域常驻：详情打开默认不自动打 LLM（shouldAutoLoad 恒 false）；
+  // 由卡片内手动按钮或分诊成功后的 ensureFeedbackRetrieval 触发。
+  els.feedbackInspector.querySelector("[data-retrieval-run]")?.addEventListener("click", () => {
+    const current = (state.platform.feedback_v1 || []).find((item) => String(item.id) === String(feedback.id));
+    if (current && retrievalStore.canManualLoad(current.id)) void loadFeedbackRetrieval(current);
+  });
+  if (useV2 && triageGate.shouldRun(feedback.id, Boolean(feedback.data?.triage))) {
     void ensureFeedbackTriage(feedback);
   }
 }
@@ -3168,6 +3230,15 @@ async function refreshFeedbackWorkspace({ quiet = false } = {}) {
   await refreshSnapshot({ quiet });
   const feedback = (state.platform.feedback_v1 || []).find((item) => String(item.id) === String(state.selectedFeedbackId));
   if (feedback && feedbackUsesV2(feedback)) await loadFeedbackConversation(feedback, { force: true });
+}
+
+// 将反馈沟通记录滚动到底部，使新消息向上推显示。
+// 仅当用户已接近底部时强制滚动，避免用户正在翻阅历史时被打断。
+function scrollFeedbackConversationToBottom() {
+  if (typeof document === "undefined") return;
+  const list = document.querySelector(".feedback-message-list");
+  if (!list) return;
+  list.scrollTop = list.scrollHeight;
 }
 
 function applyFeedbackReadState(feedback, result) {
@@ -3291,43 +3362,101 @@ function renderAITriagePanel(feedback) {
 }
 
 /**
- * 知识库检索卡片
- * 渲染 OpenHands Agent 检索结果；复用 section-title-row / status-pill / insight-callout 体系。
+ * 知识库检索卡片（四态常驻，永不因请求/快照从 DOM 消失）
+ * - idle：未检索 + 手动"检索知识库"按钮（详情打开默认不自动打 LLM）
+ * - loading：检索中占位，保留上次命中
+ * - ready + hits：命中内容
+ * - ready 空：未匹配到（常驻显示，不隐藏区域）
+ * - error：degraded 保留上次结果或显示失败 + 手动重试
+ * @param {object} feedback 当前反馈（手动按钮需要 project_id/content）
+ * @param {{status: string, hits: any[], confidence: number, draft_reply: string, degraded: boolean, error: string}} retrieval retrievalStore.view 快照
  */
-function renderRetrievalCard(retrieval) {
-  if (!retrieval) return "";
-  const hits = retrieval.hits || [];
-  const confidence = retrieval.confidence ?? 0;
+function renderRetrievalCard(feedback, retrieval) {
+  const view = retrieval || { status: "idle", hits: [], confidence: 0, draft_reply: "", degraded: false, error: "" };
+  const hits = Array.isArray(view.hits) ? view.hits : [];
+  const confidence = view.confidence ?? 0;
   const confidenceClass = confidence >= 0.75 ? "high" : confidence >= 0.5 ? "medium" : "low";
+  const status = view.status || "idle";
+  const hasContent = Boolean(feedback?.content);
+
+  let subtitle;
+  let pill;
+  let bodyHtml;
+  let actionHtml = "";
+
+  if (status === "loading") {
+    subtitle = hits.length ? `正在更新 · 已保留 ${hits.length} 条上次结果` : "正在检索知识库…";
+    pill = `<span class="status-pill">检索中</span>`;
+    bodyHtml = hits.length
+      ? renderRetrievalHits(hits)
+      : `<p class="retrieval-empty">正在检索知识库，请稍候…</p>`;
+  } else if (status === "error") {
+    subtitle = hits.length ? `检索服务暂不可用 · 展示上次 ${hits.length} 条结果` : "检索失败，可手动重试";
+    pill = `<span class="status-pill low">失败</span>`;
+    actionHtml = hasContent
+      ? `<button class="secondary-button" data-retrieval-run type="button">重试检索</button>`
+      : "";
+    bodyHtml = `
+      <div class="insight-callout"><small>提示</small><p>检索服务暂不可用${hits.length ? "，以下为上次检索结果" : ""}：${escapeHtml(view.error || "未知错误")}</p></div>
+      ${hits.length ? renderRetrievalHits(hits) : `<p class="retrieval-empty">暂无检索结果${actionHtml ? "，可点击重试" : ""}</p>`}`;
+  } else if (status === "ready" && hits.length > 0) {
+    subtitle = `命中 ${hits.length} 条 · 来源已标注`;
+    pill = `<span class="status-pill ${confidenceClass}">${Math.round(confidence * 100)}%</span>`;
+    bodyHtml = renderRetrievalHits(hits);
+    actionHtml = hasContent
+      ? `<button class="secondary-button" data-retrieval-run type="button">重新检索</button>`
+      : "";
+  } else if (status === "ready") {
+    // ready 空结果：常驻显示"未匹配到"，不隐藏区域
+    subtitle = "未匹配到";
+    pill = `<span class="status-pill low">未匹配</span>`;
+    bodyHtml = `<p class="retrieval-empty">未匹配到相关内容，可手动重试或直接转追问收集</p>`;
+    actionHtml = hasContent
+      ? `<button class="secondary-button" data-retrieval-run type="button">重新检索</button>`
+      : "";
+  } else {
+    // idle：未检索
+    subtitle = hasContent ? "尚未检索" : "无正文，未检索";
+    pill = `<span class="status-pill">未检索</span>`;
+    bodyHtml = `<p class="retrieval-empty">详情打开不会自动检索知识库；需要依据时点击下方按钮手动检索</p>`;
+    actionHtml = hasContent
+      ? `<button class="primary-button" data-retrieval-run type="button">检索知识库</button>`
+      : "";
+  }
+
+  const draftHtml = view.draft_reply
+    ? `<div class="insight-callout"><small>拟回复</small><p>${escapeHtml(view.draft_reply)}</p></div>`
+    : "";
+
   return `
-    <div class="retrieval-card">
+    <div class="retrieval-card${status === "loading" ? " is-loading" : ""}">
       <div class="section-title-row retrieval-head">
-        <div><span class="section-icon" aria-hidden="true">⌕</span><div><h3>知识库检索</h3><p>${hits.length ? `命中 ${hits.length} 条 · 来源已标注` : "两层知识库未命中"}</p></div></div>
-        <span class="status-pill ${confidenceClass}">${Math.round(confidence * 100)}%</span>
+        <div><span class="section-icon" aria-hidden="true">⌕</span><div><h3>知识库检索</h3><p>${escapeHtml(subtitle)}</p></div></div>
+        ${pill}
       </div>
       <div class="retrieval-body">
-        ${hits.length > 0 ? `
-          <div class="retrieval-hits">
-            ${hits.map(hit => `
-              <div class="retrieval-hit">
-                <div class="retrieval-hit-head">
-                  <span class="retrieval-source ${escapeHtml(hit.source || "")}">${escapeHtml(hit.source === "customer_lib" ? "客户库" : hit.source === "product_lib" ? "产品库" : hit.source || "未知")}</span>
-                  <span class="retrieval-type">${escapeHtml(hit.type || "")}</span>
-                  <span class="retrieval-score">${Math.round((hit.score || 0) * 100)}%</span>
-                </div>
-                <strong>${escapeHtml(hit.title || "")}</strong>
-                <p>${escapeHtml(hit.snippet || "")}</p>
-              </div>
-            `).join("")}
-          </div>
-        ` : `<p class="retrieval-empty">未命中知识库，可直接转追问收集</p>`}
-        ${retrieval.draft_reply ? `
-          <div class="insight-callout">
-            <small>拟回复</small>
-            <p>${escapeHtml(retrieval.draft_reply)}</p>
-          </div>
-        ` : ""}
+        ${bodyHtml}
+        ${draftHtml}
+        ${actionHtml ? `<div class="retrieval-actions">${actionHtml}</div>` : ""}
       </div>
+    </div>
+  `;
+}
+
+function renderRetrievalHits(hits) {
+  return `
+    <div class="retrieval-hits">
+      ${hits.map(hit => `
+        <div class="retrieval-hit">
+          <div class="retrieval-hit-head">
+            <span class="retrieval-source ${escapeHtml(hit.source || "")}">${escapeHtml(hit.source === "customer_lib" ? "客户库" : hit.source === "product_lib" ? "产品库" : hit.source || "未知")}</span>
+            <span class="retrieval-type">${escapeHtml(hit.type || "")}</span>
+            <span class="retrieval-score">${Math.round((hit.score || 0) * 100)}%</span>
+          </div>
+          <strong>${escapeHtml(hit.title || "")}</strong>
+          <p>${escapeHtml(hit.snippet || "")}</p>
+        </div>
+      `).join("")}
     </div>
   `;
 }
@@ -3483,24 +3612,6 @@ async function adjustAITriage(feedback) {
 /**
  * 显示添加代码仓库的模态表单
  */
-// Organization 项目检查器的知识库事实行：仓库数与就绪状态，加载失败保持占位。
-async function loadKnowledgeFactSummary(project) {
-  if (!project?.id) return;
-  const container = els.organizationContent?.querySelector(`[data-knowledge-summary="${CSS.escape(String(project.id))}"]`);
-  if (!container) return;
-  try {
-    const result = await api.listCustomerCodeRepos(project.id);
-    const repos = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
-    const ready = repos.filter((repo) => repo.status === "ready").length;
-    const syncing = repos.filter((repo) => repo.status === "syncing").length;
-    container.textContent = repos.length
-      ? `${repos.length} 个仓库 · ${syncing ? "索引中" : `${ready} 个就绪`}`
-      : "尚未配置仓库";
-  } catch (_) {
-    container.textContent = "状态未知";
-  }
-}
-
 /**
  * 项目级知识库配置：仓库先于反馈配置并完成索引，智能客服检索才能命中客户代码。
  * 单弹窗双视图（仓库列表 ⇄ 添加表单原地切换），替代旧的嵌套 modal；项目选择沿用 Feedback 页作用域。
@@ -3614,7 +3725,7 @@ function openKnowledgeBaseDialog(preselectProjectId = "", onClose = null) {
     let repos = [];
     try {
       const result = await api.listCustomerCodeRepos(projectId);
-      repos = result?.data || result || [];
+      repos = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
     } catch (error) {
       console.error("[CustomerCodeRepo] 仓库列表加载失败:", error);
     }
@@ -3695,7 +3806,7 @@ function openKnowledgeBaseDialog(preselectProjectId = "", onClose = null) {
     testResult.innerHTML = `<p class="retrieval-empty">检索中…</p>`;
     try {
       const result = await api.searchKnowledgeCode({ project_id: currentProjectId(), query });
-      const hits = Array.isArray(result?.data) ? result.data : [];
+      const hits = Array.isArray(result) ? result : Array.isArray(result?.data) ? result.data : [];
       testResult.innerHTML = hits.length ? `<div class="retrieval-hits">${hits.slice(0, 5).map((hit) => `
         <div class="retrieval-hit">
           <div class="retrieval-hit-head">
@@ -3723,6 +3834,7 @@ function openKnowledgeBaseDialog(preselectProjectId = "", onClose = null) {
   dialog.showModal();
   void refreshPanel();
 }
+globalThis.openKnowledgeBaseDialog = openKnowledgeBaseDialog;
 
 function feedbackResourceIsImage(value = {}) {
   if (value.type === "image" || String(value.mime_type || "").toLowerCase().startsWith("image/")) return true;
@@ -3773,34 +3885,56 @@ function pumpFeedbackImagePreviewQueue() {
 
 async function loadFeedbackRetrieval(feedback) {
   const id = String(feedback.id);
+  // 原子占位：同一 feedback 并发请求去重；结果写入 retrievalStore（按 id 缓存），
+  // 与快照 feedback 对象解耦——请求期间对象被替换也不会丢数据。
+  if (!retrievalStore.begin(id)) return;
+
+  // begin 后立即按 loading 占位重渲染，区域不再"一会消失"
+  if (isCurrentSelection(state.selectedFeedbackId, id)) {
+    const current = (state.platform.feedback_v1 || []).find((item) => String(item.id) === id);
+    if (current) renderFeedbackInspector(current);
+  }
+
   try {
     const result = await api.retrieveFeedback({ project_id: feedback.project_id, query: feedback.content, conversation_id: "" });
-    if (!result) return;
-    const hits = result.hits || result.data?.hits || [];
-    const confidence = result.confidence ?? result.data?.confidence ?? 0;
-    const draftReply = result.draft_reply || result.data?.draft_reply || "";
-    feedback.retrieval = { hits, confidence, draft_reply: draftReply };
-    const card = renderRetrievalCard(feedback.retrieval);
-    const existing = els.feedbackInspector.querySelector(".retrieval-card");
-    if (existing) {
-      existing.outerHTML = card;
+    if (result) {
+      const hits = result.hits || result.data?.hits || [];
+      const confidence = result.confidence ?? result.data?.confidence ?? 0;
+      const draftReply = result.draft_reply || result.data?.draft_reply || "";
+      retrievalStore.finish(id, { hits, confidence, draft_reply: draftReply });
     } else {
-      const factSection = els.feedbackInspector.querySelector(".feedback-content-card");
-      if (factSection) factSection.insertAdjacentHTML("afterend", card);
+      retrievalStore.fail(id, new Error("检索无响应"));
     }
-  } catch (_) {
-    feedback.retrieval = { hits: [], confidence: 0, draft_reply: "" };
+  } catch (error) {
+    // 失败保留上次成功结果并标记 degraded，不再静默清空（避免与成功结果交替出现）
+    retrievalStore.fail(id, error);
+  } finally {
+    // 选中态守卫：陈旧响应只写缓存，不碰当前展示的 DOM
+    if (isCurrentSelection(state.selectedFeedbackId, id)) {
+      const current = (state.platform.feedback_v1 || []).find((item) => String(item.id) === id);
+      if (current) renderFeedbackInspector(current);
+    }
   }
 }
 
 // AI 分诊初判：详情打开且尚无 data.triage 时触发一次后端分析，成功后重绘面板。
+// 失败记入 triageGate：member 角色无权 triage 时不再随每次渲染自动重试，
+// 避免"失败 → refreshFeedbackWorkspace → 快照刷新 → 再渲染再触发"的刷新风暴。
+// 分诊成功是详情页唯一自动触发知识库检索的时机（分诊结论就绪后再取依据）。
 async function ensureFeedbackTriage(feedback) {
+  const id = String(feedback.id);
   if (feedback.data?.triage) return;
   try {
     await api.runFeedbackTriage({ project_id: feedback.project_id, feedback_id: feedback.id });
+    triageGate.markSuccess(id);
     await refreshFeedbackWorkspace();
+    const current = (state.platform.feedback_v1 || []).find((item) => String(item.id) === id);
+    if (current?.content && retrievalStore.canManualLoad(id)) {
+      void loadFeedbackRetrieval(current);
+    }
   } catch (_) {
-    // 初判失败不阻断详情查看，保留人工分诊路径。
+    // 初判失败不阻断详情查看，保留人工分诊路径；阻断自动重试。
+    triageGate.markFailed(id);
   }
 }
 
@@ -3853,7 +3987,13 @@ async function loadFeedbackConversation(feedback, { force = false } = {}) {
   }
   if (!feedbackConversationRequestIsCurrent(id, requestId, requestKey)) return;
   if (refreshFeedbackList) renderPlatformFeedback();
-  else if (String(state.selectedFeedbackId) === id) renderFeedbackInspector(feedback);
+  else if (String(state.selectedFeedbackId) === id) {
+    // 从当前 state 取对象渲染，避免快照替换后闭包旧对象与新对象交替渲染
+    const current = (state.platform.feedback_v1 || []).find((item) => String(item.id) === id);
+    if (current) renderFeedbackInspector(current);
+    // 加载到新消息后滚动到底部（客服回复/客户补充实时到达时向上推显示）
+    scrollFeedbackConversationToBottom();
+  }
 }
 
 async function sendFeedbackReply(feedback) {
@@ -3880,7 +4020,11 @@ async function sendFeedbackReply(feedback) {
   } finally {
     conversation.sending = false;
     state.feedbackConversations[id] = conversation;
-    if (String(state.selectedFeedbackId) === id) renderFeedbackInspector(feedback);
+    if (String(state.selectedFeedbackId) === id) {
+      renderFeedbackInspector(feedback);
+      // 发送回复后滚动到底部，展示刚发出的消息
+      scrollFeedbackConversationToBottom();
+    }
   }
 }
 
@@ -4812,7 +4956,7 @@ function currentOrganizationScope() { return (state.platform.organization_scopes
 function organizationName(id) { return (state.platform.organization_scopes || []).find((item) => String(item.id) === String(id))?.name || "组织项目"; }
 function findOrganization(id) { const value = state.platform.organizations.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到组织。"); return value; }
 function findOrganizationMember(id, organizationId) { const value = state.platform.organization_members.find((item) => String(item.id) === String(id) && String(item.organization_id) === String(organizationId)); if (!value) throw new Error("未找到组织成员。"); return value; }
-function findWorkspace(id) { const value = state.platform.product_workspaces.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品工作区。"); return value; }
+function findWorkspace(id) { const value = state.platform.product_workspaces.find((item) => String(item.id) === String(id)) || state.platform.projects.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品工作区。"); return value; }
 function findProjectMember(id, projectId) { const value = (state.platform.project_members || []).find((item) => String(item.id) === String(id) && String(item.project_id) === String(projectId)); if (!value) throw new Error("未找到项目成员。"); return value; }
 function findPlatformTask(id) {
   const value = (state.workQuery.projection?.tasks || []).find((item) => String(item.id) === String(id))
@@ -4991,7 +5135,8 @@ function renderAttention(blockedPendingTasks = []) {
     button.addEventListener("click", () => runAction(async () => {
       if (canEnable) {
         await api.setProjectParticipation(project.id, true);
-        await refreshSnapshot();
+        await refreshSnapshot({ quiet: true, afterMutation: true });
+        showToast("已允许此项目自动领取");
         return;
       }
       els.projectBindingList.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -5156,8 +5301,9 @@ function renderCommandInspector(projects) {
         localProjectId = localProject.id;
       }
       await api.bindAutomationProject(remoteId, localProjectId);
+      if (localProjectId) showToast("已绑定本地目录");
       await refreshSnapshot();
-      if (localProjectId) await checkSetupReadinessForSelection(localProjectId);
+      if (localProjectId) await checkSetupReadinessForSelection(localProjectId, { presentSetup: false });
     }));
     checkbox.addEventListener("change", () => runAction(async () => {
       await api.setProjectParticipation(remoteId, checkbox.checked);
@@ -5880,10 +6026,13 @@ async function checkSetupReadinessForSelection(projectId = selectedSetupProjectI
   resetSetupCleanupSelection();
   const readiness = await api.checkSetupReadiness(projectId ? { projectId } : undefined);
   if (projectId) state.todaySetupByProject[String(projectId)] = readiness;
-  if (presentSetup) {
-    state.setup = readiness;
+  state.setup = readiness;
+  if (presentSetup || isBlockingSetupStatus(readiness)) {
+    state.setupPresentationRequested = true;
     renderSetup();
-  } else if (state.page === "today") renderToday();
+  } else if (state.page === "organization") renderOrganization();
+  else if (state.page === "today") renderToday();
+  else render();
   return readiness;
 }
 

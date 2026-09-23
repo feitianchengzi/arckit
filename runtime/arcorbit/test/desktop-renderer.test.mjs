@@ -978,6 +978,12 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   const organizationGuidanceSource = source.slice(source.indexOf("function organizationProjectGuidance"), source.indexOf("\nfunction wireOrganizationActions"));
   assert.match(organizationGuidanceSource, /!project\.local_project_path && !project\.local_project_id[\s\S]+data-organization-bind-workspace/);
   assert.match(organizationGuidanceSource, /!project\.participating[\s\S]+Project owner \/ admin/);
+  assert.match(source, /data-binding-block="repository"/);
+  assert.match(source, /data-binding-block="knowledge"/);
+  assert.match(source, /外部数据连接器/);
+  assert.doesNotMatch(source, /data-knowledge-configure/);
+  assert.doesNotMatch(source, /loadKnowledgeFactSummary/);
+  assert.match(html, /id="feedbackKnowledgeButton"[^>]*\shidden/);
   assert.match(source, /blocked_pending_tasks/);
   assert.match(source, /acceptance_feedback_queue/);
   assert.match(source, /api\.submitAcceptanceFeedback/);
@@ -990,6 +996,9 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /Automation Coordinator \/ 任务源/);
   assert.match(source, /phase === "remote_completion_pending"/);
   assert.match(source, /api\.setProjectParticipation\(project\.id, true\)/);
+  // 组织页「允许此项目」：mutation 后必须 afterMutation 刷新并给出成功反馈，否则在途刷新会静默吞掉 UI 更新。
+  assert.match(source, /data-organization-enable-project[\s\S]+?await api\.setProjectParticipation\(button\.dataset\.organizationEnableProject, true\);[\s\S]+?await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\);[\s\S]+?showToast\(/);
+  assert.match(source, /await api\.setProjectParticipation\(project\.id, true\);[\s\S]+?await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\);/);
   assert.match(styles, /--sidebar-width: var\(--layout-sidebar-width\);/);
   assert.match(styles, /--type-body: var\(--typography-body-size\);/);
   assert.match(styles, /--type-conversation: var\(--typography-conversation-size\);/);
@@ -1742,6 +1751,16 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /apply_project_setup: "确认写入项目环境"/);
   assert.match(source, /recover_project_setup: "备份并恢复"/);
   assert.match(source, /checkSetupReadinessForSelection\(item\.context\?\.local_project_id, \{ presentSetup: false \}\)/);
+  // organization 选择本地目录后必须留在本页：默认不弹全屏 Setup/登录检测，且 setup 事件不得抢占
+  assert.match(source, /async function bindProjectWorkspace\(workspace, \{ surface = "inline" \} = \{\}\)/);
+  assert.match(source, /bindProjectWorkspace\(findWorkspace\(button\.dataset\.organizationBindWorkspace\), \{ surface: "organization" \}\)/);
+  assert.match(source, /checkSetupReadinessForSelection\(localProjectId, \{ presentSetup: surface === "setup" \}\)/);
+  assert.match(source, /successMessage: `\$\{workspace\.name \|\| "项目"\}已绑定本地目录`/);
+  assert.doesNotMatch(source, /fresh 状态计算下一步/);
+  assert.match(source, /if \(successMessage\) showToast\(successMessage\)/);
+  assert.match(source, /showToast\("已绑定本地目录；聊天草稿已保留"\)/);
+  assert.match(source, /api\.onSetupEvent\(\(readiness\) => \{[\s\S]*if \(state\.setupPresentationRequested \|\| isBlockingSetupStatus\(readiness\)\)[\s\S]*renderSetup\(\);[\s\S]*else if \(state\.page === "organization"\) renderOrganization\(\)/);
+  assert.match(source, /state\.setupPresentationRequested = false;\s+els\.setupReadiness\.classList\.add\("hidden"\)/);
   assert.match(source, /state\.todaySetupByProject\[localProjectId\] = await api\.applySetupPlan/);
   assert.match(source, /state\.todaySetupByProject\[localProjectId\] = await api\.recoverSetupUpgrade/);
   assert.match(source, /function renderTodaySourceContext\(item\)/);
@@ -2009,10 +2028,10 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(main, /checkCoordinatedDesktopSetupReadiness\(\{/);
   assert.match(source, /api\.checkSetupReadiness\(projectId \? \{ projectId \} : undefined\)/);
   assert.match(source, /setupRetryButton\.addEventListener[\s\S]+await checkSetupReadinessForSelection\(\)/);
-  assert.match(source, /await api\.bindAutomationProject\(remoteId, localProjectId\);[\s\S]+if \(localProjectId\) await checkSetupReadinessForSelection\(localProjectId\)/);
+  assert.match(source, /await api\.bindAutomationProject\(remoteId, localProjectId\);[\s\S]+if \(localProjectId\) await checkSetupReadinessForSelection\(localProjectId, \{ presentSetup: false \}\)/);
   const productScopeHandler = source.match(/productScopeSelect\.addEventListener\("change", \(\) => runAction\(async \(\) => \{([\s\S]*?)\n  \}\)\);/)?.[1] || "";
   assert.doesNotMatch(productScopeHandler, /checkSetupReadinessForSelection/);
-  assert.match(source, /async function bindAutomationWorkspace[\s\S]+if \(localProjectId\) \{[\s\S]+checkSetupReadinessForSelection\(localProjectId\)/);
+  assert.match(source, /async function bindAutomationWorkspace[\s\S]+if \(localProjectId\) \{[\s\S]+checkSetupReadinessForSelection\(localProjectId, \{ presentSetup:/);
   assert.match(source, /plan\.project_roots/);
   assert.match(source, /plan\.loader_targets/);
   assert.match(main, /runtimeCwd: app\.isPackaged \? process\.resourcesPath : runtimeRoot/);
@@ -2528,4 +2547,30 @@ test('workbench polling checks authentication without loading legacy snapshots',
   state.page = 'work';
   await vm.runInContext('refreshProjectWorkbench()', context);
   assert.equal(refreshes, 1);assert.equal(routes, 2);
+});
+
+test('feedback 实时刷新：onWorkSyncEvent 命中 feedback.message.created 时刷新打开的会话', async () => {
+  const source = await readFile(rendererPath, 'utf8');
+  // onWorkSyncEvent 应区分 feedback.message.created 事件并刷新会话/通知
+  const onWorkStart = source.indexOf('api.onWorkSyncEvent((event)');
+  const onWorkEnd = source.indexOf('api.onChatEvent', onWorkStart);
+  const onWorkSource = source.slice(onWorkStart, onWorkEnd);
+  assert.match(onWorkSource, /feedback\.message\.created/);
+  // 命中当前打开的反馈时应触发会话刷新
+  assert.match(onWorkSource, /refreshFeedbackWorkspace|loadFeedbackConversation/);
+  // 不在 feedback 页或不命中时应给出通知
+  assert.match(onWorkSource, /showToast/);
+});
+
+test('feedback 会话：存在 scrollFeedbackConversationToBottom 自动滚动辅助函数', async () => {
+  const source = await readFile(rendererPath, 'utf8');
+  assert.match(source, /function scrollFeedbackConversationToBottom/);
+  // 加载会话后调用自动滚动
+  const loadStart = source.indexOf('async function loadFeedbackConversation');
+  const loadEnd = source.indexOf('\nasync function sendFeedbackReply', loadStart);
+  assert.match(source.slice(loadStart, loadEnd), /scrollFeedbackConversationToBottom/);
+  // 发送回复追加消息后调用自动滚动
+  const sendStart = source.indexOf('async function sendFeedbackReply');
+  const sendEnd = source.indexOf('\nfunction', sendStart + 1);
+  assert.match(source.slice(sendStart, sendEnd), /scrollFeedbackConversationToBottom/);
 });

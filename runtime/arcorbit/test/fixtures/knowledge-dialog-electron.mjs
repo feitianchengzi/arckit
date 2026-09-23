@@ -38,13 +38,21 @@ app.whenReady().then(async () => {
 
       click('[data-page="organization"]');
       await wait(320);
-      // 组织页默认落在 overview 视图；配置按钮在项目视图里，先切到个人项目作用域。
+      // 组织页默认落在 overview 视图；项目详情在项目视图里，先切到个人项目作用域。
       click('[data-organization-scope="personal"]');
       await wait(320);
       const configureButton = document.querySelector("[data-knowledge-configure]");
-      if (!configureButton) return { fatal: "organization page did not render knowledge configure button", rendererErrors };
-      const lockedProjectId = configureButton.dataset.knowledgeConfigure;
-      click("[data-knowledge-configure]");
+      const knowledgeBlock = document.querySelector('[data-binding-block="knowledge"]');
+      const repositoryBlock = document.querySelector('[data-binding-block="repository"]');
+      const entryState = {
+        configureAbsent: !configureButton,
+        knowledgePlaceholderVisible: Boolean(knowledgeBlock) && knowledgeBlock.textContent.includes("外部数据连接器"),
+        repositoryBlockVisible: Boolean(repositoryBlock)
+      };
+      if (configureButton || !knowledgeBlock) return { fatal: "organization knowledge binding placeholder state unexpected", entryState, rendererErrors };
+      const lockedProjectId = "11";
+      if (typeof globalThis.openKnowledgeBaseDialog !== "function") return { fatal: "globalThis.openKnowledgeBaseDialog hook missing", entryState, rendererErrors };
+      globalThis.openKnowledgeBaseDialog(lockedProjectId);
       await wait(260);
 
       const opened = Boolean(dialog()?.open);
@@ -107,7 +115,7 @@ app.whenReady().then(async () => {
         lockedProjectId
       };
 
-      return { opened, listView, addView, validationHolds, cancelReturnsToList, added, armedLabel, deleted, closed, rendererErrors };
+      return { entryState, opened, listView, addView, validationHolds, cancelReturnsToList, added, armedLabel, deleted, closed, rendererErrors };
     })()`);
     console.log(JSON.stringify(result));
   } catch (error) {

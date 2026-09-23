@@ -601,6 +601,63 @@ test("Feedback V2 action failures degrade only that feature and preserve loaded 
   assert.equal(after.product_workspaces[0].feedback_management.errors.messages.status, 403);
 });
 
+test("platform coordinator keeps local binding facts for organization projects outside the automation projection", async () => {
+  let store = normalizeStore({
+    version: 9,
+    platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Core", project_ids: ["11", "12"] }], active_workset_id: "WORKSET-DEFAULT" },
+    automation: {
+      project_bindings: { "12": "LOCAL-12" },
+      project_participation: { "11": true }
+    }
+  });
+  const runManager = {
+    readDesktopStore: async () => store,
+    updateDesktopStore: async (updater) => { store = normalizeStore(await updater(store) || store); return store; }
+  };
+  const automationCoordinator = {
+    getSnapshot: async () => ({
+      source_status: "healthy",
+      user: { id: "7", name: "glare" },
+      // 项目 12 不在 automation 投影里（不在 Workset demanded 列表/未参与授权的典型情形），
+      // 但 store 中已有本地目录绑定；组织页仍必须显示已绑定。
+      projects: [
+        { id: "11", local_project_id: "LOCAL-11", local_project_path: "/repo/one", participating: true, eligible: true }
+      ],
+      local_projects: [
+        { id: "LOCAL-11", name: "Alpha Local", path: "/repo/one" },
+        { id: "LOCAL-12", name: "Beta Local", path: "/repo/two" }
+      ],
+      queue: [], attention_items: [], recovery_items: [], acceptance_feedback_queue: [], acceptance_feedback_counts: {}, health: { state: "ready" }
+    })
+  };
+  const projects = [
+    { id: "11", name: "Alpha", raw: { organization_id: 31, members: [{ user_id: 7, role: "owner", is_me: true }] } },
+    { id: "12", name: "Beta", raw: { organization_id: 31, members: [{ user_id: 7, role: "member", is_me: true }] } }
+  ];
+  const platformSource = {
+    listOrganizations: async () => [{ id: "31", name: "Team" }],
+    listOrganizationMembers: async () => [{ id: "OM-31", user_id: "7", organization_id: "31", role: "owner" }],
+    listProjects: async () => projects,
+    listOrganizationProjects: async () => projects,
+    listPersonalProjects: async () => [],
+    listProjectMembers: async (projectId) => [{ id: `M-${projectId}`, user_id: "7", role: "owner" }],
+    listProjectTasks: async () => [],
+    listProjectTags: async () => []
+  };
+  const coordinator = createPlatformCoordinator({ runManager, automationCoordinator, platformSource, now: () => "2026-08-23T00:00:00.000Z" });
+
+  const snapshot = await coordinator.getSnapshot({ sections: ["organizations"] });
+  const scoped = snapshot.organization_scopes[0].projects.find((project) => String(project.id) === "12");
+  assert.equal(scoped.local_project_id, "LOCAL-12");
+  assert.equal(scoped.local_project_path, "/repo/two");
+  const cataloged = snapshot.projects.find((project) => String(project.id) === "12");
+  assert.equal(cataloged.local_project_id, "LOCAL-12");
+  assert.equal(cataloged.local_project_path, "/repo/two");
+  const stillProjected = snapshot.organization_scopes[0].projects.find((project) => String(project.id) === "11");
+  assert.equal(stillProjected.local_project_id, "LOCAL-11");
+  assert.equal(stillProjected.local_project_path, "/repo/one");
+});
+
 test("runFeedbackTriage posts to the per-feedback triage endpoint and returns the stored analysis", async () => {
   const requests = [];
   const coordinator = createPlatformCoordinator({
@@ -620,4 +677,51 @@ test("runFeedbackTriage posts to the per-feedback triage endpoint and returns th
   assert.deepEqual(requests, [{ path: "/feedbacks/51/triage", options: { method: "POST" } }]);
   assert.equal(result.data.triage.type, "issue");
   assert.equal(result.data.triage.priority, "P1");
+});
+
+test("platform coordinator projects store participation for organization projects outside the automation projection", async () => {
+  let store = normalizeStore({
+    version: 9,
+    platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Core", project_ids: [] }], active_workset_id: "WORKSET-DEFAULT" },
+    automation: {
+      project_bindings: { "12": "LOCAL-12" },
+      project_participation: { "12": true }
+    }
+  });
+  const runManager = {
+    readDesktopStore: async () => store,
+    updateDesktopStore: async (updater) => { store = normalizeStore(await updater(store) || store); return store; }
+  };
+  const automationCoordinator = {
+    getSnapshot: async () => ({
+      source_status: "healthy",
+      user: { id: "7", name: "glare" },
+      // 项目 12 不在 automation 投影（Workset 为空且未参与 demanded 集），
+      // 但 store 中 participation 已打开；组织页必须显示已授权，而不是继续显示「允许此项目」。
+      projects: [],
+      local_projects: [{ id: "LOCAL-12", name: "Beta Local", path: "/repo/two" }],
+      queue: [], attention_items: [], recovery_items: [], acceptance_feedback_queue: [], acceptance_feedback_counts: {}, health: { state: "ready" }
+    })
+  };
+  const projects = [
+    { id: "12", name: "Beta", raw: { organization_id: 31, members: [{ user_id: 7, role: "owner", is_me: true }] } }
+  ];
+  const platformSource = {
+    listOrganizations: async () => [{ id: "31", name: "Team" }],
+    listOrganizationMembers: async () => [{ id: "OM-31", user_id: "7", organization_id: "31", role: "owner" }],
+    listProjects: async () => projects,
+    listOrganizationProjects: async () => projects,
+    listPersonalProjects: async () => [],
+    listProjectMembers: async (projectId) => [{ id: `M-${projectId}`, user_id: "7", role: "owner" }],
+    listProjectTasks: async () => [],
+    listProjectTags: async () => []
+  };
+  const coordinator = createPlatformCoordinator({ runManager, automationCoordinator, platformSource, now: () => "2026-08-23T00:00:00.000Z" });
+
+  const snapshot = await coordinator.getSnapshot({ sections: ["organizations"] });
+  const scoped = snapshot.organization_scopes[0].projects.find((project) => String(project.id) === "12");
+  assert.equal(scoped.participating, true);
+  assert.equal(scoped.local_project_path, "/repo/two");
+  const cataloged = snapshot.projects.find((project) => String(project.id) === "12");
+  assert.equal(cataloged.participating, true);
 });

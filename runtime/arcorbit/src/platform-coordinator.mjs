@@ -127,6 +127,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     const selectedProjects = projectCatalog.filter((project) => selectedIds.has(String(project.id)));
     const todayProjectIds = new Set(platform.today_project_ids || []);
     const automationProjects = new Map((automation.projects || []).map((project) => [String(project.id), project]));
+    const bindingFactsById = localBindingFacts(store, automation);
 
     const governanceProjectMemberResults = governanceRequested
       ? await Promise.all(projectCatalog.map((project) => {
@@ -178,6 +179,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     const productWorkspaces = selectedProjects.map((project) => buildProductWorkspace({
       project,
       automationProject: automationProjects.get(String(project.id)),
+      bindingFacts: bindingFactsById.get(String(project.id)),
       preference: platform.workspace_preferences[String(project.id)] || {},
       detail: details.get(String(project.id))
     }));
@@ -186,7 +188,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       const result = organizationProjectResults.find((item) => item.organizationId === organizationId);
       const role = currentOrganizationRoles.get(organizationId);
       const visibility = result?.visibility || (["owner", "admin"].includes(role) ? "all_projects" : "participating_projects");
-      const projects = (result?.value || []).map((project) => projectProjection(project, automationProjects.get(String(project.id))));
+      const projects = (result?.value || []).map((project) => projectProjection(project, automationProjects.get(String(project.id)), bindingFactsById.get(String(project.id))));
       return {
         ...organization,
         current_user_role: role,
@@ -225,10 +227,10 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       active_workset: activeWorkset || null,
       today_project_ids: [...todayProjectIds],
       ui_preferences: platform.ui_preferences,
-      projects: projectCatalog.map((project) => projectProjection(project, automationProjects.get(String(project.id)))),
+      projects: projectCatalog.map((project) => projectProjection(project, automationProjects.get(String(project.id)), bindingFactsById.get(String(project.id)))),
       organizations: governanceRequested ? organizations : [],
       organization_scopes: governanceRequested ? organizationScopes : [],
-      personal_projects: governanceRequested ? personalProjects.map((project) => projectProjection(project, automationProjects.get(String(project.id)))) : [],
+      personal_projects: governanceRequested ? personalProjects.map((project) => projectProjection(project, automationProjects.get(String(project.id)), bindingFactsById.get(String(project.id)))) : [],
       product_workspaces: productWorkspaces,
       organization_members: organizationMembers,
       project_members: projectMembers.map((member) => ({ ...member, project_name: projectCatalog.find((project) => String(project.id) === String(member.project_id))?.name || "" })),
@@ -932,13 +934,13 @@ function feedbackTaskLinkData(metadata, taskId, taskState) {
   };
 }
 
-function buildProductWorkspace({ project, automationProject, preference, detail = {} }) {
+function buildProductWorkspace({ project, automationProject, bindingFacts = null, preference, detail = {} }) {
   const projectId = String(project.id);
   const tasks = (detail.tasks || []).map((item) => ({ ...item, project_id: projectId, project_name: project.name }));
   const members = (detail.members || []).map((item) => ({ ...item, project_id: projectId, project_name: project.name }));
   const feedback = (detail.feedback || []).map((item) => ({ ...item, project_id: projectId, project_name: project.name }));
   return {
-    ...projectProjection(project, automationProject),
+    ...projectProjection(project, automationProject, bindingFacts),
     preference,
     task_counts: detail.taskCounts || countBy(tasks, "state"),
     feedback_count: feedback.length,
@@ -983,8 +985,16 @@ function safePlatformError(error) {
   };
 }
 
-function projectProjection(project, automationProject) {
+function projectProjection(project, automationProject, bindingFacts = null) {
   const userMember = currentUserMember(project);
+  const localProjectId = String(automationProject?.local_project_id || bindingFacts?.local_project_id || "");
+  const localProjectName = String(automationProject?.local_project_name || bindingFacts?.local_project_name || "");
+  const localProjectPath = String(automationProject?.local_project_path || bindingFacts?.local_project_path || "");
+  // 组织页项目可能不在 Automation demanded 投影内；participation 以 store 事实为准回落，
+  // 否则点击「允许此项目」写入成功后投影仍恒为 false，UI 表现为无反应。
+  const participating = automationProject
+    ? Boolean(automationProject.participating || bindingFacts?.participating)
+    : Boolean(bindingFacts?.participating);
   return {
     id: String(project.id),
     name: String(project.name || ""),
@@ -994,14 +1004,35 @@ function projectProjection(project, automationProject) {
     current_user_id: String(project.current_user_id || ""),
     current_user_role: String(userMember?.role || ""),
     external_participation: Boolean(userMember?.is_external),
-    local_project_id: String(automationProject?.local_project_id || ""),
-    local_project_name: String(automationProject?.local_project_name || ""),
-    local_project_path: String(automationProject?.local_project_path || ""),
-    participating: Boolean(automationProject?.participating),
+    local_project_id: localProjectId,
+    local_project_name: localProjectName,
+    local_project_path: localProjectPath,
+    participating,
     eligible: Boolean(automationProject?.eligible),
     source_status: String(automationProject?.source_status || "unknown"),
     automation_task_counts: automationProject?.task_counts || {}
   };
+}
+
+function localBindingFacts(store, automation) {
+  const localProjectsById = new Map((automation.local_projects || []).map((item) => [String(item.id), item]));
+  const facts = new Map();
+  const ensure = (projectId) => {
+    const key = String(projectId);
+    if (!facts.has(key)) facts.set(key, { local_project_id: "", local_project_name: "", local_project_path: "", participating: false });
+    return facts.get(key);
+  };
+  for (const [projectId, participating] of Object.entries(store.automation?.project_participation || {})) {
+    ensure(projectId).participating = Boolean(participating);
+  }
+  for (const [projectId, localProjectId] of Object.entries(store.automation?.project_bindings || {})) {
+    const local = localProjectsById.get(String(localProjectId));
+    const fact = ensure(projectId);
+    fact.local_project_id = String(localProjectId || "");
+    fact.local_project_name = String(local?.name || "");
+    fact.local_project_path = String(local?.path || "");
+  }
+  return facts;
 }
 
 function currentUserRole(project) {

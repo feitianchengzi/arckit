@@ -225,8 +225,8 @@ test("Renderer reuses owned mutations, fresh-reads after success, and preserves 
   assert.match(source, /taskProjectFields\(defaultProjectId, \{ includeExecutorAutomationHelp: true, taskState: "pending_review" \}\)/);
   assert.match(source, /bindTaskFormProjectScope\(defaultProjectId, \{ includeExecutorAutomationHelp: true \}\)/);
   assert.match(source, /deriveTaskExecutorAutomationHelp\(\{[\s\S]*executorId: executorSelect\.value,[\s\S]*state: stateSelect\?\.value/);
-  assert.match(source, /async function bindAutomationWorkspace[\s\S]*await api\.bindAutomationProject\(remoteProjectId, localProjectId\);[\s\S]*await refreshSnapshot\(\{ quiet: true \}\);/);
-  assert.match(source, /await api\.setProjectParticipation\(workspace\.id, true\);[\s\S]*await refreshSnapshot\(\);/);
+  assert.match(source, /async function bindAutomationWorkspace[\s\S]*await api\.bindAutomationProject\(remoteProjectId, localProjectId\);[\s\S]*await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\);/);
+  assert.match(source, /await api\.setProjectParticipation\(workspace\.id, true\);[\s\S]*await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\);/);
   assert.match(source, /await api\.setAutomationEnabled\(true\);[\s\S]*await refreshSnapshot\(\);/);
   assert.match(source, /case "resume_queue":[\s\S]*await api\.setQueuePaused\(false\);[\s\S]*await refreshSnapshot\(\);/);
   assert.match(source, /openChatWorkspaceSetup[\s\S]*await refreshChat\(\{ quiet: true, resetOwner: true \}\);/);
