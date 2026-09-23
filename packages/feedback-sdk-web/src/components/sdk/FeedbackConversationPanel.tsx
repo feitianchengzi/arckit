@@ -4,6 +4,7 @@ import { createFeedbackMessageV2, getFeedbackMessagesV2, markFeedbackNotificatio
 import { uploadFeedbackFileV2 } from '@/lib/feedback/upload'
 import { FeedbackMessageAttachment } from '@/components/sdk/FeedbackMessageAttachment'
 import { isFeedbackSDKV2NotificationsEnabled } from '@/lib/sdk'
+import { t } from '@/i18n'
 
 function formatMessageTime(value: string) {
   const date = new Date(value)
@@ -12,9 +13,9 @@ function formatMessageTime(value: string) {
 }
 
 function senderLabel(senderType: FeedbackV2Message['sender_type']) {
-  if (senderType === 'developer') return '开发者'
-  if (senderType === 'system') return '系统'
-  return '我'
+  if (senderType === 'developer') return t('conversation.sender.developer')
+  if (senderType === 'system') return t('conversation.sender.system')
+  return t('conversation.sender.customer')
 }
 
 function buildClientMessageId() {
@@ -22,7 +23,7 @@ function buildClientMessageId() {
   return `sdk_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`
 }
 
-export function FeedbackConversationPanel({ feedbackId, onNotificationsRead }: { feedbackId: string; onNotificationsRead?: (feedbackId: string, markedCount: number) => void }) {
+export function FeedbackConversationPanel({ feedbackId, onNotificationsRead, refreshKey }: { feedbackId: string; onNotificationsRead?: (feedbackId: string, markedCount: number) => void; refreshKey?: number }) {
   const numericFeedbackId = useMemo(() => Number(feedbackId), [feedbackId])
   const [messages, setMessages] = useState<FeedbackV2Message[]>([])
   const [draft, setDraft] = useState('')
@@ -32,10 +33,15 @@ export function FeedbackConversationPanel({ feedbackId, onNotificationsRead }: {
   const [error, setError] = useState('')
   const loadRequestRef = useRef(0)
   const onNotificationsReadRef = useRef(onNotificationsRead)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     onNotificationsReadRef.current = onNotificationsRead
   }, [onNotificationsRead])
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
 
   const loadMessages = useCallback(async () => {
     if (!Number.isFinite(numericFeedbackId) || numericFeedbackId <= 0) return
@@ -58,7 +64,7 @@ export function FeedbackConversationPanel({ feedbackId, onNotificationsRead }: {
       }
     } catch (err: any) {
       if (requestId === loadRequestRef.current) {
-        setError(err?.message || '加载会话失败，请稍后重试')
+        setError(err?.message || t('agent.error_load'))
       }
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false)
@@ -75,14 +81,31 @@ export function FeedbackConversationPanel({ feedbackId, onNotificationsRead }: {
     }
   }, [loadMessages])
 
+  // refreshKey 变化（实时事件命中或可见性刷新）时重新拉取消息。
+  // 首次挂载由上面的 mount effect 负责，此处跳过初次以避免重复加载。
+  const refreshKeyInitRef = useRef(true)
+  useEffect(() => {
+    if (refreshKey === undefined) return
+    if (refreshKeyInitRef.current) {
+      refreshKeyInitRef.current = false
+      return
+    }
+    void loadMessages()
+  }, [refreshKey, loadMessages])
+
+  // 新消息到达后自动滚动到底部
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, scrollToBottom])
+
   const sendMessage = async () => {
     const content = draft.trim()
     if (!content && !file) {
-      setError('请输入补充内容或选择附件')
+      setError(t('conversation.error_empty'))
       return
     }
     if (!Number.isFinite(numericFeedbackId) || numericFeedbackId <= 0) {
-      setError('反馈编号无效')
+      setError(t('conversation.error_invalid_id'))
       return
     }
 
@@ -101,23 +124,23 @@ export function FeedbackConversationPanel({ feedbackId, onNotificationsRead }: {
       setDraft('')
       setFile(null)
     } catch (err: any) {
-      setError(err?.message || '发送失败，请稍后重试')
+      setError(err?.message || t('conversation.error_send'))
     } finally {
       setSending(false)
     }
   }
 
   return (
-    <section aria-label="反馈会话" className="space-y-3">
+    <section aria-label={t('conversation.title')} className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-foreground">沟通记录</p>
+        <p className="text-sm font-semibold text-foreground">{t('conversation.title')}</p>
         <button type="button" onClick={() => void loadMessages()} disabled={loading || sending} className="text-xs font-semibold text-primary hover:text-primary-hover disabled:opacity-50">
-          刷新
+          {t('conversation.refresh')}
         </button>
       </div>
 
-      {loading ? <p className="text-xs text-foreground-secondary">正在加载消息...</p> : null}
-      {!loading && !messages.length ? <p className="text-xs text-foreground-secondary">暂无补充消息。</p> : null}
+      {loading ? <p className="text-xs text-foreground-secondary">{t('conversation.loading')}</p> : null}
+      {!loading && !messages.length ? <p className="text-xs text-foreground-secondary">{t('conversation.empty')}</p> : null}
 
       <div className="scrollbar-slim max-h-[34dvh] space-y-2 overflow-y-auto pr-1">
         {messages.map((message) => (
@@ -142,13 +165,14 @@ export function FeedbackConversationPanel({ feedbackId, onNotificationsRead }: {
             ) : null}
           </article>
         ))}
+        <div ref={messagesEndRef} />
       </div>
 
       <div className="space-y-2 rounded-lg border border-divider bg-surface-elevated p-3">
         <textarea
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="补充问题、回复开发者..."
+          placeholder={t('conversation.placeholder')}
           rows={3}
           disabled={sending}
           className="w-full resize-none rounded-md border border-divider bg-surface px-3 py-2 text-sm text-foreground outline-none placeholder:text-foreground-tertiary focus:border-primary"
@@ -162,7 +186,7 @@ export function FeedbackConversationPanel({ feedbackId, onNotificationsRead }: {
               onChange={(event) => setFile(event.target.files?.[0] || null)}
               disabled={sending}
             />
-            {file ? `附件：${file.name}` : '添加附件'}
+            {file ? t('conversation.attached', { name: file.name }) : t('conversation.attach')}
           </label>
           <button
             type="button"
@@ -170,7 +194,7 @@ export function FeedbackConversationPanel({ feedbackId, onNotificationsRead }: {
             disabled={sending || (!draft.trim() && !file)}
             className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {sending ? '发送中...' : '发送'}
+            {sending ? t('conversation.sending') : t('conversation.send')}
           </button>
         </div>
         {error ? <p className="text-xs text-error">{error}</p> : null}

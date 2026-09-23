@@ -12,7 +12,7 @@ export {
   isFeedbackSDKV2NotificationsEnabled,
 } from './config'
 
-export type { FeedbackSDKConfig, FeedbackSDKV2AuthMode } from './config'
+export type { FeedbackSDKConfig, FeedbackSDKV2AuthMode, FeedbackSDKLocale } from './config'
 export type { FeedbackSDKTheme } from './theme'
 
 export {
@@ -24,3 +24,6 @@ export {
   notifyFeedbackSDKUnreadCount,
 } from './bridge'
 export type { FeedbackSDKBridge, FeedbackSDKNativeImagePayload } from './bridge'
+
+export { setLocale, getLocale, t } from '@/i18n'
+export type { FeedbackSDKLocale as FeedbackSDKLocaleValue } from '@/i18n'

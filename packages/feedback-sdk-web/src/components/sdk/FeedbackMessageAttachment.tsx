@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { getFeedbackAttachmentURLV2 } from '@/lib/feedback/upload'
+import { t } from '@/i18n'
 
 type PreviewKind = 'image' | 'pdf' | null
 
 function attachmentLabel(attachment: FeedbackV2Attachment) {
-  return attachment.file_name || attachment.url || attachment.object_key?.split('/').pop() || '附件'
+  return attachment.file_name || attachment.url || attachment.object_key?.split('/').pop() || t('attachment.default_label')
 }
 
 function getPreviewKind(attachment: FeedbackV2Attachment): PreviewKind {
@@ -22,7 +23,7 @@ function getPreviewKind(attachment: FeedbackV2Attachment): PreviewKind {
 
 async function createInlinePreviewUrl(sourceUrl: string, mimeType: string) {
   const response = await fetch(sourceUrl)
-  if (!response.ok) throw new Error(`读取附件失败：${response.status}`)
+  if (!response.ok) throw new Error(t('attachment.read_failed', { status: response.status }))
   const file = await response.blob()
   return URL.createObjectURL(new Blob([file], { type: mimeType }))
 }
@@ -41,15 +42,15 @@ function AttachmentPreviewDialog({
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3" role="dialog" aria-modal="true" aria-label={`${name}预览`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3" role="dialog" aria-modal="true" aria-label={t('attachment.preview_label', { name })}>
       <section className="flex h-full max-h-[88dvh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-surface shadow-2xl">
         <header className="flex items-center justify-between gap-3 border-b border-divider px-3 py-2.5">
           <p className="min-w-0 truncate text-sm font-semibold text-foreground">{name}</p>
           <div className="flex shrink-0 items-center gap-3">
             <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-primary hover:text-primary-hover">
-              下载
+              {t('attachment.download')}
             </a>
-            <button type="button" onClick={onClose} className="text-xl leading-none text-foreground-secondary hover:text-foreground" aria-label="关闭预览" title="关闭预览">
+            <button type="button" onClick={onClose} className="text-xl leading-none text-foreground-secondary hover:text-foreground" aria-label={t('attachment.close_preview')} title={t('attachment.close_preview')}>
               ×
             </button>
           </div>
@@ -95,14 +96,14 @@ export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedback
     try {
       let nextUrl = sourceUrl || attachment.url || ''
       if (!nextUrl && attachment.object_key) {
-        if (!attachment.id) throw new Error('附件标识缺失，无法申请临时访问权限')
+        if (!attachment.id) throw new Error(t('attachment.missing_id'))
         nextUrl = await getFeedbackAttachmentURLV2({
           feedbackId,
           attachmentId: attachment.id,
           objectKey: attachment.object_key,
         })
       }
-      if (!nextUrl) throw new Error('无法生成附件访问链接')
+      if (!nextUrl) throw new Error(t('attachment.no_link'))
       setSourceUrl(nextUrl)
       if (!kind) {
         window.open(nextUrl, '_blank', 'noopener,noreferrer')
@@ -112,7 +113,7 @@ export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedback
       setPreviewUrl(nextPreviewUrl)
       setPreviewOpen(true)
     } catch (err: any) {
-      setError(err?.message || '预览附件失败')
+      setError(err?.message || t('attachment.preview_failed'))
     } finally {
       setLoading(false)
     }
@@ -126,7 +127,7 @@ export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedback
         disabled={loading}
         className="max-w-full truncate rounded-md border border-divider bg-surface-elevated px-2 py-1 text-xs font-medium text-primary hover:border-primary/40 disabled:opacity-50"
       >
-        {loading ? '正在加载...' : `${kind === 'image' ? '预览图片' : kind === 'pdf' ? '预览 PDF' : '打开附件'}：${name}`}
+        {loading ? t('attachment.loading') : `${kind === 'image' ? t('attachment.preview_image') : kind === 'pdf' ? t('attachment.preview_pdf') : t('attachment.open')}：${name}`}
       </button>
       {error ? <p className="mt-1 text-xs text-error">{error}</p> : null}
       {previewOpen && previewUrl && kind ? (

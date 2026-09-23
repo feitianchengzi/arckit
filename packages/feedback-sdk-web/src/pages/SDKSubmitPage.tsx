@@ -6,6 +6,7 @@ import { getOrPersistApiKey, getOrPersistCustomUserId, resolveProjectId, submitF
 import { submitFeedbackV2, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { uploadFeedbackImageByApiKey, uploadFeedbackImageV2 } from '@/lib/feedback/upload'
 import { FEEDBACK_SDK_NATIVE_IMAGE_EVENT, getFeedbackSDKConfig, type FeedbackSDKNativeImagePayload } from '@/lib/sdk'
+import { t } from '@/i18n'
 
 declare global {
   interface Window {
@@ -23,7 +24,7 @@ function base64PayloadToFile(payload: FeedbackSDKNativeImagePayload): File {
   const dataUrl = payload.dataUrl?.trim()
   const base64Text = payload.base64?.trim() || (dataUrl ? dataUrl.split(',')[1] : '')
   if (!base64Text) {
-    throw new Error('原生图片数据为空')
+    throw new Error(t('submit.error_native_image_empty'))
   }
 
   const inferredMime = dataUrl?.match(/^data:([^;,]+)[;,]/)?.[1]
@@ -94,7 +95,7 @@ export function SDKSubmitPage() {
       }
 
       const apiKey = getOrPersistApiKey()
-      if (!apiKey) throw new Error('未检测到 API Key，无法上传图片')
+      if (!apiKey) throw new Error(t('submit.error_upload_no_apikey'))
       const result = await uploadFeedbackImageByApiKey({
         apiKey,
         file: image.file,
@@ -102,7 +103,7 @@ export function SDKSubmitPage() {
       })
       updateImage(image.id, { status: 'uploaded', progress: 1, uploadedFileKey: result.objectKey })
     } catch (error: any) {
-      const message = error?.message || '图片上传失败'
+      const message = error?.message || t('submit.error_upload_image')
       updateImage(image.id, { status: 'error', error: message })
       setUploadError(`${image.name}：${message}`)
     }
@@ -129,7 +130,7 @@ export function SDKSubmitPage() {
     const candidates = selectedFiles.slice(0, availableSlots)
     const rejectedMessages: string[] = []
     if (selectedFiles.length > availableSlots) {
-      rejectedMessages.push(`最多选择 ${maxImages} 张图片，超出的图片未添加`)
+      rejectedMessages.push(t('submit.image_max_count', { max: maxImages }))
     }
 
     let totalSize = current.reduce((sum, image) => sum + image.file.size, 0)
@@ -137,15 +138,15 @@ export function SDKSubmitPage() {
     candidates.forEach((file) => {
       const mimeType = file.type.trim().toLowerCase()
       if (!SUPPORTED_IMAGE_TYPES.has(mimeType)) {
-        rejectedMessages.push(`${file.name} 格式不支持`)
+        rejectedMessages.push(t('submit.image_unsupported', { name: file.name }))
         return
       }
       if (file.size <= 0 || file.size > MAX_IMAGE_SIZE) {
-        rejectedMessages.push(`${file.name} 超过单张 10MB 限制`)
+        rejectedMessages.push(t('submit.image_too_large', { name: file.name }))
         return
       }
       if (totalSize + file.size > MAX_TOTAL_IMAGE_SIZE) {
-        rejectedMessages.push(`${file.name} 添加后会超过图片总计 20MB 限制`)
+        rejectedMessages.push(t('submit.image_total_too_large', { name: file.name }))
         return
       }
 
@@ -212,7 +213,7 @@ export function SDKSubmitPage() {
         const file = base64PayloadToFile(payload || {})
         handleUploadFiles([file])
       } catch (error: any) {
-        setUploadError(error?.message || '原生图片读取失败，请重试')
+        setUploadError(error?.message || t('submit.error_native_read'))
       }
     }
 
@@ -227,7 +228,7 @@ export function SDKSubmitPage() {
     setSubmitError('')
     const trimmedContent = content.trim()
     if (!trimmedContent) {
-      setSubmitError('请输入反馈内容')
+      setSubmitError(t('submit.error_empty'))
       return
     }
 
@@ -236,26 +237,31 @@ export function SDKSubmitPage() {
       const useV2 = getFeedbackSDKConfig().feedbackV2Enabled === true
       if (useV2) {
         if (images.some((image) => image.status !== 'uploaded' || !image.uploadedAttachment)) {
-          throw new Error('仍有图片未上传成功，请重试或移除后再提交')
+          throw new Error(t('submit.error_images_uploading'))
         }
-        await submitFeedbackV2({
+        const submitted = await submitFeedbackV2({
           content: trimmedContent,
           attachments: images.map((image) => image.uploadedAttachment).filter(Boolean) as FeedbackV2Attachment[],
         })
-        navigate({ pathname: '/status', search: location.search })
+        // 提交后进入智能客服会话：反馈内容自动发给 Agent（基于代码库推理），
+        // 客户可在对话窗口继续追问，并在“我的反馈”查看进展。
+        const chatParams = new URLSearchParams(location.search)
+        chatParams.set('feedback', String(submitted.id))
+        chatParams.set('q', trimmedContent)
+        navigate({ pathname: '/chat', search: `?${chatParams.toString()}` })
         return
       }
 
       const apiKey = getOrPersistApiKey()
       if (!apiKey) {
-        throw new Error('未检测到 API Key，请先通过 window.FeedbackSDK.configure({ apiKey }) 注入。')
+        throw new Error(t('submit.error_no_apikey'))
       }
 
       const customUserId = getOrPersistCustomUserId()
       const projectId = await resolveProjectId(undefined, apiKey)
       const image = images[0]
       if (image && !image.uploadedFileKey) {
-        throw new Error('图片尚未上传完成，请稍后再提交')
+        throw new Error(t('submit.error_images_pending'))
       }
       await submitFeedbackByApiKey({
         apiKey,
@@ -268,7 +274,7 @@ export function SDKSubmitPage() {
 
       navigate({ pathname: '/status', search: location.search })
     } catch (error: any) {
-      setSubmitError(error?.message || '提交失败，请稍后重试')
+      setSubmitError(error?.message || t('submit.error_failed'))
     } finally {
       setSubmitting(false)
     }
@@ -283,7 +289,7 @@ export function SDKSubmitPage() {
     if (mode === 'native') {
       window.setTimeout(() => {
         if (pickerAttemptRef.current !== attempt) return
-        setPickerWarning('等待 App 返回截图。如果长时间没有变化，请检查原生 FeedbackSDKImagePicker 是否调用 window.FeedbackSDK.setImageFromNative。')
+        setPickerWarning(t('submit.picker_waiting'))
       }, 12000)
       return
     }
@@ -291,7 +297,7 @@ export function SDKSubmitPage() {
     const checkReturnedFile = () => {
       window.setTimeout(() => {
         if (pickerAttemptRef.current !== attempt) return
-        setPickerWarning('没有检测到已选择的截图。如果你正在 iOS App WebView 中使用 SDK，请确认宿主 WebView 支持 <input type="file">，或接入 FeedbackSDKImagePicker 原生图片选择桥。')
+        setPickerWarning(t('submit.picker_none'))
         console.warn('[FeedbackSDK] image picker returned without a file change event')
       }, 700)
     }
