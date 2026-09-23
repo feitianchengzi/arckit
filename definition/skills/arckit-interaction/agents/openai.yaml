@@ -1,6 +1,6 @@
 interface:
   display_name: "ArcKit Interaction"
   short_description: "维护交互预期及候选探索、比较与采纳"
-  default_prompt: "使用 $arckit-interaction 查询或维护交互预期，先区分正式维护、探索比较和采纳整合，读取索引及策略，保持源与投影一致。候选独立存放，按用户已有选择整合；报告跨域影响和验证。按设计产物结果契约区分产物完成、正式事实影响和当前必要决定；纯探索无事实判断时 fact_result 为 null。不决定 gap 完成，不写 Case State。"
+  default_prompt: "使用 $arckit-interaction 查询或维护交互设计，先区分正式维护、探索比较和采纳整合，读取索引、策略及现有原型，明确预期行为，更新原型与说明并实际操作验证。候选独立存放，按用户已有选择整合；报告跨域影响和验证。按设计产物结果契约区分产物完成、正式事实影响和当前必要决定；纯探索无事实判断时 fact_result 为 null。不决定 gap 完成，不写 Case State。"
 policy:
   allow_implicit_invocation: true

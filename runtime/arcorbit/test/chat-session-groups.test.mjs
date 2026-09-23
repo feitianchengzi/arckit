@@ -1,58 +1,42 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-
-import {
-  CHAT_SESSION_PREVIEW_LIMIT,
-  chatSessionVisibility,
-  groupChatSessions
-} from "../desktop/renderer/chat-session-groups.mjs";
-
-function session(id, projectId, updatedAt) {
-  return { id, project_id: projectId, updated_at: updatedAt, title: id, status: "completed" };
-}
-
-test("Chat groups and sorts sessions without a global project filter", () => {
-  const groups = groupChatSessions({
-    projects: [
-      { id: "PROJECT-A", name: "Alpha" },
-      { id: "PROJECT-B", name: "Beta" },
-      { id: "PROJECT-EMPTY", name: "No history" }
-    ],
-    sessions: [
-      session("A-OLD", "PROJECT-A", "2026-08-20T00:00:00.000Z"),
-      session("B-NEW", "PROJECT-B", "2026-08-23T00:00:00.000Z"),
-      session("A-NEW", "PROJECT-A", "2026-08-22T00:00:00.000Z"),
-      session("ORPHAN", "PROJECT-REMOVED", "2026-08-21T00:00:00.000Z")
-    ]
-  });
-
-  assert.deepEqual(groups.map((group) => group.project_id), ["PROJECT-B", "PROJECT-A", "PROJECT-REMOVED"]);
-  assert.deepEqual(groups[1].sessions.map((item) => item.id), ["A-NEW", "A-OLD"]);
-  assert.equal(groups[2].available, false);
-  assert.equal(groups.some((group) => group.project_id === "PROJECT-EMPTY"), false);
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } from '../desktop/renderer/chat-session-groups.mjs';
+const sessions = Array.from({ length: 12 }, (_, i) => ({ id: `S${String(i).padStart(2, '0')}`, project_id: 'A', created_at: `2026-09-${String(i + 1).padStart(2, '0')}`, updated_at: '' }));
+test('Activity, renamed projects and shuffled snapshots do not reorder projects or sessions', () => {
+  const input = [...sessions, { id:'B1', project_id:'B', created_at:'2026-09-01' }];
+  const order = items => items.map(g => [g.project_id, g.sessions.map(s => s.id)]);
+  const before = groupChatSessions({ sessions:input, projects:[{id:'A',name:'Z'},{id:'B',name:'A'}] });
+  const after = groupChatSessions({ sessions:input.toReversed().map(s => ({...s, updated_at:Math.random().toString(), status:'running'})), projects:[{id:'B',name:'Z'},{id:'A',name:'A'}] });
+  assert.deepEqual(order(before), order(after));
+  assert.deepEqual(before[0].sessions, sessions.toReversed());
+  assert.equal(groupChatSessions({sessions:[{id:'orphan',project_id:'missing'}]})[0].available,false);
+});
+test('Projects show five at a time; active selection never overrides collapse or limit', () => {
+  const group={sessions};
+  assert.equal(CHAT_SESSION_PREVIEW_LIMIT,5);
+  for (const [limit,count,hidden] of [[5,5,7],[10,10,2],[15,12,0]]) {
+    const result=chatSessionVisibility(group,{limit,selectedSessionId:'S11'});
+    assert.equal(result.sessions.length,count);assert.equal(result.hidden_count,hidden);
+  }
+  assert.deepEqual(chatSessionVisibility(group,{collapsed:true,selectedSessionId:'S01'}).sessions,[]);
+  assert.equal(chatSessionVisibility(group).sessions.length,5);
 });
 
-test("Chat shows ten sessions per project and expands only the requested project history", () => {
-  const [group] = groupChatSessions({
-    projects: [{ id: "PROJECT-A", name: "Alpha" }],
-    sessions: Array.from({ length: 12 }, (_, index) => session(
-      `CHAT-${String(index + 1).padStart(2, "0")}`,
-      "PROJECT-A",
-      `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`
-    ))
-  });
+test('New sessions lead by their own creation time, including task-linked sessions', () => {
+  const items = [
+    { id: 'old', project_id: 'A', created_at: '2026-09-01', updated_at: '2026-09-30', task_id: 'task-new' },
+    { id: 'new', project_id: 'A', created_at: '2026-09-19', updated_at: '2026-09-19' },
+    { id: 'linked', project_id: 'A', created_at: '2026-09-10', task_id: 'task-old' },
+  ];
+  const grouped = groupChatSessions({ sessions: items });
+  assert.deepEqual(grouped[0].sessions.map(s => s.id), ['new', 'linked', 'old']);
+  assert.deepEqual(groupChatSessions({ sessions: [...items, { id: 'latest', project_id: 'A', created_at: '2026-09-20' }] })[0].sessions.map(s => s.id), ['latest', 'new', 'linked', 'old']);
+});
 
-  const preview = chatSessionVisibility(group);
-  assert.equal(CHAT_SESSION_PREVIEW_LIMIT, 10);
-  assert.equal(preview.sessions.length, 10);
-  assert.equal(preview.hidden_count, 2);
-  assert.equal(preview.expanded, false);
-
-  const expanded = chatSessionVisibility(group, { expanded: true });
-  assert.equal(expanded.sessions.length, 12);
-  assert.equal(expanded.expanded, true);
-
-  const selectedHistory = chatSessionVisibility(group, { selectedSessionId: "CHAT-01" });
-  assert.equal(selectedHistory.sessions.length, 12);
-  assert.equal(selectedHistory.selected_requires_history, true);
+test('Empty projects remain visible without synthetic sessions', () => {
+  const projects = [{ id: 'A', name: 'Empty project' }, { id: 'B', name: 'Chat project' }];
+  const groups = groupChatSessions({ projects, sessions: [{ id: 'S', project_id: 'B' }] });
+  assert.deepEqual(groups[0], { project_id: 'A', project_name: 'Empty project', available: true, sessions: [] });
+  assert.deepEqual(chatSessionVisibility(groups[0]).sessions, []);
+  assert.equal(groups[1].sessions.length, 1);
 });

@@ -569,6 +569,7 @@ function taskBody(input, { creating }) {
     priority: optionalProvidedNumber(input, "priority", 0, 100000),
     tags: input.tags === undefined ? undefined : optionalText(input.tags, 1000)
   });
+  if(!creating && input.expected)body.expected={content:String(input.expected.content),state:taskState(input.expected.state),priority:input.expected.priority??null};
   if (creating && input.state === undefined) delete body.state;
   return body;
 }

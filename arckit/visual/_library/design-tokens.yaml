@@ -1,6 +1,6 @@
 metadata:
   project: ArcOrbit Desktop
-  last_updated: "2026-09-17"
+  last_updated: "2026-09-18"
   brief: ./brief.md
 
 colors:
@@ -70,11 +70,11 @@ spacing:
 layout:
   sidebar_width: { value: 228, description: 项目与状态主导航宽度 }
   titlebar_height: { value: 40, description: 跨平台应用标题栏高度，容纳 macOS 原生 traffic lights 或 Windows/Linux 应用控件及拖动区域 }
-  workbench_topbar_height: { value: 54, description: 事情台唯一内容顶栏，不与旧命令栏叠加 }
+  workbench_topbar_height: { value: 54, description: 兼容全局单条顶部栏高度，不叠加页面专属顶栏 }
   workbench_search_height: { value: 31, description: 事情台交互指定的紧凑搜索例外 }
   readable_width: { value: 760, description: 对话正文最大宽度 }
   list_drawer_breakpoint: { value: 760, description: 事情列表抽屉断点 }
-  commandbar_height: { value: 58, description: 顶部命令栏高度 }
+  commandbar_height: { value: 54, description: 全产品共享顶部栏高度 }
   inspector_width: { value: 312, description: 运行边界和证据检查器宽度 }
   compact_control_height: { value: 32, description: 仅图标工具和极紧凑辅助控件的最小高度 }
   control_height: { value: 36, description: 常规按钮、输入框和选择控件的最小高度 }

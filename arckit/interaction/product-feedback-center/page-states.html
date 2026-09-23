@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArcOrbit 产品反馈中心 - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body>
+    <div class="wireframe-container">
+        <header><h1>ArcOrbit 产品反馈中心</h1><div class="meta-info"><div>View: <code>ProductFeedbackCenter</code></div><div>平台: <strong>Desktop</strong></div><div>承载: <strong>受限 SDK WebContents</strong></div></div></header>
+
+        <details open>
+            <summary>SDK 加载</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>当前 Workshop 身份有效，固定 SDK V2 页面和内置 Project 107 配置尚未 ready。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · 产品反馈</strong><span>加载中</span></div><div class="toolbar"><button class="toolbar-button" disabled>提交反馈</button><button class="toolbar-button" disabled>我的反馈</button></div><div class="content-area"><div class="placeholder-box"><div class="spinner"></div><h2>正在连接反馈中心</h2><p>正在检查 SDK readiness，不会在页面地址或日志中传递凭据。</p></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>窗口标题与关闭动作</li><li>禁用的模式切换</li><li>SDK readiness 加载提示</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>SDK ready</code> → 配置一次并打开提交反馈</div><div class="interaction-item"><code>关闭</code> → 返回原 ArcOrbit 页面</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>可用内容</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>SDK ready 且互斥的 API Key 配置成功。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · 产品反馈</strong><span>已连接</span></div><div class="toolbar"><button class="toolbar-button">提交反馈</button><button class="toolbar-button">我的反馈</button></div><div class="content-area"><section class="surface"><div class="surface-header"><strong>提交对 ArcOrbit 的反馈</strong><span>Feedback SDK V2</span></div><div class="surface-body"><div class="input-field">反馈标题</div><div class="input-field">描述问题或建议</div><div class="placeholder-box">附件由 SDK 处理</div><div class="page-actions"><button class="compact-action primary">提交反馈</button></div></div></section></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>主窗口产品反馈未读数字角标（0 隐藏、99+ 上限）</li><li>提交反馈 / 我的反馈模式切换</li><li>隔离的 SDK 内容区</li><li>SDK 管理的进行中草稿、附件和状态</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>我的反馈</code> → 同一 SDK 文档调用 status action</div><div class="interaction-item"><code>提交反馈</code> → 同一 SDK 文档调用 submit action</div><div class="interaction-item"><code>后台未读刷新</code> → 只读取当前文档的未读数，不重载、不清空进行中正文</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>需要登录</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>未登录或当前用户 ID 无法解析；反馈项目和 Key 均由客户端内置，不提供用户配置。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · 产品反馈</strong><span>需要登录</span></div><div class="content-area"><div class="card"><div class="icon-placeholder">!</div><h2>登录后使用产品反馈</h2><p>请先登录 Workshop；ArcOrbit 会自动使用内置 Project 107 配置。</p><div class="page-actions"><button class="compact-action">关闭</button><button class="compact-action primary">打开账户</button></div></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>明确的登录原因</li><li>关闭与打开账户</li><li>无反馈参数配置入口</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>打开账户</code> → 聚焦 Workshop 登录区段</div><div class="interaction-item"><code>登录成功</code> → 用户重新打开反馈中心</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>SDK 失败恢复</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>固定 SDK 页面加载失败、SDK 方法未 ready、认证失败或网络不可用。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack"><div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · 产品反馈</strong><span>连接失败</span></div><div class="content-area"><div class="card"><div class="icon-placeholder">!</div><h2>暂时无法打开反馈中心</h2><div class="badge">SDK_NOT_READY</div><p>错误详情已脱敏；当前项目配置和用户身份未写入日志。</p><div class="page-actions"><button class="compact-action">关闭</button><button class="compact-action primary">重试</button></div></div></div></div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>稳定错误类别</li><li>脱敏说明</li><li>关闭与重试</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>重试</code> → 保留当前模式并重新检查或加载</div><div class="interaction-item"><code>认证无效</code> → 显示脱敏错误；内置配置只能随新构建更新</div></div>
+            </div>
+        </details>
+    </div>
+</body>
+</html>

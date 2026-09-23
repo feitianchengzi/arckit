@@ -14,6 +14,8 @@
 
 ## Agent 软件研发操作层
 
+`agentic-software-development/loop-and-gap-design-intent.md` 是用户关于 State Driven Loop 与 Gap 选择的完整设计意图依据，集中维护相关概念、动机、机制与已确认边界。后续优化或案例分析先对照本文；它不包含具体案例评判，也不由当前实现反向定义预期。现有概念、运行协议、技术方案和 skill 分别承载术语、契约或实现，不能代替对完整意图的理解。
+
 阅读顺序是 `problem-background.md`、`solution-principles.md`、`product-concepts.md`、`product-architecture.md`、`skill-architecture.md`、`controller-worker-loop.md`。`loop-engineering-research.md` 是研究输入，按需在修订 loop、runtime 或外部 adapter 相关规格前读取。
 
 `agentic-software-development/problem-background.md` 定义 Agent 软件研发操作层要解决的根问题，是本模块的决策起点。
@@ -43,3 +45,5 @@
 Release 本地交付工作台：产品源为 arckit/spec/agentic-software-development/arcorbit-release-workspace.md，技术源为 arckit/tech/arcorbit/release-workspace-solution.md，页面源为 arckit/interaction/release-workspace/interaction.md。复用已有项目绑定与 Chat/Idea 基础层。
 
 `agentic-software-development/arcorbit-project-workbench.md` 对应 `arckit/spec/agentic-software-development/arcorbit-project-workbench.md` 与 `arckit/interaction/project-workbench/`，生产实现位于 `runtime/arcorbit/src/workbench/` 和独立 project-workbench renderer 模块。
+
+- Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../agentic-software-development/arcorbit-planned-workspaces.md`。

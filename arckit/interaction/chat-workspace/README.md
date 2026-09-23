@@ -1,39 +1,56 @@
-# ArcOrbit · Chat
+# ArcOrbit · Chat 正式交互原型
 
-[完整原型](default.html) · [交互策略](interaction.md) · [异常场景工具](scenarios.html) · [状态辅助稿](states.html)
+[打开完整页面](default.html) · [正式交互说明](interaction.md) · [异常场景工具](scenarios.html)
 
-直接用浏览器打开 `default.html`，无需启动业务服务。左侧保持四组应用导航，中间为居中的对话与 Composer，右侧为按项目分组的会话列表。原来的静态主稿保留为 `states.html`，辅助说明也改为右侧列表，不再作为产品入口。
+直接用浏览器打开 default.html，无需业务服务。页面保留现有全局范围、分类导航、“模型能力”弹出配置、个人中心、右侧列表调宽、输入调高、会话历史、Markdown、工具/权限、停止和恢复行为。
 
-## 可连续体验
+## 推荐试用
 
-- 从右侧列表切换 Atlas / Borealis 会话；展开各项目历史，返回时检查各自草稿和阅读位置。
-- 从列表底部新建对话，先切换项目、填写 Model/Level 与文本，再发送。首条发送之前不会产生空 session。
-- 发送后查看逐段回复、切换到其他会话，再返回；修改模型只影响下次 turn，停止保留部分回答。
-- 重命名、删除确认/取消；删除活动会话先进入停止阶段，失败保留记录。
-- 左下个人中心打开与 Thing 共用的账户与 Runtime；技能入口链接已有 Engineering 原型，当前页保持打开。
-- 在场景工具中触发离线、下一次提交失败、权限请求、运行失败、无工作区、无历史、长消息与代码、模型清单不可用；恢复或重置后重试。
-- 在 760px 及以下打开右侧会话抽屉，选择会话后收起；Esc 关闭并回到触发按钮。
+1. 在已有会话点击“整理为待办”，待完成后从右侧“待办”重新进入，仍为同一会话。
+2. 点击输入框“能力与引用”→“创建待办”，输入“给 Chat 增加会话搜索”后发送。创建当前项目的另一条待办，留在原讨论；卡片显示创建来源。
+3. 点击新待办卡片打开对应 Chat，从标题“创建于…”返回来源。两个入口不会复制同一待办的 thread。
+4. 输入 `/` 选择“问题诊断”，输入 `@` 选择文件或待办，再输入问题发送。引用对象不改变当前主待办。
+5. 打开已有待办，输入“补充完成标准”，等待写回，再点“查看最新内容”。输入“继续执行”体验沿同一 thread 的执行请求。
+6. 输入“看看有没有遗漏的旁支事项”，收到建议后回复“记成另一个待办”。Agent 回复不附预设快捷按钮。
+7. 在异常工具选择“下次原生写入失败”，发起创建；失败后回复“重试刚才的操作”。版本冲突在修改进行中注入；占用、失权作用于当前主待办。
 
-## 依据与模拟边界
+输入框左侧保留“能力与引用”和“模型能力”入口，发送/停止靠右。Model 和 Level 在模型能力菜单调整并自动保存；技能设置从能力与引用菜单底部进入。
 
-交互源为本目录 `interaction.md`；采用 `arckit/visual/_library/brief.md`、`components/conversation.yaml`、`state-contract.md` 和 `themes/light.yaml`。样式读取共享生成 Tokens，正文与对话保持原有字号，内容与输入区最大阅读宽度 760px。共用 Thing 的导航与账户组件通过显式页面适配器接入，不共享 Chat/Thing 业务模型或存储。
+统一选择器中的标签先留在草稿，发送后才调用。一个显式能力、多个去重引用随各自会话保存；取消选择和移除标签都保留正文。右侧“会话”保持项目分组和五条递增，“待办”只显示当前项目。窄窗通过列表抽屉操作。
 
-默认每 900ms 推进一段本地回答。`?autoplay=off` 关闭自动推进，验证使用相同 `ChatPrototype.tick()`。不存在真实模型调用、目录选择、任务源同步或文件写入；工作区表单输入只是路径样本。真实目录选择和 Setup Readiness 保留 `workspace-setup.html` 作为辅助流程依据。
+## 正式依据和模拟边界
 
-普通原型存储键 `arcorbit-interaction-chat-v1`，场景工具使用 `-scenarios` 后缀，与 Thing 分开。刷新恢复持久会话、草稿、配置与阅读状态；未终结的 turn 标记为中断，不自动重新运行。清单仅展示本地候选，复制代码实际尝试浏览器剪贴板并在拒绝时提供反馈。
+正式预期在 interaction.md。2026-09-19 采纳关系记录于 `../_explorations/chat-todo/exploration.md`；正式入口不加载任何探索脚本、样式或存储。
 
-Markdown 本地实现从仓库受限渲染器提取，支持段落、列表、标题、引用、链接、代码及表格；拒绝 HTML 注入和非 HTTP(S) 外链。它不执行代码或任务引用，不导入生产业务模块。
+样式消费 `../../visual/_library/generated-tokens.css`、正式 brief、ConversationSurface 及 light/dark 主题。新增选择器、标签与对象卡片由既有视觉角色组合；工程细节与 thread 标识不进入正常产品流。
 
-真实 app-server 幂等、thread 丢失确认及替代绑定、跨进程停止和恢复、操作系统目录对话框、网络权限均未连接或验证；原型可操作成功不证明这些生产协议成立。生产页面和 spec 已同步栏位及抽屉规则；生产验证独立记录在 `arckit/cases/evidence/CASE-20260917-001/chat-electron.json`。
+正文、工具活动、审批展示来自既有 Chat 原型基础；当前项目待办能力、统一输入选择器、引用标签与回执卡片表达正式新增预期。全部使用本地样本，没有真实 Agent、Skill 读取、项目文件读取、待办 API 或业务执行。输入识别为预设短语与显式能力的确定性模拟，不声称完成通用语义理解。
 
-## 文件与验证
+默认每 900ms 推进一步；`?autoplay=off` 时通过 ChatPrototype.tick() 手动推进。停止只阻止未提交模拟写入。真实幂等、结果未知、部分成功绑定恢复、跨进程/设备 thread、读写授权、原生桌面控件和辅助技术完整检查未由原型证明。
 
-模型在 `model.js`，视图在 `views.js`，行为与场景在 `app.js`，页面布局在 `chat.css`，受限文本呈现在 `markdown.js`；超过八种状态按职责拆分，不把入口拆成静态子视图。`states.html` 与 `workspace-setup.html` 仅作辅助说明。
+普通原型沿用独立 `arcorbit-interaction-chat-v1` 存储，原生能力样本用 nativeVersion 初始化；场景工具使用 `-scenarios` 后缀，与探索和 Thing 样本隔离。刷新不重放活动原生写入；删除本地会话不删除待办或任务所属的持久 thread 身份。
 
-从仓库根目录运行：
+## 文件和验证
+
+基础文件 model.js / views.js / app.js / chat.css / markdown.js 保留原 Chat 能力。native-model.js 管理待办、消息意图与工具回执样本，native-views.js 组合正式视图，native-input.js 管理选择器、标签、对象导航和异常入口，native.css 使用正式 Token；model-settings.js 管理当前会话的模型/推理级别弹出菜单。全部低于 500 行，按职责拆分；default.html 始终是完整入口。
+
+从仓库根运行：
 
 ```sh
-node runtime/arcorbit/node_modules/electron/cli.js arckit/interaction/chat-workspace/verify.cjs
+runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify.cjs
+runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-native.cjs
+runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-layout.cjs
+swift arckit/interaction/chat-workspace/verify-layout-webkit.swift "$PWD"
 ```
 
-检查主路径、后台会话、模型固定、草稿与滚动恢复、输入法、错误重试、工作区绑定、个人中心、390–1500px 布局和 200% 缩放。结果在 `verification.json`，截图在未跟踪的 `previews/`。共用导航修改另运行 Thing 的 `verify-states.cjs`，确认旧目的地、窄窗菜单与恢复行为仍可用。
+结果分别在 verification.json、verification-native.json。前者覆盖原有会话、模型、草稿、滚动、权限、失败、工作区、账户与布局；后者覆盖同一 thread、能力/引用标签、待办创建与来源、读写、冲突、占用、失权、停止、恢复、输入法、暗色及 390–1500px/200% 缩放。
+
+本地截图位于 previews/native-*.png。states.html 与 workspace-setup.html 为专项辅助稿；新增原生能力以完整入口和正式说明为准。
+
+菜单以各自入口为锚点向上展开，并随窗口尺寸调整。共享顶部栏按生产 renderer 的现有布局校准；产品集管理仅修改原型本地样本。
+
+verification-layout.json 专门检查顶部入口同排、菜单高度、固定搜索/技能设置，以及逐个滚动到候选后真实命中点击区域；覆盖 390–1500px 宽、640–1000px 高。
+
+verify-layout-webkit.swift 使用 macOS WKWebView 复核 1500×800 桌面布局；本次结果记录在 verification-layout-webkit.json。
+
+Work 的 `../task-browser/default.html` 提供待办“打开 Chat”路径；Chat 右栏支持“会话列表 / 待办详情”切换。两页的详情样本通过 `../_shared/work-chat-detail.js` 呈现。该样本仅模拟入口、绑定和详情切换，完整业务字段与权限以 interaction.md 及生产共享详情渲染器为准。

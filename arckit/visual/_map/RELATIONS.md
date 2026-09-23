@@ -3,7 +3,7 @@
 ## 事实与投影
 
 - `_library/brief.md` 是 ArcOrbit 风格源；`reference-research.md` 记录官方参考与本地采纳依据。
-- `_library/design-tokens.yaml` 提供基础值与语义角色；`themes/*.yaml` 只覆盖语义角色，不复制基础色。
+- `_library/design-tokens.yaml` 提供基础值与语义角色；`themes/*.yaml` 显式覆盖主题消费值；现有 colors.* 消费键保持兼容，semantic.* 为主要角色入口，不按主题重命名。
 - `_library/component-catalog.yaml` 的 includes 按相对路径聚合四组组件；每组消费 Tokens 和 `state-contract.md`。
 - `_library/build-preview.py` 解析引用并生成 `generated-tokens.css` / `preview-data.js`；HTML 直接读取两份生成文件，无 CDN 或业务 API。
 - `_library/style-preview.html`、`preview.css`、`preview.js` 只展示组件，不定义正式业务页面。
@@ -12,7 +12,7 @@
 
 在 repo 根目录执行 `python3 arckit/visual/_library/build-preview.py`；运行环境需要 PyYAML。`--check` 检查生成文件是否新鲜、组件引用和语义配色对比度。
 
-映射规则是 Token 完整路径的 `.` / `_` 转为 `-`，添加 `--` 前缀，例如 `semantic.control_border` → `--semantic-control-border`。尺寸数值添加 px，weight 与 layer 保持无单位，duration_ms 转为 ms。引用先解析，主题以 `[data-theme="light"]` 或 `[data-theme="legacy-mixed"]` 覆盖。消费者既可直接引用生成 CSS，也可按同一规则生成，不能手工拷贝数值。
+映射规则是 Token 完整路径的 `.` / `_` 转为 `-`，添加 `--` 前缀，例如 `semantic.control_border` → `--semantic-control-border`。尺寸数值添加 px，weight 与 layer 保持无单位，duration_ms 转为 ms。引用先解析，主题以 `[data-theme="light"]` 、`[data-theme="dark"]` 或 `[data-theme="legacy-mixed"]` 覆盖。消费者既可直接引用生成 CSS，也可按同一规则生成，不能手工拷贝数值。
 
 `python3 arckit/visual/_library/preview-server.py` 在 127.0.0.1 的可用端口提供预览；输出明确入口。`style-preview.html` 也支持直接打开。
 
@@ -43,3 +43,7 @@
 实际 Renderer 消费：`runtime/arcorbit/scripts/sync-visual-tokens.mjs` 将生成 CSS 确定性复制到应用资源；`visual-system.css` 应用组件角色。打包规则包含 desktop/**/*，运行时无设计目录依赖。开发启动同步，visual-system.test.mjs 检查漂移。
 
 无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。
+
+- 全局顶部上下文：interaction/CONVENTIONS.md → visual/_library/brief.md、design-tokens.yaml → runtime/arcorbit/desktop/renderer/global-context.*；Chat、Thing、Product、Today 消费共享范围。生产验证见 interaction/_map/global-context-verification.md。
+
+暗色主题：dark.yaml → build-preview.py → generated-tokens.css → 组件预览与 Thing 设置原型。生产 Renderer、主进程窗口背景及本机偏好接入由 CASE-20260918-004 的实现 Gap 验证；历史探索不重绘，其余旧原型不作为暗色验收证据。

@@ -13,6 +13,12 @@ import { acquireTaskTurn, taskTurnOwner } from './task-turn-lock.mjs';
 const activeChat = status => ['starting', 'running', 'waiting_approval', 'interrupting'].includes(status);
 const text = (value, max = 100000) => String(value || '').trim().slice(0, max);
 const list = value => Array.isArray(value) ? value : [];
+function projectExecutorId(work, projectId) {
+  const projects = work.project_catalog?.length ? work.project_catalog : work.projects || [];
+  const id = String(projects.find(project => String(project.id) === String(projectId))?.current_user_id || '').trim();
+  if (!Number.isSafeInteger(Number(id)) || Number(id) <= 0) throw new Error('无法确认当前用户在所选项目中的执行人身份，请刷新项目后重试。');
+  return id;
+}
 const capabilities = [
   ['scene.read', '读取事情、上下文及版本', {}],
   ['report', '提交 Agent 当前工作、进展、剩余问题与成果声明', { current:'string', advances:'string[]', remaining:'string[]', next:'string', plan:'string[]', artifacts:'{path, summary, version}[]' }],
@@ -24,13 +30,13 @@ const capabilities = [
 ].map(([name,description,input]) => ({name,description,input,scope:'current_task',owner: name.startsWith('task.') || name.startsWith('material') || name.startsWith('comment') ? 'workshop' : 'workbench_scene'}));
 
 export function createProjectWorkbench({ dataDir, runManager, workSync, platform, automation, getAccountScope,
-  getCodexExecutable, setupReadinessPreflight, getAgentEnvironment = async () => ({}), revokeAgentEnvironment = () => {}, softwareCapabilities = () => [], callSoftware = async () => { throw new Error("软件能力不可用。"); }, resolveSceneSkills = async () => null, createAdapter, now = () => new Date().toISOString() }) {
+  getCodexExecutable, setupReadinessPreflight, getAgentEnvironment = async () => ({}), revokeAgentEnvironment = () => {}, softwareCapabilities = () => [], callSoftware = async () => { throw new Error("软件能力不可用。"); }, resolveSceneSkills = async () => null, createAdapter, chatCoordinator = null, now = () => new Date().toISOString() }) {
   const scenes = createSceneStore({ dataDir, now });
   const emitter = new EventEmitter();
   const turnLeases = new Map();
   const commandQueues = new Map();
   const changed = () => emitter.emit('event', { type:'workbench.changed' });
-  const chat = createChatCoordinator({ runManager, getCodexExecutable, setupReadinessPreflight, createAdapter,
+  const chat = chatCoordinator || createChatCoordinator({ runManager, getCodexExecutable, setupReadinessPreflight, createAdapter,
     sessionKind:'automation-task', getTurnContext: turnContext,
     onTurnSettled: async ({sessionId}) => { revokeAgentEnvironment(`chat:${sessionId}`); turnLeases.get(sessionId)?.(); turnLeases.delete(sessionId); changed(); await automation.maybeStartNext?.(); }
   });
@@ -49,6 +55,7 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     const ids = new Set(projects.map(p => p.id));
     return { account_scope:scope, user:work.user, projects, local_projects:local.map(({id,name})=>({id,name})), tasks:work.tasks.filter(task => ids.has(String(task.project_id))),
       runtime:{...runtime,queue:store.automation.enabled?runtime.queue:list(runtime.queue).filter(t=>store.automation.requested_tasks?.[t.id])}, scenes:Object.fromEntries(Object.entries(db.scenes).filter(([id])=>work.tasks.some(task=>String(task.id)===id)).map(([id,s])=>[id,{revision:s.revision,pause_requested:s.pause_requested}])),
+      global_runtime:Object.fromEntries(['enabled','queue_paused','queue','active_executions','attention_items','recovery_items'].map(key=>[key,runtime[key]])),
       source_status:work.source_status, synced_at:work.synced_at, realtime:work.realtime, errors:work.errors, settings:await runManager.getSettings() };
   }
   async function taskContext(taskId) {
@@ -154,7 +161,9 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     if(!requestId || !text(input.content)) throw new Error('请填写事情内容。');
     const work=await workSync.getSnapshot();
     if(!(work.project_catalog || work.projects).some(p=>String(p.id)===String(input.project_id))) throw new Error('请选择可访问的项目。');
-    const fingerprint=JSON.stringify([input.project_id,input.content,input.father_id || '',input.executor_id || work.user?.id]);
+    const executorId=input.executor_id || projectExecutorId(work,input.project_id);
+    if(!Number.isSafeInteger(Number(executorId)) || Number(executorId)<=0) throw new Error('执行人 ID 无效，请刷新项目后重试。');
+    const fingerprint=JSON.stringify([input.project_id,input.content,input.father_id || '',executorId]);
     let existing;
     await scenes.mutate(scope,db=>{
       existing=db.creations[requestId];
@@ -163,7 +172,7 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
     });
     if(existing?.task_id) return {task_id:existing.task_id};
     if(existing) throw new Error('此前创建结果尚未确认，请同步事情列表后检查，避免重复创建。');
-    const task=await platform.executeAction(input.father_id?'task.subtask.create':'task.create',{project_id:input.project_id,content:input.content,father_id:input.father_id || undefined,executor_id:input.executor_id || work.user?.id,state:'pending_review',priority:input.priority || 0});
+    const task=await platform.executeAction(input.father_id?'task.subtask.create':'task.create',{project_id:input.project_id,content:input.content,...(input.father_id?{father_id:input.father_id}:{}),executor_id:executorId,state:'pending_review',priority:input.priority || 0});
     const taskId=String(task.id || task.task?.id || '');
     if(!taskId) throw new Error('服务未返回事情标识，请同步检查。');
     await scenes.mutate(scope,db=>{db.creations[requestId].task_id=taskId;db.creations[requestId].status='completed';db.scenes[taskId] ||= emptyScene(taskId);});
@@ -209,16 +218,16 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
       if(softwareCapabilities().some(c=>c.name===action)) {
         scene.last_capability_result={action,result:await callSoftware(action,payload,{task,local:ctx.local,scope,actor}),at:now()};
       } else if(action==='task.update') {
-        const changes=actor==='agent'?{...(payload.content!==undefined?{content:payload.content}:{}),...(payload.priority!==undefined?{priority:payload.priority}:{})}:payload;
+        const changes=actor==='agent'?{...(payload.expected?{expected:payload.expected}:{}),...(payload.content!==undefined?{content:payload.content}:{}),...(payload.priority!==undefined?{priority:payload.priority}:{})}:payload;
         if(changes.state==='accepted') throw new Error('请使用验收操作。');
         await platform.executeAction('task.update',{...changes,task_id:task.id,expected_state:task.state});
         if(changes.content!==undefined && changes.content!==task.content) {scene.criteria=scene.criteria.map(c=>({...c,checked:false}));scene.goal_version=goalVersion(changes.content);}
       } else if(action==='task.subtask.create') {
-        await platform.executeAction(action,{project_id:task.project_id,father_id:task.id,content:payload.content,executor_id:ctx.work.user?.id,state:'pending_review'});
+        await platform.executeAction(action,{project_id:task.project_id,father_id:task.id,content:payload.content,executor_id:projectExecutorId(ctx.work,task.project_id),state:'pending_review'});
       } else if(action==='auto.start') {
         if(taskTurnOwner(ctx.local?.id,task.id)) throw new Error('请等待当前讨论结束后再启动 Auto。');
         if(!ctx.local) throw new Error('请先绑定本地工作区。');
-        if(String(task.executor_id)!==String(ctx.work.user?.id)) throw new Error('只有分配给自己的事情可以在此设备 Auto。');
+        if(String(task.executor_id)!==projectExecutorId(ctx.work,task.project_id)) throw new Error('只有分配给自己的事情可以在此设备 Auto。');
         if(!['pending_review','pending','blocked'].includes(task.state)) throw new Error('当前状态不能直接 Auto，请使用恢复操作。');
         await ensureSession(ctx, false);
         await automation.updateTaskState({taskId:task.id,state:'pending',expectedState:task.state});
@@ -259,9 +268,11 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
       } else throw new Error(`未知事情操作：${action}`);
     });
   }
-  return {snapshot,detail,command,invokeTool,agentScene,capabilities:()=>capabilities,
+  return {snapshot,detail,command,invokeTool,agentScene,
+    async settleChat(sessionId){revokeAgentEnvironment(`chat:${sessionId}`);turnLeases.get(sessionId)?.();turnLeases.delete(sessionId);changed();await automation.maybeStartNext?.();},
+    capabilities:()=>capabilities,
     async agentEnvironment({projectId,taskId}) {if(!taskId)return null;const ctx=await taskContext(taskId);if(ctx.local?.id!==projectId)throw new Error('Agent 工作区与事情不匹配。');return {taskId:String(taskId),scope:ctx.scope,projectId,workspace:ctx.local.path};},
     async assertAgentGrant(grant){const ctx=await taskContext(grant.taskId);if(ctx.scope!==grant.scope||ctx.local?.id!==grant.projectId||ctx.local?.path!==grant.workspace)throw new Error('事情工作区或账号已变化，原执行不能继续调用能力。');},
-    onEvent(fn){emitter.on('event',fn);return()=>emitter.off('event',fn);},async close(){await chat.close();for(const release of turnLeases.values())release();turnLeases.clear();}};
+    onEvent(fn){emitter.on('event',fn);return()=>emitter.off('event',fn);},async close(){if(!chatCoordinator)await chat.close();for(const release of turnLeases.values())release();turnLeases.clear();}};
 }
 function normalizeReport(input) {return {current:text(input.current,4000),summary:text(input.summary,4000),advances:list(input.advances).map(v=>text(v,1000)),remaining:list(input.remaining).map(v=>text(v,1000)),next:text(input.next,2000),artifacts:list(input.artifacts).slice(0,50).map(a=>({path:text(a.path,2000),summary:text(a.summary,2000),version:text(a.version,200)}))};}

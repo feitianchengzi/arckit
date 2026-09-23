@@ -95,7 +95,7 @@ test("desktop state kernel reads durable state once and publishes monotonic stat
     const updated = await store.captureStateView();
 
     assert.equal(diskReads, 3);
-    assert.equal(diskWrites, 5);
+    assert.equal(diskWrites, 4); // Adding an empty project no longer writes synthetic messages.
     assert.equal(updated.revision, 2);
     assert.notEqual(updated.state, first.state);
     assert.deepEqual(updated.state.projects.map((project) => project.id), ["PROJECT-1"]);
@@ -568,4 +568,18 @@ test('execution stop archives and technical/external responsibility survive stor
   assert.deepEqual(twice.automation.stopped_executions, input.automation.stopped_executions);
   assert.equal(twice.automation.recovery_items[0].responsibility, 'runtime');
   assert.equal(twice.automation.attention_items[0].responsibility, 'external');
+});
+
+test("empty projects and deletion of the last session survive persistence and restart", async () => {
+  const root = await mkdtemp(join(tmpdir(), "arcorbit-zero-sessions-"));
+  const options = { dataDir: root, runsDir: join(root, 'runs'), storePath: join(root, 'store.json') };
+  try {
+    const store = createDesktopStore(options);
+    await store.updateStore(draft => { draft.projects.push({ id: 'P' }); });
+    assert.deepEqual((await store.readStore()).sessions.P, []);
+    await store.updateStore(draft => { draft.sessions.P.push({ id: 'S', kind: 'chat' }); });
+    await store.updateStore(draft => { deleteProjectSession(draft, 'P', 'S'); });
+    assert.deepEqual((await store.readStore()).sessions.P, []);
+    assert.deepEqual((await createDesktopStore(options).readStore()).sessions.P, []);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

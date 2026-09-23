@@ -457,3 +457,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 ## 账户与 Runtime 完整原型
 
 账号状态辅助稿 `authentication.html` 的完整可操作补充位于 `../project-workbench/default.html` 左下个人中心。能力逐项对应当前生产设置区，覆盖邮箱/手机、任务源三种认证、YOLO、两组模型、代理、同步及产品反馈。依据与本轮体验优化见 `../project-workbench/account-capabilities.md`，不改变 Automation 执行控制的归属。
+
+## 全局上下文原型
+
+`default.html` 使用 `_shared/global-context.js`、`global-shell.js` 与 `context-pages.js`，连续演示 CONVENTIONS.md 定义的产品范围、对象选择、草稿和统一顶部能力；页面专项状态图保留在 `page-states.html`，其旧窗口壳仅作历史示意。原型保存及运行状态均为浏览器本地模拟，服务调用和页面专项深层操作的验证边界沿用各自说明。

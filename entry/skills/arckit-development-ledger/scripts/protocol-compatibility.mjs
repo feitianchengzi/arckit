@@ -64,7 +64,9 @@ export function probeProtocolCompatibility(projectRoot = process.cwd()) {
   const iterationRefs = new Set();
   if (typeof projectRecord?.advancement?.active_iteration_ref === 'string' && projectRecord.advancement.active_iteration_ref) {
     iterationRefs.add(projectRecord.advancement.active_iteration_ref);
-  } else if (!projectRecord) {
+  } else {
+    // Missing current reference is not proof that no active iteration exists.
+    // Discover canonical records without interpreting legacy field layouts.
     const iterationDir = safeDirectoryPath(root, 'arckit/project/iterations');
     if (fs.existsSync(iterationDir)) {
       for (const name of fs.readdirSync(iterationDir).filter((item) => item.endsWith('.record.json')).sort()) {

@@ -1,7 +1,9 @@
+import { createChatNative } from '../src/chat-native.mjs';
+import { createAppearance, appearanceBackground, registerAppearanceIpc } from '../src/desktop/appearance.mjs';
 import { createSoftwareCapabilities } from '../src/workbench/software-capabilities.mjs';
 import { createProjectWorkbench } from '../src/workbench/coordinator.mjs';
 import { createWorkbenchAgentBridge } from '../src/workbench/agent-bridge.mjs';
-import { app, BrowserWindow, dialog, ipcMain, powerMonitor, session, shell, utilityProcess, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, powerMonitor, session, shell, utilityProcess, WebContentsView } from "electron";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -64,9 +66,11 @@ if (rendererLoadSmoke && rendererSmokeUserData) {
 }
 
 let mainWindow;
+let appearance;
 let runManager;
 let automationCoordinator;
 let chatCoordinator;
+let chatNative;
 let projectWorkbench;
 let workbenchAgentBridge;
 let productCoordinator;
@@ -88,6 +92,13 @@ let automationStarted = false;
 let stopObservingMainWindowState = () => {};
 
 app.whenReady().then(async () => {
+  appearance = await createAppearance({ path: join(app.getPath("userData"), "appearance.json"), nativeTheme });
+  appearance.subscribe(snapshot => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setBackgroundColor(appearanceBackground(snapshot));
+      mainWindow.webContents.send("arckit:appearance-changed", snapshot);
+    }
+  });
   const codexExecutableResolver = createCodexExecutableResolver();
   const runtimeHost = createElectronUtilityRuntimeHost(utilityProcess);
   if (process.argv.includes("--runtime-host-smoke")) {
@@ -173,7 +184,10 @@ app.whenReady().then(async () => {
   });
   chatCoordinator = createChatCoordinator({
     runManager,
-    getTurnContext: async ({ project }) => ({ options: { sceneSkillBinding: await sceneSkillManager.resolveScene('chat', project.path) } }),
+    acceptedSessionKinds:['chat','automation-task'],
+    authorizeSession:(session,context)=>chatNative?.authorizeSession(session,context) ?? true,
+    getTurnContext: input => chatNative.turnContext(input),
+    onTurnSettled:async ({sessionId})=>{await chatNative?.settled(sessionId);await projectWorkbench?.settleChat(sessionId);},
     getCodexExecutable: () => codexExecutableResolver.getResolved(),
     setupReadinessPreflight: async (projectRoot) => {
       await codexSetupManager.assertReady();
@@ -231,7 +245,7 @@ app.whenReady().then(async () => {
   const softwareCapabilities=createSoftwareCapabilities({platform:()=>platformCoordinator,release:()=>releaseCoordinator,product:()=>productCoordinator,engineering:()=>sceneSkillManager,getAccountScope:workbenchAccountScope,
     confirm:async request=>(await dialog.showMessageBox(mainWindow,{type:'question',title:'Agent 请求调用软件能力',message:`${request.name} · 事情 #${request.task_id}`,detail:JSON.stringify(request.input,null,2),buttons:['取消','允许一次'],defaultId:0,cancelId:0})).response===1});
   projectWorkbench = createProjectWorkbench({
-    dataDir: join(app.getPath('userData'), 'project-workbench'), runManager,
+    dataDir: join(app.getPath('userData'), 'project-workbench'), runManager, chatCoordinator,
     getAgentEnvironment:input=>workbenchAgentBridge.environment(input),revokeAgentEnvironment:id=>workbenchAgentBridge.revoke(id),
     softwareCapabilities:softwareCapabilities.list,callSoftware:softwareCapabilities.call,
     workSync: workSyncCoordinator, platform: platformCoordinator, automation: automationCoordinator,
@@ -240,6 +254,7 @@ app.whenReady().then(async () => {
     setupReadinessPreflight: async root => { await codexSetupManager.assertReady(); return skillProvisioningManager.assertReady(root); },
     resolveSceneSkills: root => sceneSkillManager.resolveScene('chat', root)
   });
+  chatNative=createChatNative({listProjectMembers:id=>workshopService.platform.listProjectMembers(id),runManager,workSync:workSyncCoordinator,workbench:projectWorkbench,automation:automationCoordinator,chat:chatCoordinator,getAccountScope:workbenchAccountScope,resolveSceneSkills:root=>sceneSkillManager.resolveScene('chat',root)});
   workbenchAgentBridge = createWorkbenchAgentBridge({coordinator:projectWorkbench,getAccountScope:workbenchAccountScope});
   projectWorkbench.onEvent(event => { if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send('arckit:project-workbench-event',event); });
   runManager.onEvent(event => { if(event.type==='run.finished') workbenchAgentBridge.revoke(event.run?.id || event.runId); });
@@ -332,6 +347,7 @@ app.whenReady().then(async () => {
   });
   skillProvisioningManager.onEvent(() => publishSetupReadiness());
   codexSetupManager.onEvent(() => publishSetupReadiness());
+  registerAppearanceIpc({ ipcMain, appearance, getWindow: () => mainWindow });
   registerIpc();
   await runManager.warmRunSummaryIndex({ limit: 20 });
   await createWindow({ show: !rendererLoadSmoke });
@@ -404,6 +420,7 @@ app.on("before-quit", async (event) => {
     }
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
+    await chatNative?.close();
     await projectWorkbench?.close();
     workbenchAgentBridge?.close();
     await releaseCoordinator?.close();
@@ -432,14 +449,14 @@ app.on("activate", () => {
 
 async function createWindow({ show = true } = {}) {
   mainWindow = new BrowserWindow({
-    show,
+    show: false,
     ...mainWindowChromeOptions(process.platform),
     width: 1280,
     height: 820,
     minWidth: 1040,
     minHeight: 700,
     title: "ArcOrbit",
-    backgroundColor: "#f7f8fa",
+    backgroundColor: appearanceBackground(appearance.snapshot()),
     webPreferences: {
       preload: join(desktopDir, "preload.cjs"),
       contextIsolation: true,
@@ -460,6 +477,7 @@ async function createWindow({ show = true } = {}) {
     mainWindow = null;
   });
   await mainWindow.loadFile(rendererEntry);
+  if (show) mainWindow.show();
 }
 
 async function runRendererLoadSmoke() {
@@ -467,9 +485,11 @@ async function runRendererLoadSmoke() {
     title: document.title,
     preload_api: Boolean(window.arckitDesktop?.getSetupReadiness),
     setup_surface: Boolean(document.getElementById("setupReadiness")),
+    theme: document.documentElement.dataset.theme,
+    appearance_preload: window.arckitDesktop?.initialAppearance,
     stylesheet_count: document.styleSheets.length
   })`);
-  if (snapshot.title !== "ArcOrbit" || !snapshot.preload_api || !snapshot.setup_surface || snapshot.stylesheet_count < 1) {
+  if (snapshot.title !== "ArcOrbit" || !snapshot.preload_api || !snapshot.setup_surface || snapshot.stylesheet_count < 1 || snapshot.theme !== appearance.snapshot().resolved || snapshot.appearance_preload?.preference !== appearance.snapshot().preference) {
     throw new Error(`Packaged Renderer load smoke failed: ${JSON.stringify(snapshot)}`);
   }
   process.stdout.write(`${JSON.stringify({ schema_version: "arcorbit-renderer-load-smoke/v1", status: "passed", ...snapshot })}\n`);
@@ -602,6 +622,8 @@ function registerIpc() {
   ipcMain.handle("arckit:product-chat", async (event, input) => {
     assertMainRenderer(event); return productCoordinator.chatAction(input);
   });
+  ipcMain.handle("arckit:chat-native-catalog", async (event,input) => {assertMainRenderer(event);return chatNative.catalog(input || {});});
+  ipcMain.handle("arckit:chat-native-open", async (event,input) => {assertMainRenderer(event);return chatNative.openTask(input || {});});
   ipcMain.handle("arckit:chat-snapshot", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.getSnapshot(input);

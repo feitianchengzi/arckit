@@ -36,7 +36,7 @@ function barrier() {
   return { promise, resolve };
 }
 
-test("Today joins disk-owned issues outside Workset and Automation view, preserving Work facts and exact project identity", async () => {
+test("Today joins disk-owned issues for workset members outside the Automation view, preserving Work facts and exact project identity", async () => {
   const fixture = await createTodayAcceptanceState();
   try {
     const context = rendererContext(fixture);
@@ -45,7 +45,7 @@ test("Today joins disk-owned issues outside Workset and Automation view, preserv
     context.state.todayDrafts[context.state.todaySelectedItemId] = "问题 <原文>";
     await context.performTodayAction(selected(context), "raise_acceptance_issue");
     assert.equal(context.state.snapshot.tasks.some((task) => task.project_id === "11"), false);
-    assert.equal(context.state.platform.tasks.some((task) => task.project_id === "11"), false);
+    assert.equal(context.state.platform.tasks.find((task) => task.project_id === "11").state, "completed");
     assert.equal(context.state.todaySelectedItemId, "work:W-COMPLETED:completed");
     const item = selected(context);
     assert.equal(item.acceptance_feedback_items.length, 1);

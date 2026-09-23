@@ -18,7 +18,6 @@ import {
   buildRuntimeEnv,
   createDesktopStore,
   deleteProjectSession,
-  ensureProjectSession,
   findSession,
   getSession,
   normalizeSettings,
@@ -70,8 +69,11 @@ export function createDesktopRunManager({
   const {
     readControlStore: readStore,
     readStoreWithMessages,
+    readChatSnapshotStore,
+    readChatMetadata,
     captureStateView,
     updateControlStore: updateStore,
+    updateChatMetadata,
     updateStoreWithMessages
   } = createDesktopStore({ dataDir, runsDir, storePath });
   const lifecycleTraces = createLifecycleTraceStore({ rootDir: join(dataDir, "lifecycle-traces") });
@@ -122,7 +124,7 @@ export function createDesktopRunManager({
       } else {
         store.projects.push(project);
       }
-      ensureProjectSession(store, project.id);
+      store.sessions[project.id] ||= [];
       return store;
     });
     if (initialization.initialized || initialization.repaired) {
@@ -339,13 +341,7 @@ export function createDesktopRunManager({
   }
 
   async function listSessions(projectIdValue) {
-    let store = await readStore();
-    if (!store.sessions[projectIdValue]?.length) {
-      store = await updateStore((draft) => {
-        ensureProjectSession(draft, projectIdValue);
-        return draft;
-      });
-    }
+    const store = await readStore();
     return store.sessions[projectIdValue] || [];
   }
 
@@ -1370,8 +1366,11 @@ export function createDesktopRunManager({
     },
     readDesktopStore: readStore,
     readDesktopStoreWithMessages: readStoreWithMessages,
+    readDesktopChatSnapshotStore: readChatSnapshotStore,
+    readDesktopChatMetadata: readChatMetadata,
     captureDesktopStateView: captureStateView,
     updateDesktopStore: updateStore,
+    updateDesktopChatMetadata: updateChatMetadata,
     updateDesktopStoreWithMessages: updateStoreWithMessages
   };
 }

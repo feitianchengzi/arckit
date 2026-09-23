@@ -1,6 +1,7 @@
 (() => {
   const M = window.ChatModel, V = window.ChatViews, { esc, btn } = V;
   const dialog = document.getElementById('chat-dialog');
+  let resizeDrag = null;
   let composing = false, noticeTimer, returnFocus, listScroll = 0;
   function notice(text) { document.getElementById('chat-notice').textContent = text; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => document.getElementById('chat-notice').textContent = '', 4000); }
   function capture() {
@@ -9,10 +10,10 @@
     listScroll = document.querySelector('.session-groups')?.scrollTop || 0;
   }
   function render({ capturePosition = true } = {}) {
-    if (composing) return;
+    if (composing || resizeDrag) return;
     if (capturePosition) capture();
     const active = document.activeElement;
-    const field = active?.matches('#chat-input,#chat-model,#chat-level') ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
+    const field = active?.matches('#chat-input,#chat-model,#chat-level,#native-search') ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
     const action = active?.dataset.chatAction ? { name: active.dataset.chatAction, id: active.dataset.id, project: active.dataset.project } : null;
     const disclosures = [...document.querySelectorAll('[data-disclosure][open]')].map(el => el.dataset.disclosure);
     V.render();
@@ -21,7 +22,7 @@
     document.querySelector('.session-groups').scrollTop = listScroll;
     for (const id of disclosures) document.querySelector(`[data-disclosure="${id}"]`)?.setAttribute('open','');
     if (M.state.listOpen && innerWidth <= 760) document.querySelector('.chat-center').inert = true;
-    if (!dialog.open && !document.getElementById('account-dialog')?.open) {
+    if (!dialog.open && !document.getElementById('native-picker')?.open && !document.getElementById('model-settings')?.open && !document.getElementById('account-dialog')?.open) {
       if (field) { const node = document.getElementById(field.id); node?.focus(); if (node && field.start !== null) node.setSelectionRange(field.start, field.end); }
       else if (action) [...document.querySelectorAll('[data-chat-action]')].find(el => el.dataset.chatAction === action.name && el.dataset.id === action.id && el.dataset.project === action.project)?.focus({ preventScroll: true });
     }
@@ -43,7 +44,7 @@
     dialog.showModal(); (dialog.querySelector('input,select') || dialog.querySelector('button')).focus();
   }
   function send() {
-    try { const s = M.send(); if (s) { s.follow = true; render({ capturePosition: false }); document.getElementById('chat-input').focus(); } }
+    try { const s = M.send(); if (s) { notice(''); s.follow = true; render({ capturePosition: false }); document.getElementById('chat-input').focus(); } }
     catch (error) { notice(error.message); M.save(); }
   }
   function tick() { capture(); if (M.tick()) render({ capturePosition: false }); }
@@ -52,6 +53,25 @@
     if (M.state.listOpen) document.querySelector('.chat-list-close').focus();
     else document.querySelector('.chat-list-toggle').focus();
   }
+  function resize(kind, value) {
+    const layout=document.querySelector('.chat-layout'), center=document.querySelector('.chat-center');
+    if(kind==='width') { M.state.sidebarWidth=Math.max(220,Math.min(560,layout.clientWidth-360,value));layout.style.setProperty('--chat-list-width',M.state.sidebarWidth+'px'); }
+    else { M.state.inputHeight=Math.max(66,Math.min(420,center.clientHeight/2,value));document.querySelector('#chat-input').style.height=M.state.inputHeight+'px'; }
+    M.save();
+  }
+  document.addEventListener('pointerdown',e=>{
+    const handle=e.target.closest('[data-resize]'); if(!handle||e.button!==0)return;
+    e.preventDefault(); const kind=handle.dataset.resize;
+    resizeDrag={kind,origin:kind==='width'?e.clientX:e.clientY,size:document.querySelector(kind==='width'?'.chat-sessions':'#chat-input').getBoundingClientRect()[kind==='width'?'width':'height']};
+    handle.setPointerCapture(e.pointerId);
+  });
+  document.addEventListener('pointermove',e=>{if(resizeDrag)resize(resizeDrag.kind,resizeDrag.size+resizeDrag.origin-(resizeDrag.kind==='width'?e.clientX:e.clientY));});
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])document.addEventListener(event,()=>{resizeDrag=null;});
+  document.addEventListener('keydown',e=>{
+    const kind=e.target.dataset?.resize;if(!kind)return;
+    const up=kind==='width'?'ArrowLeft':'ArrowUp',down=kind==='width'?'ArrowRight':'ArrowDown';
+    if(e.key!==up&&e.key!==down)return;e.preventDefault();resize(kind,(kind==='width'?(M.state.sidebarWidth||300):(M.state.inputHeight||90))+(e.key===up?20:-20));
+  });
   document.addEventListener('click', async event => {
     const el = event.target.closest('[data-chat-action]'); if (!el) return;
     const s = M.current();
@@ -68,7 +88,8 @@
         }
         case 'select': select(el.dataset.id); break;
         case 'toggle-list': toggleList(); break;
-        case 'history': M.state.expanded[el.dataset.project] = !M.state.expanded[el.dataset.project]; render(); break;
+        case 'history': M.state.limits[el.dataset.project] = (M.state.limits[el.dataset.project]||5)+5; render(); break;
+        case 'project': M.state.collapsed[el.dataset.project]=!M.state.collapsed[el.dataset.project]; delete M.state.limits[el.dataset.project]; render(); break;
         case 'rename': open('重命名会话', `<label>会话标题<input name="title" value="${esc(s.title)}" required maxlength="120"></label>`, '保存', 'rename'); break;
         case 'delete': open('删除会话', `<p>${esc(s.title)} · ${esc(M.project(s.project).name)} · ${s.messages.length} 条消息</p><p>${M.active(s) ? '将先停止当前回答，成功后删除本地会话记录。' : '将删除此会话的本地消息、草稿与恢复记录。'}不承诺擦除 Codex 自身保留的底层数据。</p>`, '确认删除', 'delete'); break;
         case 'close': close(); break;
@@ -90,7 +111,7 @@
           try { await navigator.clipboard.writeText(el.parentElement.querySelector('code').textContent); notice('代码已复制。'); }
           catch { notice('无法访问剪贴板，请选择代码后复制。'); }
           break;
-        case 'bind': open('绑定项目工作区', `<p>选择可访问项目及其本地目录，检查成功后返回当前草稿。</p><label>项目<select name="project" ${s ? 'disabled' : ''}>${M.state.projects.filter(p => !s || p.id === s.project).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>本地目录<input name="path" value="/Projects/atlas" required></label>`, '绑定并检查', 'bind'); break;
+        case 'bind': open('绑定项目工作区', `<p>选择可访问项目及其本地目录，检查成功后返回当前草稿。</p><label>项目<select name="project" ${s ? 'disabled' : ''}>${[...M.state.projects,...(window.GlobalContext?.projects||[]).filter(p=>!M.state.projects.some(local=>(({atlas:'orbit',borealis:'feedback'})[local.id]||local.id)===p.id))].filter(p => (!s || p.id === s.project) && (!window.GlobalContext||GlobalContext.includes(({atlas:'orbit',borealis:'feedback'})[p.id]||p.id))).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label><label>本地目录<input name="path" value="/Projects/atlas" required></label>`, '绑定并检查', 'bind'); break;
       }
     } catch (error) { notice(error.message); }
   });
@@ -99,7 +120,7 @@
     if (event.target.id === 'chat-input') o.draft = event.target.value;
     if (event.target.id === 'chat-model') {
       o.model = event.target.value;
-      document.getElementById('chat-level-options').innerHTML = !M.state.catalogUnavailable && o.model === 'gpt-6-astra' ? ['low','medium','high','xhigh','max','ultra'].map(v => `<option value="${v}"></option>`).join('') : '';
+
     }
     if (event.target.id === 'chat-level') o.level = event.target.value;
     const submit = document.querySelector('#chat-compose button[type=submit]');
@@ -125,7 +146,7 @@
       }
       if (form.dataset.chatForm === 'bind') {
         const path = data.get('path').trim(); if (!path.startsWith('/')) throw Error('请输入本地目录的完整路径。');
-        const p = M.project(s?.project || data.get('project')); p.path = path; p.ready = true; if (!s) M.owner().project = p.id;
+        const id=s?.project||data.get('project');if(!id)throw Error('当前范围没有可绑定产品。');if(window.GlobalContext&&!GlobalContext.includes(({atlas:'orbit',borealis:'feedback'})[id]||id))throw Error('请选择当前范围内的产品。');let p=M.project(id);if(!p){p={id,name:GlobalContext.projects.find(p=>p.id===id).name,ready:false};M.state.projects.push(p);}p.path = path; p.ready = true; if (!s) M.owner().project = p.id;
       }
       close(); render({ capturePosition: form.dataset.chatForm !== 'delete' });
     } catch (error) { form.querySelector('[role=alert]').textContent = error.message; }
@@ -134,7 +155,7 @@
   document.addEventListener('compositionstart', event => { if (event.target.id === 'chat-input') composing = true; });
   document.addEventListener('compositionend', event => { if (event.target.id === 'chat-input') { composing = false; M.owner().draft = event.target.value; M.save(); } });
   document.addEventListener('keydown', event => {
-    if (document.getElementById('account-dialog')?.open) return;
+    if (document.getElementById('account-dialog')?.open || document.getElementById('native-picker')?.open || document.getElementById('model-settings')?.open) return;
     if (event.key === 'Enter' && event.target.id === 'chat-input' && !event.shiftKey && !event.isComposing && !composing) { event.preventDefault(); if (!M.active(M.current())) send(); }
     if (event.key === 'Escape') {
       if (dialog.open) { event.preventDefault(); if (!dialog.querySelector('[data-busy]')) close(); }

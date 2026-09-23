@@ -276,3 +276,26 @@ function reconciliationPlan(compatibility, records) {
     replacements,
   };
 }
+
+test('probe discovers active iterations when an existing project lacks the current reference field', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arckit-legacy-iteration-'));
+  try {
+    await mkdir(join(root, 'arckit/project/iterations'), { recursive: true });
+    await writeFile(join(root, 'arckit/project/state.record.json'), JSON.stringify({
+      schema_version: 'project-state-record/v3', project: { name: 'Legacy' },
+      active_iteration_ref: 'arckit/project/iterations/ITER-20260717-001.record.json',
+    }));
+    const activeRef = 'arckit/project/iterations/ITER-20260717-001.record.json';
+    await writeFile(join(root, activeRef), JSON.stringify({ schema_version: 'iteration-state-record/v2', status: 'active' }));
+    await writeFile(join(root, 'arckit/project/iterations/ITER-20260716-001.record.json'), JSON.stringify({ schema_version: 'iteration-state-record/v2', status: 'closed' }));
+    const result = probeProtocolCompatibility(root);
+    assert.ok(result.affected_refs.includes(activeRef));
+    assert.equal(result.observed.filter(item => item.kind === 'iteration').length, 1);
+    assert.equal(result.observed.find(item => item.ref === activeRef).condition, 'older_protocol');
+    const project = createProjectStateRecord({ name: 'Current without reference' });
+    await writeFile(join(root, 'arckit/project/state.record.json'), JSON.stringify(project));
+    assert.ok(probeProtocolCompatibility(root).affected_refs.includes(activeRef));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

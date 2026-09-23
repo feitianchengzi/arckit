@@ -1,3 +1,4 @@
+const emptyContext=()=>({capability:null,refs:[]});
 function normalizeOwner(value = {}) {
   return {
     session_id: String(value.session_id || ""),
@@ -26,6 +27,7 @@ export function createChatStateCoordinator({
     snapshot: normalizeSnapshot({}),
     owner: normalizeOwner(),
     draft: "",
+    native_context:emptyContext(),
     configuration: { model: "", reasoning_effort: "" },
     retry_client_request_id: "",
     sending: false,
@@ -58,7 +60,8 @@ export function createChatStateCoordinator({
     const payload = {
       session_id: value.owner.session_id,
       project_id: currentProjectId(),
-      text: String(text || "")
+      text: String(text || ""),
+      ...(value.native_context.capability || value.native_context.refs.length ? {native_context:structuredClone(value.native_context)} : {})
     };
     if (value.configuration.model && value.configuration.reasoning_effort) Object.assign(payload, value.configuration);
     return payload;
@@ -80,7 +83,7 @@ export function createChatStateCoordinator({
   }
 
   function enqueueDraft(payload) {
-    const request = persistenceTail.catch(() => {}).then(() => api.createChat(payload));
+    const request = persistenceTail.catch(() => {}).then(() => api.createChat({ ...payload, response: "ack" }));
     persistenceTail = request;
     return request;
   }
@@ -155,6 +158,7 @@ export function createChatStateCoordinator({
       configuration: configurationFor(snapshot, selectedSession
         ? { session_id: snapshotSelection, project_id: selectedSession.project_id || "" }
         : { session_id: "", project_id: String(snapshot.draft?.project_id || "") }),
+      native_context:structuredClone(snapshot.draft?.native_context || emptyContext()),
       draft: String(snapshot.draft?.text || "")
     };
     draftRevision += 1;
@@ -183,6 +187,7 @@ export function createChatStateCoordinator({
       ...value,
       owner: { session_id: "", project_id: String(projectId || "") },
       draft: "",
+      native_context:emptyContext(),
       configuration: {
         model: String(configuration?.model || ""),
         reasoning_effort: String(configuration?.reasoning_effort || "")
@@ -201,6 +206,7 @@ export function createChatStateCoordinator({
   async function changeDraftWorkspace(projectId) {
     const epoch = beginOwnerTransition();
     const draft = value.draft;
+    value.native_context={...value.native_context,refs:[]};
     value = {
       ...value,
       owner: { session_id: "", project_id: String(projectId || "") },
@@ -308,6 +314,7 @@ export function createChatStateCoordinator({
     value = {
       ...value,
       draft: lastUser?.content || value.draft,
+      native_context:structuredClone(lastUser?.native_context || value.native_context || emptyContext()),
       retry_client_request_id: sessionById(value.snapshot, value.owner.session_id)?.retry_client_request_id || ""
     };
     draftRevision += 1;
@@ -351,8 +358,9 @@ export function createChatStateCoordinator({
     };
   }
 
-  async function send() {
-    const text = value.draft.trim();
+  async function send(override = null) {
+    const nativeContext=structuredClone(override?.native_context || value.native_context);
+    const text = override?.text || value.draft.trim() || (nativeContext.capability ? `请调用 ${nativeContext.capability.label}` : nativeContext.refs.length ? "请分析引用的上下文。" : "");
     const projectId = currentProjectId();
     if (!text || !projectId || value.sending) return null;
     const sessionId = value.owner.session_id;
@@ -369,14 +377,16 @@ export function createChatStateCoordinator({
     try {
       await flushDraft();
       if (!isCurrent(epoch, sessionId || null)) return null;
-      if (draftRevision === acceptedDraftRevision) {
-        value = { ...value, draft: "" };
+      if (!override?.preserve_draft && draftRevision === acceptedDraftRevision) {
+        value = { ...value, draft: "",native_context:emptyContext() };
         draftRevision += 1;
       }
       const payload = {
         session_id: sessionId,
         project_id: projectId,
         text,
+        ...(nativeContext.capability || nativeContext.refs.length ? {native_context:nativeContext} : {}),
+        ...(override?.preserve_draft ? {preserve_draft:true} : {}),
         client_request_id: clientRequestId
       };
       if (configuration.model && configuration.reasoning_effort) Object.assign(payload, configuration);
@@ -398,6 +408,7 @@ export function createChatStateCoordinator({
         value = {
           ...value,
           draft: restoredDraft,
+          native_context: value.native_context.capability || value.native_context.refs.length ? value.native_context : nativeContext,
           error: errorMessage(error)
         };
         draftRevision += 1;
@@ -412,12 +423,21 @@ export function createChatStateCoordinator({
     }
   }
 
+  async function clearScopeSelection() {
+    const epoch = beginOwnerTransition();
+    await flushDraft();
+    if (!isCurrent(epoch)) return;
+    value = {...value, owner: normalizeOwner(), draft: "", native_context:emptyContext(), error: ""};
+    draftRevision += 1;
+  }
+
   function getState() {
     return value;
   }
 
   return {
     getState,
+    clearScopeSelection,
     initialize,
     newDraft,
     changeDraftWorkspace,
@@ -427,6 +447,7 @@ export function createChatStateCoordinator({
     interruptCurrentSession,
     decideApproval,
     refresh,
+    setNativeContext(context){value={...value,native_context:structuredClone(context)};draftRevision+=1;scheduleDraft();},
     setDraft,
     setConfiguration,
     prepareRetry,

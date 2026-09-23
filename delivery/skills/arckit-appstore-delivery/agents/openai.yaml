@@ -1,0 +1,10 @@
+interface:
+  display_name: "Apple 应用内测交付"
+  short_description: "仅调用即可配置并交付当前项目到内部 TestFlight"
+  default_prompt: >-
+    使用 $arckit-appstore-delivery 将当前 Apple 应用项目推进到内部 TestFlight 可测试。
+    无需额外描述，发现项目和授权，复用签名，配置 Cloud，提交推送必要改动与版本 tag，
+    追踪对应构建并完成内部测试组及合格组织成员邀请。歧义、交互认证或越界操作才请求介入；
+    重复调用先对账续接。不吊销证书、不扩大组织权限、不正式提交审核或上架，回读验证交付状态。
+policy:
+  allow_implicit_invocation: false

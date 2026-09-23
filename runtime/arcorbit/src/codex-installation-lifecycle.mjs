@@ -199,13 +199,22 @@ export function ownerUpdateSpec(installation, { platform = process.platform, env
 async function latestVersionForOwner(installation, { env, processRunner, fetchImpl, updateFetchTimeoutMs = 15_000 }) {
   if (installation.owner === "standalone") {
     if (typeof fetchImpl !== "function") throw lifecycleError("UPDATE_FETCH_UNAVAILABLE", "无法查询 Codex release channel。", "update-check");
-    const response = await fetchImpl(RELEASE_CHANNEL_URL, {
-      redirect: "follow",
-      cache: "no-store",
-      credentials: "omit",
-      // release channel 元数据必须短超时返回，否则挂起的请求会占住 setup 检查串行锁。
-      signal: AbortSignal.timeout(updateFetchTimeoutMs)
-    });
+    const abortController = new AbortController();
+    const timeoutError = Object.assign(new Error("Codex release channel request timed out."), { name: "TimeoutError" });
+    // 显式 timer 会在纯 Node 检查中保持事件循环存活；AbortSignal.timeout 的内部 timer 不会。
+    const timeout = setTimeout(() => abortController.abort(timeoutError), updateFetchTimeoutMs);
+    let response;
+    try {
+      response = await fetchImpl(RELEASE_CHANNEL_URL, {
+        redirect: "follow",
+        cache: "no-store",
+        credentials: "omit",
+        // release channel 元数据必须短超时返回，否则挂起的请求会占住 setup 检查串行锁。
+        signal: abortController.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) throw lifecycleError("UPDATE_HTTP_FAILED", `Codex release channel 返回 HTTP ${response.status}。`, "update-check");
     const payload = await response.json();
     const version = parseCodexVersion(payload?.tag_name || payload?.version || payload?.name)?.value;

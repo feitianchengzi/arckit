@@ -22,9 +22,6 @@ body.project-workbench-active{--commandbar-height:0px}
 .project-workbench-active .app-stage{grid-template-rows:minmax(0,1fr)}
 .project-workbench-active .commandbar{display:none}
 .project-workbench-active .sidebar{padding:24px 14px 12px;background:var(--colors-ink-50);color:var(--semantic-muted);border-right:1px solid var(--semantic-divider)}
-.project-workbench-active .sidebar-brand{height:36px;padding:0 10px;color:var(--semantic-text);gap:10px}
-.project-workbench-active .sidebar-brand strong{font-size:19px;letter-spacing:-.6px}
-.project-workbench-active .brand-mark{width:32px;height:32px;background:var(--colors-accent-base);border:0;font-family:Georgia,serif;font-size:30px;color:white}
 .project-workbench-active .primary-nav{flex:1;margin-top:26px}
 .project-workbench-active .primary-nav>[data-page="project-workbench"]{display:none}
 #projectWorkbenchNav{margin-top:0;overflow:visible}

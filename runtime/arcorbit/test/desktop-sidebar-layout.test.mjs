@@ -22,7 +22,7 @@ test("platform desktop renders the confirmed multi-product shell geometry", {
 
   assert.equal(measurements.sidebarWidth, 228);
   assert.equal(measurements.titlebarHeight, 0);
-  assert.equal(measurements.commandbarHeight, 58);
+  assert.equal(measurements.commandbarHeight, 54);
   assert.equal(measurements.viewCount, 8);
   assert.equal(measurements.activeViewDisplay, "block");
   assert.deepEqual(measurements.hiddenViewDisplays, ["none", "none", "none", "none", "none", "none", "none"]);
@@ -59,4 +59,13 @@ test("Intervention Workbench confines heading and transcript to the middle colum
   assert.equal(measurements.transcriptColumnRight, measurements.evidenceColumnLeft);
   assert.equal(measurements.evidenceColumnRight, measurements.workbenchLayoutRight);
   assert.equal(measurements.workbenchLayoutRight, measurements.viewportWidth);
+});
+
+test("main navigation preserves brand geometry across pages and exposes experimental destinations", {
+  skip: process.env.ARCORBIT_ELECTRON_LAYOUT_TEST !== "1" && "set ARCORBIT_ELECTRON_LAYOUT_TEST=1 to run the real-render Electron regression"
+}, async () => {
+  const env = { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: "true" };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const { stdout } = await execFileAsync(electron, [fileURLToPath(new URL("./fixtures/navigation-brand-electron.mjs", import.meta.url))], {env, timeout:20_000, maxBuffer:1024*1024});
+  assert.equal(JSON.parse(stdout).passed, true);
 });

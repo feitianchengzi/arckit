@@ -1,0 +1,97 @@
+{
+  "document_scope": {
+    "scope_kind": "change",
+    "root": "arckit/interaction/",
+    "updated": [
+      {
+        "path": "_explorations/chat-todo/design-result.json",
+        "source_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "summary": "记录已采纳状态并引用正式页完整结果"
+      }
+    ]
+  },
+  "fact_result": {
+    "schema_version": "arckit-fact-result/v2",
+    "mode": "standalone",
+    "case_id": null,
+    "gap_id": null,
+    "outcome": "updated",
+    "facts": [
+      {
+        "statement": "会话与对应待办从不同列表进入同一 Chat thread；其他待办创建来源独立呈现。",
+        "basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "source_refs": [
+          "arckit/interaction/chat-workspace/interaction.md"
+        ],
+        "evidence": [
+          "arckit/interaction/chat-workspace/verification.json",
+          "arckit/interaction/chat-workspace/verification-native.json"
+        ]
+      },
+      {
+        "statement": "当前项目待办的整理、创建、读取、写回与执行请求由 Chat 内 Agent 发起；能力/Skill 与文件/待办引用先入草稿，发送后才调用。",
+        "basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "source_refs": [
+          "arckit/interaction/chat-workspace/interaction.md",
+          "arckit/interaction/chat-workspace/default.html"
+        ],
+        "evidence": [
+          "arckit/interaction/chat-workspace/verification.json",
+          "arckit/interaction/chat-workspace/verification-native.json"
+        ]
+      }
+    ],
+    "unresolved": [],
+    "human_decision_required": false
+  },
+  "exploration_result": {
+    "mode": "standalone",
+    "case_id": null,
+    "gap_id": null,
+    "objective": "将已认可 V4 探索整合为正式 Chat 交互说明与完整可操作原型",
+    "artifact_status": "complete",
+    "formal_fact_effect": "updated",
+    "artifacts": [
+      {
+        "path": "arckit/interaction/chat-workspace/default.html",
+        "status": "已采纳",
+        "basis_refs": [
+          "arckit/interaction/_explorations/chat-todo/exploration.md",
+          "arckit/interaction/_explorations/chat-todo/options/agent-native/default.html"
+        ],
+        "baseline": "5d75efe40c801e4f5bf4566522827e46c2c6f5da；保留正式 Chat 已有全局范围/账户/主题/模型/恢复；未修改预存 spec 变更",
+        "evidence": "基础 Chat 与新增能力验证均通过，报告见 verification*.json；仅本地原型"
+      }
+    ],
+    "decision": {
+      "required_for_current_objective": false,
+      "question": null,
+      "basis": "用户明确授权基于当前探索制作正式原型，无需再次确认"
+    },
+    "adoption": [
+      {
+        "source_refs": [
+          "arckit/interaction/_explorations/chat-todo/options/agent-native/default.html"
+        ],
+        "adopted_parts": [
+          "同一 thread 与双列表入口",
+          "当前项目原生待办能力及创建来源",
+          "统一能力/Skill/上下文引用选择",
+          "消息正文、工具事件、业务回执分层与自然语言交互"
+        ],
+        "excluded_parts": [
+          "独立探索页面壳和测试控件",
+          "探索 localStorage 状态",
+          "未采纳的旧表单方案"
+        ],
+        "decision_basis": "用户于 2026-09-19 明确采纳当前探索方向，并要求制作正式交互原型",
+        "target_paths": [
+          "arckit/interaction/chat-workspace/default.html",
+          "arckit/interaction/chat-workspace/interaction.md"
+        ]
+      }
+    ],
+    "remaining_work": []
+  },
+  "formal_result_ref": "arckit/interaction/chat-workspace/maintenance-result.json"
+}

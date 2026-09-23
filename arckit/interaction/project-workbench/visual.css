@@ -1,4 +1,4 @@
-/* Shared visual source: ../../visual/_library/generated-tokens.css, light theme.
+/* Shared visual source: ../../visual/_library/generated-tokens.css, light / dark themes.
    Layout remains page-owned; no parallel color/token values. */
 body { line-height: var(--typography-body-line-height); }
 .project-desk .sidebar { background: var(--semantic-sidebar); }
@@ -106,9 +106,9 @@ button:disabled, textarea:disabled { opacity: 1; background: var(--semantic-disa
 .account-trigger { width: 100%; text-align: left; background: transparent; border: 0; padding: var(--spacing-3) 0; }
 .account-trigger > svg { width: 18px; margin-left: auto; }
 .account-trigger small { display: block; }
-#account-dialog { width: min(760px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; color: var(--semantic-text); background: var(--semantic-canvas); }
+#account-dialog { width: min(760px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; color: var(--semantic-text); background: var(--semantic-elevated); }
 #account-dialog [hidden], #account-dialog .hidden { display: none !important; }
-#account-dialog .dialog-heading { position: sticky; top: 0; background: var(--semantic-canvas); z-index: 1; padding: var(--spacing-5); }
+#account-dialog .dialog-heading { position: sticky; top: 0; background: var(--semantic-elevated); z-index: 1; padding: var(--spacing-5); }
 #account-dialog h2 { font-size: var(--typography-title-size); }
 #account-dialog h3 { font-size: var(--typography-heading-size); margin: 0 0 var(--spacing-4); }
 #account-dialog h4 { margin: var(--spacing-4) 0; }

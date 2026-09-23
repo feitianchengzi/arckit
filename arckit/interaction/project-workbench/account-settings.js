@@ -9,6 +9,7 @@
   const markup = `
 <header class="dialog-heading"><div><h2 id="account-dialog-title">账户与 Runtime</h2><p>管理 Workshop 账户、任务源与本地 Runtime。</p></div><button type="button" id="accountClose" aria-label="关闭设置">×</button></header>
         <div class="settings-sections">
+          <section class="codex-settings-section"><h3>外观</h3><label class="field"><span>主题</span><select id="appearanceTheme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><p class="settings-lead">立即生效，仅保存在此设备。不会改变未提交的内容或正在运行的任务。</p><p id="appearanceFeedback" role="status" aria-live="polite"></p></section>
           <section class="codex-settings-section"><h3>工作空间</h3><div class="pw-settings-actions"><button id="workbenchSyncSettings" class="secondary-button" type="button">同步项目与事情</button><a id="workbenchFeedbackSettings" class="secondary-button" href="../product-feedback-center/default.html" target="_blank" rel="noopener">产品反馈</a></div></section>
           <section class="account-settings-section">
             <h3>Workshop 账户</h3>
@@ -103,6 +104,7 @@
     if (dialog.open) return;
     opener = document.activeElement; epoch++;
     dialog.innerHTML = markup;
+    q('appearanceTheme').value = window.AppearancePrototype.preference;
     const saved = { ...defaults, ...M.state.accountSettings };
     for (const [id, value] of Object.entries(saved)) {
       const input = q(id); if (!input) continue;
@@ -216,7 +218,19 @@
       }); break;
     }
   });
-  dialog.addEventListener('change', event => { if (event.target.id === 'taskSourceAuthMode') authMode(); });
+  dialog.addEventListener('change', event => {
+    if (event.target.id === 'taskSourceAuthMode') authMode();
+    if (event.target.id === 'appearanceTheme') {
+      try {
+        if (M.state.failNext) { M.state.failNext = false; throw new Error('模拟保存失败'); }
+        window.AppearancePrototype.select(event.target.value);
+        setStatus('appearanceFeedback', '外观已保存。');
+      } catch {
+        event.target.value = window.AppearancePrototype.preference;
+        setStatus('appearanceFeedback', '外观未能保存，已恢复原选择。请重试。');
+      }
+    }
+  });
   dialog.addEventListener('input', event => { if (/^codex(Chat|Automation)Model$/.test(event.target.id)) efforts(); });
   dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
   document.addEventListener('keydown', event => {

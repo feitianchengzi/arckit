@@ -5,7 +5,7 @@ description: "维护 Arckit Project/Iteration/Case canonical state、协议兼�
 
 # Arckit Development Ledger
 
-本 skill 是 Project State -> Case -> Loop 的可信 ledger。它只校验协议、引用、revision、责任和证据闭合；相关性、优先级、skill、工具和工件位置由 Agent 基于全部上下文动态决定。
+本 skill 是 Project State -> Case -> Loop 的可信 ledger。它只校验协议、引用、revision、责任和证据闭合；相关性、优先级、skill 和工具由 Agent 基于全部上下文动态决定；工件位置遵守所属载体的维护约定，Case 专属执行证据由本 skill 约定。
 
 ## 接口所有权
 
@@ -39,6 +39,8 @@ Ledger manifest 的 `agent_contracts` 是 Host 组装语义载荷 schema 和定�
 完整模型见 [references/project-state-model.md](references/project-state-model.md)。
 
 ## Case 状态与审计
+
+检查结果是否符合预期，以及保存或迁移相应验证证据前，读取 [references/case-evidence.md](references/case-evidence.md)。新增结果验证证据统一归档到 `arckit/cases/evidence/<case-id>/`；已有正式载体直接引用，不为证据另建顶层目录。此约定管理 Agent 的文件写入，不让 Ledger 或 Runtime 按路径推断事实语义。
 
 - Fact 有稳定 id、递增 revision、accepted/superseded、statement、basis 和持久 evidence。
 - Impact 只记录当前事实或被接受 transition 实际影响的 Project decision/invariant target，不在 Case 创建时预测 scope。软件决策 impact 必须绑定当前 decision revision；invariant revision 为 `null`（由 Project revision 绑定）。Invariant applicability 本身不要求创建 impact。

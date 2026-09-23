@@ -62,10 +62,36 @@ Codex adapter 将工具声明与现有 scene skills 工具组合。已有 thread
 
 Thing 将连接状态通知与内容失效分开：`work.sync`、`work.syncing` 不触发 snapshot/detail 读取。内容通知在 180ms 窗口合并；不同项目的变化刷新跨项目列表并复用当前事情详情。当前事情所在项目的内容变化、无范围通知、用户操作和周期校验仍确认详情及附件。Automation 通知通过当前事情、账号、工作区绑定、场景 revision、相关运行及子事情依赖判断详情是否失效，连接健康和其他项目运行变化不使详情失效。附件响应不另设跨账号缓存。
 
-刷新采用 single-flight；读取期间的内容失效保留到下一轮，用户显式刷新消费已有排队通知。详情请求失败不推进复用标识，任务切换使用 selection epoch 拒绝旧详情；账号范围切换清除旧详情，已移除事情不保留原详情。没有首次加载状态时不先重绘一遍旧内容，未变化详情复用已渲染内容。snapshot 携带轻量同步健康，主壳据此更新导航底部用户设置入口的同步状态与时间戳而不读取旧页面全量数据。
+刷新采用 single-flight；读取期间的内容失效保留到下一轮，用户显式刷新消费已有排队通知。详情请求失败不推进复用标识，任务切换使用 selection epoch 拒绝旧详情；账号范围切换清除旧详情，已移除事情不保留原详情。没有首次加载状态时不先重绘一遍旧内容，未变化详情复用已渲染内容。snapshot 携带轻量同步健康，主壳据此更新全局顶部栏的同步状态与时间戳而不读取旧页面全量数据。
 
 旧页面访问时恢复原最小窗口边界；新事情台允许窄窗口布局。场景 HTML 由注册组件渲染，文本按受限 Markdown 转义，Agent 不生成任意 HTML 或操纵 DOM。
 
 ### 同级 Chat 页面布局
 
 Chat 使用独立 `chat-layout.css` 调整中央对话、右侧分组会话及窄窗抽屉，保留既有 Chat State Coordinator、Conversation Surface 与 IPC。页面控制器统一设置 workspace surface：Thing/Chat 最小 390×640，其他页面恢复 1100×720；Thing 子视图不再异步覆盖窗口模式。抽屉打开时正文 inert，选择、新建、离页与跨断点关闭抽屉；Esc 恢复按钮焦点。原型模型与样本不进入产品代码。
+
+## 统一全局上下文
+
+Renderer 持有产品集与产品观察范围的唯一状态。Chat 使用已关联的远端 project id 或匹配的本地 project id 建立范围映射；Thing 与业务列表直接使用 project_id。各 surface 消费同一全局范围；Today 单独维护页内项目选择，项目栏投影产品集成员与全局观察范围的交集，不从 Today 配置记录反推成员；全部范围包含全部成员，单项目范围仅包含该成员。顶部主动范围变化单向设置 Today 局部选择，Today 点击不调用全局范围更新。成员与范围变化校验局部选择，失效时回到当前范围内全部项目；Today 的全部项目汇总、责任和配置投影均不得越过该范围。Today 必要本机记录按稳定项目身份惰性初始化，已有记录复用，失败可重试；迟到响应不恢复旧选择，初始化不隐式触发目录绑定、Setup 写入或 Automation 授权。选择记忆按用户、产品集、产品范围和页面隔离，对象草稿仍按对象身份保存。范围切换递增请求代际，迟到结果不得恢复旧范围对象；后台执行生命周期不因选择变化而停止。公共顶部只绑定现有受限 IPC，不新增权限或任意系统能力。同步摘要分别消费 Runtime task source、Work Sync 与平台错误；手动同步复用已有同步协调器，Git 产品资料发布保持显式独立动作。
+
+Chat 布局以剩余列满宽呈现，`chat-resize.mjs` 用 Pointer Capture 与键盘分隔线维护右栏宽度和输入高度；尺寸保存至本机 localStorage，ResizeObserver 在容器变化时限制尺寸，存储不可用不阻止编辑。分组视图按项目稳定 id 与会话 created_at/id 排序，不使用 updated_at；Renderer 独立保存项目折叠和五条递增额度，收起清除额度。以上 UI 状态不写入会话或 Runtime，刷新不强制展开选中会话。
+
+## Chat 的原生待办入口
+
+Chat 与 Thing 的交互式讨论共用 Chat coordinator、session、消息存储和 Codex thread。已有 `automation-task` session 由 Chat 直接选择，不复制历史或另建 thread；普通 Chat 整理为待办时，保留 session id/thread id，补入 task_id、remote_project_id 与账号 scope，并登记既有不可替换的 task thread binding。历史 task 绑定优先于创建新 thread。删除任务会话只隐藏本地 Chat 入口，保留可信绑定及消息，再次打开恢复相同会话。
+
+原生待办能力由主进程授予每轮有效的账号 / 本地 workspace / 远端项目 / session scope，沿既有 loopback MCP 与动态工具协议提供。能力不依赖待办已经存在：普通 Chat 可列举、读取和创建当前绑定项目待办。Agent 明确指定将创建结果关联当前会话，其他创建结果只保存来源关系；不会自动成为子任务或更换主待办。创建请求有稳定幂等标识，未知写入结果不盲目重试。
+
+主进程复用 Workshop 项目授权、task 创建命令、Work Sync 和任务执行锁。读取/更新前校验最新账号、项目绑定及对象可见性；更新携带读取版本，不覆盖变化的内容。Desktop 校验读取摘要后，将 `{content,state,priority}` 的 expected 前像传至 Workshop `PUT /tasks/:id`；服务端把前像放入同一 UPDATE 的 WHERE，未命中返回 409。该约束要求包含条件更新支持的服务端，旧服务端部署不作为并发保护已生效的证据。Chat 中旧 `arcorbit_call task.update` 入口不绕过这一版本契约。活动任务 owner 存在时不抢占执行；点击待办不调用 Automation enqueue。执行用户请求仍发生于同一 Chat thread。原生调用回执成为真实对象消息，普通 Agent 文本不是业务成功凭据。
+
+能力 / Skill / 文件 / 待办引用作为会话草稿结构保存，发送时固定为该消息的上下文。原生意图通过明确工具描述交给 Agent，不使用 renderer 关键词模拟执行。Skill 候选来自当前 scene 的可用配置与 Codex 发现；文件候选由主进程在当前工作区内枚举，路径不得越过 realpath 边界。引用只提供定位信息，实际读取结果由工具活动表达。
+
+模型和推理级别仍使用既有配置与 turn 快照接口，Composer 仅合并其交互入口。菜单独立锚定入口向上展开；能力候选区独立滚动，搜索与技能设置常驻。顶部栏沿用生产实现，不复制原型中的共享壳脚本。
+
+接入依据：`src/chat-coordinator.mjs` 的 getTurnContext/onThreadBound 钩子、`src/workbench/agent-bridge.mjs` 的逐授权 MCP、`src/workbench/task-turn-lock.mjs` 的跨讨论/Runtime 锁，以及 `src/desktop-run-manager.mjs` 的不可替换 task thread binding。方案规定需兑现的行为，生产验证由对应实施证据提供。
+
+## Work 与 Chat 共享待办详情
+
+Work 的 Chat 入口通过待办远端 project id 查找已绑定本地 workspace，调用现有受限 `chatNativeOpen`，再由 Chat State Coordinator 选择返回的 session id。主进程仍负责账号、项目、待办可见性校验以及同一 task thread 恢复；打开不获取 Automation 执行权。绑定缺失时反馈恢复要求，不选择当前 Chat 项目代替待办归属。
+
+Chat 右栏保存本机会话列表/详情选择；详情身份来自当前 session 的 task_id 与 remote_project_id。Work 与 Chat 共用详情渲染器、操作绑定和 Work-owned Task Projection，包含属性、Markdown、评论、附件、状态动作与验收反馈。渲染缓存、滚动和编辑器按宿主隔离，异步刷新核对当前对象及账号。内容更新消费现有 Work 同步事件，Agent 写入沿用原生工具的版本与权限契约。侧栏切换不重建会话或 Composer；错误、空态与重试不得借用旧会话详情。

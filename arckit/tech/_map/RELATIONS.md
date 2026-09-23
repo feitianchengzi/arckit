@@ -46,3 +46,7 @@ Engineering 内置 Skills 管理以 arcorbit-scene-skills.md 为产品源，scen
 `arcorbit/project-workbench-solution.md` 对应 `arckit/spec/agentic-software-development/arcorbit-project-workbench.md` 与 `arckit/interaction/project-workbench/`，生产实现位于 `runtime/arcorbit/src/workbench/` 和独立 project-workbench renderer 模块。
 
 无标题栏主窗口：interaction/CONVENTIONS.md、visual/_library/brief.md 及 AppShell、tech/arcorbit/solution.md 共同定义独立窗口控件、局部避让和底部设置同步时间戳。生产无标题栏与底部同步投影已更新；实现及验证范围见 arckit/cases/evidence/CASE-20260917-003/implementation-verification.json，Windows/Linux 原生执行与 macOS 原生悬停面板未人工验证。历史页面线框中的标题栏不作为当前窗口外壳验收依据。
+
+`arcorbit/project-workbench-solution.md` 的 Chat 原生待办接入承接 `interaction/chat-workspace/interaction.md`，与 Desktop execution 共享 session/thread、消息持久化及任务执行锁。
+
+- Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../arcorbit/project-workbench-solution.md`。

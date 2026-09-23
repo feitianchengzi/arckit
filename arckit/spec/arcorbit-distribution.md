@@ -15,7 +15,7 @@ ArcOrbit 的账号与 Runtime 设置分别维护当前设备的 Chat 默认 Mode
 
 “保存 Codex 配置”只保存 Chat 与 Automation 的两组 Model/Level，并在设置页原位反馈结果；“保存并同步”同时保存设置草稿并执行既有 Workshop 同步。只有持久保存成功才显示配置已保存，失败保留四个草稿供重试。查询使用已保存的代理设置，未保存的代理草稿不参与查询。
 
-新建 Chat 会话继承 Chat 默认值，并把自己的 Model/Level 作为本机会话控制事实。Chat Composer 在输入框附近持续显示这两个值，允许人工输入或从同一模型清单快速调整；调整只作用于当前会话或尚未发送的新会话草稿，不改写 Chat 默认值或 Automation 默认值。既有会话重新打开后恢复自身选择，后续消息保持同一 thread。消息被本地接受时固定该 turn 的 Model/Level，因此发送后对 Composer 的调整只作用于下一 turn。
+新建 Chat 会话继承 Chat 默认值，并把自己的 Model/Level 作为本机会话控制事实。Chat Composer 在输入框附近持续显示这两个值，通过列表选择同一模型清单中的选项，Level 随所选模型更新；切换模型时不支持的旧级别选择 medium（若支持）或首项，清单不可用时保留已保存值与发送能力；调整只作用于当前会话或尚未发送的新会话草稿，不改写 Chat 默认值或 Automation 默认值。既有会话重新打开后恢复自身选择，后续消息保持同一 thread。消息被本地接受时固定该 turn 的 Model/Level，因此发送后对 Composer 的调整只作用于下一 turn。
 
 Automation 新 Run 读取 Automation 默认值并在启动记录中固定；活动 Run 的后续自动轮次继续使用该启动配置。设置页改动不影响已有 Chat 会话，Composer 改动也不影响 Automation；两者都不打断执行或创建替代 thread。人工接管的交互式 Codex CLI 继续恢复原 thread，并遵循其已有配置；独立启动的 CLI 不读取 ArcOrbit Desktop 偏好。实际模型执行失败仍使用既有 Chat 和 Automation 恢复入口。
 
@@ -215,3 +215,9 @@ Runtime trusted ledger 仍从应用可信能力资源调用；Agent 从场景 bi
 - ArcOrbit 不访问 Codex 凭证文件；API Key 和 Access Token 只进入受控子进程 stdin，不出现在命令参数、日志、错误、普通配置或共享 Renderer state。
 - Setup Readiness 只有在 Codex executable、版本、认证和其它全局/项目检查全部通过时投影 `ready`；Codex 与 Workshop 登录状态保持独立。
 - 构建产物可以追溯到 Runtime commit、Arckit payload commit、ArcForge provider 版本、manifest digest、构建 run 和 release intent tag。
+
+## Desktop 外观
+
+ArcOrbit 支持跟随系统、浅色、深色三种本机外观选项，默认跟随系统。用户在设置中选择后立即生效并独立保存；离线与未登录均可用，不依赖同步成功。偏好不上传、不跟随项目或账户变化，重启后恢复。保存失败恢复原选择并提供重试提示。
+
+系统外观变化只影响跟随系统模式。主题切换不重载页面、不丢弃输入或选择、不打断运行；首个可见窗口内容采用当前有效主题。完整覆盖与例外见 visual/_library/brief.md，交互规则见 interaction/CONVENTIONS.md。验收覆盖三选项、系统变化、重启恢复、保存失败、主页面与浮层可读性、键盘焦点及亮色回归；规范与原型不能替代生产验证。

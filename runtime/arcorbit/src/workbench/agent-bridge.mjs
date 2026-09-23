@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { workbenchTools } from './protocol.mjs';
 
 // Tokens are per Run, held only in main/child environment, never renderer data.
-export function createWorkbenchAgentBridge({ coordinator, getAccountScope }) {
+export function createWorkbenchAgentBridge({ coordinator, getAccountScope, tools = workbenchTools, instructions = "These tools act only on the current ArcOrbit work item. Read its scene and capabilities before making changes." }) {
   const grants=new Map();let server=null, address='',starting=null;
   async function start() {
     if(address)return;
@@ -23,8 +23,8 @@ export function createWorkbenchAgentBridge({ coordinator, getAccountScope }) {
             if(request.jsonrpc!=='2.0'||typeof request.method!=='string')throw new Error('Invalid MCP request.');
             if(request.id===undefined){res.statusCode=202;res.end();return;}
             let result;
-            if(request.method==='initialize')result={protocolVersion:['2024-11-05','2025-03-26','2025-06-18'].includes(request.params?.protocolVersion)?request.params.protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'arcorbit_workbench',version:'1.0.0'},instructions:'These tools act only on the current ArcOrbit work item. Read its scene and capabilities before making changes.'};
-            else if(request.method==='tools/list')result={tools:workbenchTools};
+            if(request.method==='initialize')result={protocolVersion:['2024-11-05','2025-03-26','2025-06-18'].includes(request.params?.protocolVersion)?request.params.protocolVersion:'2025-03-26',capabilities:{tools:{}},serverInfo:{name:'arcorbit_workbench',version:'1.0.0'},instructions};
+            else if(request.method==='tools/list')result={tools};
             else if(request.method==='tools/call') {
               try {const value=await coordinator.invokeTool(grant.taskId,{tool:request.params?.name,arguments:request.params?.arguments||{}});result={content:[{type:'text',text:JSON.stringify(value)}]};}
               catch(error){result={isError:true,content:[{type:'text',text:error.message}]};}
@@ -50,11 +50,11 @@ export function createWorkbenchAgentBridge({ coordinator, getAccountScope }) {
     close(){grants.clear();server?.close();}
   };
 }
-export function workbenchAgentOptions(environment=process.env) {
+export function workbenchAgentOptions(environment=process.env, tools=workbenchTools) {
   const raw=environment.ARCORBIT_WORKBENCH_BRIDGE;if(!raw)return {};
   const {url,token}=JSON.parse(raw);const parsed=new URL(url);
   if(parsed.hostname!=='127.0.0.1'||parsed.protocol!=='http:'||parsed.pathname!=='/tool'||!token)throw new Error('Invalid workbench bridge.');
-  return {threadConfig:{'mcp_servers.arcorbit_workbench':{url:new URL('/mcp',url).href,bearer_token_env_var:'ARCORBIT_WORKBENCH_TOKEN',enabled:true,startup_timeout_sec:10,tool_timeout_sec:300}},dynamicTools:workbenchTools,dynamicToolProvider:async params=>{
+  return {threadConfig:{'mcp_servers.arcorbit_workbench':{url:new URL('/mcp',url).href,bearer_token_env_var:'ARCORBIT_WORKBENCH_TOKEN',enabled:true,startup_timeout_sec:10,tool_timeout_sec:300}},dynamicTools:tools,dynamicToolProvider:async params=>{
     const response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(params),signal:AbortSignal.timeout(60000)});
     const body=await response.json();if(!body.ok)throw new Error(body.error);return body.result;
   }};

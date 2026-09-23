@@ -8,7 +8,7 @@
 
 <!-- 直接写文件名/目录名（不用链接语法），每级一句总结，行数如 (285行)；依赖关系在 _map/RELATIONS.md -->
 
-- CONVENTIONS.md 跨页面体验契约：无标题栏及底部设置同步时间戳、macOS 原生 traffic lights、Windows/Linux 应用控件、可读字号、状态反馈、键盘焦点和对比度。✅ (86行)
+- CONVENTIONS.md 跨页面体验契约：单条全局顶部范围、同步状态及无标题栏、macOS 原生 traffic lights、Windows/Linux 应用控件、可读字号、状态反馈、键盘焦点和对比度。✅ (108行)
 
 - login/ 登录页面：七天滚动会话恢复、临时错误保活与不可绕过的 Workshop 验证码登录门禁。✅
   - default.html 登录线框：会话恢复、未登录入口、验证码已发送和登录失败。✅ (65行)
@@ -17,82 +17,106 @@
   - default.html 环境准备线框：检查触发边界、Codex 缺失/安装/认证选择/登录复核、可见项目写入摘要、managed-stale 清理、执行、完成、升级迁移和失败恢复。✅ (177行)
   - interaction.md 环境准备交互：冷启动/新关联/主动重试、纯查看不检查、Codex inventory/安装建议/更新状态、两级无默认认证、用户级 managed 迁移、备份恢复与异常恢复。✅ (49行)
 - platform-workspace/ 多产品平台应用壳：以四组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、会话新鲜度与同记录恢复的主工作台式 Feedback 和 Organization 行为。✅
-  - default.html 平台应用壳线框：四组导航、全局产品范围、Feedback 单行控制轨、会话未读与刷新、窄窗口收敛、剩余高度双栏、已忽略恢复和转待办恢复状态。✅ (180行)
-  - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系、直接添加入口、项目邀请及任意成员本地绑定与管理员授权分界。✅ (14行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html 平台应用壳线框：四组导航、全局产品范围、Feedback 单行控制轨、会话未读与刷新、窄窗口收敛、剩余高度双栏、已忽略恢复和转待办恢复状态。辅助状态说明 (180行)
+  - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系、直接添加入口、项目邀请及任意成员本地绑定与管理员授权分界。✅ (12行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
-  - interaction.md 平台交互：四组导航、产品范围/治理解耦、组织项目连接引导与 Feedback 单行控制轨、会话自动/手动刷新、已读边界、剩余高度双栏、同记录恢复、共享图片查看和流转。✅ (195行)
+  - interaction.md 平台交互：四组导航、产品范围/治理解耦、组织项目连接引导与 Feedback 单行控制轨、会话自动/手动刷新、已读边界、剩余高度双栏、同记录恢复、共享图片查看和流转。✅ (199行)
   - member-add.html 直接添加成员状态：加载、单选、空态、提交、确认和权限/网络恢复。✅ (70行)
 - today-workspace/ Today 人工责任工作台：以项目栏、需要你处理/项目配置双工作区和操作台管理多项目配置、跨来源人工介入及 Work 内容纠偏。🟡
-  - default.html Today 主线框：真实三组主导航、跨项目责任、项目配置、零责任和来源未知。🟡 (21行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html Today 主线框：真实三组主导航、跨项目责任、项目配置、零责任和来源未知。🟡 (21行)
   - readiness-details.html 新用户子视图：前置门、项目目录、多项目并行检查、目录/Setup/本机参与和 Work 交接。🟡 (20行)
   - action-details.html 来源操作台：Chat 权限、Automation 人工决策与外部等待分离、Work 内容纠偏与失败保留、状态门、验收问题原位直显及部分成功收口。🟡 (26行)
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
-  - interaction.md Today 交互：双工作区、项目组合、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (236行)
+  - interaction.md Today 交互：产品集成员、局部选择与按需初始化、双工作区、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (241行)
   - product-continuity.html 产品续接：添加 Idea、独立新消息和本机草稿。✅ (5行)
-- chat-workspace/ Chat 完整可操作页面：左侧分类导航、中间居中对话与输入、右侧项目分组会话列表；窄窗抽屉。✅
-  - default.html 四组导航、中央对话与右侧会话列表的完整可操作入口。✅ (21行)
-  - interaction.md 布局策略、会话与工作区边界、草稿、消息和异常恢复。✅ (141行)
-  - README.md 预览、模拟边界、视觉与验证依据。✅ (39行)
-  - model.js 独立本地会话、工作区、草稿、turn 与恢复样本。✅ (53行)
-  - views.js 右侧项目会话分组、中央消息与 Composer。✅ (39行)
-  - app.js 会话操作、焦点、滚动、输入法、场景与逐段回复。✅ (173行)
-  - chat.css 中央阅读宽度、右侧列表与窄窗抽屉。✅ (67行)
+- chat-workspace/ Chat 正式交互：会话列表与当前待办详情切换，Work 入口恢复绑定会话；会话创建时间倒序，Agent 当前项目待办读写与统一能力/Skill/上下文选择；保留完整会话、账户和响应式行为。✅
+  - default.html 四组导航、中央对话、会话列表与统一能力引用的完整入口。✅ (31行)
+  - interaction.md 正式能力/引用、待办身份与来源、同一 thread、布局与恢复规则。✅ (206行)
+  - README.md 预览、模拟边界、视觉与验证依据。✅ (54行)
+  - model.js 独立本地会话、工作区、草稿、turn 与恢复样本。✅ (56行)
+  - views.js 右侧项目会话分组、中央消息与 Composer。✅ (40行)
+  - app.js 会话操作、焦点、滚动、输入法、场景与逐段回复。✅ (194行)
+  - chat.css 中央阅读宽度、右侧列表与窄窗抽屉。✅ (80行)
   - markdown.js 受限 Markdown、代码和表格呈现。✅ (102行)
   - scenarios.html 独立本地异常工具。✅ (4行)
   - scenario-controls.js 场景工具消息转发。✅ (1行)
   - states.html 从旧主稿迁移的右侧列表状态辅助说明。✅ (55行)
   - workspace-setup.html 原位目录绑定与 Setup Readiness 辅助说明。✅ (12行)
-  - verify.cjs 主路径、恢复、滚动与响应式浏览器验证。✅ (57行)
+  - verify.cjs 主路径、恢复、滚动与响应式浏览器验证。✅ (62行)
   - verification.json 实际本地交互验证结果。✅ (21行)
   - maintenance-result.json 本轮文件范围与正式交互事实结果。✅
+  - native-model.js 当前项目待办、绑定、意图与原生回执本地模型。✅ (104行)
+  - native-views.js 会话/待办独立单行列表、标签、对象卡片与正式视图组合。✅ (29行)
+  - native-input.js 统一能力/引用选择器、对象进入与异常恢复。✅ (75行)
+  - native.css 消费正式 Token 的能力选择、标签与回执样式。✅ (49行)
+  - verify-native.cjs 正式新增主路径、状态恢复、键盘与响应式验证。✅ (61行)
+  - verification-native.json 新增能力原型的实际本地验证结果。✅ (17行)
+
+  - model-settings.js 当前会话模型/推理级别弹出配置、自动保存与焦点恢复。✅
+  - verify-layout-webkit.swift / verification-layout-webkit.json macOS WebKit 桌面布局复核。✅
+  - verify-layout.cjs / verification-layout.json 顶部入口同排、菜单可用高度与全部候选可达检查。✅
+  - popup-position.js 菜单紧贴各自入口向上展开，处理视口避让与窗口尺寸变化。✅
+
 - release-workspace/ Release：真实终端、Git、源码、任务与 Agent 协作。✅
-  - default.html Release 状态线框：全部项目、执行、Git、冲突与中断恢复。✅ (10行)
-  - interaction.md Release 交互：固定归属、共享对话和真实执行结果。✅ (23行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html Release 状态线框：全部项目、执行、Git、冲突与中断恢复。辅助状态说明 (10行)
+  - interaction.md Release 交互：固定归属、共享对话和真实执行结果。✅ (27行)
 - operations-workspace/ Operations 页面：外部市场动作、渠道内容、负责人、时间窗口和效果信号回流。✅
-  - default.html Operations 线框：运营动作、受众与渠道、内容主题和示意效果信号。✅ (14行)
-  - interaction.md Operations 交互：待发布/进行中/已复盘状态、回流关系和外部平台边界。✅ (33行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html Operations 线框：运营动作、受众与渠道、内容主题和示意效果信号。辅助状态说明 (14行)
+  - interaction.md Operations 交互：待发布/进行中/已复盘状态、回流关系和外部平台边界。✅ (39行)
 - engineering-profile/ Engineering 页面：高密度管理 ArcOrbit 内置 Skills 的安装状态、场景使用方式和失败恢复。✅
-  - default.html Engineering 线框：紧凑摘要、搜索/状态筛选、行内管理、空态与保存恢复。✅ (112行)
-  - interaction.md Engineering 交互：内置集合边界、信息层级、场景保存、非内置隔离与键盘/窄窗行为。✅ (70行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html Engineering 线框：紧凑摘要、搜索/状态筛选、行内管理、空态与保存恢复。辅助状态说明 (112行)
+  - interaction.md Engineering 交互：内置集合边界、信息层级、场景保存、非内置隔离与键盘/窄窗行为。✅ (74行)
 - product-feedback-center/ ArcOrbit 产品反馈中心：在受限 SDK 窗口内提交产品反馈、查看我的反馈并从未配置或加载失败中恢复。✅
-  - default.html 产品反馈中心线框：SDK 加载、可用内容、账户/配置恢复和 SDK 失败恢复。✅ (54行)
-  - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (88行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html 产品反馈中心线框：SDK 加载、可用内容、账户/配置恢复和 SDK 失败恢复。辅助状态说明 (54行)
+  - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (92行)
 - automation-workspace/ 自动化指挥中心：以统一 Project Catalog 保持跨页面项目可见性并在覆盖安装后自动重建派生状态，同时消费 Work 本地待办状态，以 workspace lane 管理双队列串行、跨项目并行、Case 绑定恢复、统一人工介入与 Runtime/CLI 接力。✅
-  - default.html 指挥中心线框：顶部产品范围、覆盖安装自动重建、项目同步降级、Work 同步健康摘要、双队列、活动执行选择、并发容量、人工介入原因、Runtime/CLI 接管与恢复。✅ (347行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html 指挥中心线框：顶部产品范围、覆盖安装自动重建、项目同步降级、Work 同步健康摘要、双队列、活动执行选择、并发容量、人工介入原因、Runtime/CLI 接管与恢复。辅助状态说明 (347行)
   - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复、Chat/Automation 两组 Codex 默认配置与失败重试。✅ (147行)
   - intervention-workbench.html 介入工作台线框：单行有界待办标题、Chat 共享消息面、固定三栏与 Composer、完整时间及逐 Gap 执行全貌。✅ (99行)
   - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、Case 绑定待确认、用户说明续跑、安全停止、lane 局部外部变化与 Work Sync 异常。✅ (152行)
   - eligibility-guidance.html 资格引导子视图：成员本地目录动作、待评审、全局总闸和项目授权责任的原位解释。✅ (39行)
-  - interaction.md 自动化指挥中心交互：统一 Project Catalog、覆盖安装自愈、逐项目 Task Readiness、Work 本地状态消费、资格原因与 Case 绑定就地恢复、external handoff 人工介入投影、统一待办标题、双队列、workspace lane 串行与跨项目并行。✅ (459行)
+  - interaction.md 自动化指挥中心交互：统一 Project Catalog、覆盖安装自愈、逐项目 Task Readiness、Work 本地状态消费、资格原因与 Case 绑定就地恢复、external handoff 人工介入投影、统一待办标题、双队列、workspace lane 串行与跨项目并行。✅ (463行)
 - task-browser/ Work 同屏任务浏览：以本地 Task Projection、单行控制轨和剩余高度列表/可持久调宽 Inspector 创建、分区检查、协作、验收并同步待办。✅
-  - default.html Work 任务浏览线框：顶部产品范围、Inspector 引导动作、编辑兜底提示、Automation 消费、运行/验收、恢复与冲突。✅ (218行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html Work 任务浏览线框：顶部产品范围、Inspector 引导动作、编辑兜底提示、Automation 消费、运行/验收、恢复与冲突。辅助状态说明 (218行)
   - daily-work.html Work 日常管理子视图：本地状态/搜索/筛选控制轨、窄窗口收敛、可调宽分区 Inspector 与图片浏览。✅ (96行)
   - task-form.html 待办表单子视图：创建/编辑产品切换、执行人 Automation 资格提示、跨产品复制确认、目标字段联动和分步失败恢复。✅ (45行)
   - readiness-guidance.html 执行资格子视图：待评审确认、执行人不匹配、成员本地连接动作和远端治理责任交接。✅ (39行)
-  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、新建执行人 Automation 提示、编辑七状态兜底、Inspector 引导动作、持久宽度、紧凑分区、跨产品受控替换与图片浏览。✅ (305行)
+  - interaction.md 任务浏览交互：本地七状态计数、Work-owned 同步、新建执行人 Automation 提示、编辑七状态兜底、Inspector 引导动作、持久宽度、紧凑分区、跨产品受控替换与图片浏览。✅ (315行)
 - product-list/ Product 列表：浏览全部可访问项目与本机 Idea，查找并进入产品长期上下文。✅
-  - default.html Product 列表状态与恢复。✅ (62行)
-  - interaction.md Product 列表状态与恢复。✅ (23行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html Product 列表状态与恢复。辅助状态说明 (62行)
+  - interaction.md Product 列表状态与恢复。✅ (27行)
 - product-detail/ Product 详情：查看并维护产品状态、理念、资产与项目关系，从同一产品进入已有能力页面。✅
-  - default.html Product 详情状态与恢复。✅ (101行)
-  - interaction.md Product 详情状态与恢复。✅ (25行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html Product 详情状态与恢复。辅助状态说明 (101行)
+  - interaction.md Product 详情状态与恢复。✅ (29行)
 - idea-workspace/ Idea 列表：展示当前设备保存的 Idea，并提供继续整理、接入和查看已关联产品的入口。✅
-  - default.html Idea 列表状态与恢复。✅ (62行)
-  - interaction.md Idea 列表状态与恢复。✅ (23行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html Idea 列表状态与恢复。辅助状态说明 (62行)
+  - interaction.md Idea 列表状态与恢复。✅ (27行)
 - idea-add/ 添加 Idea：从空白或材料建立可恢复 Idea，在可编辑资料区与对话区协作完成接入。✅
-  - default.html 添加 Idea状态与恢复。✅ (160行)
-  - interaction.md 添加 Idea状态与恢复。✅ (42行)
+  - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
+  - page-states.html 添加 Idea状态与恢复。辅助状态说明 (160行)
+  - interaction.md 添加 Idea状态与恢复。✅ (46行)
 
-- project-workbench/ Thing 独立页面设计：四组分类、与 Chat 并列入口、跨项目事情列表、场景详情、中央消息与成果验收。✅
+- project-workbench/ Thing 独立页面设计：四组分类、与 Chat 并列入口、全局范围内事情列表、场景详情、中央消息与成果验收。✅
   - interaction.md 交互策略、主路径、异常恢复、视觉来源与模拟边界。✅ (100行)
-  - default.html 应用 light 主题的完整可操作正式原型。✅ (27行)
+  - default.html 应用 light / dark 主题的完整可操作正式原型。✅ (30行)
   - README.md 打开方式、样本边界与验证命令。✅ (54行)
   - scenarios.html 独立异常场景工具与重置入口。✅ (33行)
-  - model.js 独立存储、事情身份与本地业务样本。✅ (80行)
+  - model.js 独立存储、事情身份与本地业务样本。✅ (56行)
   - work-progress.js 按事情推进的观察记录与可变安排。✅ (56行)
   - detail-content.js 共用标准、资料、成果与详情投影。✅ (68行)
-  - views.js 三栏、消息和运行概况组件。✅ (43行)
-  - app.js 主操作、表单、焦点、草稿与阅读连续性。✅ (148行)
+  - views.js 三栏、消息和运行概况组件。✅ (40行)
+  - app.js 主操作、表单、焦点、草稿与阅读连续性。✅ (194行)
   - navigation.js 四组业务页面及窄窗导航入口。✅ (66行)
   - account-capabilities.md 个人中心代码能力映射、交互优化与本地模拟边界。✅ (45行)
   - account-settings.js 账户与 Runtime 弹出页、任务源、模型与代理操作。✅ (233行)
@@ -100,14 +124,25 @@
   - verification-account.json 个人中心实际验证结果。✅ (42行)
   - maintenance-result.json 本轮文件操作与正式交互事实结果。✅
   - scenarios.js 本地异常注入，与正式存储隔离。✅ (36行)
-  - scenario-controls.js 场景工具到原型的受限本地消息。✅ (5行)
+  - scenario-controls.js 场景工具到原型的受限本地消息。✅ (1行)
   - styles.css 基础布局，全部颜色引用视觉角色。✅ (496行)
   - desk.css 事情台布局、弹层与响应式规则。✅ (338行)
   - detail-content.css 详情内容和状态组织。✅ (154行)
   - visual.css 正式 Token 与组件规则应用。✅ (134行)
-  - verify.cjs 主路径和响应式浏览器验证。✅ (70行)
+  - verify.cjs 主路径和响应式浏览器验证。✅ (72行)
   - verify-states.cjs 异常、键盘、标题与旧页面验证。✅ (87行)
   - verification.json 主路径实际验证结果。✅ (70行)
   - verification-states.json 异常与恢复实际验证结果。✅ (17行)
 
 - _explorations/INDEX.md 探索索引：迁入四组原稿，V2 采纳记录与完整迁移映射；其余候选保持独立。 (21行)
+
+- _map/global-context-verification.md 统一顶部栏生产验证：范围切换、草稿恢复、窄窗及测试边界。✅ (22行)
+
+- _shared/ 全局产品上下文原型：共享范围、顶部能力、页面适配及浏览器验证。
+  - global-context.js 本地产品集、范围、对象记忆和状态。
+  - global-shell.js / global-context.css 单行顶部、菜单、同步和运行控制。
+  - context-pages.js Product 等页面的范围与对象连续操作、Today 查看范围内成员选择和初始化模拟。
+  - verify-global-context.cjs / global-context-verification.json 实际跨页、草稿和窄窗验证。
+
+  - appearance.js 本机外观三选项、系统模式与隔离偏好模拟。
+  - verify-appearance.cjs 明暗主题、系统变化、偏好失败恢复与共享设置入口验证。

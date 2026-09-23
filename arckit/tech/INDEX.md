@@ -3,7 +3,7 @@
 ✅ 已采用 | 🔬 调研中 | 📋 调研完成 | ❌ 已废弃 | ⚪ 待定
 
 - arcorbit/ ArcOrbit：Runtime Kernel、workspace lane 并行与项目内串行、持久单 thread、交互式 CLI 接力、Gate 与自动账本回写。✅
-  - solution.md ArcOrbit 技术方案：定义 Desktop State Kernel、分层状态所有权、无标题栏及受限窗口 IPC、认证、Work-owned Task Source、workspace 仲裁与 trusted ledger。✅ (472行)
+  - solution.md ArcOrbit 技术方案：定义 Desktop State Kernel、分层状态所有权、无标题栏、主题偏好及受限窗口 IPC、认证、Work-owned Task Source、workspace 仲裁与 trusted ledger。✅ (480行)
   - scene-skills-solution.md 内置 Skills 管理：可信 inventory、受限 mutation、场景绑定与 Codex 原生用户 Skills 隔离。✅ (56行)
   - installer-supply-chain.md ArcOrbit 安装包供应链：定义 Codex inventory、owner adapters、安装建议、来源感知更新、代理、官方认证与供应链回滚。✅ (447行)
   - state-condition-ledger-solution.md Software Definition Ledger：定义 Project/Case 与场景边界、Gap 选择语义承载、stable candidate identity、invariant assessment、Transition v8 与 Closeout v2。✅ (328行)
@@ -14,6 +14,6 @@
   - product-feedback-integration.md 产品反馈 SDK：定义 Project 107、受限 Electron WebContents、SDK 文档身份、草稿保持、Workshop 稳定身份和未读角标。✅ (67行)
   - release-workspace-solution.md Release 本地能力：终端、仓库、文件、任务服务及场景 Agent。✅ (43行)
   - product-management-solution.md 产品资料方案：版本化记录、场景工具、接入恢复与独立 Git 资料分支。✅ (87行)
-  - project-workbench-solution.md 项目事情台：独立场景、任务主会话、业务能力桥、按事情 Auto 与同步刷新边界。✅ (71行)
+  - project-workbench-solution.md 项目事情台：独立场景、Chat 共享主会话与原生待办能力、按事情 Auto 与同步刷新边界。✅ (97行)
 - repository-governance/ 仓库治理：公开源码 monorepo、目录许可与私有运维边界。✅
   - monorepo-solution.md Monorepo 方案：定义 Todo/Feedback 源映射、历史过滤、多许可证矩阵、arckit-ops 隔离与安全门禁。✅ (142行)

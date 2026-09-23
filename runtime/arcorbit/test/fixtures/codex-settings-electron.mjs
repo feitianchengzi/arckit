@@ -66,10 +66,10 @@ app.whenReady().then(async () => {
       const composerDefaults = [el('chatCodexModel').value, el('chatCodexEffort').value];
       el('chatCodexModel').focus();
       el('chatCodexModel').dispatchEvent(new Event('focus'));
-      await waitFor(() => el('chatCodexModelOptions').options.length > 0, 'Chat Composer catalog');
-      const composerModels = Array.from(el('chatCodexModelOptions').options, option => option.value);
-      type('chatCodexModel', 'composer-model');
-      type('chatCodexEffort', 'ultra');
+      await waitFor(() => el('chatCodexModel').options.length > 1, 'Chat Composer catalog');
+      const composerModels = Array.from(el('chatCodexModel').options, option => option.value);
+      el('chatCodexModel').value='test-model';el('chatCodexModel').dispatchEvent(new Event('change',{bubbles:true}));
+      el('chatCodexEffort').value='max';el('chatCodexEffort').dispatchEvent(new Event('change',{bubbles:true}));
       await new Promise(r => setTimeout(r, 450));
       const calls = await window.arckitDesktop.getTestCalls();
       return { yoloDefault, yoloRestored, defaults, preservedDraft, levels, retainedLevel, savedInPlace, saveFeedback, restored, manualFallback, failedDraft,

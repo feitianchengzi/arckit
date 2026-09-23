@@ -202,3 +202,14 @@ input:disabled, textarea:disabled, select:disabled {
 }
 .today-mode-tabs button.is-active::after { background: var(--colors-accent-base); }
 .pw-runtime-trigger, .pw-runtime-trigger:hover { border-color: transparent; }
+
+/* Theme adaptation: legacy ink-800 is a foreground role in the main UI. */
+:root[data-theme="dark"] { color-scheme: dark; --ink-800: var(--semantic-text); }
+.appearance-settings-section { grid-column: 1 / -1; }
+.appearance-settings-section .field { max-width: 320px; }
+.settings-panel, .settings-header, .pw-dialog, .release-dialog, .work-filter-popover {
+  background: var(--semantic-elevated);
+  color: var(--semantic-text);
+}
+.field input, .field select, .field textarea { color: var(--semantic-text); }
+.toast { background: var(--semantic-elevated); color: var(--semantic-text); border: 1px solid var(--semantic-divider); }

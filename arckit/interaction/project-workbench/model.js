@@ -24,8 +24,8 @@
  const current = () => state.tasks.find(t=>t.id===state.selected);
  const project = id => projects.find(p=>p.id===id);
  const save = () => {try{localStorage.setItem(key,JSON.stringify(state));}catch{storageAvailable=false;}};
- state.scope='all'; // The independent page always browses all projects.
- const visible = () => state.tasks.filter(t=>(state.scope==='all'||t.project===state.scope) && (state.filter==='all'||(state.filter==='attention'?['decision','paused','failed','done'].includes(t.mode):t.status===state.filter)) && (state.assigneeFilter==='all'||t.assignee===state.assigneeFilter) && (state.priorityFilter==='all'||t.priority===state.priorityFilter) && (!state.query||[t.title,t.body,t.id,t.assignee,t.tag].join(' ').toLowerCase().includes(state.query.toLowerCase())));
+ state.scope=window.GlobalContext?.state.project||'all';
+ const visible = () => state.tasks.filter(t=>(!window.GlobalContext||GlobalContext.includes(t.project)) && (state.scope==='all'||t.project===state.scope) && (state.filter==='all'||(state.filter==='attention'?['decision','paused','failed','done'].includes(t.mode):t.status===state.filter)) && (state.assigneeFilter==='all'||t.assignee===state.assigneeFilter) && (state.priorityFilter==='all'||t.priority===state.priorityFilter) && (!state.query||[t.title,t.body,t.id,t.assignee,t.tag].join(' ').toLowerCase().includes(state.query.toLowerCase())));
  const ownsLane = t => ['auto','paused','decision','external','failed'].includes(t.mode);
  const record = (t,text,meta={}) => {t.activity.push(text);t.revision++;t.events??=[];t.events.push({text,at:new Date().toISOString(),actor:meta.actor||'ArcOrbit',kind:meta.kind||'execution',...meta});};
  const message = (t,role,text) => {t.messages.push({role,text});};
@@ -45,8 +45,8 @@
    if(t.pending.length){message(t,'agent','已在下一执行边界接收补充要求：'+t.pending.join('；'));record(t,'补充要求已生效：'+t.pending.join('；'));window.WorkProgress.ensure(t).lastInstruction=t.pending.join('；');t.pending=[];}
    window.WorkProgress.advance(t);
   }
-  for(const t of state.tasks.filter(t=>t.mode==='queued')) activate(t);
-  if(state.autoClaim)for(const t of state.tasks.filter(t=>t.status==='ready'&&t.mode==='manual'&&t.assignee==='我'&&state.config[t.project]))activate(t);
+  if(!window.GlobalContext?.state.paused)for(const t of state.tasks.filter(t=>t.mode==='queued')) activate(t);
+  if(window.GlobalContext?GlobalContext.state.enabled&&!GlobalContext.state.paused:state.autoClaim)for(const t of state.tasks.filter(t=>t.status==='ready'&&t.mode==='manual'&&t.assignee==='我'&&state.config[t.project]))activate(t);
   save();
  }
  function send(t,text){
@@ -71,10 +71,10 @@
   t.mode='auto';record(t,'用户继续原执行，协作身份保持不变');save();
  }
  function create(text,pid,fromChat=true){
-  writable();if(!project(pid))throw new Error('请选择这件事情所属的项目。');if(!text.trim())throw new Error('请描述你想推进的事情。');
+  writable();if(window.GlobalContext&&!GlobalContext.includes(pid))throw new Error('请选择当前范围内的产品。');if(!project(pid))throw new Error('请选择这件事情所属的项目。');if(!text.trim())throw new Error('请描述你想推进的事情。');
   const t=base(String(Math.max(...state.tasks.map(x=>Number(x.id)))+1),pid,displayTitle(text),'review',fromChat?'discussion':'manual',{body:text.trim(),priority:'中',tag:fromChat?'对话发起':'新事情'});
   if(fromChat){message(t,'user',text.trim());message(t,'agent','事情已建立，执行人为你。我会先围绕目标交流；开始 Auto 由你决定。');t.analysis='请核对目标和完成标准。可以继续交流，或直接编辑事情内容。';window.WorkProgress.analyze(t,text.trim());}
-  state.tasks.unshift(t);state.selected=t.id;state.scope='all';state.filter='all';state.query='';state.newDraft='';state.tab='scene';state.surface='detail';state.assigneeFilter='all';state.priorityFilter='all';save();return t;
+  state.tasks.unshift(t);state.selected=t.id;state.filter='all';state.query='';state.newDraft='';state.tab='scene';state.surface='detail';state.assigneeFilter='all';state.priorityFilter='all';save();return t;
  }
  window.WorkModel={view,key,displayTitle,projects,states,modes,get state(){return state;},get storageAvailable(){return storageAvailable;},current,project,save,visible,record,message,writable,start,send,create,advance,restore,ownsLane,reset(){state=initial();save();}};
 })();

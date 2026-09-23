@@ -29,6 +29,10 @@ function httpStatus(value) {
 const invokeFeedbackV2 = (channel, input) => ipcRenderer.invoke(channel, input).then(unwrapFeedbackV2Ipc);
 
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  initialAppearance: ipcRenderer.sendSync("arckit:appearance-initial"),
+  getAppearance: () => ipcRenderer.invoke("arckit:appearance-get"),
+  setAppearance: preference => ipcRenderer.invoke("arckit:appearance-set", preference),
+  onAppearanceChanged: listener => { const handler = (_event, value) => listener(value); ipcRenderer.on("arckit:appearance-changed", handler); return () => ipcRenderer.removeListener("arckit:appearance-changed", handler); },
   setWorkspaceSurface: surface => ipcRenderer.invoke('arckit:workspace-surface',surface),
   projectWorkbenchSnapshot: () => ipcRenderer.invoke('arckit:project-workbench-snapshot'),
   projectWorkbenchDetail: id => ipcRenderer.invoke('arckit:project-workbench-detail',id),
@@ -83,6 +87,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     ipcRenderer.on("arckit:product-event", handler);
     return () => ipcRenderer.off("arckit:product-event", handler);
   },
+  chatNativeCatalog: input => ipcRenderer.invoke("arckit:chat-native-catalog", input),
+  chatNativeOpen: input => ipcRenderer.invoke("arckit:chat-native-open", input),
   chatSnapshot: (input) => ipcRenderer.invoke("arckit:chat-snapshot", input),
   createChat: (input) => ipcRenderer.invoke("arckit:chat-create", input),
   selectChat: (input) => ipcRenderer.invoke("arckit:chat-select", input),

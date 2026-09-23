@@ -153,7 +153,7 @@ test("Chat state coordinator captures draft ownership and flushes before selecti
   await coordinator.selectSession("CHAT-B");
 
   assert.deepEqual(calls, [
-    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A" }
+    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A", response: "ack" }
   ]);
   assert.equal(coordinator.getState().owner.session_id, "CHAT-B");
 });
@@ -317,12 +317,12 @@ test("Chat state coordinator serializes captured draft owners without applying p
   coordinator.setDraft("new");
   const flushed = coordinator.flushDraft();
 
-  assert.deepEqual(calls, [{ session_id: "CHAT-A", project_id: "PROJECT-A", text: "old" }]);
+  assert.deepEqual(calls, [{ session_id: "CHAT-A", project_id: "PROJECT-A", text: "old", response: "ack" }]);
   releases.shift()({ selected_session_id: "CHAT-A" });
   await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
   assert.deepEqual(calls, [
-    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "old" },
-    { session_id: "CHAT-B", project_id: "PROJECT-B", text: "new" }
+    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "old", response: "ack" },
+    { session_id: "CHAT-B", project_id: "PROJECT-B", text: "new", response: "ack" }
   ]);
   releases.shift()({ selected_session_id: "CHAT-B" });
   await flushed;
@@ -340,7 +340,7 @@ test("Chat session selection flushes the old draft before persisting and applyin
   coordinator.setDraft("draft A");
   await coordinator.selectSession("CHAT-B");
   assert.deepEqual(order, [
-    ["flush", { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A" }],
+    ["flush", { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A", response: "ack" }],
     ["select", { session_id: "CHAT-B" }]
   ]);
   assert.equal(coordinator.getState().draft, "draft B");
@@ -412,7 +412,8 @@ test("Chat new-draft response preserves and persists Composer input typed while 
   assert.deepEqual(persisted.at(-1), {
     session_id: "",
     project_id: "PROJECT-B",
-    text: "typed while new-chat request is pending"
+    text: "typed while new-chat request is pending",
+    response: "ack"
   });
 });
 
@@ -443,7 +444,8 @@ test("Chat workspace response preserves and persists newer Composer input for th
   assert.deepEqual(persisted.at(-1), {
     session_id: "",
     project_id: "PROJECT-B",
-    text: "typed while workspace request is pending"
+    text: "typed while workspace request is pending",
+    response: "ack"
   });
 });
 
@@ -527,7 +529,8 @@ test("Chat first send adopts the new session without losing or misowning an in-f
   assert.deepEqual(calls, [{
     session_id: "CHAT-A",
     project_id: "PROJECT-A",
-    text: "next message"
+    text: "next message",
+    response: "ack"
   }]);
 });
 
@@ -560,7 +563,7 @@ test("Chat send does not clear newer Composer input while the accepted draft is 
   await sending;
 
   assert.equal(coordinator.getState().draft, "next message");
-  assert.deepEqual(persisted.at(-1), { session_id: "CHAT-A", project_id: "PROJECT-A", text: "next message" });
+  assert.deepEqual(persisted.at(-1), { session_id: "CHAT-A", project_id: "PROJECT-A", text: "next message", response: "ack" });
 });
 
 test("Chat session mutation response cannot project the old transcript after a later selection", async () => {
@@ -746,27 +749,27 @@ test("Chat project selector changes only the new draft owner and persisted sessi
     readFile(rendererHtmlPath, "utf8")
   ]);
 
-  assert.match(source, /els\.chatProjectSelect\.disabled = Boolean\(session\) \|\| chat\.snapshot\.projects\.length === 0;/);
+  assert.match(source, /els\.chatProjectSelect\.disabled = Boolean\(session\) \|\| chatProjectsInScope\(\)\.length === 0;/);
   assert.match(source, /chatStateCoordinator\.changeDraftWorkspace\(projectId\)/);
   assert.match(source, /const projectId = defaultChatDraftProject\(\)\?\.id \|\| ""/);
-  assert.match(source, /if \(session\) return chat\.snapshot\.projects\.find\(\(project\) => project\.id === session\.project_id\) \|\| null/);
+  assert.match(source, /projects.find\(p=>p.id===chat.owner.project_id\)/);
   assert.match(source, /session\.project_id\)}（不可用）/);
   assert.match(source, /els\.chatWorkspacePickerLabel\.textContent = session \? "固定归属" : "新对话属于"/);
   assert.match(html, /id="chatWorkspacePickerLabel">新对话属于/);
   assert.ok(html.indexOf('id="chatProjectSelect"') > html.indexOf('<header class="chat-header">'));
 });
 
-test("Chat Renderer groups all snapshot sessions by Product Workspace with bounded inline history", async () => {
+test("Chat Renderer groups scoped sessions by Product Workspace with bounded inline history", async () => {
   const [source, styles] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererStylesPath, "utf8")
   ]);
 
-  assert.match(source, /groupChatSessions\(\{ sessions: chat\.snapshot\.sessions, projects: chat\.snapshot\.projects \}\)/);
-  assert.match(source, /limit: CHAT_SESSION_PREVIEW_LIMIT/);
-  assert.match(source, /查看历史会话（其余 \$\{visibility\.hidden_count\} 个）/);
+  assert.match(source, /groupChatSessions\(\{ sessions: chat\.snapshot\.sessions.filter/);
+  assert.match(source, /limit: chatProjectLimits\.get/);
+  assert.match(source, /查看更多（剩余 \$\{visibility\.hidden_count\} 个）/);
   assert.match(source, /data-chat-history-project-id/);
-  assert.match(source, /visibility\.selected_requires_history/);
+  assert.match(source, /data-chat-project-toggle/);
   assert.match(styles, /\.chat-project-group \{/);
   assert.match(styles, /\.chat-history-toggle \{/);
 });
@@ -828,11 +831,11 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.doesNotMatch(html, /跨产品下一步|todayPrimaryAction|todayMetricGrid|todayProductGrid|todayWorkList|todayAttentionList/);
   assert.match(source, /deriveTodayWorkspace/);
   assert.match(source, /async function performTodayAction\(item, action\)/);
-  assert.match(source, /async function openTodayProjectCatalog\(\)[\s\S]+从可访问项目中选择[\s\S]+新建个人项目[\s\S]+使用邀请码加入/);
-  assert.match(source, /api\.setTodayProjects\(nextIds\)/);
+  assert.match(source, /els\.todayAddProjectButton\.onclick = \(\) => runAction\(editCurrentWorkset\)/);
+  assert.match(source, /async function editCurrentWorkset\(\)[\s\S]+同时选择要在 Today、Work、Automation 和 Feedback 展示的产品/);
+  assert.match(source, /api\.updateWorkset\(\{ id: activeWorkset\.id, project_ids: projectIds \}\)/);
   assert.match(source, /function hydrateTodayPreference\(preference = \{\}\)/);
   assert.match(source, /api\.setTodayPreference\(preference\)/);
-  assert.doesNotMatch(source.match(/async function openTodayProjectCatalog\(\)[\s\S]*?\n\}/)?.[0] || "", /showPage\("organization"\)/);
   assert.match(source, /setupByProject: state\.todaySetupByProject/);
   assert.match(source, /sections: workSurface \? \["tasks"\] : \["overview", "organizations", "members", "tasks", "feedback", "today"\]/);
   for (const capability of ["decideChatApproval", "submitIntervention", "confirmAutomationExternalDependency", "resolveAutomationRecovery", "submitAcceptanceFeedback", "retryFeedbackTaskLink", "setProjectParticipation"]) {
@@ -851,7 +854,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(html, /data-page-view="work"/);
   assert.match(html, /data-page-view="feedback"/);
   assert.match(html, /id="worksetSelect"/);
-  assert.match(html, /不受当前产品集过滤/);
+  assert.match(html, /项目遵循顶部产品范围/);
   assert.match(source, /page: "command"/);
   assert.match(source, /api\.platformSnapshot/);
   assert.match(source, /api\.setActiveWorkset/);
@@ -1006,7 +1009,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(styles, /\.product-grid \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
-  assert.match(html, /class="chat-page-heading"><strong>Chat<\/strong>/);
+  assert.match(html, /class="commandbar"/);
   for (const id of ["chatProjectSelect", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
@@ -1045,7 +1048,7 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
     assert.match(sidebar, new RegExp(`data-page="${page}"`));
     assert.match(html, new RegExp(`data-page-view="${page}"`));
   }
-  assert.match(html, /class="chat-page-heading"><strong>Chat<\/strong>/);
+  assert.match(html, /class="commandbar"/);
   const chatPage = html.slice(html.indexOf('id="chatView"'), html.indexOf('id="productView"'));
   assert.ok(chatPage.indexOf('class="chat-main"') < chatPage.indexOf('id="chatSessionsPanel"'));
   assert.ok(chatPage.indexOf('id="chatSessionList"') < chatPage.indexOf('id="newChatButton"'));
@@ -1054,7 +1057,8 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   assert.match(source, /createReleaseSurface/);
   assert.match(html, /id="releaseView"[^>]+data-page-view="release"/);
   assert.match(html, /PRODUCT LIFECYCLE · OPERATIONS/);
-  assert.match(html, /Operations 是“运营”的统一英文入口/);
+  assert.match(html, /id="operationsScope"/);
+  assert.match(html, /id="operationsEmpty"/);
   assert.match(source, /createEngineeringSurface/);
   assert.match(html, /id="engineeringView"[^>]+data-page-view="engineering"/);
   assert.match(html, /id="chatSkillsButton"/);
@@ -1063,7 +1067,8 @@ test("desktop keeps the remaining lifecycle previews inert while Chat is a real 
   assert.doesNotMatch(html, /data-page-view="state"|data-page-view="skills"/);
   assert.doesNotMatch(html, /using-arckit|using-arckit|Trusted entrypoints/);
   assert.match(html, /id="ideaBlank"/);
-  assert.match(html, /PLAN VIEW · 不调用外部平台/);
+  assert.match(html, /运营记录/);
+  assert.match(html, /尚未接入，不调用外部平台/);
   assert.doesNotMatch(html, /data-plan-action|id="createIdeaButton"|id="publishReleaseButton"/);
   assert.match(source, /\["organization", "engineering"\]\.includes\(state\.page\)/);
   assert.match(source, /"idea-add": "添加 Idea", idea: "Idea"/);
@@ -1706,7 +1711,7 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /executeManagedAction\("task\.subtask\.create"/);
   assert.match(source, /executeManagedAction\("task\.reparent"/);
   assert.match(source, /function taskAttachmentPanel\(task\)/);
-  assert.match(source, /function updatePlatformWorkInspector\(taskId, html\)/);
+  assert.match(source, /function updateTaskInspector\(host, taskId, html\)/);
   assert.match(source, /platformWorkInspectorRender\.html === html/);
   assert.match(source, /template\.content\.querySelector\(selector\)\?\.replaceWith\(editor\)/);
   assert.doesNotMatch(source, /work(?:Comment|Acceptance)Draft/);
@@ -2364,8 +2369,8 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(source, /补充说明并继续/);
   assert.match(source, /data-recovery-feedback/);
   assert.match(source, /openWorkbench\("review"\)/);
-  assert.match(html, /id="automationRefreshButton"[^>]*>立即同步<\/button>/);
-  assert.match(source, /automationRefreshButton\.addEventListener\("click", \(\) => runAction\(syncAutomationNow\)\)/);
+  assert.match(html, /id="syncButton"/);
+  assert.match(source, /syncButton\.addEventListener\("click", \(\) => runAction\(syncAutomationNow\)\)/);
   assert.match(main, /syncTimer = setInterval[\s\S]+15 \* 60_000/);
   assert.doesNotMatch(main, /fallbackSyncTimer/);
   assert.doesNotMatch(preload, /fetch|httpRequest|requestUrl/);
@@ -2573,4 +2578,24 @@ test('feedback 会话：存在 scrollFeedbackConversationToBottom 自动滚动�
   const sendStart = source.indexOf('async function sendFeedbackReply');
   const sendEnd = source.indexOf('\nfunction', sendStart + 1);
   assert.match(source.slice(sendStart, sendEnd), /scrollFeedbackConversationToBottom/);
+});
+
+test('Empty Chat projects render a new-conversation row rather than a persisted session', async () => {
+  const { groupChatSessions, chatSessionVisibility, CHAT_SESSION_PREVIEW_LIMIT } = await import('../desktop/renderer/chat-session-groups.mjs');
+  const source = await readFile(rendererPath, 'utf8');
+  const start = source.indexOf('function renderChatSessionGroups(chat)');
+  const end = source.indexOf('\nfunction renderChat()', start);
+  const context = {
+    groupChatSessions, chatSessionVisibility, CHAT_SESSION_PREVIEW_LIMIT,
+    chatProjectsInScope: () => [{ id: 'EMPTY', name: 'Empty project' }],
+    collapsedChatProjectIds: new Set(), chatProjectLimits: new Map(),
+    escapeHtml: value => value,
+    chat: { snapshot: { sessions: [] }, owner: { session_id: '' } }
+  };
+  const html = vm.runInNewContext(source.slice(start, end) + '\nrenderChatSessionGroups(chat)', context);
+  assert.match(html, /data-chat-new-project-id="EMPTY"/);
+  assert.match(html, /新建对话/);
+  assert.doesNotMatch(html, /data-chat-session-id|Automation/);
+  context.collapsedChatProjectIds.add('EMPTY');
+  assert.match(vm.runInNewContext(source.slice(start, end) + '\nrenderChatSessionGroups(chat)', context), /class="chat-project-sessions" hidden/);
 });

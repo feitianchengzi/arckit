@@ -1,7 +1,19 @@
 /* Approved grouped application navigation. The workbench no longer owns the shell. */
-body { --sidebar-width:200px; }
+body, body.project-workbench-active { --sidebar-width:200px; }
+.desktop-app > .sidebar { padding:24px 14px 12px; }
 .sidebar { background:var(--colors-ink-50); color:var(--semantic-text); border-right:1px solid var(--semantic-divider); padding:24px 14px 12px; }
-.sidebar .sidebar-brand { color:var(--semantic-text); }
+.sidebar .sidebar-brand { flex:none; height:40px; padding:0 5px; gap:9px; color:var(--semantic-text); }
+.sidebar .sidebar-brand strong { display:block; font-size:19px; line-height:24px; letter-spacing:-.65px; font-weight:700; white-space:nowrap; }
+.sidebar .sidebar-brand strong span { font-weight:450; }
+.sidebar-orbit-mark { display:block; flex:none; width:34px; height:34px; overflow:visible; fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; }
+.sidebar-orbit-mark ellipse { stroke:var(--colors-accent-base); stroke-width:1.35; }
+.sidebar-orbit-mark .orbit-core { fill:currentColor; stroke:none; }
+.sidebar-orbit-mark .orbit-satellite { fill:var(--colors-accent-base); stroke:var(--colors-ink-50); stroke-width:1.5; }
+.sidebar .nav-item-status { display:flex; align-items:center; justify-content:flex-end; gap:4px; }
+.sidebar .nav-experiment-badge { display:inline-flex; flex:none; align-items:center; min-height:19px; padding:0 5px; border:1px solid color-mix(in srgb, var(--colors-warning-base) 35%, transparent); border-radius:5px; color:var(--colors-warning-strong); background:var(--colors-warning-soft); font-size:10px; line-height:17px; font-weight:650; white-space:nowrap; }
+.sidebar .nav-experiment-notice { flex:none; margin:12px 5px; color:var(--semantic-muted); font-size:11px; line-height:1.65; }
+.sidebar .nav-experimental { grid-template-columns:18px minmax(0,1fr) auto; gap:5px; }
+.sidebar .nav-experimental .nav-item-status em { padding:0 3px; }
 .sidebar .primary-nav { flex:1; min-height:0; overflow:auto; margin-top:22px; }
 .sidebar .nav-label { color:var(--semantic-muted); font-size:var(--typography-caption-size); margin-top:20px; }
 .sidebar .nav-item { color:var(--semantic-text); min-height:36px; }
@@ -9,15 +21,15 @@ body { --sidebar-width:200px; }
 .sidebar .nav-item:hover { background:var(--colors-ink-100); }
 .sidebar .profile-button { color:var(--semantic-text); }
 .sidebar .profile-button small { color:var(--semantic-muted); }
-body.project-workbench-active .primary-nav > [data-page="project-workbench"] { display:flex; }
+body.project-workbench-active .primary-nav > [data-page="project-workbench"] { display:grid; }
 .sidebar .brand-mark { background:var(--colors-accent-base); color:var(--colors-accent-on); }
 .page-navigation-toggle { display:none; border:0; background:transparent; -webkit-app-region:no-drag; }
 body.project-workbench-active .sidebar-brand strong,body.project-workbench-active .nav-item strong,
 body.project-workbench-active .nav-item em,body.project-workbench-active .sidebar-footer strong,
 body.project-workbench-active .sidebar-footer small { display:block; }
 @media (min-width:761px) and (max-width:1000px) {
- body.project-workbench-active { --sidebar-width:160px; }
- body.project-workbench-active .sidebar { padding:18px 9px 12px; }
+
+ body.project-workbench-active .sidebar { padding:24px 14px 12px; }
 }
 @media (max-width:760px) {
  body.project-workbench-active { --sidebar-width:0px; }

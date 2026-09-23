@@ -1,3 +1,4 @@
+import { normalizeChatContext } from '../chat-context.mjs';
 import { normalizeCodexSettings } from "../codex-model-settings.mjs";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -101,6 +102,43 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
 
   const readStoreWithMessages = readStore;
 
+  const chatMetadata = state => ({
+    projects: state.projects, sessions: state.sessions, settings: state.settings,
+    chat: state.chat, automation: { project_bindings: state.automation?.project_bindings || {} }
+  });
+  async function readChatMetadata() {
+    await storeQueue;
+    return structuredClone(chatMetadata(await ensureLoaded()));
+  }
+
+  let approvalSource = null;
+  let approvalMessages = {};
+
+  // Project before cloning: a Chat snapshot needs one transcript and pending
+  // approvals, not every transcript or the task projection. Use the commit queue
+  // so control metadata and message identities come from the same revision.
+  async function readChatSnapshotStore(input = {}) {
+    const operation = storeQueue.then(async () => {
+      const state = await ensureLoaded();
+      const messages = await ensureMessagesLoaded();
+      if (approvalSource !== messages) {
+        approvalMessages = Object.fromEntries(Object.entries(messages).flatMap(([id, items]) => {
+          const pending = items.filter(item => item.kind === "approval" && item.status === "pending");
+          return pending.length ? [[id, pending]] : [];
+        }));
+        approvalSource = messages;
+      }
+      const selectedId = String(Object.prototype.hasOwnProperty.call(input, "session_id")
+        ? input.session_id || "" : state.chat?.selected_session_id || "");
+      return structuredClone({
+        ...chatMetadata(state),
+        messages: { ...approvalMessages, ...(selectedId ? { [selectedId]: messages[selectedId] || [] } : {}) }
+      });
+    });
+    storeQueue = operation.then(() => {}, () => {});
+    return operation;
+  }
+
   async function captureStateView() {
     await storeQueue;
     const state = await ensureLoaded();
@@ -120,6 +158,26 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
   }
 
   const updateStoreWithMessages = updateStore;
+
+  // Chat drafts change only session/chat metadata. Keep the same serialization
+  // queue and atomic control-file commit without traversing unrelated task data.
+  async function updateChatMetadata(updater) {
+    const operation = storeQueue.catch(() => {}).then(async () => {
+      const state = await ensureLoaded();
+      const draft = structuredClone({ sessions: state.sessions, chat: state.chat });
+      const updated = await updater(draft, structuredClone(state.settings)) || draft;
+      const sessions = Object.fromEntries(Object.entries(updated.sessions || {}).map(([projectId, items]) => [
+        projectId, (items || []).map(item => normalizeDesktopSession(item, projectId)).filter(Boolean)
+      ]));
+      const next = { ...state, sessions, chat: normalizeChatState(updated.chat) };
+      await writeStoreJson(storePath, controlSnapshot(next, partitionRefs));
+      currentStore = next;
+      stateRevision += 1;
+      return structuredClone({ sessions, chat: next.chat });
+    });
+    storeQueue = operation.then(() => {}, () => {});
+    return operation;
+  }
 
   async function queueUpdate(updater, { includeMessages }) {
     const operation = storeQueue.catch(() => {}).then(async () => {
@@ -231,9 +289,12 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
     readStore,
     readControlStore,
     readStoreWithMessages,
+    readChatSnapshotStore,
+    readChatMetadata,
     captureStateView,
     updateStore,
     updateControlStore,
+    updateChatMetadata,
     updateStoreWithMessages
   };
 }
@@ -294,7 +355,7 @@ export function normalizeStore(store) {
       }));
       delete normalized.messages[project.id];
     } else {
-      ensureProjectSession(normalized, project.id);
+      normalized.sessions[project.id] ||= [];
     }
   }
   if (!hasPersistedChatSelection) {
@@ -350,10 +411,12 @@ export function defaultChatState() {
 export function normalizeChatState(value = {}) {
   const draft = value.draft && typeof value.draft === "object" && !Array.isArray(value.draft) ? value.draft : {};
   return {
+    task_sources:value.task_sources && typeof value.task_sources=== "object" ? value.task_sources : {},
     selected_session_id: String(value.selected_session_id || ""),
     draft: {
       project_id: String(draft.project_id || ""),
       text: String(draft.text || "").slice(0, 100_000),
+      native_context:normalizeChatContext(draft.native_context),
       model: String(draft.model || ""),
       reasoning_effort: String(draft.reasoning_effort || ""),
       updated_at: String(draft.updated_at || "")
@@ -916,10 +979,10 @@ export function getSession(store, projectIdValue, sessionIdValue = "") {
 }
 
 export function findSession(store, projectIdValue, sessionIdValue = "") {
-  ensureProjectSession(store, projectIdValue);
+  const sessions = store.sessions?.[projectIdValue] || [];
   const session = sessionIdValue
-    ? store.sessions[projectIdValue].find((item) => item.id === sessionIdValue)
-    : store.sessions[projectIdValue][0];
+    ? sessions.find((item) => item.id === sessionIdValue)
+    : sessions[0];
   if (!session) {
     return null;
   }

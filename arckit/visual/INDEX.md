@@ -4,7 +4,7 @@
 
 - CONVENTIONS.md 视觉事实边界、状态、密度与生成消费约定。✅ (14行)
 - _library/ 视觉策略、组件与生成式样张。✅
-  - brief.md 浅色事情台、内容层级、色彩、字体、密度和无标题栏原生窗口。✅ (65行)
+  - brief.md 明暗事情台、内容层级、色彩、字体、密度和无标题栏原生窗口。✅ (69行)
   - reference-research.md Codex、Cursor、Claude 官方依据与适配边界。✅ (22行)
   - design-tokens.yaml 基础颜色、语义角色、字体、尺度与主题映射。✅ (126行)
   - component-catalog.yaml 21 个组件的四组聚合入口。✅ (11行)
@@ -17,12 +17,13 @@
   - style-preview.html 可直接打开的组件与主题预览入口。✅ (26行)
   - preview.css 消费生成 CSS 变量的组件样张样式。✅ (8行)
   - preview.js 目录投影、主题切换与本地状态演示。✅ (15行)
-  - build-preview.py Token 引用解析、对比度验证与确定性生成。✅ (89行)
-  - generated-tokens.css 由 YAML 生成的 CSS，不手工编辑。✅ (127行)
-  - preview-data.js 由组件目录和 Token 生成的预览数据。✅ (1340行)
+  - build-preview.py Token 引用解析、对比度验证与确定性生成。✅ (92行)
+  - generated-tokens.css 由 YAML 生成的 CSS，不手工编辑。✅ (172行)
+  - preview-data.js 由组件目录和 Token 生成的预览数据。✅ (1600行)
   - preview-server.py 本地静态预览服务。✅ (17行)
-- themes/ 事情台亮色与旧控制台混合兼容。✅
-  - light.yaml 当前事情台主题。✅ (7行)
+- themes/ 完整亮色、暗色与旧控制台混合兼容。✅
+  - dark.yaml 全窗口暗色适配，保留浅杏橙与语义状态。✅ (50行)
+  - light.yaml 亮色事情台主题。✅ (7行)
   - legacy-mixed.yaml 仅用于旧控制台的兼容主题。✅ (12行)
 - _map/ 关系、覆盖和验证证据。✅
   - RELATIONS.md 生成映射与交互、Renderer 消费者交接。🟡 (45行)

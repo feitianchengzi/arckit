@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ArcOrbit</title>
+    <script src="./appearance.js"></script>
     <link rel="stylesheet" href="./visual-tokens.css">
     <link rel="stylesheet" href="./styles.css">
     <link rel="stylesheet" href="./product.css">
@@ -15,7 +16,9 @@
     <link rel="stylesheet" href="./visual-system.css">
     <link rel="stylesheet" href="./chat-layout.css">
     <link rel="stylesheet" href="./window-chrome.css">
-  </head>
+    <link rel="stylesheet" href="./global-context.css">
+    <link rel="stylesheet" href="./chat-native.css">
+</head>
   <body class="auth-pending">
     <svg class="icon-sprite" aria-hidden="true">
       <symbol id="icon-today" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></symbol>
@@ -124,22 +127,25 @@
       <button id="legacyPagesButton" class="page-navigation-toggle" type="button" aria-label="页面导航" aria-controls="legacyPagesMenu" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-window-maximize"></use></svg></button>
 
       <aside class="sidebar">
-        <div id="windowDragRegion" class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
+        <div id="windowDragRegion" class="sidebar-brand">
+          <svg class="sidebar-orbit-mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M25.5 8.5a12 12 0 1 0 3.8 14.8"/><ellipse cx="18" cy="18" rx="17" ry="6.5" transform="rotate(-35 18 18)"/><circle class="orbit-core" cx="18" cy="18" r="3"/><circle class="orbit-satellite" cx="27" cy="10" r="2.5"/></svg>
+          <strong>Arc<span>Orbit</span></strong>
+        </div>
 
         <nav id="legacyPagesMenu" class="primary-nav" aria-label="主导航">
           <p class="nav-label">PERSONAL</p>
-          <button class="nav-item" data-page="today" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><em id="attentionNavCount">0</em></button>
+          <button class="nav-item nav-experimental" data-page="today" type="button" title="Today：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span><em id="attentionNavCount">0</em></span></button>
           <button class="nav-item" data-page="chat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chat"></use></svg><strong>Chat</strong><em>Codex</em></button>
-          <button class="nav-item" data-page="project-workbench" type="button" title="Thing"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Thing</strong></button>
+          <button class="nav-item nav-experimental" data-page="project-workbench" type="button" title="Thing：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Thing</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
 
           <p class="nav-label">PRODUCT</p>
-          <button class="nav-item" data-page="product" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Product</strong></button>
+          <button class="nav-item nav-experimental" data-page="product" type="button" title="Product：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Product</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
           <p class="nav-label">PRODUCT LIFECYCLE</p>
-          <button class="nav-item" data-page="idea" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong></button>
+          <button class="nav-item nav-experimental" data-page="idea" type="button" title="Idea：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
           <button class="nav-item" data-page="work" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Work</strong><em id="workNavCount">0</em></button>
           <button class="nav-item" data-page="command" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-automation"></use></svg><strong>Automation</strong><em id="automationNavCount">0</em></button>
-          <button class="nav-item" data-page="release" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong></button>
-          <button class="nav-item" data-page="operations" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-operations"></use></svg><strong>Operations</strong><em>5</em></button>
+          <button class="nav-item nav-experimental" data-page="release" type="button" title="Release：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
+          <button class="nav-item nav-experimental" data-page="operations" type="button" title="Operations：实验功能，开发探索中，暂不建议使用" aria-describedby="navExperimentNotice"><svg class="ui-icon" aria-hidden="true"><use href="#icon-operations"></use></svg><strong>Operations</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
           <button class="nav-item" data-page="feedback" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-feedback"></use></svg><strong>Feedback</strong><em id="feedbackQueueNavCount">0</em></button>
 
           <p class="nav-label">ORGANIZATION</p>
@@ -148,25 +154,31 @@
 
         </nav>
 
+        <p id="navExperimentNotice" class="nav-experiment-notice">标有「实验中」的功能仍在开发探索，暂不建议使用。</p>
+
         <div class="sidebar-footer">
-          <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small><span id="accountSync" class="sync-state"><i aria-hidden="true"></i><span>准备同步</span></span></button>
+          <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small></button>
 
         </div>
       </aside>
 
       <main class="app-stage">
         <header class="commandbar">
-          <div class="breadcrumbs"><strong id="scopeTitle">所有项目</strong><span id="pageTitle">自动化总览</span></div>
+          <div class="breadcrumbs sr-only"><strong id="scopeTitle">所有项目</strong><span id="pageTitle">自动化总览</span></div>
           <div class="commandbar-actions">
-            <div id="productSetCluster" class="product-set-cluster" aria-label="产品集与观察范围">
+            <details id="globalScopeMenu" class="global-scope-menu" open><summary id="globalScopeSummary" aria-label="当前产品范围">产品范围</summary><div id="productSetCluster" class="product-set-cluster" aria-label="产品集与观察范围">
               <label class="workset-control"><span>产品集</span><select id="worksetSelect" aria-label="当前产品集"></select></label>
               <label class="product-scope-control"><span>查看</span><select id="productScopeSelect" aria-label="产品观察范围"></select></label>
               <button id="editWorksetButton" class="product-set-manage" type="button" title="管理当前产品集">管理</button>
             </div>
-            <label class="automation-toggle" title="控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务"><input id="automationEnabled" type="checkbox"><span></span><strong>自动领取</strong></label>
+            </details><details id="globalControlsMenu" class="global-controls-menu" open><summary id="globalControlsSummary" aria-label="同步状态与全局操作">状态</summary><div class="global-controls-content">
+            <details class="global-status-menu" id="globalSyncMenu"><summary aria-label="同步状态与详情"><span id="accountSync" class="sync-state"><i aria-hidden="true"></i><span>准备同步</span></span></summary><div class="global-popover"><strong>工作空间同步</strong><p id="globalSyncDetails"></p><small>任务源与平台数据的同步状态。Git 产品资料共享和 Agent 对话各自保留状态。</small></div></details>
+            <details class="global-status-menu" id="globalRuntimeMenu"><summary id="globalRuntimeSummary">运行状态</summary><div class="global-popover"><strong>所有已授权项目 · 此设备</strong><p id="globalRuntimeDetails"></p><div id="globalRuntimeObjects"></div>            <label class="automation-toggle" title="控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务"><input id="automationEnabled" type="checkbox"><span></span><strong>自动领取</strong></label>
+<button id="queuePauseButton" class="secondary-button" type="button">暂停领取</button><p>领取控制不停止正在执行的任务。</p><button id="globalOpenAutomation" class="secondary-button" type="button">查看 Automation</button></div></details>
             <button id="productFeedbackButton" class="product-feedback-trigger" type="button" title="给 ArcOrbit 提反馈"><svg class="ui-icon" aria-hidden="true"><use href="#icon-feedback"></use></svg><strong>产品反馈</strong><em id="productFeedbackUnreadBadge" class="product-feedback-unread hidden" aria-label="未读反馈">0</em></button>
             <button id="syncButton" class="icon-button" type="button" title="同步任务源" aria-label="同步任务源"><svg class="ui-icon" aria-hidden="true"><use href="#icon-sync"></use></svg></button>
             <button id="settingsButton" class="icon-button" type="button" title="设置" aria-label="设置"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></button>
+            </div></details>
           </div>
         </header>
 
@@ -179,7 +191,7 @@
               <div id="todayProductContinuity" class="today-product-continuity"></div>
               <div class="today-workspace">
                 <aside class="today-project-rail" aria-label="Today 项目范围">
-                  <div class="today-rail-heading"><div><p class="eyebrow">PROJECTS</p><h2>项目</h2></div><button id="todayAddProjectButton" class="icon-button" type="button" title="添加项目" aria-label="添加项目"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button></div>
+                  <div class="today-rail-heading"><div><p class="eyebrow">PROJECTS</p><h2>项目</h2></div><button id="todayAddProjectButton" class="icon-button" type="button" title="管理产品集" aria-label="管理产品集"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button></div>
                   <label class="today-search"><span class="sr-only">搜索项目</span><input id="todayProjectSearch" type="search" placeholder="搜索项目"></label>
                   <div id="todayProjectRail" class="today-project-list"></div>
                 </aside>
@@ -194,17 +206,18 @@
           </section>
 
           <section id="chatView" class="app-view" data-page-view="chat">
-            <header class="chat-page-heading"><strong>Chat</strong><button id="chatSessionsToggle" class="secondary-button" type="button" aria-controls="chatSessionsPanel" aria-expanded="false">会话</button></header>
+
             <div class="chat-workspace">
               <main class="chat-main">
-                <header class="chat-header"><div class="chat-header-copy"><p id="chatWorkspaceLabel" class="eyebrow">选择本地工作区</p><h2 id="chatTitle">新对话</h2><p id="chatStatusText">发送第一条消息后创建持久会话和 Codex thread。</p></div><div class="chat-header-controls"><label class="chat-workspace-picker chat-header-workspace-picker"><span id="chatWorkspacePickerLabel">新对话属于</span><select id="chatProjectSelect" aria-label="Chat 工作区"></select></label><div class="chat-header-actions"><button id="renameChatButton" class="text-button" type="button">重命名</button><button id="deleteChatButton" class="text-button danger" type="button">删除</button></div></div></header>
+                <header class="chat-header"><div class="chat-header-copy"><p id="chatWorkspaceLabel" class="eyebrow">选择本地工作区</p><h2 id="chatTitle">新对话</h2><p id="chatStatusText">发送第一条消息后创建持久会话和 Codex thread。</p></div><div class="chat-header-controls"><label class="chat-workspace-picker chat-header-workspace-picker"><span id="chatWorkspacePickerLabel">新对话属于</span><select id="chatProjectSelect" aria-label="Chat 工作区"></select></label><div class="chat-header-actions"><button id="chatSessionsToggle" class="secondary-button" type="button" aria-controls="chatSessionsPanel" aria-expanded="false">会话</button><button id="renameChatButton" class="text-button" type="button">重命名</button><button id="deleteChatButton" class="text-button danger" type="button">删除</button></div></div></header>
                 <div id="chatErrorHost"></div>
                 <div id="chatTranscript" class="conversation-surface chat-transcript" aria-live="polite" aria-label="Chat 消息"></div>
                 <button id="chatJumpLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
-                <footer class="chat-composer"><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><button id="chatSkillsButton" class="secondary-button" type="button" title="配置 Chat 可用技能">技能</button><div class="chat-composer-config" aria-label="当前对话 Codex 配置"><label class="chat-composer-setting"><span>Model</span><input id="chatCodexModel" type="text" list="chatCodexModelOptions" maxlength="200" autocomplete="off" title="调整当前对话后续消息使用的 Model"><datalist id="chatCodexModelOptions"></datalist></label><label class="chat-composer-setting"><span>Level</span><input id="chatCodexEffort" type="text" list="chatCodexEffortOptions" maxlength="200" autocomplete="off" title="调整当前对话后续消息使用的推理级别"><datalist id="chatCodexEffortOptions"></datalist></label></div><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-stop"></use></svg>停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
+                <footer class="chat-composer"><div id="chatComposerResize" class="chat-composer-resize" role="separator" tabindex="0" aria-label="调整输入框高度" aria-orientation="horizontal"></div><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><button id="chatSkillsButton" class="secondary-button" type="button" title="配置 Chat 可用技能">技能</button><div class="chat-composer-config" aria-label="当前对话 Codex 配置"><label class="chat-composer-setting"><span>Model</span><select id="chatCodexModel" aria-label="Model"></select></label><label class="chat-composer-setting"><span>Level</span><select id="chatCodexEffort" aria-label="Level"></select></label></div><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-stop"></use></svg>停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
               </main>
-              <aside id="chatSessionsPanel" class="chat-sidebar" aria-label="会话">
-                <div class="chat-sidebar-head"><h2>会话</h2><button id="chatSessionsClose" class="text-button" type="button" aria-label="关闭会话列表">关闭</button></div>
+              <aside id="chatSessionsPanel" class="chat-sidebar" aria-label="会话"><div id="chatSidebarResize" class="chat-sidebar-resize" role="separator" tabindex="0" aria-label="调整右侧面板宽度" aria-orientation="vertical"></div>
+                <div class="chat-sidebar-head"><div class="chat-sidebar-tabs" role="group" aria-label="右侧面板"><button id="chatSidebarSessions" class="text-button" type="button" aria-pressed="true">会话列表</button><button id="chatSidebarTask" class="text-button" type="button" aria-pressed="false">待办详情</button></div><button id="chatSessionsClose" class="text-button" type="button" aria-label="关闭右侧面板">关闭</button></div>
+                <div id="chatTaskInspector" class="workspace-pane-scroll task-inspector chat-task-inspector" aria-label="当前会话待办详情" hidden></div>
                 <div id="chatSessionList" class="chat-session-list" aria-label="对话列表"></div>
                 <button id="newChatButton" class="primary-button" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg>新对话</button>
               </aside>
@@ -232,7 +245,7 @@
           </section>
 
           <section id="organizationView" class="app-view" data-page-view="organization">
-            <div class="organization-center"><aside class="organization-scope-panel"><div><p class="eyebrow">GOVERNANCE SCOPE</p><h2>组织与产品</h2><p>不受当前产品集过滤</p></div><div class="organization-scope-actions"><button id="createOrganizationButton" class="secondary-button" type="button">新建组织</button><button id="joinByCodeButton" class="text-button" type="button">使用邀请码加入</button></div><div id="organizationScopeList" class="organization-scope-list"></div></aside><div class="page platform-page organization-main"><div class="page-heading split-heading"><div><p id="organizationEyebrow" class="eyebrow">ORGANIZATION</p><h1 id="organizationHeading">组织治理</h1><p id="organizationSummary">同步后显示组织、成员和项目全貌。</p></div><div id="organizationScopeActions" class="heading-actions"></div></div><div id="organizationTabs" class="organization-tabs"><button class="is-active" data-organization-section="overview" type="button">概览</button><button data-organization-section="members" type="button">成员</button><button data-organization-section="projects" type="button">项目</button></div><div id="organizationContent"></div></div></div>
+            <div class="organization-center"><aside class="organization-scope-panel"><div><p class="eyebrow">GOVERNANCE SCOPE</p><h2>组织与产品</h2><p>项目遵循顶部产品范围</p></div><div class="organization-scope-actions"><button id="createOrganizationButton" class="secondary-button" type="button">新建组织</button><button id="joinByCodeButton" class="text-button" type="button">使用邀请码加入</button></div><div id="organizationScopeList" class="organization-scope-list"></div></aside><div class="page platform-page organization-main"><div class="page-heading split-heading"><div><p id="organizationEyebrow" class="eyebrow">ORGANIZATION</p><h1 id="organizationHeading">组织治理</h1><p id="organizationSummary">同步后显示组织、成员和项目全貌。</p></div><div id="organizationScopeActions" class="heading-actions"></div></div><div id="organizationTabs" class="organization-tabs"><button class="is-active" data-organization-section="overview" type="button">概览</button><button data-organization-section="members" type="button">成员</button><button data-organization-section="projects" type="button">项目</button></div><div id="organizationContent"></div></div></div>
           </section>
 
           <section id="workView" class="app-view" data-page-view="work">
@@ -247,7 +260,7 @@
             <div class="page page-dashboard">
               <div class="page-heading split-heading">
                 <div><p class="eyebrow">AUTOMATION COMMAND CENTER</p><h1 id="commandHeading">执行态势</h1><p id="commandSummary">同步项目和任务后显示自动化队列。</p></div>
-                <div class="heading-actions"><button id="automationRefreshButton" class="secondary-button" type="button" title="立即同步 Workshop 当前状态">立即同步</button><button id="acceptanceFeedbackOnlyButton" class="filter-toggle" type="button" aria-pressed="false">仅看验收问题</button><span id="healthBadge" class="health-badge">任务源未配置</span><button id="queuePauseButton" class="secondary-button" type="button">暂停领取</button></div>
+                <div class="heading-actions"><button id="acceptanceFeedbackOnlyButton" class="filter-toggle" type="button" aria-pressed="false">仅看验收问题</button><span id="healthBadge" class="health-badge">任务源未配置</span></div>
               </div>
 
               <div id="metricGrid" class="metric-grid"></div>
@@ -292,7 +305,7 @@
           <section id="releaseView" class="app-view" data-page-view="release"></section>
 
           <section id="operationsView" class="app-view" data-page-view="operations">
-            <div class="page planning-page"><div class="page-heading split-heading"><div><p class="eyebrow">PRODUCT LIFECYCLE · OPERATIONS</p><h1>对外运营与市场动作</h1><p>组织受众、渠道、内容和效果回流；Operations 是“运营”的统一英文入口。</p></div><span class="plan-status">PLAN VIEW · 不调用外部平台</span></div><div class="metric-grid planning-metrics"><div class="metric-card"><span>待发布</span><strong>3</strong><small>内容与批准待完成</small></div><div class="metric-card running"><span>进行中</span><strong>2</strong><small>当前运营窗口</small></div><div class="metric-card healthy"><span>已复盘</span><strong>4</strong><small>结论可回流产品</small></div><div class="metric-card"><span>用户信号</span><strong>18</strong><small>来自真实 Feedback 投影</small></div></div><div class="planning-three-column operations-plan-layout"><section class="panel-card planning-list-panel"><div class="section-title-row"><div><span class="section-icon">↗</span><div><h2>运营动作</h2><p>示意计划，不自动发布</p></div></div></div><div class="planning-list"><button class="planning-list-item is-active" type="button"><strong>Beta 发布说明</strong><small>待发布 · 社区 / 邮件</small></button><button class="planning-list-item" type="button"><strong>团队协作案例</strong><small>进行中 · 内容专题</small></button><button class="planning-list-item" type="button"><strong>试点团队访谈</strong><small>已复盘 · 用户研究</small></button></div></section><section class="panel-card planning-detail"><div class="section-title-row"><div><span class="section-icon">↗</span><div><h2>Beta 发布说明</h2><p>关联 Release · beta/0.9</p></div></div><span class="status-pill pending">待发布</span></div><div class="planning-card-body"><dl class="planning-facts two-column"><div><dt>目标受众</dt><dd>内部试点团队</dd></div><div><dt>负责人</dt><dd>Glare</dd></div><div><dt>渠道</dt><dd>社区、邮件 · 未接入</dd></div><div><dt>窗口</dt><dd>8 月 25–29 日</dd></div></dl><div class="planning-callout"><strong>内容主题</strong><small>用同一套 Loop 连接 Idea、Work、Automation 与 Feedback。</small></div><button class="primary-button" type="button" disabled>发布内容 · 示意</button></div></section><aside class="inspector-card planning-inspector"><span class="plan-kicker">SIGNALS</span><h2>效果回流</h2><div class="planning-signal"><strong>用户反馈</strong><span>18</span><small>正向 11 · 待跟进 4</small></div><div class="planning-signal"><strong>触达与转化</strong><span>—</span><small>分析平台未接入</small></div><div class="planning-callout"><strong>发现新机会</strong><small>将“团队模板”形成 Idea，保留当前运营来源。</small></div><button class="secondary-button full-width" type="button" disabled>形成 Idea · 示意</button></aside></div></div>
+            <div class="page planning-page"><div class="page-heading"><p class="eyebrow">PRODUCT LIFECYCLE · OPERATIONS</p><h1>对外运营与市场动作</h1><p id="operationsScope"></p></div><section class="panel-card"><h2>运营记录</h2><p id="operationsEmpty"></p><p>发布、渠道连接与效果回流尚未接入，不调用外部平台。</p></section></div>
           </section>
 
           <section id="engineeringView" class="app-view" data-page-view="engineering"></section>
@@ -329,6 +342,7 @@
           <button id="closeSettingsButton" class="icon-button" type="button" aria-label="关闭设置">×</button>
         </div>
         <div class="settings-sections">
+          <section class="appearance-settings-section"><h3>外观</h3><label class="field"><span>主题</span><select id="appearanceTheme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><p class="settings-lead">立即生效，仅保存在此设备。</p><p id="appearanceFeedback" role="status" aria-live="polite"></p></section>
           <section class="codex-settings-section workbench-only"><h3>工作空间</h3><div class="pw-settings-actions"><button id="workbenchSyncSettings" class="secondary-button" type="button">同步项目与事情</button><button id="workbenchFeedbackSettings" class="secondary-button" type="button">产品反馈</button></div></section>
           <section class="account-settings-section">
             <h3>Workshop 账户</h3>

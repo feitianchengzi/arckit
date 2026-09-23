@@ -11,6 +11,7 @@ export function createConversationSurface({
   jumpButton,
   formatTime = (value) => String(value || ""),
   onApproval = null,
+  deferOffscreenLayout = false,
   onExternalLink = null,
   clipboard = globalThis.navigator?.clipboard,
   performAction = (action) => action(),
@@ -22,29 +23,67 @@ export function createConversationSurface({
   let pendingRenderScroll = null;
   let activeContextId = "conversation:default";
   let nextFrameToken = 0;
+  let restoreGeneration = 0;
+  let settlingLatest = false;
   const contextScrollStates = new Map();
   let renderedOrder = [];
   let renderedSignatures = new Map();
 
   const isNearBottom = () => element.scrollHeight - element.scrollTop - element.clientHeight < 72;
   const updateJumpButton = () => jumpButton.classList.toggle("hidden", followingLatest || isNearBottom());
-  const saveContextScrollState = () => {
+  const saveContextScrollState = (captureAnchor = false) => {
     if (activeContextId === null) return;
-    contextScrollStates.set(activeContextId, { followingLatest, scrollTop: element.scrollTop });
+    let anchor = contextScrollStates.get(activeContextId)?.anchor || null;
+    if (captureAnchor && deferOffscreenLayout && !followingLatest) {
+      const top = element.getBoundingClientRect().top + element.clientTop;
+      const node = [...element.children].find(node => node.dataset.conversationMessageId && node.getBoundingClientRect().bottom > top);
+      anchor = node ? { id: node.dataset.conversationMessageId, offset: node.getBoundingClientRect().top - top } : null;
+    }
+    contextScrollStates.set(activeContextId, { followingLatest, scrollTop: element.scrollTop, anchor });
+  };
+  const restoreReadingPosition = (restored) => {
+    const node = restored.anchor && [...element.children].find(node => node.dataset.conversationMessageId === restored.anchor.id);
+    if (!node) { element.scrollTop = restored.scrollTop; return; }
+    // Offscreen heights are estimates. Restore a message and its visible offset,
+    // not a pixel coordinate based on the previous context's measured heights.
+    const generation = ++restoreGeneration;
+    node.scrollIntoView({ block: "start", behavior: "instant" });
+    const align = () => {
+      if (generation !== restoreGeneration || !element.contains(node)) return;
+      element.scrollTop += node.getBoundingClientRect().top - element.getBoundingClientRect().top - element.clientTop - restored.anchor.offset;
+      saveContextScrollState();
+      updateJumpButton();
+    };
+    align();
+    requestFrame(() => { align(); requestFrame(align); });
   };
   const scrollToLatest = ({ behavior = "instant" } = {}) => {
+    restoreGeneration += 1;
     followingLatest = true;
     explicitSmoothScroll = behavior === "smooth";
     element.scrollTo({ top: element.scrollHeight, behavior });
     saveContextScrollState();
     updateJumpButton();
+    if (deferOffscreenLayout && behavior !== "smooth") {
+      const generation = restoreGeneration;
+      settlingLatest = true;
+      const settle = (remaining) => {
+        if (generation !== restoreGeneration || !followingLatest) return;
+        element.scrollTop = element.scrollHeight;
+        if (remaining) requestFrame(() => settle(remaining - 1));
+        else { settlingLatest = false; saveContextScrollState(); updateJumpButton(); }
+      };
+      requestFrame(() => settle(2));
+    }
   };
   const handleScroll = () => {
-    if (!explicitSmoothScroll) followingLatest = isNearBottom();
+    if (!explicitSmoothScroll && !settlingLatest) followingLatest = isNearBottom();
     saveContextScrollState();
     updateJumpButton();
   };
   const handleUserScrollIntent = () => {
+    restoreGeneration += 1;
+    settlingLatest = false;
     explicitSmoothScroll = false;
     followingLatest = false;
     pendingRenderScroll = null;
@@ -52,6 +91,8 @@ export function createConversationSurface({
     updateJumpButton();
   };
   const handleScrollEnd = () => {
+    if (settlingLatest) return;
+    if (deferOffscreenLayout && explicitSmoothScroll) { scrollToLatest(); return; }
     explicitSmoothScroll = false;
     followingLatest = isNearBottom();
     saveContextScrollState();
@@ -97,8 +138,10 @@ export function createConversationSurface({
   function activateContext(contextId) {
     const nextContextId = contextId === undefined ? "conversation:default" : `conversation:${String(contextId || "empty")}`;
     if (nextContextId === activeContextId) return { changed: false, restored: null };
-    saveContextScrollState();
+    saveContextScrollState(true);
+    restoreGeneration += 1;
     activeContextId = nextContextId;
+    settlingLatest = false;
     pendingRenderScroll = null;
     explicitSmoothScroll = false;
     renderedOrder = [];
@@ -120,11 +163,17 @@ export function createConversationSurface({
     const shouldFollow = followingLatest;
     let changed = false;
     const sameStructure = nextOrder.length === renderedOrder.length && nextOrder.every((key, index) => key === renderedOrder[index]);
+    let readingState = context.changed ? context.restored : null;
+    if (deferOffscreenLayout && !context.changed && !sameStructure && !shouldFollow) {
+      saveContextScrollState(true);
+      readingState = contextScrollStates.get(activeContextId);
+    }
+    if (deferOffscreenLayout) element.classList.toggle("conversation-deferred-layout", visibleMessages.length > 100);
     if (!sameStructure || entries.length === 0) {
       const html = entries.length
         ? entries.map(({ message, id }) => renderConversationSurfaceMessage(message, { formatTime, approvalEnabled: Boolean(onApproval), messageId: id })).join("")
         : emptyHtml;
-      if (element.innerHTML !== html) {
+      if (context.changed || element.innerHTML !== html) {
         element.innerHTML = html;
         bindActions(visibleMessages);
         changed = true;
@@ -158,8 +207,8 @@ export function createConversationSurface({
     }
     renderedOrder = nextOrder;
     renderedSignatures = new Map(entries.map((entry) => [entry.id, entry.signature]));
-    if (context.changed && context.restored && !followingLatest) {
-      element.scrollTop = context.restored.scrollTop;
+    if (readingState && !followingLatest) {
+      restoreReadingPosition(readingState);
       saveContextScrollState();
       updateJumpButton();
     } else if ((changed || context.changed) && shouldFollow) scheduleRenderScroll();
@@ -191,6 +240,9 @@ export function renderConversationSurfaceMessage(message, { formatTime = (value)
   if (type === "reasoning") {
     return `<details class="chat-reasoning" ${identity}><summary>思考过程 · ${escapeHtml(time)}</summary><div>${escapeHtml(message.content)}</div></details>`;
   }
+  if (type === "tool" && message.native_result?.task) {
+    const r=message.native_result,t=r.task;return `<button type="button" class="chat-native-result" ${identity} data-native-task="${escapeHtml(t.id)}"><span><strong>${escapeHtml(t.title)}</strong><small>#${escapeHtml(t.id)} · ${escapeHtml(t.state)} · ${r.associated?"对应当前会话":r.action=== "create"?"从本会话创建": "已读取最新结果"}</small></span><span>打开对话 →</span></button>`;
+  }
   if (type === "tool") {
     const glyph = ["failed", "error"].includes(status) ? "!" : ACTIVE_STATUSES.has(status) ? "◌" : "✓";
     return `<div class="chat-tool" ${identity}><span>${glyph}</span><span>${escapeHtml(message.content || "使用工具")}</span><small>${escapeHtml(messageStatusLabel(status))}</small></div>`;
@@ -206,8 +258,9 @@ export function renderConversationSurfaceMessage(message, { formatTime = (value)
   const content = user
     ? escapeHtml(message.content).replaceAll("\n", "<br>")
     : message.content ? renderConversationMarkdown(message.content) : `<span class="chat-streaming-cursor">▍</span>`;
+  const context=message.native_context;const tags=user&&context ? `<div class="chat-message-context">${[context.capability,...(context.refs||[])].filter(Boolean).map(x=>`<span>${escapeHtml(x.label)}</span>`).join("")}</div>` : "";
   const label = user ? "你" : message.actor_label || "Codex";
-  return `<article class="chat-message ${user ? "user" : "assistant"}" ${identity}><div class="chat-message-meta"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(time)}</span>${status === "interrupted" ? "<span>已停止</span>" : ""}</div><div class="chat-message-content">${content}</div></article>`;
+  return `<article class="chat-message ${user ? "user" : "assistant"}" ${identity}><div class="chat-message-meta"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(time)}</span>${status === "interrupted" ? "<span>已停止</span>" : ""}</div><div class="chat-message-content">${content}${tags}</div></article>`;
 }
 
 export function renderConversationMarkdown(value) {
@@ -226,6 +279,7 @@ function messageRenderSignature(message, type) {
     message.role || "",
     message.kind || "",
     message.content || "",
+    JSON.stringify(message.native_context||null),JSON.stringify(message.native_result||null),
     message.status || "",
     message.approval_request_id || "",
     message.actor_label || "",

@@ -1,3 +1,8 @@
+import { defaultWorkFilters } from './task-filter-defaults.mjs';
+import { createChatNativeSurface } from './chat-native-surface.mjs';
+let chatNativeSurface=null;
+import { initializeGlobalTopbarMenus } from './global-topbar-menus.mjs';
+import { productScope, includesProject, scopedChatProjects, syncSummary, createChatScopeController } from './global-context.mjs';
 import { createProjectWorkbenchSurface } from './project-workbench-surface.mjs';
 import { applyWorkSyncHealth } from './work-sync-health.mjs';
 import { workbenchExecutionTarget } from '../../src/automation/execution-history.mjs';
@@ -39,6 +44,7 @@ import {
   taskAttachmentIdentityKey
 } from "../../src/work-task-attachment-cache.mjs";
 import { createChatStateCoordinator } from "./chat-state-coordinator.mjs";
+import { installChatResize } from "./chat-resize.mjs";
 import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } from "./chat-session-groups.mjs";
 import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-query-state.mjs";
 import { completedAcceptanceSelectionAfterSuccess, nextCompletedAcceptanceTaskId } from "./work-task-selection.mjs";
@@ -154,6 +160,7 @@ const state = {
   page: "command",
   selectedProjectId: "all",
   todaySelectedProjectId: "all",
+  todaySelectionEpoch: 0,
   todayMode: "",
   todaySelectedItemId: "",
   todayProjectSearch: "",
@@ -263,7 +270,11 @@ let chatCodexCatalogPromise = null;
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
-let platformWorkInspectorRender = { taskId: "", html: "" };
+const taskInspectorRenders = new WeakMap();
+let chatTaskPanelMode = "sessions";
+let chatTaskDetailOwner = "";
+let chatTaskDetailStatus = "idle";
+let chatTaskDetailError = "";
 let workInspectorResizeSession = null;
 let workInspectorResizeObserver = null;
 const workInspectorWidthPersistence = createWorkInspectorWidthPersistence({
@@ -295,7 +306,8 @@ const retrievalStore = createRetrievalStore();
 const triageGate = createTriageGate();
 let activeFeedbackImagePreviews = 0;
 const FEEDBACK_IMAGE_PREVIEW_CONCURRENCY = 3;
-const expandedChatProjectIds = new Set();
+const collapsedChatProjectIds = new Set();
+const chatProjectLimits = new Map();
 const workQueryState = createWorkQueryState({ cacheLimit: 12 });
 const WORK_QUERY_WINDOW_SIZE = 80;
 const chatStateCoordinator = createChatStateCoordinator({
@@ -305,9 +317,64 @@ const chatStateCoordinator = createChatStateCoordinator({
   setTimer: window.setTimeout.bind(window),
   clearTimer: window.clearTimeout.bind(window)
 });
+function globalScope() { return productScope(state.platform, state.selectedProjectId); }
+function chatProjectsInScope() { return scopedChatProjects(chatState().snapshot.projects, {...state.platform,projects:[...(state.platform.projects||[]),...(state.snapshot.projects||[])]}, globalScope()); }
+const chatScopeController = createChatScopeController({coordinator:chatStateCoordinator, getScope:globalScope, getProjects:chatProjectsInScope, defaults:()=>state.settings.codex.chat, storage:localStorage});
+let globalScopeEpoch = 0;
+const scopeViewSelections = new Map();
+function rememberScopeViews() {
+  const key=globalScope().key;
+  const selection={work:state.selectedPlatformTaskId,feedback:state.selectedFeedbackId,today:state.todaySelectedItemId};
+  scopeViewSelections.set(key,selection);
+  try{localStorage.setItem(`arcorbit:scope-views:${key}`,JSON.stringify(selection));}catch{}
+  return {work:[...(state.workQuery.projection?.tasks||[]),...(state.platform.tasks||[])].find(t=>String(t.id)===selection.work),feedback:(state.platform.feedback_v1||[]).find(f=>String(f.id)===selection.feedback),today:todayWorkspaceView().selected_item};
+}
+function rememberedScopeViews() { const key=globalScope().key;try{return scopeViewSelections.get(key)||JSON.parse(localStorage.getItem(`arcorbit:scope-views:${key}`)||'{}');}catch{return {};} }
+
+let globalScopeTail=Promise.resolve();
+function changeGlobalScope(projectId, worksetId = '', options = {}) {
+  const request=globalScopeTail.catch(()=>{}).then(()=>performGlobalScopeChange(projectId,worksetId,options));
+  globalScopeTail=request;
+  return request;
+}
+async function performGlobalScopeChange(projectId, worksetId = '', {skipProduct = false} = {}) {
+  const epoch = ++globalScopeEpoch;
+  const previousObjects=rememberScopeViews();
+  chatScopeController.capture();
+  await chatStateCoordinator.flushDraft();
+  if (epoch !== globalScopeEpoch) return;
+  if (worksetId) await api.setActiveWorkset(worksetId);
+  if (epoch !== globalScopeEpoch) return;
+  state.selectedProjectId = String(projectId || 'all');
+  state.todaySelectedProjectId = state.selectedProjectId;
+  const todaySelectionEpoch = ++state.todaySelectionEpoch;
+  state.selectedTaskId = ''; setPlatformTaskSelectionIntent(''); state.selectedFeedbackId = '';
+  state.workQueryOffset = 0; workQueryState.clear();
+  state.workQuery = {key:'', projection:null, loading:false, error:''};
+  if (!worksetId) {
+    projectWorkbenchSurface.scopeChanged();
+    renderCommandBar(); renderWorkset(); renderChat();
+  }
+  await refreshSnapshot({quiet:true,afterMutation:true});
+  if (epoch !== globalScopeEpoch) return;
+  await chatScopeController.reconcile();
+  await projectWorkbenchSurface.scopeChanged();
+  if (!skipProduct && ['product','product-detail','idea','idea-add'].includes(state.page)) await productSurface.scopeChanged();
+  const remembered=rememberedScopeViews();
+  const work=previousObjects.work&&includesProject(globalScope(),previousObjects.work.project_id)?String(previousObjects.work.id):remembered.work||'';
+  setPlatformTaskSelectionIntent(work);
+  state.selectedFeedbackId=previousObjects.feedback&&includesProject(globalScope(),previousObjects.feedback.project_id)?String(previousObjects.feedback.id):remembered.feedback||'';
+  if (todaySelectionEpoch === state.todaySelectionEpoch) {
+    state.todaySelectedItemId=previousObjects.today&&includesProject(globalScope(),previousObjects.today.project_id)?previousObjects.today.id:remembered.today||'';
+    scheduleTodayPreferencePersistence();
+  }
+  if (state.page === 'work') await refreshWorkQuery();
+  render();
+}
 let chatComposer;
 const chatConversationSurface = createConversationSurface({
   element: els.chatTranscript,
+  deferOffscreenLayout: true,
   jumpButton: els.chatJumpLatestButton,
   formatTime,
   onApproval: (message, decision) => runAction(async () => {
@@ -321,9 +388,10 @@ const chatConversationSurface = createConversationSurface({
 const productSurface = createProductSurface({
   api, normalizeChatSnapshot, formatTime, performAction: runAction,
   getPlatform: () => state.platform,
+  getScope: globalScope,
   isAuthenticated: () => state.authentication.authenticated,
   navigate: async (page, projectId, feedbackId) => {
-    if (projectId) state.selectedProjectId = String(projectId);
+    if (projectId && state.selectedProjectId !== String(projectId)) await changeGlobalScope(String(projectId), '', {skipProduct:true});
     if (feedbackId) state.selectedFeedbackId = String(feedbackId);
     showPage(page);
     if (["feedback", "organization", "command"].includes(page)) await refreshSnapshot();
@@ -334,14 +402,20 @@ const releaseSurface = createReleaseSurface({
   navigateSetup: () => showPage("command")
 });
 const projectWorkbenchSurface = createProjectWorkbenchSurface({
-  root:document.getElementById('projectWorkbenchView'),api,navigate:showPage,
+  root:document.getElementById('projectWorkbenchView'),api,navigate:showPage,getScope:globalScope,
   openSettings:()=>document.getElementById('settingsButton').click(),
   onSyncHealth: snapshot => {
     for (const key of ['source_status', 'synced_at', 'realtime']) if (snapshot[key] !== undefined) state.snapshot[key] = snapshot[key];
-    renderNavigation();
+    for (const key of ['enabled', 'queue_paused', 'queue', 'active_executions', 'attention_items', 'recovery_items']) {
+      if (snapshot.global_runtime?.[key] !== undefined) state.snapshot[key] = snapshot.global_runtime[key];
+    }
+    renderNavigation(); renderGlobalStatus();
   }
 });
 const engineeringSurface = createEngineeringSurface({root: document.getElementById('engineeringView'), api, navigate: showPage, chatButton: document.getElementById('chatSkillsButton')});
+document.getElementById('chatSidebarSessions').addEventListener('click', () => setChatTaskPanel('sessions'));
+document.getElementById('chatSidebarTask').addEventListener('click', () => setChatTaskPanel('detail'));
+chatNativeSurface=createChatNativeSurface({api,coordinator:chatStateCoordinator,getProject:selectedChatProject,getSession:selectedChatSession,render:renderChat,performAction:runAction,closeList:()=>setChatSessionsOpen(false),onTaskOpened:()=>setChatTaskPanel("detail")});
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
   jumpButton: els.jumpToLatestButton,
@@ -417,7 +491,7 @@ async function boot() {
   api.onAutomationEvent(() => scheduleAutomationRefresh());
   api.onWorkSyncEvent((event) => {
     if (applyWorkSyncHealth(state.snapshot, event)) {
-      renderNavigation();
+      renderNavigation(); renderGlobalStatus();
       if (state.page === 'command') renderCommandSyncSummary();
       return;
     }
@@ -435,6 +509,7 @@ async function boot() {
       const actor = event?.actor?.username ? `${event.actor.username} ` : "";
       showToast(`${actor}在${label}有新消息`);
     }
+    if (state.page === "chat") void chatNativeSurface?.refresh(false);
     scheduleRefresh();
   });
   api.onChatEvent((event) => {
@@ -443,6 +518,7 @@ async function boot() {
       if (chatStateCoordinator.applyStreamEvent(event)) renderChat();
       return;
     }
+    if (state.page === "chat") void chatNativeSurface?.refresh(false);
     scheduleChatRefresh();
   });
   api.onEvent((event) => {
@@ -645,6 +721,7 @@ function wireEvents() {
     renderSetup();
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
+  installChatResize(document);
   document.getElementById('chatSessionsToggle').addEventListener('click', () => setChatSessionsOpen(!document.body.classList.contains('chat-sessions-open')));
   document.getElementById('chatSessionsClose').addEventListener('click', () => setChatSessionsOpen(false, true));
   window.matchMedia('(max-width: 760px)').addEventListener('change', () => setChatSessionsOpen(false));
@@ -653,14 +730,18 @@ function wireEvents() {
   });
   els.newChatButton.addEventListener("click", () => runAction(async () => {
     const projectId = defaultChatDraftProject()?.id || "";
+    chatScopeController.capture();
     await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
+    chatScopeController.capture();
     setChatSessionsOpen(false);
     renderChat();
     els.chatInput.focus();
   }));
   els.chatProjectSelect.addEventListener("change", () => runAction(async () => {
     const projectId = els.chatProjectSelect.value;
+    if (!chatProjectsInScope().some(p=>p.id===projectId)) return;
     await chatStateCoordinator.changeDraftWorkspace(projectId);
+    chatScopeController.capture();
     renderChat();
   }));
   els.renameChatButton.addEventListener("click", () => runAction(async () => {
@@ -679,20 +760,19 @@ function wireEvents() {
   }));
   chatComposer = createConversationComposer({
     input: els.chatInput, sendButton: els.chatSendButton, stopButton: els.chatStopButton, hint: els.chatComposerHint,
-    onInput: text => { chatStateCoordinator.setDraft(text); renderChatComposer(); },
+    onInput: text => { chatStateCoordinator.setDraft(text); renderChatComposer({ inputOnly: true }); },
     onSend: sendChat,
     onStop: async () => { if (selectedChatSession()) await chatStateCoordinator.interruptCurrentSession(); renderChat(); },
     performAction: runAction
   });
   for (const input of [els.chatCodexModel, els.chatCodexEffort]) {
     input.addEventListener("focus", () => { void loadChatCodexCatalog(); });
-    input.addEventListener("input", () => {
-      updateChatCodexEffortOptions();
+    input.addEventListener("change", () => {
+      updateChatCodexEffortOptions(input === els.chatCodexModel);
       persistChatComposerConfiguration();
     });
   }
   els.syncButton.addEventListener("click", () => runAction(syncAutomationNow));
-  els.automationRefreshButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.productFeedbackButton.addEventListener("click", () => runAction(openProductFeedback));
   els.automationEnabled.addEventListener("change", () => runAction(async () => {
     await api.setAutomationEnabled(els.automationEnabled.checked);
@@ -785,23 +865,26 @@ function wireEvents() {
     state.platformWorkFilters = defaultWorkFilters();
     scheduleWorkFilterRefresh(0);
   });
-  els.worksetSelect.addEventListener("change", () => runAction(async () => {
-    markPlatformTaskSelectionIntent();
-    state.selectedProjectId = "all";
-    workQueryState.clear();
-    state.workQuery = { key: "", projection: null, loading: false, error: "" };
-    await api.setActiveWorkset(els.worksetSelect.value);
-    await refreshSnapshot();
-  }));
-  els.productScopeSelect.addEventListener("change", () => runAction(async () => {
-    state.selectedProjectId = els.productScopeSelect.value;
-    state.selectedTaskId = "";
-    setPlatformTaskSelectionIntent("");
-    state.selectedFeedbackId = "";
-    state.workQueryOffset = 0;
-    if (state.page === "work") await refreshWorkQuery();
-    else await refreshSnapshot();
-  }));
+  els.worksetSelect.addEventListener("change", () => runAction(() => changeGlobalScope('all', els.worksetSelect.value)));
+  els.productScopeSelect.addEventListener("change", () => runAction(() => changeGlobalScope(els.productScopeSelect.value)));
+  document.getElementById('globalRuntimeObjects').addEventListener('click', event => {
+    const button=event.target.closest('[data-global-task]');if(!button)return;
+    void runAction(async()=>{
+      const projectId=button.dataset.globalProject;
+      if(!projectId)throw new Error('该运行记录缺少产品归属，请在 Automation 中核对。');
+      const workset=state.platform.worksets?.find(set=>set.project_ids.map(String).includes(projectId));
+      if(!includesProject(globalScope(),projectId)){
+        if(!workset)throw new Error('当前产品集不可访问该产品，请先调整产品集。');
+        await changeGlobalScope(projectId,workset.id===state.platform.active_workset?.id?'':workset.id);
+      }else if(state.selectedProjectId!==projectId)await changeGlobalScope(projectId);
+      document.getElementById('globalRuntimeMenu').open=false;
+      showPage('project-workbench');
+      await projectWorkbenchSurface.refresh();
+      await projectWorkbenchSurface.selectTask(button.dataset.globalTask);
+    });
+  });
+  document.getElementById('globalOpenAutomation').addEventListener('click', () => { document.getElementById('globalRuntimeMenu').open=false; showPage('command'); });
+  initializeGlobalTopbarMenus({document,matchMedia:query=>window.matchMedia(query)});
   els.editWorksetButton.addEventListener("click", () => runAction(editCurrentWorkset));
   els.createOrganizationButton.addEventListener("click", () => runAction(createOrganization));
   els.joinByCodeButton.addEventListener("click", () => runAction(joinByInvitationCode));
@@ -1423,7 +1506,7 @@ function scheduleRefresh(delay = 80) {
   window.setTimeout(async () => {
     refreshQueued = false;
     if (state.page === "project-workbench") return;
-    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
+    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true, afterMutation: state.page === "chat" });
     await refresh.catch((error) => showToast(error.message));
   }, delay);
 }
@@ -1507,15 +1590,6 @@ function scheduleWorkFilterRefresh(delay = 280) {
   }, delay);
 }
 
-function defaultWorkFilters() {
-  const end = new Date();
-  const start = new Date(end.getTime() - 99 * 24 * 60 * 60 * 1000);
-  return {
-    creator_ids: [], executor_ids: [], tag_ids: [], priorities: [],
-    start_time: dateInputValue(start), end_time: dateInputValue(end)
-  };
-}
-
 function dateInputValue(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -1591,6 +1665,7 @@ async function refreshChat({ quiet = false, resetOwner = false } = {}) {
       if (!nextQuiet) renderChat();
       try {
         result = await chatStateCoordinator.refresh({ quiet: nextQuiet, resetOwner: nextResetOwner });
+        await chatScopeController.reconcile();
       } finally {
         renderChat();
         if (state.page === "today") renderToday();
@@ -1616,84 +1691,98 @@ function scheduleChatRefresh(delay = 32) {
 
 function selectedChatSession() {
   const chat = chatState();
-  return chat.snapshot.sessions.find((session) => session.id === chat.owner.session_id) || null;
+  return chat.snapshot.sessions.find((session) => session.id === chat.owner.session_id && chatProjectsInScope().some(p=>p.id===session.project_id)) || null;
 }
 
 function selectedChatProject() {
-  const chat = chatState();
-  const session = selectedChatSession();
-  if (session) return chat.snapshot.projects.find((project) => project.id === session.project_id) || null;
-  const candidateIds = [chat.owner.project_id, chat.snapshot.draft.project_id, chat.snapshot.projects[0]?.id];
-  return candidateIds.map((projectId) => chat.snapshot.projects.find((project) => project.id === projectId)).find(Boolean) || null;
+  const chat=chatState(), projects=chatProjectsInScope();
+  return projects.find(p=>p.id===chat.owner.project_id) || null;
 }
-
 function defaultChatDraftProject() {
-  const chat = chatState();
-  const session = selectedChatSession();
-  const candidateIds = [session?.project_id, chat.snapshot.draft.project_id, chat.owner.project_id, chat.snapshot.projects[0]?.id];
-  return candidateIds.map((projectId) => chat.snapshot.projects.find((project) => project.id === projectId)).find(Boolean) || null;
+  return selectedChatProject() || chatProjectsInScope()[0] || null;
 }
 
 function renderChatSession(item, selectedSessionId) {
-  return `<button class="chat-session ${item.id === selectedSessionId ? "is-active" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button"><strong>${escapeHtml(item.title)}</strong><span class="chat-session-status ${escapeHtml(item.status)}" aria-label="${escapeHtml(chatStatusLabel(item.status))}"></span><small>${escapeHtml(chatStatusLabel(item.status))} · ${escapeHtml(formatDateTime(item.updated_at))}</small></button>`;
+  return `<button class="chat-session ${item.id === selectedSessionId ? "is-active" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button" title="${escapeHtml(item.title)} · ${escapeHtml(chatStatusLabel(item.status))}"><strong>${escapeHtml(item.title)}</strong><span class="chat-session-status ${escapeHtml(item.status)}" aria-label="${escapeHtml(chatStatusLabel(item.status))}"></span></button>`;
 }
 
 function renderChatSessionGroups(chat) {
-  const groups = groupChatSessions({ sessions: chat.snapshot.sessions, projects: chat.snapshot.projects });
-  const currentProjectIds = new Set(groups.map((group) => group.project_id));
-  for (const projectId of expandedChatProjectIds) {
-    if (!currentProjectIds.has(projectId)) expandedChatProjectIds.delete(projectId);
-  }
-  return groups.map((group) => {
+  const groups = groupChatSessions({ sessions: chat.snapshot.sessions.filter(s=>chatProjectsInScope().some(p=>p.id===s.project_id)), projects: chatProjectsInScope() });
+  return groups.map(group => {
     const visibility = chatSessionVisibility(group, {
-      expanded: expandedChatProjectIds.has(group.project_id),
-      selectedSessionId: chat.owner.session_id,
-      limit: CHAT_SESSION_PREVIEW_LIMIT
+      collapsed: collapsedChatProjectIds.has(group.project_id),
+      limit: chatProjectLimits.get(group.project_id) || CHAT_SESSION_PREVIEW_LIMIT
     });
-    if (visibility.selected_requires_history) expandedChatProjectIds.add(group.project_id);
-    const unavailable = group.available ? "" : `<span class="chat-project-unavailable">不可用</span>`;
-    const historyControl = visibility.hidden_count
-      ? `<button class="chat-history-toggle" data-chat-history-project-id="${escapeHtml(group.project_id)}" type="button" aria-expanded="${visibility.expanded}" ${visibility.selected_requires_history ? "disabled title=\"当前会话位于历史中\"" : ""}>${visibility.expanded ? "收起历史会话" : `查看历史会话（其余 ${visibility.hidden_count} 个）`}</button>`
-      : "";
-    return `<section class="chat-project-group" data-chat-project-group="${escapeHtml(group.project_id)}"><div class="chat-project-group-head"><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length} 个会话</span>${unavailable}</div><div class="chat-project-sessions">${visibility.sessions.map((item) => renderChatSession(item, chat.owner.session_id)).join("")}</div>${historyControl}</section>`;
+    const id = escapeHtml(group.project_id);
+    const history = !visibility.collapsed && visibility.hidden_count
+      ? `<button class="chat-history-toggle" data-chat-history-project-id="${id}" type="button">查看更多（剩余 ${visibility.hidden_count} 个）</button>` : "";
+    return `<section class="chat-project-group" data-chat-project-group="${id}"><button type="button" class="chat-project-group-head" data-chat-project-toggle="${id}" aria-expanded="${!visibility.collapsed}"><span aria-hidden="true">${visibility.collapsed ? "▸" : "▾"}</span><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length}</span></button><div class="chat-project-sessions" ${visibility.collapsed ? "hidden" : ""}>${group.sessions.length ? visibility.sessions.map(item => renderChatSession(item, chat.owner.session_id)).join("") : `<button class="chat-session" data-chat-new-project-id="${id}" type="button" aria-label="在 ${escapeHtml(group.project_name)} 新建对话"><strong>＋ 新建对话</strong></button>`}</div>${history}</section>`;
   }).join("");
 }
 
 function renderChat() {
   if (!els.chatTranscript) return;
+  renderChatTaskPanel();
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
-  const bindableRemoteProjects = state.platform.projects || [];
+  const bindableRemoteProjects = (state.platform.projects || []).filter(p=>includesProject(globalScope(),p.id));
   const unavailableSessionProjectOption = session && !project
     ? `<option value="${escapeHtml(session.project_id)}" selected>${escapeHtml(session.project_id)}（不可用）</option>`
     : "";
-  const projectOptions = chat.snapshot.projects.length || unavailableSessionProjectOption
-    ? unavailableSessionProjectOption + chat.snapshot.projects.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === project?.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
+  const projectOptions = chatProjectsInScope().length || unavailableSessionProjectOption
+    ? unavailableSessionProjectOption + chatProjectsInScope().map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === project?.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
     : `<option value="">尚无本地 Product Workspace</option>`;
   if (projectOptions !== renderedChatProjectOptions) {
     els.chatProjectSelect.innerHTML = projectOptions;
     renderedChatProjectOptions = projectOptions;
   }
-  els.chatProjectSelect.disabled = Boolean(session) || chat.snapshot.projects.length === 0;
+  els.chatProjectSelect.disabled = Boolean(session) || chatProjectsInScope().length === 0;
   els.chatWorkspacePickerLabel.textContent = session ? "固定归属" : "新对话属于";
-  els.newChatButton.disabled = chat.snapshot.projects.length === 0;
-  const sessionList = chat.snapshot.sessions.length
+  els.newChatButton.disabled = chatProjectsInScope().length === 0;
+  const sessionList = chatProjectsInScope().length
     ? renderChatSessionGroups(chat)
     : `<div class="chat-empty-list">还没有对话。发送第一条消息时才会创建会话。</div>`;
   if (sessionList !== renderedChatSessionList) {
+    const listScroll = els.chatSessionList.scrollTop;
+    const focused = els.chatSessionList.contains(document.activeElement) ? document.activeElement : null;
+    const focusedProject = focused?.dataset.chatProjectToggle || focused?.dataset.chatHistoryProjectId;
+    const focusedAction = focused?.dataset.chatHistoryProjectId ? 'chatHistoryProjectId' : 'chatProjectToggle';
     els.chatSessionList.innerHTML = sessionList;
+    els.chatSessionList.scrollTop = listScroll;
+    if (focusedProject) {
+      const buttons = [...els.chatSessionList.querySelectorAll('button')];
+      (buttons.find(button => button.dataset[focusedAction] === focusedProject)
+        || buttons.find(button => button.dataset.chatProjectToggle === focusedProject))?.focus({ preventScroll: true });
+    }
     renderedChatSessionList = sessionList;
     els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+      chatScopeController.capture();
       await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
+      chatScopeController.capture();
       setChatSessionsOpen(false);
       els.chatInput.focus();
       renderChat();
     })));
+    els.chatSessionList.querySelectorAll("[data-chat-new-project-id]").forEach(button => button.addEventListener("click", () => runAction(async () => {
+      const projectId = button.dataset.chatNewProjectId;
+      if (!chatProjectsInScope().some(project => project.id === projectId)) return;
+      chatScopeController.capture();
+      await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
+      chatScopeController.capture();
+      setChatSessionsOpen(false);
+      renderChat();
+      els.chatInput.focus();
+    })));
+    els.chatSessionList.querySelectorAll("[data-chat-project-toggle]").forEach(button => button.addEventListener("click", () => {
+      const id = button.dataset.chatProjectToggle;
+      if (collapsedChatProjectIds.has(id)) collapsedChatProjectIds.delete(id);
+      else { collapsedChatProjectIds.add(id); chatProjectLimits.delete(id); }
+      renderChat();
+    }));
     els.chatSessionList.querySelectorAll("[data-chat-history-project-id]").forEach((button) => button.addEventListener("click", () => {
       const projectId = button.dataset.chatHistoryProjectId;
-      if (expandedChatProjectIds.has(projectId)) expandedChatProjectIds.delete(projectId);
-      else expandedChatProjectIds.add(projectId);
+      chatProjectLimits.set(projectId, (chatProjectLimits.get(projectId) || CHAT_SESSION_PREVIEW_LIMIT) + CHAT_SESSION_PREVIEW_LIMIT);
       renderedChatSessionList = "";
       renderChat();
     }));
@@ -1733,7 +1822,7 @@ function renderChat() {
 }
 
 async function openChatWorkspaceSetup() {
-  const projects = (state.platform.projects || []).map((project) => ({ value: project.id, label: project.name }));
+  const projects = (state.platform.projects || []).filter(p=>includesProject(globalScope(),p.id)).map((project) => ({ value: project.id, label: project.name }));
   if (!projects.length) throw new Error("当前账户没有可访问的远端项目；请先加入或创建 Workshop Project。");
   await openPlatformAction({
     title: "让 Chat 进入一个本地项目",
@@ -1754,19 +1843,21 @@ async function openChatWorkspaceSetup() {
   });
 }
 
-function renderChatComposer() {
+function renderChatComposer({ inputOnly = false } = {}) {
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
   const active = isChatActive(session?.status);
-  const configuration = normalizeCodexExecutionSettings(chat.configuration, state.settings.codex.chat);
-  if (document.activeElement !== els.chatCodexModel) els.chatCodexModel.value = configuration.model;
-  if (document.activeElement !== els.chatCodexEffort) els.chatCodexEffort.value = configuration.reasoning_effort;
-  els.chatCodexModel.disabled = els.chatCodexEffort.disabled = !project;
-  updateChatCodexEffortOptions();
-  chatComposer?.render({draft:chat.draft,available:Boolean(project),active,sending:chat.sending,
+  if (!inputOnly) {
+    const configuration = normalizeCodexExecutionSettings(chat.configuration, state.settings.codex.chat);
+    setChatSelectOptions(els.chatCodexModel, chatCodexModels.map(item => ({ value: item.model, label: item.displayName || item.model })), configuration.model);
+    updateChatCodexEffortOptions(false, configuration.reasoning_effort);
+    els.chatCodexModel.disabled = els.chatCodexEffort.disabled = !project;
+  }
+  chatComposer?.render({draft:chat.draft,hasContext:Boolean(chat.native_context?.capability || chat.native_context?.refs?.length),available:Boolean(project),active,sending:chat.sending,
     stopping:session?.status === "interrupting",waiting:session?.status === "waiting_approval",
     placeholder:project ? "向 Codex 提问或说明希望它在当前项目中完成什么…" : "先配置本地 Product Workspace…"});
+  if (!inputOnly) chatNativeSurface?.render();
 }
 
 function setDatalistOptions(list, values) {
@@ -1778,21 +1869,32 @@ function setDatalistOptions(list, values) {
   }));
 }
 
-function updateChatCodexEffortOptions() {
-  const selected = chatCodexModels.find((item) => item.model === els.chatCodexModel.value.trim());
-  setDatalistOptions(els.chatCodexEffortOptions, (selected?.reasoningEfforts || []).map((value) => ({ value })));
+function setChatSelectOptions(select, values, current) {
+  const options = [...values];
+  if (current && !options.some(item => item.value === current)) options.unshift({ value: current, label: current });
+  const signature = JSON.stringify(options);
+  if (select.dataset.options !== signature) {
+    setDatalistOptions(select, options);
+    select.dataset.options = signature;
+  }
+  select.value = current || options[0]?.value || "";
+}
+
+function updateChatCodexEffortOptions(modelChanged = false, current = els.chatCodexEffort.value) {
+  const selected = chatCodexModels.find(item => item.model === els.chatCodexModel.value);
+  const efforts = selected?.reasoningEfforts || [];
+  if (modelChanged && efforts.length && !efforts.includes(current)) current = efforts.includes("medium") ? "medium" : efforts[0];
+  setChatSelectOptions(els.chatCodexEffort, efforts.map(value => ({ value })), current);
 }
 
 async function loadChatCodexCatalog() {
   if (chatCodexCatalogPromise) return chatCodexCatalogPromise;
-  chatCodexCatalogPromise = api.listCodexModels().then((result) => {
+  chatCodexCatalogPromise = api.listCodexModels().then(result => {
     chatCodexModels = result?.status === "available" && Array.isArray(result.models) ? result.models : [];
-    setDatalistOptions(els.chatCodexModelOptions, chatCodexModels.map((item) => ({ value: item.model, label: item.displayName })));
-    updateChatCodexEffortOptions();
+    renderChatComposer();
   }).catch(() => {
     chatCodexModels = [];
-    setDatalistOptions(els.chatCodexModelOptions, []);
-    updateChatCodexEffortOptions();
+    renderChatComposer();
   }).finally(() => { chatCodexCatalogPromise = null; });
   return chatCodexCatalogPromise;
 }
@@ -1819,6 +1921,7 @@ function persistChatComposerConfiguration() {
 }
 
 async function sendChat() {
+  if (!selectedChatProject()) throw new Error("请先选择当前范围内的本地工作区。");
   try {
     chatStateCoordinator.setConfiguration(readChatComposerConfiguration());
     renderChatComposer();
@@ -1841,8 +1944,8 @@ function render() {
   renderPageVisibility();
   renderNavigation();
   renderCommandBar();
-  if (state.page === "project-workbench") return;
   renderWorkset();
+  if (state.page === "project-workbench") return;
   // Hidden workspaces are rendered when navigated to, using the latest state.
   if (state.page === 'today') renderToday();
   if (state.page === 'chat') renderChat();
@@ -1883,6 +1986,7 @@ function renderPageVisibility() {
   document.body.classList.toggle('project-workbench-active',state.page==='project-workbench');
   projectWorkbenchSurface.show(state.page==='project-workbench' && state.authentication.authenticated);
   engineeringSurface.show(state.page === 'engineering', state.page === 'chat');
+  if(state.page==='operations')renderOperationsScope();
   releaseSurface.show({active:state.page === "release", projectId:state.selectedProjectId, workset:state.platform.active_workset});
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
   const navigationPage = state.page === "product-detail" ? "product" : state.page === "idea-add" ? "idea" : state.page === "tasks" ? "work" : ["workbench", "recovery"].includes(state.page) ? "command" : state.page;
@@ -1899,9 +2003,24 @@ function renderNavigation() {
   const accountName = currentWorkshopUserName();
   els.accountName.textContent = accountName;
   els.accountAvatar.textContent = accountName.slice(0, 1).toUpperCase() || "W";
-  els.accountStatus.textContent = state.authentication.authenticated ? sourceStatusLabel(snapshot.source_status) : "未登录";
-  els.accountSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
-  els.accountSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
+  els.accountStatus.textContent = state.authentication.authenticated ? "已登录" : "未登录";
+
+}
+
+function renderGlobalStatus() {
+  const summary=syncSummary(state.snapshot,state.platform,{authenticated:state.authentication.authenticated,syncing:state.manualSyncing});
+  els.accountSync.className=`sync-state ${summary.errors.length?'error':summary.time?'healthy':''}`;
+  els.accountSync.querySelector('span').textContent=summary.label+(summary.time&&!summary.busy?` · ${formatTime(summary.time)}`:'');
+  document.getElementById('globalSyncDetails').textContent=[summary.label,summary.time?`最近任务源同步：${formatDateTime(summary.time)}`:'尚无已确认同步时间',...summary.errors].join('\n');
+  document.getElementById('globalControlsSummary').textContent=summary.label;
+  document.getElementById('globalControlsSummary').title=els.accountSync.querySelector('span').textContent;
+  const snap=state.snapshot, runs=snap.active_executions||[], count=runs.length, queue=(snap.queue||[]).length, attention=(snap.attention_items||[]).length+(snap.recovery_items||[]).length;
+  els.automationEnabled.checked = Boolean(snap.enabled);
+  document.getElementById('globalRuntimeSummary').textContent=attention?`运行 · ${attention} 项待处理`:count?`运行中 ${count}`:queue?`排队 ${queue}`:'运行空闲';
+  document.getElementById('globalRuntimeDetails').textContent=`执行 ${count} · 排队 ${queue} · 待处理 ${attention}`;
+  document.getElementById('globalRuntimeObjects').innerHTML=[...runs,...snap.attention_items||[],...snap.recovery_items||[],...snap.queue||[]].filter((item,index,items)=>{const id=String(item.task_id||item.id||'');return id&&items.findIndex(other=>String(other.task_id||other.id||'')===id)===index;}).map(item=>`<button type="button" class="secondary-button" data-global-task="${escapeHtml(item.task_id||item.id)}" data-global-project="${escapeHtml(item.project_id||item.source_project_id||'')}">${escapeHtml(projectName(item.project_id||item.source_project_id))} · ${escapeHtml(taskDisplayTitle(item.task_title||item.title||item.content,item.task_id||item.id))}</button>`).join('');
+  els.queuePauseButton.textContent=snap.queue_paused?'继续领取':'暂停领取';
+  els.queuePauseButton.disabled=!snap.enabled;
 }
 
 function renderCommandBar() {
@@ -1918,7 +2037,8 @@ function renderCommandBar() {
   }[state.page] || "ArcOrbit";
   els.automationEnabled.checked = Boolean(state.snapshot.enabled);
   els.automationEnabled.disabled = !state.authentication.authenticated;
-  els.productSetCluster.classList.toggle("hidden", organizationCapabilityPage || ["product", "product-detail", "idea-add"].includes(state.page));
+  els.productSetCluster.classList.remove("hidden");
+  renderGlobalStatus();
   renderProductFeedbackTrigger();
 }
 
@@ -1945,11 +2065,11 @@ function renderWorkset() {
   ].join("");
   els.productScopeSelect.value = projects.some((project) => String(project.id) === state.selectedProjectId) ? state.selectedProjectId : "all";
   els.productScopeSelect.disabled = projects.length === 0;
+  document.getElementById('globalScopeSummary').textContent=currentProject()?.name || state.platform.active_workset?.name || '产品范围';
 }
 
-function renderToday() {
-  productSurface.renderToday();
-  const view = deriveTodayWorkspace({
+function todayWorkspaceView() {
+  return deriveTodayWorkspace({
     platform: state.platform,
     automation: state.snapshot,
     setup: state.setup,
@@ -1957,10 +2077,29 @@ function renderToday() {
     chat: chatState().snapshot,
     feedbackLinkRecoveries: state.feedbackLinkRecoveries,
     selectedProjectId: state.todaySelectedProjectId,
+    projectScopeIds: globalScope().projectIds,
     selectedMode: state.todayMode,
     selectedItemId: state.todaySelectedItemId
   });
+}
+
+function renderOperationsScope() {
+  const names=(state.platform.projects||[]).filter(p=>includesProject(globalScope(),p.id)).map(p=>p.name);
+  document.getElementById('operationsScope').textContent=names.length?`当前范围：${names.join('、')}`:'当前产品集没有产品';
+  document.getElementById('operationsEmpty').textContent=names.length?'当前范围尚无已接入的运营记录。运营能力处于规划阶段。':'请先在顶部选择包含产品的产品集。';
+}
+
+function renderToday() {
+  productSurface.renderToday();
+  const view = todayWorkspaceView();
+  const projectSelectionChanged = state.todaySelectedProjectId !== view.selected_project_id;
   state.todaySelectedProjectId = view.selected_project_id;
+  if (projectSelectionChanged) {
+    state.todaySelectionEpoch += 1;
+    state.todayActionError = "";
+    state.todayResult = null;
+    scheduleTodayPreferencePersistence();
+  }
   state.todayMode = view.mode;
   state.todaySelectedItemId = view.selected_item_id;
   const visibleProjects = view.projects.filter((project) => !state.todayProjectSearch || `${project.name} ${project.id}`.toLowerCase().includes(state.todayProjectSearch.toLowerCase()));
@@ -1996,6 +2135,8 @@ function renderToday() {
   ].join("");
   els.todayProjectRail.querySelectorAll("[data-today-project]").forEach((button) => button.addEventListener("click", () => {
     state.todaySelectedProjectId = button.dataset.todayProject;
+    state.todaySelectionEpoch += 1;
+    state.todayResult = null;
     state.todaySelectedItemId = "";
     state.todayActionError = "";
     scheduleTodayPreferencePersistence();
@@ -2027,8 +2168,8 @@ function renderToday() {
     runAction(() => editTodayTaskContent(view.selected_item));
   });
   els.todayResponsibilityList.querySelector("[data-today-open-work]")?.addEventListener("click", () => showPage("work"));
-  els.todayResponsibilityList.querySelector("[data-today-empty-add]")?.addEventListener("click", () => runAction(openTodayProjectCatalog));
-  els.todayAddProjectButton.onclick = () => runAction(openTodayProjectCatalog);
+  els.todayResponsibilityList.querySelector("[data-today-empty-add]")?.addEventListener("click", () => runAction(editCurrentWorkset));
+  els.todayAddProjectButton.onclick = () => runAction(editCurrentWorkset);
   els.platformErrorHost.querySelector("[data-today-retry-sources]")?.addEventListener("click", () => runAction(() => refreshSnapshot()));
   els.attentionNavCount.textContent = view.counts.unknown_sources ? `${view.counts.responsibilities}+?` : String(view.counts.responsibilities);
 }
@@ -2058,7 +2199,7 @@ function todayKindLabel(kind) {
 }
 
 function todayEmptyState(view) {
-  if (view.mode === "configuration" && view.counts.configured_projects === 0) return `<div class="today-list-empty"><strong>先添加一个项目</strong><p>可以新建个人项目、从可访问目录选择，或使用邀请码加入。</p><button class="primary-button" data-today-empty-add type="button">添加项目</button></div>`;
+  if (view.mode === "configuration" && view.counts.configured_projects === 0) return `<div class="today-list-empty"><strong>产品集暂无项目</strong><p>在产品集管理中选择要展示的项目。</p><button class="primary-button" data-today-empty-add type="button">管理产品集</button></div>`;
   if (view.mode === "configuration") return `<div class="today-list-empty"><strong>当前范围配置完成</strong><p>项目已满足 Automation 执行前置；创建待办请前往 Work。</p><button class="secondary-button" data-today-open-work type="button">前往 Work 新建待办</button></div>`;
   return `<div class="today-list-empty"><strong>没有需要你处理的事情</strong><p>Automation 和其他页面会在责任明确交给你时发布到这里。</p></div>`;
 }
@@ -2322,76 +2463,6 @@ async function performTodayProjectSetupAction(item, action) {
   } finally {
     state.todaySetupOperationProjectId = "";
   }
-}
-
-async function openTodayProjectCatalog() {
-  const selected = new Set((state.platform.today_project_ids || []).map(String));
-  const accessibleProjects = (state.platform.projects || []).filter((project) => !selected.has(String(project.id)));
-  const sourceField = platformField("source", "项目来源", {
-    type: "select",
-    value: accessibleProjects.length ? "accessible" : "create_personal",
-    options: [
-      { value: "accessible", label: "从可访问项目中选择" },
-      { value: "create_personal", label: "新建个人项目" },
-      { value: "invitation", label: "使用邀请码加入" }
-    ]
-  });
-  const action = openPlatformAction({
-    title: "添加项目到 Today",
-    lead: "项目会立即进入 Today 的独立配置流程；这里不创建待办，也不修改组织角色或其他设备。",
-    confirmLabel: "添加项目",
-    fields: [
-      sourceField,
-      `<div data-today-project-source="accessible">${platformCheckboxGroup("project_ids", "可访问项目（可多选）", accessibleProjects.map((project) => ({ value: project.id, label: project.name, detail: project.organization_id ? organizationName(project.organization_id) : "个人项目" })))}</div>`,
-      `<div data-today-project-source="create_personal">${platformField("name", "个人项目名称", { placeholder: "例如：ArcOrbit Desktop" })}${platformField("git_url", "Git 地址", { placeholder: "可选" })}</div>`,
-      `<div data-today-project-source="invitation">${platformField("invite_kind", "邀请类型", { type: "select", options: [{ value: "project", label: "项目邀请" }, { value: "organization", label: "组织邀请" }] })}${platformField("invite_code", "邀请码", { placeholder: "输入收到的邀请码" })}</div>`
-    ],
-    onSubmit: async (values) => {
-      const beforeIds = new Set((state.platform.projects || []).map((project) => String(project.id)));
-      let addedIds = [];
-      if (values.source === "accessible") {
-        addedIds = Array.isArray(values.project_ids) ? values.project_ids : values.project_ids ? [values.project_ids] : [];
-        if (!addedIds.length) throw new Error("请至少选择一个可访问项目。");
-      } else if (values.source === "create_personal") {
-        const name = String(values.name || "").trim();
-        if (!name) throw new Error("请输入个人项目名称。");
-        const created = await executeManagedAction("project.create", { name, git_url: String(values.git_url || "").trim() }, "个人项目已创建", { refresh: false });
-        const createdId = String(created?.id || created?.project?.id || "");
-        if (createdId) addedIds = [createdId];
-      } else {
-        const inviteCode = String(values.invite_code || "").trim();
-        if (!inviteCode) throw new Error("请输入邀请码。");
-        await executeManagedAction(values.invite_kind === "organization" ? "organization.join" : "project.join", { invite_code: inviteCode }, "邀请已确认", { refresh: false });
-      }
-      if (!addedIds.length) {
-        await refreshSnapshot({ quiet: true });
-        addedIds = (state.platform.projects || []).map((project) => String(project.id)).filter((id) => !beforeIds.has(id));
-      }
-      if (!addedIds.length) throw new Error("来源已确认，但未发现新加入的项目；请刷新来源后重试。");
-      const nextIds = [...new Set([...selected, ...addedIds.map(String)])];
-      await api.setTodayProjects(nextIds);
-      state.todayMode = "configuration";
-      state.todaySelectedProjectId = addedIds[0];
-      state.todaySelectedItemId = "";
-      scheduleTodayPreferencePersistence();
-      await refreshSnapshot({ quiet: true });
-      showToast(`已添加 ${addedIds.length} 个项目；正在分别计算配置状态。`);
-      return { close: true };
-    }
-  });
-  const sourceSelect = els.platformActionFields.querySelector('[name="source"]');
-  const syncSource = () => {
-    const activeSource = sourceSelect?.value || "accessible";
-    els.platformActionFields.querySelectorAll("[data-today-project-source]").forEach((section) => {
-      const active = section.dataset.todayProjectSource === activeSource;
-      section.classList.toggle("hidden", !active);
-      section.querySelectorAll("input, select, textarea").forEach((control) => { control.disabled = !active; });
-    });
-    els.confirmPlatformActionButton.textContent = activeSource === "accessible" ? "添加所选项目" : activeSource === "create_personal" ? "创建并添加" : "加入并添加";
-  };
-  sourceSelect?.addEventListener("change", syncSource);
-  syncSource();
-  await action;
 }
 
 async function performGuidanceAction(guidance, { task = guidance.task, workspace = guidance.workspace } = {}) {
@@ -2766,9 +2837,97 @@ function workInspectorRuntimeNavigation(task, automationTask, workspace) {
     : { destination: "recovery", execution: null };
 }
 
+async function openWorkTaskChat(task) {
+  const workspace = state.platform.product_workspaces.find(item => String(item.id) === String(task.project_id));
+  if (!workspace?.local_project_id) throw new Error("请先为该待办所属项目绑定本地工作区，再打开 Chat。");
+  await chatStateCoordinator.flushDraft();
+  const result = await api.chatNativeOpen({ project_id: workspace.local_project_id, task_id: String(task.id) });
+  await chatStateCoordinator.selectSession(result.session_id);
+  chatTaskPanelMode = 'detail';
+  showPage('chat');
+  setChatSessionsOpen(true);
+}
+
+function setChatTaskPanel(mode) {
+  chatTaskPanelMode = mode;
+  renderChatTaskPanel();
+}
+
+function chatTaskOwner() {
+  const session = selectedChatSession();
+  return session?.task_id ? JSON.stringify([session.id, session.project_id, session.remote_project_id, session.task_id]) : '';
+}
+
+async function refreshChatTaskDetail() {
+  const owner = chatTaskOwner();
+  if (!owner || state.page !== 'chat') return;
+  if (owner === chatTaskDetailOwner && chatTaskDetailStatus === 'loading') return;
+  chatTaskDetailOwner = owner;
+  chatTaskDetailStatus = 'loading';
+  chatTaskDetailError = '';
+  renderChatTaskPanel();
+  try {
+    await refreshSnapshot({ quiet: true, afterMutation: true });
+    if (owner !== chatTaskOwner() || owner !== chatTaskDetailOwner) return;
+    chatTaskDetailStatus = 'ready';
+  } catch (error) {
+    if (owner !== chatTaskOwner() || owner !== chatTaskDetailOwner) return;
+    chatTaskDetailStatus = 'error';
+    chatTaskDetailError = error.message;
+  }
+  renderChatTaskPanel();
+}
+
+function renderChatTaskPanel() {
+  const host = document.getElementById('chatTaskInspector');
+  const detail = chatTaskPanelMode === 'detail';
+  const panel = document.getElementById('chatSessionsPanel');
+  panel.classList.toggle('is-task-detail', detail);
+  document.getElementById('chatSidebarSessions').setAttribute('aria-pressed', String(!detail));
+  document.getElementById('chatSidebarTask').setAttribute('aria-pressed', String(detail));
+  els.chatSessionList.hidden = detail;
+  els.newChatButton.hidden = detail;
+  host.hidden = !detail;
+  const owner = chatTaskOwner();
+  if (owner !== chatTaskDetailOwner) {
+    chatTaskDetailOwner = owner;
+    chatTaskDetailStatus = 'idle';
+    updateTaskInspector(host, '', '<div class="empty-state">正在读取待办详情…</div>');
+    if (owner && state.page === 'chat') void refreshChatTaskDetail();
+  }
+  if (!detail) return;
+  const session = selectedChatSession();
+  if (!owner) {
+    updateTaskInspector(host, '', '<div class="empty-state">当前会话尚未关联待办。可通过“整理为待办”建立关联。</div>');
+    return;
+  }
+  if (chatTaskDetailStatus === 'idle' || chatTaskDetailStatus === 'loading') return;
+  const task = state.platform.tasks.find(item => String(item.id) === String(session.task_id) && String(item.project_id) === String(session.remote_project_id));
+  const errors = (state.platform.errors || []).filter(item => !item.project_id || String(item.project_id) === String(session.remote_project_id));
+  const error = chatTaskDetailError || errors.map(item => item.message).filter(Boolean).join('；');
+  if (error || !task) {
+    updateTaskInspector(host, '', `<div class="empty-state" role="status">${escapeHtml(error || '待办不存在或已无权访问。')}<button type="button" class="secondary-button" data-chat-task-retry>重试读取</button></div>`);
+    host.querySelector('[data-chat-task-retry]').onclick = () => void refreshChatTaskDetail();
+    return;
+  }
+  renderTaskDetail(task, host);
+}
+
+function refreshTaskInspectors(taskId) {
+  if (state.page === 'work' && String(state.selectedPlatformTaskId) === String(taskId)) {
+    const task = (state.workQuery.projection?.tasks || state.platform.tasks).find(item => String(item.id) === String(taskId));
+    renderPlatformWorkInspector(task);
+  }
+  if (state.page === 'chat' && String(selectedChatSession()?.task_id) === String(taskId)) renderChatTaskPanel();
+}
+
 function renderPlatformWorkInspector(task) {
+  renderTaskDetail(task, els.platformWorkInspector);
+}
+
+function renderTaskDetail(task, host) {
   if (!task) {
-    updatePlatformWorkInspector("", `<div class="empty-state">选择待办查看详情与允许操作。</div>`);
+    updateTaskInspector(host, "", `<div class="empty-state">选择待办查看详情与允许操作。</div>`);
     return;
   }
   const workspace = state.platform.product_workspaces.find((item) => String(item.id) === String(task.project_id));
@@ -2804,38 +2963,39 @@ function renderPlatformWorkInspector(task) {
     ["本地工作区", automationTask?.local_project_path || workspace?.local_path || "未绑定", { wide: true }],
     ["自动执行资格", automationTask ? (automationTask.eligible ? `队列第 ${automationTask.queue_position} 项` : automationTask.eligibility_reason || "不适用于当前状态") : "不在当前用户 Automation 范围", { wide: true }],
     ["关联 Runtime", workInspectorRuntimeSummary(task.id), { wide: true }]
-  ])}</div></section><section class="work-inspector-section work-inspector-collaboration"><div class="work-inspector-section-heading"><h3>协作</h3></div><div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}</section>${acceptanceFeedback}`;
-  if (!updatePlatformWorkInspector(String(task.id), inspectorHtml)) {
+  ])}</div></section><section class="work-inspector-section work-inspector-collaboration"><div class="work-inspector-section-heading"><h3>协作</h3></div><div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-chat="${escapeHtml(task.id)}" type="button">打开 Chat</button><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}</section>${acceptanceFeedback}`;
+  if (!updateTaskInspector(host, String(task.id), inspectorHtml)) {
     if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
     else loadMissingTaskAttachmentPreviews(task);
     return;
   }
-  els.platformWorkInspector.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
-  els.platformWorkInspector.querySelector("[data-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(eligibilityGuidance, { task, workspace })));
-  els.platformWorkInspector.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
-  els.platformWorkInspector.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
-  els.platformWorkInspector.querySelector("[data-work-inspector-subtask]")?.addEventListener("click", () => runAction(() => createSubtask(task.id)));
-  els.platformWorkInspector.querySelector("[data-work-inspector-reparent]")?.addEventListener("click", () => runAction(() => reparentTask(task.id)));
-  els.platformWorkInspector.querySelector("[data-work-inspector-attachment]")?.addEventListener("click", () => runAction(() => manageTaskAttachments(task.id)));
-  els.platformWorkInspector.querySelector("[data-task-attachment-retry]")?.addEventListener("click", () => loadTaskAttachments(task.id));
-  els.platformWorkInspector.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
-  els.platformWorkInspector.querySelector("[data-task-replacement-retry]")?.addEventListener("click", (event) => runAction(() => retryTaskProjectReplacement(event.currentTarget.dataset.taskReplacementRetry)));
-  els.platformWorkInspector.querySelector("[data-task-replacement-keep]")?.addEventListener("click", (event) => runAction(() => keepTaskProjectReplacement(event.currentTarget.dataset.taskReplacementKeep)));
-  els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeWorkTaskAction(task, automationTask, workspace, button.dataset.workTaskAction))));
-  els.platformWorkInspector.querySelector("[data-task-comment-submit]")?.addEventListener("click", () => runAction(() => createTaskComment(task.id)));
-  els.platformWorkInspector.querySelector("[data-task-comment-add-link]")?.addEventListener("click", () => runAction(() => addTaskCommentLink(task.id)));
-  els.platformWorkInspector.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
-  els.platformWorkInspector.querySelector("[data-task-comment-add-file]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "file")));
-  els.platformWorkInspector.querySelectorAll("[data-task-comment-resource-remove]").forEach((button) => button.addEventListener("click", () => removeTaskCommentResource(task.id, button.dataset.taskCommentResourceRemove)));
-  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openImageViewer(taskAttachmentResourceInput(button)))));
-  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image-retry]").forEach((button) => button.addEventListener("click", () => queueTaskAttachmentPreview(taskAttachmentResourceInput(button), { force: true })));
-  els.platformWorkInspector.querySelectorAll("[data-task-attachment-file]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskAttachment(taskAttachmentResourceInput(button)))));
-  els.platformWorkInspector.querySelectorAll("[data-work-task-feedback]").forEach((button) => button.addEventListener("click", () => {
+  host.querySelector("[data-work-inspector-chat]")?.addEventListener("click", () => runAction(() => openWorkTaskChat(task)));
+  host.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
+  host.querySelector("[data-guidance-action]")?.addEventListener("click", () => runAction(() => performGuidanceAction(eligibilityGuidance, { task, workspace })));
+  host.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
+  host.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
+  host.querySelector("[data-work-inspector-subtask]")?.addEventListener("click", () => runAction(() => createSubtask(task.id)));
+  host.querySelector("[data-work-inspector-reparent]")?.addEventListener("click", () => runAction(() => reparentTask(task.id)));
+  host.querySelector("[data-work-inspector-attachment]")?.addEventListener("click", () => runAction(() => manageTaskAttachments(task.id)));
+  host.querySelector("[data-task-attachment-retry]")?.addEventListener("click", () => loadTaskAttachments(task.id));
+  host.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
+  host.querySelector("[data-task-replacement-retry]")?.addEventListener("click", (event) => runAction(() => retryTaskProjectReplacement(event.currentTarget.dataset.taskReplacementRetry)));
+  host.querySelector("[data-task-replacement-keep]")?.addEventListener("click", (event) => runAction(() => keepTaskProjectReplacement(event.currentTarget.dataset.taskReplacementKeep)));
+  host.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeWorkTaskAction(task, automationTask, workspace, button.dataset.workTaskAction))));
+  host.querySelector("[data-task-comment-submit]")?.addEventListener("click", () => runAction(() => createTaskComment(task.id, host)));
+  host.querySelector("[data-task-comment-add-link]")?.addEventListener("click", () => runAction(() => addTaskCommentLink(task.id, host)));
+  host.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
+  host.querySelector("[data-task-comment-add-file]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "file")));
+  host.querySelectorAll("[data-task-comment-resource-remove]").forEach((button) => button.addEventListener("click", () => removeTaskCommentResource(task.id, button.dataset.taskCommentResourceRemove)));
+  host.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openImageViewer(taskAttachmentResourceInput(button)))));
+  host.querySelectorAll("[data-task-attachment-image-retry]").forEach((button) => button.addEventListener("click", () => queueTaskAttachmentPreview(taskAttachmentResourceInput(button), { force: true })));
+  host.querySelectorAll("[data-task-attachment-file]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskAttachment(taskAttachmentResourceInput(button)))));
+  host.querySelectorAll("[data-work-task-feedback]").forEach((button) => button.addEventListener("click", () => {
     const item = feedbackItems.find((entry) => entry.feedback_id === button.dataset.workTaskFeedback);
     if (item) openWorkbench("review", item.current_run_id || item.source_run_id, { task: automationTask, feedbackId: item.feedback_id });
   }));
-  els.platformWorkInspector.querySelector("#submitWorkAcceptanceFeedbackButton")?.addEventListener("click", () => runAction(async () => {
-    const input = els.platformWorkInspector.querySelector("#workAcceptanceFeedbackInput");
+  host.querySelector("#submitWorkAcceptanceFeedbackButton")?.addEventListener("click", () => runAction(async () => {
+    const input = host.querySelector("#workAcceptanceFeedbackInput");
     const message = input.value.trim();
     if (!message) throw new Error("请先描述验收问题。");
     const key = globalThis.crypto?.randomUUID?.() || `${task.id}-${Date.now()}`;
@@ -2854,12 +3014,13 @@ function renderInlineGuidance(guidance) {
   return `<section class="inline-guidance ${guidance.tone === "info" ? "is-ready" : ""}"><strong>${escapeHtml(guidance.title)}</strong><p>${escapeHtml(guidance.reason)}</p>${guidance.responsibility === "project_admin" ? `<small>责任角色：Project owner / admin。不会展示必然失败的修改按钮。</small>` : ""}${button}</section>`;
 }
 
-function updatePlatformWorkInspector(taskId, html) {
+function updateTaskInspector(host, taskId, html) {
+  const platformWorkInspectorRender = taskInspectorRenders.get(host) || { taskId: "", html: "" };
   const sameTask = platformWorkInspectorRender.taskId === taskId;
   if (sameTask && platformWorkInspectorRender.html === html) return false;
   const preservedEditors = sameTask
     ? ["[data-task-comment-input]", "#workAcceptanceFeedbackInput"]
-      .map((selector) => [selector, els.platformWorkInspector.querySelector(selector)])
+      .map((selector) => [selector, host.querySelector(selector)])
       .filter(([, editor]) => editor)
     : [];
   const template = document.createElement("template");
@@ -2867,8 +3028,12 @@ function updatePlatformWorkInspector(taskId, html) {
   for (const [selector, editor] of preservedEditors) {
     template.content.querySelector(selector)?.replaceWith(editor);
   }
-  els.platformWorkInspector.replaceChildren(template.content);
-  platformWorkInspectorRender = { taskId, html };
+  const scrollTop = sameTask ? host.scrollTop : 0;
+  const focused = host.contains(document.activeElement) ? document.activeElement : null;
+  host.replaceChildren(template.content);
+  host.scrollTop = scrollTop;
+  if (focused?.isConnected) focused.focus({ preventScroll: true });
+  taskInspectorRenders.set(host, { taskId, html });
   return true;
 }
 
@@ -2975,12 +3140,12 @@ async function loadTaskAttachments(taskId) {
     if (!isTaskAttachmentRequestCurrent(state, request)) return;
     state.platformTaskAttachments[key] = { status: "error", items: [], error: error?.message || String(error) };
   }
-  if (String(state.selectedPlatformTaskId) === key) renderPlatformWorkInspector(findPlatformTask(key));
+  refreshTaskInspectors(key);
 }
 
-async function createTaskComment(taskId) {
+async function createTaskComment(taskId, host = els.platformWorkInspector) {
   const request = captureTaskAttachmentRequest(state, { identityOnly: true });
-  const input = els.platformWorkInspector.querySelector("[data-task-comment-input]");
+  const input = host.querySelector("[data-task-comment-input]");
   const pending = state.pendingTaskCommentResources[String(taskId)] || [];
   const content = buildTaskCommentContent({
     text: String(input?.value || ""),
@@ -2995,8 +3160,8 @@ async function createTaskComment(taskId) {
   await loadTaskAttachments(taskId);
 }
 
-async function addTaskCommentLink(taskId) {
-  const input = els.platformWorkInspector.querySelector("[data-task-comment-input]");
+async function addTaskCommentLink(taskId, host = els.platformWorkInspector) {
+  const input = host.querySelector("[data-task-comment-input]");
   const value = window.prompt("输入要添加的 http、https 或 mailto 链接：", "https://");
   if (value === null) return;
   const url = normalizeTaskAttachmentUrl(value);
@@ -3011,13 +3176,13 @@ async function pickTaskCommentResource(task, kind) {
   if (!resource || !isTaskAttachmentRequestCurrent(state, request)) return;
   const key = String(task.id);
   state.pendingTaskCommentResources[key] = [...(state.pendingTaskCommentResources[key] || []), resource];
-  renderPlatformWorkInspector(task);
+  refreshTaskInspectors(task.id);
 }
 
 function removeTaskCommentResource(taskId, index) {
   const key = String(taskId);
   state.pendingTaskCommentResources[key] = (state.pendingTaskCommentResources[key] || []).filter((_item, itemIndex) => itemIndex !== Number(index));
-  renderPlatformWorkInspector(findPlatformTask(taskId));
+  refreshTaskInspectors(taskId);
 }
 
 function loadMissingTaskAttachmentPreviews(task) {
@@ -3038,7 +3203,7 @@ function queueTaskAttachmentPreview(input, { force = false } = {}) {
   if (!force && ["loading", "loaded"].includes(existing?.status)) return;
   state.platformTaskAttachmentPreviews[key] = { status: "loading", data_url: "", error: "" };
   taskAttachmentPreviewQueue.push({ input, key, request: captureTaskAttachmentRequest(state) });
-  if (String(state.selectedPlatformTaskId) === String(input.task_id)) renderPlatformWorkInspector(findPlatformTask(input.task_id));
+  refreshTaskInspectors(input.task_id);
   pumpTaskAttachmentPreviewQueue();
 }
 
@@ -3054,8 +3219,8 @@ function pumpTaskAttachmentPreviewQueue() {
       state.platformTaskAttachmentPreviews[job.key] = { status: "error", data_url: "", error: error?.message || "评论图片不可用。" };
     }).finally(() => {
       activeTaskAttachmentPreviews -= 1;
-      if (isTaskAttachmentRequestCurrent(state, job.request) && String(state.selectedPlatformTaskId) === String(job.input.task_id)) {
-        renderPlatformWorkInspector(findPlatformTask(job.input.task_id));
+      if (isTaskAttachmentRequestCurrent(state, job.request)) {
+        refreshTaskInspectors(job.input.task_id);
       }
       pumpTaskAttachmentPreviewQueue();
     });
@@ -3255,7 +3420,7 @@ function renderFeedbackConversation(feedback, management) {
   const messages = conversation.messages || [];
   const error = conversation.error ? `<div class="feedback-conversation-error"><span>${escapeHtml(conversation.error)}</span><button data-feedback-messages-retry type="button">重试</button></div>` : "";
   const readError = conversation.readError ? `<small class="feedback-read-error">消息已加载，但未读状态保存失败；可稍后重试。</small>` : "";
-  
+
   // 分离普通消息和待确认草稿
   const pendingDrafts = messages.filter(m => m.sender_type === 'system' && m.state === 'pending_review');
   const regularMessages = messages.filter(m => !(m.sender_type === 'system' && m.state === 'pending_review'));
@@ -3264,14 +3429,14 @@ function renderFeedbackConversation(feedback, management) {
   const draftPanels = pendingDrafts.length > 0
     ? `<div class="draft-list" aria-label="待确认草稿">${pendingDrafts.map(draft => renderDraftConfirmPanel(feedback, draft)).join('')}</div>`
     : '';
-  
+
   // 渲染普通消息列表
   const timeline = conversation.loading
     ? `<div class="feedback-conversation-loading">正在读取沟通记录…</div>`
     : regularMessages.length
       ? `<div class="feedback-message-list">${regularMessages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => feedbackResourceIsImage(attachment) ? renderFeedbackImage({ source: "feedback-v2", project_id: feedback.project_id, feedback_id: feedback.id, attachment_id: attachment.id, object_key: attachment.object_key, file_name: attachment.file_name || feedbackFileName(attachment.object_key), mime_type: attachment.mime_type, resource_version: attachment.id || attachment.object_key }) : `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
       : `<div class="empty-state compact">尚无沟通记录。</div>`;
-  
+
   return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div><button class="secondary-button" data-feedback-conversation-refresh type="button" ${conversation.loading ? "disabled" : ""}>刷新</button></div>${error}${readError}${draftPanels}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><div class="feedback-reply-actions"><label class="secondary-button feedback-reply-attach">选择附件<input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}></label><small class="feedback-reply-file-hint">${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></div></section>`;
 }
 
@@ -3517,7 +3682,7 @@ function wireFeedbackConversation(feedback, management) {
     renderFeedbackInspector(feedback);
   });
   els.feedbackInspector.querySelector("[data-feedback-reply-send]")?.addEventListener("click", () => runAction(() => sendFeedbackReply(feedback)));
-  
+
   // 草稿确认按钮事件
   els.feedbackInspector.querySelectorAll('[data-action="confirm"]').forEach(btn => {
     btn.addEventListener('click', () => runAction(() => handleConfirmDraft(feedback, btn.dataset.messageId)));
@@ -3532,7 +3697,7 @@ function wireFeedbackConversation(feedback, management) {
       els.feedbackInspector.querySelector("[data-feedback-reply]")?.focus();
     });
   });
-  
+
   els.feedbackInspector.querySelectorAll("[data-feedback-message-attachment]").forEach((button) => button.addEventListener("click", () => {
     void runAction(() => runFeedbackV2Request(() => api.openFeedbackV2Attachment({
       project_id: feedback.project_id,
@@ -4216,7 +4381,7 @@ async function deleteProjectMember(memberId, projectId) {
 }
 
 async function createTask() {
-  const projects = workspaceOptions();
+  const projects = workspaceOptions().filter(project=>includesProject(globalScope(),project.value));
   if (!projects.length) throw new Error("当前产品集没有可创建待办的产品。");
   const defaultProjectId = taskCreationDefaultProjectId(projects);
   const action = openPlatformAction({
@@ -4959,8 +5124,8 @@ function findOrganizationMember(id, organizationId) { const value = state.platfo
 function findWorkspace(id) { const value = state.platform.product_workspaces.find((item) => String(item.id) === String(id)) || state.platform.projects.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品工作区。"); return value; }
 function findProjectMember(id, projectId) { const value = (state.platform.project_members || []).find((item) => String(item.id) === String(id) && String(item.project_id) === String(projectId)); if (!value) throw new Error("未找到项目成员。"); return value; }
 function findPlatformTask(id) {
-  const value = (state.workQuery.projection?.tasks || []).find((item) => String(item.id) === String(id))
-    || state.platform.tasks.find((item) => String(item.id) === String(id));
+  const sources = state.page === "chat" ? state.platform.tasks : [...(state.workQuery.projection?.tasks || []), ...state.platform.tasks];
+  const value = sources.find((item) => String(item.id) === String(id));
   if (!value) throw new Error("未找到待办。");
   return value;
 }
@@ -5739,13 +5904,14 @@ function invalidatePlatformTaskSelectionContext() {
 }
 
 function showPage(page) {
+  renderWorkset();
   setChatSessionsOpen(false);
   const leavingProjectWorkbench = state.page === "project-workbench" && page !== state.page;
   document.body.classList.remove('page-navigation-open');
   document.getElementById('legacyPagesButton').setAttribute('aria-expanded','false');
   state.page = page;
   if (leavingProjectWorkbench) void refreshSnapshot({ quiet: true, afterMutation: true }).catch(error => showToast(error.message));
-  if(page==='project-workbench') { renderPageVisibility();renderNavigation();renderCommandBar();return; }
+  if(page==='project-workbench') { renderPageVisibility();renderNavigation();renderCommandBar();renderWorkset();return; }
   if (["product", "product-detail", "idea", "idea-add"].includes(page)) {
     renderPageVisibility(); renderNavigation(); renderCommandBar();
     productSurface.show(page).catch(error => showToast(error.message));
@@ -5756,6 +5922,8 @@ function showPage(page) {
     renderNavigation();
     renderCommandBar();
     renderChat();
+    void refreshChatTaskDetail();
+    void chatNativeSurface?.refresh(false);
     refreshChat().catch((error) => showToast(error.message));
     return;
   }
@@ -6080,7 +6248,7 @@ function advanceProjectsInActiveWorkset() {
 }
 
 function platformItemMatchesSelectedProject(item) {
-  return state.selectedProjectId === "all" || String(item.project_id || item.id || "") === state.selectedProjectId;
+  return includesProject(globalScope(), item.project_id || item.id);
 }
 
 function currentWorkshopUserName() {
@@ -6336,8 +6504,7 @@ function renderSyncing(active) {
   const busy = active || state.manualSyncing;
   els.syncButton.disabled = busy || !state.authentication.authenticated;
   els.syncButton.textContent = busy ? "…" : "↻";
-  els.automationRefreshButton.disabled = busy || !state.authentication.authenticated;
-  els.automationRefreshButton.textContent = busy ? "同步中…" : "立即同步";
+  renderGlobalStatus();
 }
 
 async function syncAutomationNow() {
@@ -6346,8 +6513,11 @@ async function syncAutomationNow() {
   renderSyncing(false);
   try {
     await api.syncWork();
-    await refreshSnapshot({ quiet: true });
-    showToast("Workshop 当前状态已同步。");
+    await refreshSnapshot({ quiet: true, afterMutation: true });
+    if(state.page==='chat') await refreshChat({quiet:true});
+    if(state.page==='project-workbench') await projectWorkbenchSurface.refresh();
+    if(['product','product-detail','idea','idea-add'].includes(state.page)) await productSurface.show(state.page);
+    showToast("工作空间同步已完成，请查看顶部各来源状态。");
   } finally {
     state.manualSyncing = false;
     renderSyncing(false);
@@ -6441,6 +6611,8 @@ function normalizeChatSnapshot(value = {}) {
     sessions: Array.isArray(value.sessions) ? value.sessions.map((session) => ({
       id: String(session.id || ""),
       project_id: String(session.project_id || ""),
+      task_id:session.task_id || "",remote_project_id:session.remote_project_id || "",source_session_id:session.source_session_id || "",
+      native_context:session.native_context,
       title: String(session.title || "新对话"),
       status: String(session.status || "completed"),
       error: String(session.error || ""),
@@ -6454,6 +6626,7 @@ function normalizeChatSnapshot(value = {}) {
     messages: Array.isArray(value.messages) ? value.messages.map((message) => ({
       id: String(message.id || ""),
       role: String(message.role || "system"),
+      native_context:message.native_context,native_result:message.native_result,
       kind: String(message.kind || "text"),
       content: String(message.content || ""),
       status: String(message.status || "completed"),

@@ -7,7 +7,7 @@ import { emptyScene } from '../src/workbench/scene-store.mjs';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-async function harness(t) {
+async function harness(t, getScope = ()=>null) {
   const { window, document } = parseHTML('<html><body><main id="root"></main></body></html>');
   const previous = Object.fromEntries(['window', 'document', 'localStorage'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   Object.assign(globalThis, { window, document, localStorage: { getItem: () => null, setItem() {} } });
@@ -33,7 +33,7 @@ async function harness(t) {
     }; }
   };
   const root = document.querySelector('#root');
-  const surface = createProjectWorkbenchSurface({ root, api, navigate() {}, openSettings() {}, onSyncHealth(snapshot) { health.push(snapshot.source_status); } });
+  const surface = createProjectWorkbenchSurface({ root, api, getScope, navigate() {}, openSettings() {}, onSyncHealth(snapshot) { health.push(snapshot.source_status); } });
   surface.state.active = true;
   await surface.refresh();
   const flush = async () => { t.mock.timers.tick(180); await new Promise(resolve => setImmediate(resolve)); };
@@ -183,9 +183,36 @@ test('production sync subscription handles health without scheduling data reads'
   const subscription = source.slice(source.indexOf('  api.onWorkSyncEvent('), source.indexOf('  api.onChatEvent('));
   let listener, reads = 0, statusPaints = 0;
   const context = { api: { onWorkSyncEvent(fn) { listener = fn; } }, state: { page: 'command', snapshot: {} }, applyWorkSyncHealth,
-    renderNavigation() { statusPaints++; }, renderCommandSyncSummary() {}, scheduleRefresh() { reads++; } };
+    renderNavigation() { statusPaints++; }, renderCommandSyncSummary() {}, renderGlobalStatus() {}, scheduleRefresh() { reads++; } };
   vm.runInNewContext(subscription, context);
   for (const type of ['work.sync', 'work.syncing']) listener({ type, projectId: 'p', state: 'connected' });
   assert.equal(reads, 0); assert.equal(statusPaints, 2);
   listener({ type: 'work.changed' }); listener({ type: 'work.error' }); assert.equal(reads, 2);
+});
+
+
+test('Thing follows shared scope, restores object drafts and never fetches outside the selected product',async t=>{
+ let scope={key:'A',projectId:'p',projectIds:['p']};const h=await harness(t,()=>scope);
+ assert.equal(h.surface.state.task,'1');assert.doesNotMatch(h.root.querySelector('.pw-rows').textContent,/Second/);
+ const input=h.root.querySelector('.pw-composer textarea');input.value='draft for first';input.dispatchEvent(new window.Event('input',{bubbles:true}));
+ scope={key:'B',projectId:'q',projectIds:['q']};await h.surface.scopeChanged();
+ assert.equal(h.surface.state.task,'2');assert.equal(h.surface.state.detail.task.id,'2');assert.doesNotMatch(h.root.querySelector('.pw-rows').textContent,/First/);
+ scope={key:'A',projectId:'p',projectIds:['p']};await h.surface.scopeChanged();
+ assert.equal(h.surface.state.task,'1');assert.equal(input.value,'draft for first');
+ scope={key:'empty',projectId:'all',projectIds:[]};await h.surface.scopeChanged();
+ assert.equal(h.surface.state.task,'');assert.equal(h.surface.state.detail,null);assert.doesNotMatch(h.root.querySelector('.pw-rows').textContent,/First|Second/);
+});
+
+
+test('Thing refresh updates global runtime without overwriting unrelated state', async () => {
+ const source=await readFile(new URL('../desktop/renderer/renderer.js',import.meta.url),'utf8');
+ const callback=source.slice(source.indexOf('onSyncHealth: snapshot => {')+'onSyncHealth: '.length,source.indexOf('\n});\nconst engineeringSurface'));
+ let paints=0;const tasks=[{id:'kept'}];const state={snapshot:{tasks,queue:[],enabled:true}};
+ const context={state,renderNavigation(){},renderGlobalStatus(){paints++;}};
+ const update=vm.runInNewContext('('+callback+')',context);
+ update({runtime:{queue:[]},global_runtime:{queue:[{id:'global'}],active_executions:[{task_id:'running'}],enabled:false,queue_paused:true},source_status:'healthy'});
+ assert.equal(state.snapshot.queue[0].id,'global');assert.equal(state.snapshot.active_executions.length,1);
+ assert.equal(state.snapshot.enabled,false);assert.equal(state.snapshot.queue_paused,true);
+ assert.equal(state.snapshot.tasks,tasks);assert.equal(paints,1);
+ update({source_status:'syncing'});assert.equal(state.snapshot.queue.length,1);
 });
