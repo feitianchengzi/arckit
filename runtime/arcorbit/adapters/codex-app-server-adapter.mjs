@@ -327,7 +327,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         endLifecycleSpan(tracedOptions, state.turnSpan, { status: "error", error });
         for (const span of state.itemSpans.values()) endLifecycleSpan(tracedOptions, span, { status: "error", error });
         activeTurn = null;
-        client?.close();
+        await client?.close();
         client = null;
         initialized = false;
         initializedProjectRoot = "";
@@ -369,7 +369,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
       queue.push({ type: "codex.turn.interrupt.sent", thread_id: state.threadId, turn_id: state.turnId });
       return { thread_id: state.threadId, turn_id: state.turnId, result };
     },
-    close() {
+    async close() {
       clearInterval(watchdog);
       stdinControls?.close();
       stdinControls = null;
@@ -377,7 +377,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
       activeTurn = null;
       activeCompaction?.reject(new Error("Codex app-server adapter closed during context compaction."));
       activeCompaction = null;
-      client?.close();
+      await client?.close();
       client = null;
       initialized = false;
       initializedProjectRoot = "";
@@ -848,7 +848,9 @@ function normalizeNotification(message) {
 function attachStdinControls({ client, getActiveTurn, stopExecution }) {
   const readline = createInterface({ input: process.stdin, terminal: false });
   readline.on("line", async (line) => {
-    await handleOperatorCommand({ command: line, client, getActiveTurn, stopExecution });
+    let command = line;
+    if (line.startsWith('{')) { try { command = JSON.parse(line); } catch {} }
+    await handleOperatorCommand({ command, client, getActiveTurn, stopExecution });
   });
   return readline;
 }
@@ -860,7 +862,7 @@ function attachParentPortControls({ client, getActiveTurn, stopExecution }) {
     const command = event?.data ?? event;
     if (command?.schema_version !== "arcorbit-runtime-control/v1") return;
     await handleOperatorCommand({
-      command: command.type === "steer" ? `/steer ${String(command.message || "").trim()}` : `/${command.type}`,
+      command,
       client,
       getActiveTurn, stopExecution
     });
@@ -870,12 +872,19 @@ function attachParentPortControls({ client, getActiveTurn, stopExecution }) {
 }
 
 async function handleOperatorCommand({ command, client, getActiveTurn, stopExecution }) {
-  const trimmed = String(command || "").trim();
+  const requestId = typeof command === 'object' ? command.request_id : '';
+  const delivery = (status, error = '') => {
+    if (requestId) console.error(JSON.stringify({ event: { type: 'runtime.operator.delivery', request_id: requestId, status, error } }));
+  };
+  const trimmed = typeof command === 'object'
+    ? command.type === 'steer' ? `/steer ${String(command.message || '').trim()}` : `/${command.type}`
+    : String(command || '').trim();
   if (!trimmed) return;
   if (trimmed === "/interrupt" && stopExecution) { stopExecution(); return; }
   const active = getActiveTurn();
-  if (!active) return;
+  if (!active || active.state.completed) { delivery("queued"); return; }
   const { queue, state } = active;
+  if (command?.expected_turn_id && command.expected_turn_id !== state.turnId) { delivery("queued"); return; }
   try {
     if (trimmed === "/interrupt") {
       await waitForActiveTurn(state);
@@ -895,11 +904,14 @@ async function handleOperatorCommand({ command, client, getActiveTurn, stopExecu
         expectedTurnId: state.turnId,
         input: [{ type: "text", text }]
       });
+      delivery("delivered");
       queue.push({ type: "runtime.operator.steer.sent", thread_id: state.threadId, turn_id: state.turnId, text, result });
       return;
     }
+    delivery("failed", "不支持的输入类型");
     queue.push({ type: "runtime.operator.input.ignored", message: "Use /steer <text> or /interrupt." });
   } catch (error) {
+    delivery("failed", error.message);
     queue.push({ type: "runtime.operator.command.failed", message: String(error) });
   }
 }

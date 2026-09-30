@@ -874,3 +874,19 @@ test('Chat removes unused Automation defaults but preserves conversations and ru
     for (const id of ['MESSAGES', 'THREAD', 'RUN', 'TASK', 'DRAFT']) assert.equal(store.sessions[id].length, 1, id);
   } finally { await coordinator.close(); await fixture.cleanup(); }
 });
+
+test('task association during a free Chat turn waits for confirmed writer release before settling', async()=>{
+ const fixture=await chatFixture();let releaseClose,closing=false,settled=false;
+ const coordinator=createChatCoordinator({...fixture.options,acceptedSessionKinds:['chat','automation-task'],onTurnSettled:async()=>{settled=true;},createAdapter:()=>({
+  async *runTurn({options}){
+   await options.onThreadBound({threadId:'shared-thread'});
+   await fixture.options.runManager.updateDesktopStore(store=>{const session=Object.values(store.sessions).flat().find(s=>s.thread_id==='shared-thread');session.task_id='T';session.kind='automation-task';return store;});
+   yield {type:'codex.turn.completed',turn_id:'turn',turn:{status:'completed'}};
+  },close(){closing=true;return new Promise(resolve=>{releaseClose=resolve;});}
+ })});
+ try{
+  await coordinator.send({project_id:'PROJECT-1',client_request_id:'associate',text:'associate'});
+  while(!closing)await new Promise(r=>setTimeout(r,5));assert.equal(settled,false);
+  releaseClose();for(let i=0;i<100&&!settled;i++)await new Promise(r=>setTimeout(r,5));assert.equal(settled,true);
+ }finally{releaseClose?.();await coordinator.close();await fixture.cleanup();}
+});

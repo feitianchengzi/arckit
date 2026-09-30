@@ -25,7 +25,7 @@
   if(!M.project(t.project)?.ready)throw Error('请先恢复待办项目的工作区。');
   const savedDraft=M.state.newDraft;P.select(null);
   M.state.newDraft={project:t.project,draft:'',model:savedDraft.model||'gpt-6-astra',level:savedDraft.level||'high'};
-  try{const s=N.request('读取这个待办，继续在这里讨论。',{kind:'read',taskId:t.id});s.mainTask=t.id;s.title=t.title;if(t.thread)s.thread=t.thread;else t.thread=s.thread;M.state.listOpen=false;P.render({capturePosition:false});input().focus()}
+  try{const id=crypto.randomUUID(),s={...M.state.newDraft,id,project:t.project,title:t.title,mainTask:t.id,thread:t.thread||'task-thread-'+id,messages:[],status:'completed',created:Date.now(),updated:Date.now(),scroll:null,follow:true};M.state.sessions.push(s);M.state.selected=id;t.thread=s.thread;M.state.listOpen=false;P.render({capturePosition:false});input().focus()}
   finally{M.state.newDraft=savedDraft;M.save()}
  }
  document.addEventListener('click',e=>{

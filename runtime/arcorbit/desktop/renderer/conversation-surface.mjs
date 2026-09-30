@@ -12,6 +12,7 @@ export function createConversationSurface({
   formatTime = (value) => String(value || ""),
   onApproval = null,
   deferOffscreenLayout = false,
+  includeExecution = false,
   onExternalLink = null,
   clipboard = globalThis.navigator?.clipboard,
   performAction = (action) => action(),
@@ -160,7 +161,7 @@ export function createConversationSurface({
   function render({ contextId, messages = [], emptyHtml = "" } = {}) {
     if (suspended) { deferredRender = {contextId, messages, emptyHtml}; return; }
     const context = activateContext(contextId);
-    const visibleMessages = messages.filter(isConversationSurfaceMessageVisible);
+    const visibleMessages = messages.filter(m => isConversationSurfaceMessageVisible(m) || (includeExecution && Boolean(m.content)));
     const entries = visibleMessages.map((message, index) => {
       const id = String(message.id || `conversation-${index}`);
       const type = transcriptMessageType(message);
@@ -266,6 +267,9 @@ export function renderConversationSurfaceMessage(message, { formatTime = (value)
   const identity = `data-conversation-message-id="${escapeHtml(messageId)}" data-conversation-message-type="${escapeHtml(type)}"`;
   const time = formatTime(message.updated_at || message.created_at);
   const status = String(message.status || "completed").toLowerCase();
+  if (type === 'loop' || type === 'structured') {
+    return `<details class="chat-reasoning" ${identity}><summary>${escapeHtml(message.kind === 'error' || status === 'failed' ? '执行异常' : '执行进展')} · ${escapeHtml(time)}</summary><div>${renderConversationMarkdown(message.content || '')}</div></details>`;
+  }
   if (type === "reasoning") {
     return `<details class="chat-reasoning" ${identity}><summary>思考过程 · ${escapeHtml(time)}</summary><div>${escapeHtml(message.content)}</div></details>`;
   }
@@ -288,8 +292,9 @@ export function renderConversationSurfaceMessage(message, { formatTime = (value)
     ? escapeHtml(message.content).replaceAll("\n", "<br>")
     : message.content ? renderConversationMarkdown(message.content) : `<span class="chat-streaming-cursor">▍</span>`;
   const context=message.native_context;const tags=user&&context ? `<div class="chat-message-context">${[context.capability,...(context.refs||[])].filter(Boolean).map(x=>`<span>${escapeHtml(x.label)}</span>`).join("")}</div>` : "";
+  const delivery = message.delivery_status ? `<span title="${escapeHtml(message.delivery_error || '')}">${escapeHtml(({queued:'等待送达',sending:'正在送达',delivered:'已送达',failed:'未送达',unknown:'送达未确认'})[message.delivery_status] || message.delivery_status)}${message.delivery_error ? ` · ${escapeHtml(message.delivery_error)}` : ''}</span>` : '';
   const label = user ? "你" : message.actor_label || "Codex";
-  return `<article class="chat-message ${user ? "user" : "assistant"}" ${identity}><div class="chat-message-meta"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(time)}</span>${status === "interrupted" ? "<span>已停止</span>" : ""}</div><div class="chat-message-content">${content}${tags}</div></article>`;
+  return `<article class="chat-message ${user ? "user" : "assistant"}" ${identity}><div class="chat-message-meta"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(time)}</span>${delivery}${status === "interrupted" ? "<span>已停止</span>" : ""}</div><div class="chat-message-content">${content}${tags}</div></article>`;
 }
 
 export function renderConversationMarkdown(value) {
@@ -309,7 +314,7 @@ function messageRenderSignature(message, type) {
     message.kind || "",
     message.content || "",
     JSON.stringify(message.native_context||null),JSON.stringify(message.native_result||null),
-    message.status || "",
+    message.status || "", message.delivery_status || "", message.delivery_error || "",
     message.approval_request_id || "",
     message.actor_label || "",
     message.updated_at || message.created_at || ""

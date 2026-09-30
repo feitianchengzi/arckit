@@ -22,6 +22,7 @@ export function createChatCoordinator({
   acceptedSessionKinds = [sessionKind],
   authorizeSession = async () => true,
   onTurnSettled = async () => {},
+  conversation = null,
   approvalTimeoutMs = 5 * 60_000,
   streamNotifyMs = 32,
   now = () => new Date().toISOString(),
@@ -105,7 +106,7 @@ export function createChatCoordinator({
     const pendingApprovals = sessions.flatMap((session) => projectedSessionMessages(store.messages?.[session.id] || [], liveMessages.get(session.id))
       .filter((message) => message.kind === "approval" && message.status === "pending")
       .map((message) => ({ ...publicMessage(message), session_id: session.id, project_id: session.project_id, session_title: session.title })));
-    return {
+    const snapshot = {
       generated_at: now(),
       projects: (store.projects || []).map(({ id, name }) => ({ id, name })),
       sessions: sessions.map((session) => publicSession(session, chatDefaults)),
@@ -119,6 +120,7 @@ export function createChatCoordinator({
         ...selectedConfiguration
       }
     };
+    return conversation ? conversation.snapshot(snapshot) : snapshot;
   }
 
   async function createDraft(input = {}) {
@@ -206,6 +208,10 @@ export function createChatCoordinator({
     if (!text) throw new Error("Enter a message before sending.");
     const requestId = requireId(input.client_request_id, "client_request_id");
     let sessionId = String(input.session_id || "");
+    if (sessionId && conversation && await conversation.send({ ...input, text, native_context: nativeContext })) {
+      changed('chat.message.accepted', sessionId);
+      return getSnapshot({ session_id: sessionId });
+    }
     let project;
     let acceptedMessage = false;
     let shouldStart = false;
@@ -364,9 +370,17 @@ export function createChatCoordinator({
       await failSession(sessionId, error);
     } finally {
       owner.adapterStarted = false;
-      owner.completion = null;
-      if (sessionKind !== "chat") { await owner.adapter.close(); owners.delete(sessionId); }
-      await onTurnSettled({ sessionId });
+      // Re-read identity: a free Chat can become a task in the middle of this turn.
+      const latest = findSessionById(await readChatMetadata(), sessionId)?.session;
+      try {
+        if (latest?.task_id || sessionKind !== "chat") {
+          await owner.adapter.close();
+          owners.delete(sessionId);
+        }
+        await onTurnSettled({ sessionId });
+      } catch (error) {
+        await failSession(sessionId, error); // Keep the lease when release is unconfirmed.
+      } finally { owner.completion = null; }
     }
   }
 
@@ -374,6 +388,7 @@ export function createChatCoordinator({
     await ensureInitialized();
     if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
+    if (conversation && await conversation.interrupt(sessionId)) return getSnapshot({ session_id: sessionId });
     const owner = owners.get(sessionId);
     if (!owner?.completion) throw new Error("This conversation has no active turn.");
     const currentStore = await readChatStore();
@@ -437,7 +452,7 @@ export function createChatCoordinator({
       if (store.chat.selected_session_id === sessionId) store.chat.selected_session_id = "";
       return store;
     });
-    owners.get(sessionId)?.adapter.close();
+    await owners.get(sessionId)?.adapter.close();
     owners.delete(sessionId);
     cancelStreamNotification(sessionId);
     liveMessages.delete(sessionId);
@@ -456,7 +471,7 @@ export function createChatCoordinator({
         await declineSessionApprovals(sessionId);
         try { await withTimeout(owner.completion, 2_000, ""); } catch {}
       }
-      owner.adapter.close();
+      await owner.adapter.close();
       cancelStreamNotification(sessionId);
       await mutateChatSession(sessionId, (session, store) => {
         commitLiveMessages(sessionId, session, store);
@@ -720,7 +735,7 @@ export function createChatCoordinator({
       if (!message) return;
       if (status) message.status = status;
       upsertPersistedMessage(store.messages[sessionId] ||= [], message);
-      store.messages[sessionId] = store.messages[sessionId].slice(-500);
+      if (!findSessionById(store, sessionId)?.session.task_id) store.messages[sessionId] = store.messages[sessionId].slice(-500);
       messages.delete(key);
       if (messages.size === 0) liveMessages.delete(sessionId);
       session.updated_at = message.updated_at;
@@ -732,7 +747,7 @@ export function createChatCoordinator({
     if (!messages?.size || !store) return;
     store.messages[sessionId] ||= [];
     for (const message of messages.values()) upsertPersistedMessage(store.messages[sessionId], message);
-    store.messages[sessionId] = store.messages[sessionId].slice(-500);
+    if (!findSessionById(store, sessionId)?.session.task_id) store.messages[sessionId] = store.messages[sessionId].slice(-500);
     liveMessages.delete(sessionId);
     session.updated_at = now();
   }
@@ -766,6 +781,7 @@ export function createChatCoordinator({
   return {
     getSnapshot,
     notifyNative:sessionId=>changed("chat.native.updated",sessionId),
+    notifyConversation:sessionId=>changed("chat.conversation.updated",sessionId),
     createDraft,
     select,
     rename,
@@ -811,6 +827,7 @@ function publicMessage(message) {
     content: String(message.content || ""),
     native_context:normalizeChatContext(message.native_context),
     native_result:message.native_result || null,
+    thread_id: message.thread_id || "", item_id: message.item_id || "", client_request_id: message.client_request_id || "",
     status: String(message.status || "completed"),
     approval_request_id: String(message.approval_request_id || ""),
     approval_method: String(message.approval_method || ""),

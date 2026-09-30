@@ -109,11 +109,11 @@ Windows Desktop 对 Codex executable 使用单一、可验证的解析结果。�
 
 Runtime 与 Chat 复用上述 transport 和基础事件，不复用语义 orchestration。State-driven Runtime 继续在其上叠加 `$using-arckit` prompt、`arckit-agent-loop-result/v1` output schema、Project/Case fresh snapshot、trusted ledger、Gap Loop、Automation lease 和 closeout。Chat Coordinator 直接提交用户文本，不设置 Agent Loop output schema，不调用 state-driven runner、Agent orchestrator、trusted ledger 或 Automation Coordinator。
 
-现有 adapter 实例只支持一个活动 turn 并固定绑定一个 project root。Chat Coordinator 因此按活动 Chat session 懒创建 adapter owner；同一 session 串行 turn，不同 session 与不同项目使用独立 owner。owner 空闲或应用退出时可以关闭 app-server client，下一次通过持久 `thread_id` resume。Chat owner 不占用 Automation 的 task/thread lease，Automation owner 也不能向 Chat session 写消息或控制 turn。
+现有 adapter 实例只支持一个活动 turn 并固定绑定一个 project root。Chat Coordinator 因此按活动 Chat session 懒创建 adapter owner；同一 session 串行 turn，不同 session 与不同项目使用独立 owner。owner 空闲或应用退出时可以关闭 app-server client，下一次通过持久 `thread_id` resume。自由 Chat owner 独立；关联待办的 Chat 与 Automation 使用同一 task/thread lease，执行者可以变化但持久身份不变。
 
 通用事件先进入 `Codex Transcript Projector`。该 projector 只产生用户消息、Agent 正文、非空折叠 reasoning、工具活动、权限请求、错误、interrupt 与 token usage 等中性消息。Renderer 的 `Conversation Surface` 是这些中性消息唯一的 DOM、Markdown、代码复制、reasoning、工具/权限、流式更新、滚动锚点和“回到最新”实现；Chat 与 Automation Workbench 只提供各自的消息集合、Composer policy 与受限动作 handler，不实现第二套 message renderer 或 scroll controller。
 
-Runtime Projector 在中性消息之外维护 Loop status、structured Agent result、ledger closeout、fresh-read 和 task control 语义。Automation Workbench 把这些 Runtime 专属投影交给左右面板，不送入 Conversation Surface；Chat 不消费它们。任何一方都不从另一方的 transcript 反推 session 类型、Case 或执行状态，共享呈现组件也不拥有 Automation lease、Chat owner、session 查询或 IPC 权限。
+Runtime Projector 在中性消息之外维护 Loop status、structured Agent result、ledger closeout、fresh-read 和 task control 语义。统一待办 Chat 把执行进展与结构化结果作为可折叠次级消息；诊断面继续保留完整证据。任何一方都不从另一方的 transcript 反推 session 类型、Case 或执行状态，共享呈现组件也不拥有 Automation lease、Chat owner、session 查询或 IPC 权限。
 
 现有 approval handler 在 `on-request` 下直接接受请求，不满足 Chat 的用户可见审批语义。共享 Conversation 层使用异步 `approvalProvider` 把命令、文件变更和 permissions request 投影给 main-process Chat Coordinator；Coordinator 通过 request id 等待受限 Renderer 决定并返回 app-server 所需响应。窗口关闭、超时、session 不匹配或 Renderer 拒绝均 fail closed。Automation 可以继续使用自己的受监督 approval provider，但不能复用 Chat 的待决审批。
 
@@ -156,7 +156,7 @@ Agent message delta 若形成带 `schema_version` 的 JSON 对象，Projector �
 
 Renderer 的工具摘要是展示投影，不修改上游消息、Agent 上下文或 Runtime 证据。读取类从结构化 action 或命令中提取相对文件路径并显示“读取 <path>”；编辑、搜索、构建和测试显示稳定动词、目标及完成状态。无法可靠分类时显示工具名和有界目标，不回退渲染完整 `content`、`detail`、aggregated output 或协议 payload。
 
-Conversation Surface 接受统一的 presentation message 列表。Chat 的 message kind 直接进入该列表；Automation 在进入组件前只保留 `user`、`agent`、`reasoning`、`tool`、`approval` 与 `error`，并把 `loop`、`structured`、candidate、round receipt 与 task control 放入侧栏 projection。过滤基于结构化 kind/type，不解析自然语言正文。共享组件负责同一套事件绑定和浏览状态，consumer 只通过显式 callback 处理 copy、approval、external link、retry 和 jump-to-latest。
+Conversation Surface 接受统一的 presentation message 列表。Chat 的 message kind 直接进入该列表；Automation 在进入组件前只保留 `user`、`agent`、`reasoning`、`tool`、`approval` 与 `error`，待办 Chat 显式启用折叠执行进展，其他普通 Chat 仍过滤 Runtime 专属种类。过滤基于结构化 kind/type，不解析自然语言正文。共享组件负责同一套事件绑定和浏览状态，consumer 只通过显式 callback 处理 copy、approval、external link、retry 和 jump-to-latest。
 
 Conversation Surface 的布局边界由 consumer 父视口决定。Chat view、右栏 grid item、transcript、消息、Markdown 内容与代码块形成连续的 `min-width: 0` 收缩链，祖先容器不采用消息的最小固有内容宽度。JSON、代码和表格查看器限制在消息可用宽度内；代码查看器同时限制高度并以自身 `overflow: auto` 承担横向与纵向滚动，页面与 transcript 不接管其横向 overflow。
 
@@ -262,7 +262,7 @@ Runtime 保存可解释、非阻断的 `usage_warnings`。首批检测包括：
 
 Preload 只暴露 Automation 与 Chat 各自的类型化查询和动作。Automation Snapshot 的活动执行和最近完成项携带 `session_id`；Run activity 携带 `token_usage` 与 `usage_warnings`。Automation 执行控制 mutation 要求稳定 `execution_id`，Chat mutation 要求明确 `session_id` 和适用的 request id；Renderer 不能传入 cwd、thread id、Codex executable、任意 method 或 shell command。Chat IPC 的 `select` 只持久化已验证 Chat session 的 `selected_session_id`，不改变草稿、thread 或 session `updated_at`。main process 从已验证 Product Workspace 解析项目根和权限边界。Renderer 不自行解析 raw JSONL、Codex JSON-RPC 或本地 Store，也不估算 Token。
 
-`chat.snapshot` 只返回 `kind=chat` 的 session、可见消息、草稿、活动状态和脱敏诊断摘要。`chat.changed` 是失效通知而不是状态真相；Renderer 收到后重新读取 snapshot。Chat 与 Automation 使用不同 IPC namespace 和 ownership checks，Chat 的 session id 不能传给 Automation control，Automation task session 也不能传给 Chat mutation。
+`chat.snapshot` 返回授权范围内的自由 Chat 与待办 session、可见消息、草稿、活动状态和脱敏诊断摘要。`chat.changed` 是失效通知而不是状态真相；Renderer 收到后重新读取 snapshot。Chat 与 Automation 保留类型化 IPC；待办 Chat 输入由 main-process 统一会话边界按真实活动执行路由，Automation 控制仍解析并核对 execution id。
 
 ### Renderer Chat 状态协调
 
@@ -361,7 +361,7 @@ Automation Coordinator 从 task session 的 append-only accepted ledger receipts
 
 ## 恢复
 
-Chat session 或 thread 创建成功但首个 turn 启动失败时保留本地用户消息、幂等键和 thread binding；用户重试复用同一 session/thread，不重复首条消息。活动 Chat 在应用退出时先 interrupt；下次启动把缺少活跃 owner 的非终态 turn 标记为 interrupted，不自动继续。Chat 恢复、删除或停止都不读取、写入或释放 Automation task lease、remote task state、Case 或 human Gate。
+Chat session 或 thread 创建成功但首个 turn 启动失败时保留本地用户消息、幂等键和 thread binding；用户重试复用同一 session/thread，不重复首条消息。活动 Chat 在应用退出时先 interrupt；下次启动把缺少活跃 owner 的非终态 turn 标记为 interrupted，不自动继续。自由 Chat 的恢复、删除和停止不操作 Auto。待办会话删除只隐藏入口；停止 Auto 由受控 stopCurrent 处理，释放遵循同一任务锁，不绕过 Case 或 human Gate。
 
 session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_start` 必须复用它。任务完成后 session、thread id 与消息留作审查；删除项目时沿用项目级清理规则。退出登录只清除远端身份与快照，不删除本地 task session、thread binding、Run activity 或用量历史。
 
@@ -377,14 +377,14 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 
 - 新建自由 Chat 在首条非空消息前不产生空 session；首条消息只创建一个 `kind=chat` session、一个持久 thread 和一个可见用户消息。
 - Chat session 固定绑定一个 Product Workspace 和规范化项目根；切换工作区创建新 session，Renderer 不能覆盖 cwd 或 thread id。
-- 同一 Chat session 的连续消息 resume 同一 thread，活动 turn 期间第二个 send 被拒绝；不同 Chat session 和 Automation owner 不共享 adapter ownership 或 lease。
-- Chat 不设置 Agent Loop output schema，不触发 `$using-arckit`、trusted ledger、Workshop mutation、Case 或 Automation Run。
+- 同一 Chat session 的连续消息 resume 同一 thread，活动 turn 期间第二个 send 被拒绝；不同任务不共享 owner；同一任务的 Chat 与 Auto 串行使用相同任务锁，禁止同时写入。
+- 人工 Chat 默认不设置 Loop output schema；用户显式技能/原生待办授权可执行相应能力，打开或普通讨论不启动 Automation。
 - Agent 正文、reasoning、工具与权限状态按稳定 item 更新；raw JSON-RPC、完整 stdout/stderr 与文件正文不进入普通 transcript。
 - 用户可在 starting、running 或 waiting approval 状态停止；interrupt 后保留部分输出并标记 interrupted，下一次继续是同 thread 的新 turn。
 - 会话切换和页面切换不隐式停止 turn；应用重启把丢失 owner 的非终态 Chat 标记为 interrupted，不重复用户请求。
 - 删除非活动 Chat 只移除目标 session 的本地状态；删除活动 Chat 先完成 interrupt，任一步失败都不产生部分删除，并明确不承诺擦除 Codex 底层 thread。
 - Chat approval request 通过异步、受限、fail-closed provider 返回；Renderer 关闭、超时或 session/request 不匹配均拒绝，不自动批准。
-- Chat IPC 不能接收任意 cwd、thread id、Codex method、命令或文件路径权限；Automation session id 不能通过 Chat mutation，反向同样拒绝。
+- Chat IPC 不能接收任意 cwd、thread id、Codex method、命令或文件路径权限；待办 session 通过权限检查后可在 Chat 操作；执行控制必须解析真实 owner，不能仅凭 Renderer 提供的 id 放权。
 - 两个连续远端待办在同一项目中获得不同 `session_id`，Workbench transcript 不交叉。
 - 同一待办的 intervention、continuation、普通 Gap、Completion Review、finding 修复和 Git-only closeout 保持同一 Desktop session 与 Codex thread。
 - 已绑定持久 thread 的 Runtime 失败项可接收非空用户反馈；反馈启动同 thread 的新 Run、保留来源 refs，并在同一 Workbench transcript 中显示，失败时不提前移除恢复项。
@@ -399,7 +399,7 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 - Workbench 的页面根、左右栏和 Composer 不随 transcript 增长；只有中间消息列表滚动，用户阅读历史时新消息不会强制改变位置。
 - Chat 与 Automation Workbench 由同一个 Conversation Surface 渲染 Agent、用户、reasoning、tool、approval 和 error 消息，并共用 Markdown、代码复制、事件绑定、流式更新与滚动控制；源码中不存在第二套 Automation message renderer。
 - 超长单行 JSON、代码或表格不会扩大 Chat view、右栏、transcript 或消息宽度；代码查看器存在超宽与超高内容时同时产生可操作的内部横向、纵向滚动。
-- Renderer 将 Agent 正式输出作为共享消息主要信息，把非空可折叠 reasoning 和每个 tool/approval item 的原位单行活动作为次级信息；Loop、Gap、ledger 与结构化结果进入 Automation 左右面板。空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入侧栏查看器并继续保留在上游上下文或诊断证据中。
+- Renderer 将 Agent 正式输出作为共享消息主要信息，把非空可折叠 reasoning 和每个 tool/approval item 的原位单行活动作为次级信息；待办执行进展与结构化结果在 Chat 折叠展示，详细诊断留在专门查看器。空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入侧栏查看器并继续保留在上游上下文或诊断证据中。
 - Workbench 从同一 task session 全部 Runtime runs 的结构化 `gap_rounds` 生成完整执行时间、准确 gap 总数和逐 gap 目标/工作/结果；进行中时持续计时，终态后固定，不解析消息文案猜测历史。
 - warm main process 中的 activity patch 处理不读取 Desktop control snapshot、历史 message、Task Projection 或 Run detail；Automation Snapshot 对一次请求只捕获一个 state view，磁盘全量读取数为零。
 - overview 与任意数量 workspace lanes 从同一 state view 和同一 Run summary index 派生；lane 数增长不会增加 control Store 读取次数，也不会复制完整全局状态。
@@ -438,3 +438,15 @@ State Driven Loop 保持一轮一个 Gap、可信写回、post-commit fresh-read
 人工决定、外部等待和执行故障分别展示。外部等待保留 external 责任和恢复条件，使用 waiting_external 阶段；Runtime 故障进入执行恢复，不推导人工业务决策。中断进程与 Agent 明确停止相互区分，意外中断仍可恢复。
 
 继续执行携带任务身份、Case 绑定及可信来源、原任务、用户增量和来源 Run 引用。Prompt 提供 Host 上下文与输出契约，单 Gap 工作方法由 using-arckit 提供，不重复维护引用枚举与语义流程。
+
+## 待办统一会话与执行接力
+
+`task-conversation.mjs` 是 Chat/Auto 公共产品边界。`createSession` 在 store mutation 内按 project/task 重用既有 session，可信 task binding 保存同一 opaque thread。`chat-native.openTask` 只选择身份；`chat-coordinator` 无论最初 session kind 是什么，回合结束都重读实际 task 关联，先 await adapter.close（等待进程 exit、超时终止），确认后才调用 settled 释放锁。关闭失败保留锁与可见错误，不能抢占仍存活的 writer。
+
+统一 snapshot 将 Chat store 消息、同任务 Run 的 append-only messages、活动投影与输入 outbox 合并；使用 client_request_id 或 thread/turn/item 身份去重。Run index 截断后仍按 session/project 或历史可信 thread/task 读取归档。活动消息缓存随持久边界更新，已结束归档缓存；只对当前选中任务查询完整历史，不把历史灌入 Automation control snapshot。
+
+Auto 活动时 `chat.send` 校验账号、项目及补充上下文后交给该 Run 的 `inputs.json` outbox；以 client_request_id 持久化后再通过 parent port/stdin 发送结构化 steer（携带 expected_turn_id）。adapter 明确返回 queued/delivered/failed，回合间隙等待下一 started；15 秒未确认显示 unknown。重启/结束将未发项标 failed、在途项标 unknown，不盲目重放；跨执行结束重试同一 request id 仍幂等。delivered 只证明 turn/steer 接受，不证明语义要求已完成。
+
+Chat 中的暂停解析真实活动 run 对应的 execution，调用既有 stopCurrent；没有活跃 Run 的合法暂停态允许自由讨论。继续 Auto 使用 fresh scene revision 的 auto.resume，保留既有恢复、Loop、检查点和 Git 收尾。Chat/Automation 模型、技能场景、审批参数仍在各自 turn/Run 开始时固定；共享身份不改变这些授权。
+
+Run 变化通知统一会话，Renderer 只刷新可见 Chat 的当前投影；Automation 队列、状态与诊断继续沿用原控制投影。所有面向待办的对话导航统一进入 Chat；项目事情台的旧输入转移为 Chat 草稿，不保留第二个生产对话编辑面。验证载体为 `runtime/arcorbit/test/task-conversation.test.mjs`、协调器/Run Manager 集成测试及 `test/fixtures/unified-conversation-electron.mjs`。

@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {parseHTML} from 'linkedom';
 const source=readFileSync(new URL('../desktop/renderer/renderer.js',import.meta.url),'utf8');
-export const detailSource=source.slice(source.indexOf('async function openWorkTaskChat(task)'),source.indexOf('\nfunction taskCreatorName'));
+export const detailSource=source.slice(source.indexOf('async function openWorkTaskChat('),source.indexOf('\nfunction taskCreatorName'));
 const tick=()=>new Promise(r=>setTimeout(r,0));
 function fixture(){
  const {document}=parseHTML(readFileSync(new URL('../desktop/renderer/index.html',import.meta.url),'utf8'));

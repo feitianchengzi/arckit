@@ -379,6 +379,7 @@ async function performGlobalScopeChange(projectId, worksetId = '', {skipProduct 
 let chatComposer;
 const chatConversationSurface = createConversationSurface({
   element: els.chatTranscript,
+  includeExecution: true,
   deferOffscreenLayout: true,
   jumpButton: els.chatJumpLatestButton,
   formatTime,
@@ -407,7 +408,7 @@ const releaseSurface = createReleaseSurface({
   navigateSetup: () => showPage("command")
 });
 const projectWorkbenchSurface = createProjectWorkbenchSurface({
-  root:document.getElementById('projectWorkbenchView'),api,navigate:showPage,getScope:globalScope,
+  root:document.getElementById('projectWorkbenchView'),api,navigate:showPage,getScope:globalScope,openTaskChat:openWorkTaskChat,
   openSettings:()=>document.getElementById('settingsButton').click(),
   onSyncHealth: snapshot => {
     for (const key of ['source_status', 'synced_at', 'realtime']) if (snapshot[key] !== undefined) state.snapshot[key] = snapshot[key];
@@ -501,7 +502,10 @@ async function boot() {
     }
     render();
   });
-  api.onAutomationEvent(() => scheduleAutomationRefresh());
+  api.onAutomationEvent(() => {
+    scheduleAutomationRefresh();
+    if (state.page === "chat" && selectedChatSession()?.task_id) scheduleChatRefresh();
+  });
   api.onWorkSyncEvent((event) => {
     if (applyWorkSyncHealth(state.snapshot, event)) {
       updateTaskCreationAutomation();
@@ -528,11 +532,12 @@ async function boot() {
   });
   api.onChatEvent((event) => {
     if (event?.type === "chat.draft.changed") return;
+    if (event?.type === "chat.conversation.updated" && (state.page !== "chat" || (event.session_id && event.session_id !== chatState().snapshot.selected_session_id))) return;
     if (event?.type === "chat.message.changed") {
       if (chatStateCoordinator.applyStreamEvent(event)) renderChat();
       return;
     }
-    if (state.page === "chat") void chatNativeSurface?.refresh(false);
+    if (state.page === "chat" && event.type !== "chat.conversation.updated") void chatNativeSurface?.refresh(false);
     scheduleChatRefresh();
   });
   api.onEvent((event) => {
@@ -1817,7 +1822,7 @@ function renderChat() {
     : session?.project_id ? `LOCAL WORKSPACE · ${session.project_id} · 不可用` : "选择本地工作区";
   els.chatTitle.textContent = session?.title || "新对话";
   els.chatStatusText.textContent = session
-    ? `${chatStatusLabel(session.status)}${chat.refreshing ? " · 正在同步" : ""}${session.error ? ` · ${session.error}` : ""}`
+    ? `${session.execution?.mode === "automation" ? "Auto 正在执行" : chatStatusLabel(session.status)}${chat.refreshing ? " · 正在同步" : ""}${session.error ? ` · ${session.error}` : ""}`
     : chat.refreshing ? "正在同步最新会话…"
       : project ? "从一个问题开始，消息与回答会保存在这段对话中。" : "先在 Workset 中配置一个本地 Product Workspace。";
   els.chatTranscript.setAttribute("aria-busy", String(chat.refreshing));
@@ -1879,7 +1884,7 @@ function renderChatComposer({ inputOnly = false } = {}) {
     updateChatCodexEffortOptions(false, configuration.reasoning_effort);
     els.chatCodexModel.disabled = els.chatCodexEffort.disabled = !project;
   }
-  chatComposer?.render({draft:chat.draft,hasContext:Boolean(chat.native_context?.capability || chat.native_context?.refs?.length),available:Boolean(project),active,sending:chat.sending,
+  chatComposer?.render({draft:chat.draft,hasContext:Boolean(chat.native_context?.capability || chat.native_context?.refs?.length),available:Boolean(project),active,allowSupplement:session?.execution?.mode === "automation",sending:chat.sending,
     stopping:session?.status === "interrupting",waiting:session?.status === "waiting_approval",
     placeholder:project ? "向 Codex 提问或说明希望它在当前项目中完成什么…" : "先配置本地 Product Workspace…"});
   if (!inputOnly) chatNativeSurface?.render();
@@ -2868,12 +2873,13 @@ function workInspectorRuntimeNavigation(task, automationTask, workspace) {
     : { destination: "recovery", execution: null };
 }
 
-async function openWorkTaskChat(task) {
+async function openWorkTaskChat(task, initialDraft = "") {
   const workspace = state.platform.product_workspaces.find(item => String(item.id) === String(task.project_id));
   if (!workspace?.local_project_id) throw new Error("请先为该待办所属项目绑定本地工作区，再打开 Chat。");
   await chatStateCoordinator.flushDraft();
   const result = await api.chatNativeOpen({ project_id: workspace.local_project_id, task_id: String(task.id) });
   await chatStateCoordinator.selectSession(result.session_id);
+  if(initialDraft) {const prior=chatState().draft;chatStateCoordinator.setDraft(prior ? `${prior}\n\n${initialDraft}` : initialDraft);await chatStateCoordinator.flushDraft();}
   chatTaskPanelMode = 'detail';
   showPage('chat');
   setChatSessionsOpen(true);
@@ -5747,10 +5753,17 @@ async function openWorkbench(mode = "review", runId = "", context = {}) {
     state.workbenchRun = { id: selectedHistory.run_id, project_id: selectedHistory.local_project_id,
       session_id: selectedHistory.session_id, task_id: selectedHistory.task_id, activity: {} };
   }
-  state.transcriptSessionId = "";
-  workbenchConversationSurface.followLatest();
-  await loadTranscript({ force: true });
-  showPage("workbench");
+  const run = state.workbenchRun || state.snapshot.active_run;
+  const execution = selectedHistory || state.snapshot.active_task || state.workbenchCompletion;
+  const taskId = context.task?.id || execution?.task_id || run?.task_id;
+  const localProjectId = run?.project_id || execution?.local_project_id;
+  if (!taskId || !localProjectId) throw new Error('缺少待办会话绑定，请同步后重试。');
+  await chatStateCoordinator.flushDraft();
+  const opened = await api.chatNativeOpen({ project_id: localProjectId, task_id: String(taskId) });
+  await chatStateCoordinator.selectSession(opened.session_id);
+  chatTaskPanelMode = 'detail';
+  showPage('chat');
+
 }
 
 async function loadTranscript({ force = false } = {}) {
@@ -6758,7 +6771,7 @@ function normalizeChatSnapshot(value = {}) {
       id: String(session.id || ""),
       project_id: String(session.project_id || ""),
       task_id:session.task_id || "",remote_project_id:session.remote_project_id || "",source_session_id:session.source_session_id || "",
-      native_context:session.native_context,
+      native_context:session.native_context, execution:session.execution || null,
       title: String(session.title || "新对话"),
       status: String(session.status || "completed"),
       error: String(session.error || ""),
@@ -6772,7 +6785,7 @@ function normalizeChatSnapshot(value = {}) {
     messages: Array.isArray(value.messages) ? value.messages.map((message) => ({
       id: String(message.id || ""),
       role: String(message.role || "system"),
-      native_context:message.native_context,native_result:message.native_result,
+      native_context:message.native_context,native_result:message.native_result, delivery_status:message.delivery_status,delivery_error:message.delivery_error,actor:message.actor,actor_label:message.actor_label,
       kind: String(message.kind || "text"),
       content: String(message.content || ""),
       status: String(message.status || "completed"),

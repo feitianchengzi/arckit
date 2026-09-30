@@ -661,5 +661,6 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   emitTestWorkSyncEvent: async (event = { type: "work-sync.changed" }) => {
     for (const listener of workSyncListeners) listener(event);
-  }
+  },
+  ...(process.env.ARCORBIT_UNIFIED_CONVERSATION_FIXTURE === '1' ? require('./unified-conversation-preload.cjs') : {})
 });

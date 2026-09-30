@@ -613,3 +613,30 @@ test('restored work-item thread receives MCP configuration without replacing its
  try {await collect(adapter.runTurn({projectRoot:'/workspace/project',prompt:'continue',options:{resultKind:'chat',threadId:'EXISTING',threadConfig:config}}));
  assert.deepEqual(client.requests.find(x=>x.method==='thread/resume').params.config,config);assert.equal(client.requests.filter(x=>x.method==='thread/start').length,0);assert.equal(client.requests.find(x=>x.method==='turn/start').params.threadId,'EXISTING');}finally{adapter.close();}
 });
+
+test('parent-port supplements return durable-routing receipts and reject an obsolete turn', async () => {
+  const { EventEmitter } = await import('node:events');
+  const previousPort=process.parentPort, previousError=console.error, port=new EventEmitter(), receipts=[];
+  process.parentPort=port;
+  console.error=(line,...rest)=>{try{const event=JSON.parse(line).event;if(event?.type==='runtime.operator.delivery'){receipts.push(event);return;}}catch{}previousError(line,...rest);};
+  const client=new FakeClient(), request=client.request.bind(client), adapter=createCodexAppServerAdapter({clientFactory:()=>client});
+  client.request=async(method,params)=>{
+    if(method==='turn/start'){client.requests.push({method,params});return {turn:{id:'ACTIVE'}};}
+    if(method==='turn/steer'){client.requests.push({method,params});return {};}
+    return request(method,params);
+  };
+  let running;
+  try {
+    running=collect(adapter.runTurn({projectRoot:'/workspace/project',prompt:'run',options:{resultKind:'chat',superviseParentPort:true}}));
+    for(let i=0;i<100&&!client.requests.some(r=>r.method==='turn/start');i++)await new Promise(r=>setTimeout(r,5));
+    await new Promise(r=>setTimeout(r,5));
+    client.emit('turn/started',{threadId:'THREAD-1',turn:{id:'ACTIVE'}});
+    const send=(id,turn)=>port.emit('message',{data:{schema_version:'arcorbit-runtime-control/v1',type:'steer',request_id:id,expected_turn_id:turn,message:'supplement'}});
+    send('old','PREVIOUS');send('current','ACTIVE');
+    for(let i=0;i<100&&receipts.length<2;i++)await new Promise(r=>setTimeout(r,5));
+    assert.deepEqual(receipts.map(r=>[r.request_id,r.status]),[['old','queued'],['current','delivered']]);
+    const sent=client.requests.filter(r=>r.method==='turn/steer');assert.equal(sent.length,1);assert.equal(sent[0].params.expectedTurnId,'ACTIVE');
+    client.emit('turn/completed',{threadId:'THREAD-1',turn:{id:'ACTIVE',status:'completed'}});await running;
+    send('between','ACTIVE');assert.equal(receipts.at(-1).status,'queued');
+  } finally {await adapter.close();if(running)await running.catch(()=>{});process.parentPort=previousPort;console.error=previousError;}
+});

@@ -1,3 +1,4 @@
+import { createRunInputQueue, readRunInputs } from './run-input-queue.mjs';
 import { acquireTaskTurn } from './workbench/task-turn-lock.mjs';
 import { executionProgress } from "./kernel/execution-progress.mjs";
 import { createExecutionControl, requestExecutionStop } from "./kernel/execution-control.mjs";
@@ -83,7 +84,7 @@ export function createDesktopRunManager({
       return spawnProcess(nodeBin, [modulePath, ...args], options);
     },
     sendControl(child, control) {
-      child.stdin.write(control.type === "steer" ? `/steer ${control.message}\n` : "/interrupt\n");
+      child.stdin.write(JSON.stringify({ schema_version: "arcorbit-runtime-control/v1", ...control }) + "\n");
     },
     terminate: terminateChildTree
   };
@@ -279,6 +280,50 @@ export function createDesktopRunManager({
     return JSON.parse(await readFile(run.result_file, "utf8"));
   }
 
+  const conversationArchiveCache = new Map();
+  async function taskConversationHistory(session) {
+    const store = await readStore();
+    const binding = await getTaskThreadBinding(session.project_id, session.task_id);
+    const runs = new Map(store.runs.filter(r => r.project_id === session.project_id && String(r.task_id) === String(session.task_id)).map(r => [r.id, r]));
+    // Run index is bounded; retain access to archived conversation history.
+    for (const dir of await readdir(runsDir, { withFileTypes: true }).catch(error => { if (error.code === 'ENOENT') return []; throw error; })) {
+      if (!dir.isDirectory() || runs.has(dir.name)) continue;
+      const file = join(runsDir, dir.name, 'activity.json');
+      let activity = conversationArchiveCache.get(file);
+      if (!activity) {
+        try { activity = JSON.parse(await readFile(file, 'utf8')); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+        if (!['running','starting'].includes(activity.status)) conversationArchiveCache.set(file, activity);
+      }
+      const scoped = activity.session_id === session.id && activity.project_id === session.project_id;
+      const legacy = (!activity.project_id || activity.project_id === session.project_id) && binding?.threadId && activity.thread_id === binding.threadId && String(activity.task_id) === String(session.task_id);
+      if (scoped || legacy) runs.set(dir.name, { id: dir.name, activity, messages_file: join(runsDir, dir.name, 'messages.jsonl') });
+    }
+    const messages = [];
+    for (const run of runs.values()) {
+      const active = activeRuns.get(run.id);
+      const activity = active?.run.activity || run.activity || (await getRunActivitySnapshot(run.id))?.run?.activity;
+      const archiveKey = `messages:${run.id}`;
+      let archived = active?.conversationMessages || conversationArchiveCache.get(archiveKey);
+      if (!archived) {
+        archived = new Map();
+        try {
+          for (const line of (await readFile(run.messages_file || join(runsDir, run.id, 'messages.jsonl'), 'utf8')).split('\n').filter(Boolean)) {
+            const record = JSON.parse(line); if (record.message?.id) archived.set(record.message.id, record.message);
+          }
+        } catch (error) { if (error.code !== 'ENOENT') throw error; }
+        if (active) active.conversationMessages = archived;
+        else conversationArchiveCache.set(archiveKey, archived);
+      }
+      for (const m of activity?.messages || []) archived.set(m.id, m);
+      for (const m of archived.values()) messages.push({ ...m, id: `run:${run.id}:${m.id}`, source_message_id: m.id, run_id: run.id, thread_id: m.thread_id || activity.thread_id });
+      messages.push(...(active?.inputs.messages() || await readRunInputs(join(runsDir, run.id, 'inputs.json'))));
+    }
+    return messages;
+  }
+  function taskConversationRun(session) {
+    return [...activeRuns.values()].find(a => a.run.status === "running" && a.run.project_id === session.project_id && String(a.run.task_id) === String(session.task_id))?.run || null;
+  }
+
   async function getTaskThreadBinding(projectIdValue, taskIdValue) {
     const taskId = String(taskIdValue || "").trim();
     if (!projectIdValue || !taskId) return null;
@@ -354,6 +399,10 @@ export function createDesktopRunManager({
         throw new Error(`Unknown project: ${projectIdValue}`);
       }
       draft.sessions[projectIdValue] ||= [];
+      if (input.task_id) {
+        session = draft.sessions[projectIdValue].find(s => String(s.task_id) === String(input.task_id));
+        if (session) return draft;
+      }
       session = {
         id: `SESSION-${new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}-${Math.random().toString(16).slice(2, 8)}`,
         project_id: projectIdValue,
@@ -437,7 +486,7 @@ export function createDesktopRunManager({
       entry.session_id = selectedSession.id;
       store.messages[selectedSession.id] ||= [];
       store.messages[selectedSession.id].push(entry);
-      store.messages[selectedSession.id] = store.messages[selectedSession.id].slice(-300);
+      if (!selectedSession.task_id) store.messages[selectedSession.id] = store.messages[selectedSession.id].slice(-300);
       selectedSession.updated_at = entry.created_at;
       if (entry.role === "user" && selectedSession.title === "New chat") {
         selectedSession.title = entry.content.slice(0, 64) || selectedSession.title;
@@ -762,10 +811,10 @@ export function createDesktopRunManager({
     ))?.execution_control_file;
     run.execution_control_file = previousControl || join(dataDir, 'execution-controls', `${controlKey}.json`);
     createExecutionControl(run.execution_control_file).assertRunning();
-    run.activity = createRunActivity(run);
+    run.activity = { ...createRunActivity(run), project_id: run.project_id, session_id: run.session_id };
     const selectedSession = getSession(store, project.id, run.session_id);
     run.session_id = selectedSession.id;
-    run.activity = createRunActivity(run);
+    run.activity = { ...createRunActivity(run), project_id: run.project_id, session_id: run.session_id };
 
     await updateStore((draft) => {
       getSession(draft, project.id, run.session_id).updated_at = run.started_at;
@@ -832,6 +881,9 @@ export function createDesktopRunManager({
       activityRevision: Number(run.activity.projection_revision || 0),
       lastEmittedActivity: structuredClone(run.activity)
     };
+    activeRun.inputs = createRunInputQueue({ file: join(runDir, 'inputs.json'),
+      send: control => host.sendControl(child, control),
+      changed: () => emit('run.conversation_changed', { runId, session_id: run.session_id }) });
     activeRuns.set(runId, activeRun);
     child.stdin?.on("error", () => {
       // The runtime may already be exiting when Desktop sends interrupt/abort input.
@@ -853,6 +905,11 @@ export function createDesktopRunManager({
         const parsed = parseEventLine(line);
         recordChildLifecycleEvent(run, parsed?.event);
         applyRunEvent(run, { line, parsed });
+        const event = parsed?.event;
+        if (['codex.turn.started', 'codex.turn.start.completed'].includes(event?.type)) queueRunWrite(activeRun, () => activeRun.inputs.turn(event.turn_id));
+        if (event?.type === 'codex.turn.completed') queueRunWrite(activeRun, () => activeRun.inputs.turn(''));
+        if (event?.type === 'runtime.operator.delivery') queueRunWrite(activeRun, () => activeRun.inputs.acknowledge(event));
+
         if (['runtime.execution_progress', 'runtime.execution_checkpoint', 'runtime.case_checkpoint', 'codex.thread.start.completed', 'codex.thread.resume.completed', 'codex.thread.reused'].includes(parsed?.event?.type)) {
           queueRunWrite(activeRun, async () => {
             await writeJson(run.activity_file, run.activity);
@@ -887,6 +944,11 @@ export function createDesktopRunManager({
         const parsed = parseEventLine(line);
         recordChildLifecycleEvent(run, parsed?.event);
         applyRunEvent(run, { line, parsed });
+        const event = parsed?.event;
+        if (['codex.turn.started', 'codex.turn.start.completed'].includes(event?.type)) queueRunWrite(activeRun, () => activeRun.inputs.turn(event.turn_id));
+        if (event?.type === 'codex.turn.completed') queueRunWrite(activeRun, () => activeRun.inputs.turn(''));
+        if (event?.type === 'runtime.operator.delivery') queueRunWrite(activeRun, () => activeRun.inputs.acknowledge(event));
+
         if (isMessagePersistenceBoundary(parsed?.event)) {
           queueRunWrite(activeRun, () => persistPendingMessages(activeRun));
         }
@@ -964,6 +1026,8 @@ export function createDesktopRunManager({
       error: status === "failed" ? errorMessage || `Runtime exited with code ${exitCode}` : null
     });
     await active.eventWrite;
+    await active.inputs?.close();
+    conversationArchiveCache.delete(`messages:${runId}`);
     await persistPendingMessages(active);
     await writeJson(run.activity_file, run.activity);
     await updateStore((store) => {
@@ -982,7 +1046,7 @@ export function createDesktopRunManager({
       return store;
     });
     active.releaseTaskTurn?.();
-    emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
+    emit("run.finished", { runId, session_id: run.session_id, status, exitCode, result: parsedResult, activity: run.activity });
   }
 
   async function abortActiveRuns() {
@@ -1060,31 +1124,13 @@ export function createDesktopRunManager({
     }
     if (control.type === "steer") {
       const message = String(control.message || "").trim();
-      if (!message) {
-        throw new Error("Steer message is required.");
-      }
-      host.sendControl(active.child, { type: "steer", message });
-      updateRunActivity(active.run, {
-        phase: "steering",
-        current_step: "Steer message sent",
-        timeline: {
-          type: "operator.steer",
-          label: "Steer sent",
-          detail: message
-        }
+      if (!message) throw new Error('Steer message is required.');
+      const receipt = await active.inputs.enqueue({
+        client_request_id: control.request_id || randomUUID(), content: message,
+        prompt: control.prompt || message, native_context: control.native_context,
+        run_id: runId, session_id: active.run.session_id, task_id: active.run.task_id
       });
-      const operatorMessage = await addMessage(active.run.project_id, {
-        role: "user",
-        kind: "steer",
-        content: message,
-        run_id: runId,
-        task_id: active.run.task_id || "",
-        session_id: active.run.session_id
-      });
-      addOperatorRunMessage(active, operatorMessage);
-      queueRunWrite(active, () => persistPendingMessages(active));
-      emit("run.control", { runId, type: "steer", message, activity: active.run.activity });
-      return { ok: true };
+      return { ok: true, delivery: receipt };
     }
     throw new Error(`Unknown run control: ${control.type}`);
   }
@@ -1184,6 +1230,7 @@ export function createDesktopRunManager({
       if (Number(message.revision || 0) <= persistedRevision) continue;
       await appendJsonLine(activeRun.run.messages_file, messageRecord(message));
       activeRun.persistedMessageRevisions.set(message.id, Number(message.revision || 0));
+      activeRun.conversationMessages?.set(message.id, message);
     }
   }
 
@@ -1333,6 +1380,8 @@ export function createDesktopRunManager({
     getRunActivitySnapshot,
     warmRunSummaryIndex,
     readRunResult,
+    taskConversationHistory,
+    taskConversationRun,
     getTaskThreadBinding,
     bindTaskThread,
     isRunActive(runId) {

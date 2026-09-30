@@ -10,7 +10,7 @@
 
 该方案同时承接 `arckit/spec/agentic-software-development/product-concepts.md` 的通用 Loop/场景 State、事实与实现载体概念，以及 `controller-worker-loop.md` 的 Gap 资格、探索采纳、粒度与局部依赖规则；规定选择语义在现有状态与 transition 中的承载、完整 invariant assessment 和 Agent/Ledger/Runtime 校验边界。Runtime 消费可信结果，不按场景、文件或工具重新推断业务选择。
 
-`arcorbit/desktop-execution-solution.md` 定义安装完成后的自由 Chat、Automation Desktop session、共享 Codex Conversation 层，以及消费 `arckit/spec/arcorbit-distribution.md` 的 Chat/Automation 独立 Model/Level、旧配置迁移、清单查询、Chat 会话选择与 turn/Run 固定契约；交互投影分别位于 `arckit/interaction/chat-workspace/` 和 `arckit/interaction/automation-workspace/authentication.html`。Setup Readiness 是两类 session 的项目级前置 gate，不进入 Chat transcript、task session、Case Loop 或 execution lease。
+`arcorbit/desktop-execution-solution.md` 定义安装完成后的自由 Chat、Automation Desktop session、共享 Codex Conversation 层，以及消费 `arckit/spec/arcorbit-distribution.md` 的 Chat/Automation 独立 Model/Level、旧配置迁移、清单查询、Chat 会话选择与 turn/Run 固定契约；待办对话统一使用 Chat，队列控制交互位于 `arckit/interaction/chat-workspace/` 和 `arckit/interaction/automation-workspace/authentication.html`。Setup Readiness 是两类 session 的项目级前置 gate，不进入 Chat transcript、task session、Case Loop 或 execution lease。
 
 `arcorbit/platform-composition-solution.md` 定义 Workshop 组织/项目/成员/待办/普通反馈与 ArcOrbit 本地 Product Workspace、独立 Organization Center、多产品 workset 和既有 Automation execution plane 的组合边界；它只消费 `arcorbit/desktop-execution-solution.md` 的公开投影和命令，不改变 Runtime Kernel。
 
@@ -28,7 +28,7 @@
 
 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md` 对应 `arcorbit/platform-composition-solution.md`，定义多产品平台能力、Workshop 事实边界、团队/待办/反馈行为与受保护核心。
 
-`arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md` 中的真实 Chat 对应 `arcorbit/desktop-execution-solution.md` 与 `arckit/interaction/chat-workspace/`，复用 Codex transport 与中性消息投影，但不复用 state-driven Runtime、Automation lease、Case 或 ledger；Operations 保持计划展示，Engineering 使用 `scene-skills-solution.md` 提供真实内置 Skills 安装后管理；Release 的真实本地能力使用独立 Release 规格和方案。
+`arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md` 中的真实 Chat 对应 `arcorbit/desktop-execution-solution.md` 与 `arckit/interaction/chat-workspace/`，复用 Codex transport 与中性消息投影，自由 Chat 不启动 Runtime；关联待办后共享任务锁、消息与持久 thread，Auto 保留原 Loop 和 ledger 控制；Operations 保持计划展示，Engineering 使用 `scene-skills-solution.md` 提供真实内置 Skills 安装后管理；Release 的真实本地能力使用独立 Release 规格和方案。
 
 `arckit/spec/agentic-software-development/arcorbit-work-management.md` 对应 `arcorbit/platform-composition-solution.md` 与 `arcorbit/realtime-synchronization-solution.md` 的本地 Work Task 投影、任务树、父子关系、评论附件、受限 mutation 和 Work-owned 同步契约，并由 `arckit/interaction/task-browser/` 投影为同屏日常待办页面。
 
@@ -54,3 +54,5 @@ Engineering 内置 Skills 管理以 arcorbit-scene-skills.md 为产品源，scen
 ## Chat 项目文件工作区
 
 `arckit/interaction/chat-workspace/interaction.md` 定义文件树、常见操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能原型尚待同步，生产兑现待验证。
+
+统一待办对话：产品规则 `spec/agentic-software-development/arcorbit-planned-workspaces.md` → `interaction/chat-workspace/interaction.md` → `arcorbit/desktop-execution-solution.md`；原生任务及账号隔离继续由 `project-workbench-solution.md` 承接。

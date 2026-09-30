@@ -12,7 +12,7 @@ const lines=items=>Array.isArray(items)&&items.length?`<ul>${items.map(item=>`<l
 const section=(name,body,action='')=>`<section class="pw-section"><h2><span>${name}</span>${action}</h2>${body}</section>`;
 const options=(items,value)=>items.map(([id,label])=>`<option value="${e(id)}" ${String(id)===String(value)?'selected':''}>${e(label)}</option>`).join('');
 
-export function createProjectWorkbenchSurface({root,api,navigate,openSettings,getScope=()=>null,onSyncHealth=()=>{}}) {
+export function createProjectWorkbenchSurface({root,api,navigate,openSettings,getScope=()=>null,onSyncHealth=()=>{},openTaskChat=null}) {
   const state={active:false,project:'all',task:'',tab:'overview',filter:'',search:'',executor:'',priority:'',activityFilter:'all',chat:false,list:false,runtime:false,snapshot:null,detail:null,error:'',loading:false,drafts:{},scroll:{},pending:{},scope:'',newDraft:null,contextKey:'',selections:{},projectIds:null};
   let refreshPromise=null,refreshAgain=false,selectionEpoch=0,timer=0,dialog=null,returnFocus=null,configTask='',persistTimer=0,activityPaintTimer=0,activityDetailChanged=false;
   let pendingDetail=false,scheduledDetail=false,detailKey='';
@@ -101,7 +101,7 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings,ge
     q('.pw-runtime').hidden=!state.runtime;q('.pw-shell').classList.toggle('list-open',state.list);
     if(!t || String(t.id)!==state.task){paint(q('.pw-heading'),'<h1>从一件事情开始</h1>');paint(q('.pw-tabs'),'');paint(q('.pw-body'),`<div class="pw-empty">选择右侧事情查看目标和成果。<br>也可以在下方直接说出想法，创建自己的事情并开始讨论。</div>`);}
     else {if(state.detail!==renderedDetail || state.tab!==renderedDetailTab || (state.tab==='activity' && state.activityFilter!==renderedActivityFilter))renderDetail(state.detail);if(state.chat)renderMessages(state.detail);}
-    const draft=state.drafts[state.task || 'new']||{};if(configTask!==state.task && (!state.task || t)){q('[data-config=model]').value=draft.model || state.detail?.session?.model || s.settings?.codex?.chat?.model || '';q('[data-config=level]').value=draft.level || state.detail?.session?.reasoning_effort || s.settings?.codex?.chat?.reasoning_effort || 'medium';configTask=state.task;}const input=q('.pw-composer textarea');if(document.activeElement!==input&&input.value!==String(draft.text||''))input.value=draft.text||'';
+    const draft=state.drafts[state.task || 'new']||{};if(configTask!==state.task && (!state.task || t)){q('[data-config=model]').value=draft.model || state.detail?.session?.model || s.settings?.codex?.chat?.model || '';q('[data-config=level]').value=draft.level || state.detail?.session?.reasoning_effort || s.settings?.codex?.chat?.reasoning_effort || 'medium';configTask=state.task;}const input=q('.pw-composer textarea');const shared=Boolean(openTaskChat&&state.task);input.hidden=shared;q('.pw-compose-foot').hidden=shared;q('[data-compose-hint]').textContent=shared?'在同一个 Chat 中讨论、查看 Auto 进展或接管执行':'表达目标，或调整这件事情的方向';if(document.activeElement!==input&&input.value!==String(draft.text||''))input.value=draft.text||'';
     q('[data-pw-action="chat.stop"]').hidden=!activeDiscussion();
     q('[data-pw-action=send]').disabled=Boolean(state.pending.send)||state.detail?.task.state==='accepted';
     q('[data-compose-hint]').textContent=state.detail?.current_turn_owner?.startsWith('auto:')?'补充消息会交给当前执行；需要改变方向可先暂停讨论':state.detail?.scene.pause_requested?'已请求暂停 · 讨论结束后由你决定继续 Auto':'表达目标，或调整这件事情的方向';
@@ -160,7 +160,7 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings,ge
   function activity(d){const items=[...d.scene.events.map(i=>({...i,category:i.action.startsWith('auto.')?'execution':i.action.startsWith('task.')?'task':'collaboration'})),...d.runs.map(r=>({id:r.id,at:r.started_at,actor:'Runtime',category:'execution',summary:`${r.id} · ${r.status}`,run_id:r.id}))].sort((a,b)=>String(b.at).localeCompare(String(a.at)));return section('活动',`<div class="pw-actions">${[['all','全部'],['task','事情'],['execution','执行'],['collaboration','协作']].map(([id,name])=>button('activity.filter',name,`data-id="${id}"`,state.activityFilter===id?'primary small':'small')).join('')}</div><p class="pw-note">仅展示有来源的真实事件。旧事情缺少的历史不会根据更新时间补造。</p>${items.filter(i=>state.activityFilter==='all'||i.category===state.activityFilter).map(i=>`<div class="pw-line"><span>${e(i.summary)}<br><small class="pw-note">${e(i.actor)} · ${time(i.at)}</small></span>${i.message_id?button('message.locate','消息',`data-id="${e(i.message_id)}"`,'quiet small'):''}${i.run_id?button('run.messages','记录',`data-id="${e(i.run_id)}"`,'quiet small'):''}</div>`).join('')||'<p class="pw-note">暂无可展示的事件</p>'}`);}
   function renderMessages(d){const box=q('.pw-messages'),atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;paint(box,sceneMessages(d).map(m=>`<article class="pw-message ${e(m.role)}" data-message-id="${e(m.id)}"><header><strong>${{user:'你',assistant:'Agent',tool:'工具',system:'系统'}[m.role]||'Agent'}</strong><span>${e(m.kind==='approval'?'等待审批':m.status||'')}</span><time>${time(m.created_at||m.at)}</time></header>${m.kind==='tool'?`<details><summary>${e(m.tool_name||'工具调用')}</summary><pre>${e(m.content)}</pre></details>`:`<div class="pw-markdown">${markdown(m.content)}</div>`}${m.kind==='approval'&&m.status==='pending'?button('approval.accept','允许一次',`data-id="${e(m.approval_request_id)}"`,'primary small')+button('approval.decline','拒绝',`data-id="${e(m.approval_request_id)}"`,'small'):''}${m.role==='assistant'&&d.task.state!=='accepted'?button('message.agreement','保存为约定',`data-id="${e(m.id)}"`,'quiet small')+button('message.result','保存为阶段成果',`data-id="${e(m.id)}"`,'quiet small'):''}</article>`).join('')||'<div class="pw-empty">从表达目标或提出问题开始。<br>这里始终围绕当前事情协作。</div>');if(atBottom)box.scrollTop=box.scrollHeight;q('[data-chat-status]').textContent=activeDiscussion()?'Agent 正在回复':d.current_turn_owner?.startsWith('auto:')?'Auto 正在执行':d.conversation_unavailable||d.session?.error||'主协作会话';}
   function updateChat(){q('.pw-chat').hidden=!state.chat;q('.pw-scrim').hidden=!state.chat;q('.pw-detail').inert=state.chat;q('.pw-detail').setAttribute('aria-hidden',String(state.chat));}
-  function openChat(messageId){returnFocus=document.activeElement;state.chat=true;if(state.detail)renderMessages(state.detail);updateChat();if(messageId){const node=[...q('.pw-messages').querySelectorAll('[data-message-id]')].find(n=>n.dataset.messageId===messageId);node?.scrollIntoView({block:'center'});node?.classList.add('flash');}else q('.pw-composer textarea').focus();}
+  function openChat(messageId){if(openTaskChat&&state.detail?.task)return act(()=>openTaskChat(state.detail.task,state.drafts[state.task]?.text||''));returnFocus=document.activeElement;state.chat=true;if(state.detail)renderMessages(state.detail);updateChat();if(messageId){const node=[...q('.pw-messages').querySelectorAll('[data-message-id]')].find(n=>n.dataset.messageId===messageId);node?.scrollIntoView({block:'center'});node?.classList.add('flash');}else q('.pw-composer textarea').focus();}
   function closeChat(){state.chat=false;updateChat();if(returnFocus?.isConnected)returnFocus.focus();}
   async function select(id){if(state.snapshot && state.projectIds && !state.snapshot.tasks.some(t=>String(t.id)===String(id)&&state.projectIds.includes(String(t.project_id))))return;saveScroll();persist();selectionEpoch++;state.task=String(id);q('.pw-composer textarea').value=state.drafts[state.task]?.text||'';state.detail=null;state.chat=false;state.list=false;state.error='';render();restoreScroll();await refresh();restoreScroll();}
 
@@ -186,6 +186,11 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings,ge
     },'创建');
   }
   async function send(){
+    if(openTaskChat && state.detail?.task) {
+      const draft=q('.pw-composer textarea').value.trim();
+      await openTaskChat(state.detail.task,draft);
+      return;
+    }
     if(!state.task){createTask(true);return;}
     const taskId=state.task;const message=q('.pw-composer textarea').value.trim();if(!message)return;
     const draft=state.drafts[state.task] ||= {};draft.request_id ||= crypto.randomUUID();state.pending.send=true;render();openChat();
@@ -200,12 +205,12 @@ export function createProjectWorkbenchSurface({root,api,navigate,openSettings,ge
     if(action==='runtime'||action==='runtime.close'){state.runtime=action==='runtime'?!state.runtime:false;render();if(state.runtime)q('.pw-runtime').focus();else q('[data-pw-action=runtime]').focus();return;}
     if(action==='runtime.select'){const t=state.snapshot.tasks.find(t=>String(t.id)===id);state.runtime=false;state.project='all';state.filter=state.search=state.executor=state.priority='';q('.pw-search').value='';q('[data-filter=state]').value='';await select(id);return;}
     if(action==='settings'){state.runtime=false;render();openSettings();return;}
-    if(action==='chat.open'){openChat();return;}if(action==='chat.close'){closeChat();return;}
+    if(action==='chat.open'){if(openTaskChat)return openTaskChat(d.task);openChat();return;}if(action==='chat.close'){closeChat();return;}
     if(action==='send')return send();if(action==='create')return createTask();if(action==='child.create')return createTask(false,state.task);
     if(action==='tab'){saveScroll();state.tab=id;render();restoreScroll();persist();return;}
     if(action==='activity.filter'){state.activityFilter=id;render();return;}
-    if(action==='message.locate'){openChat(id);return;}
-    if(action==='run.messages'){const snapshot=await api.runActivitySnapshot(id);if(snapshot?.run?.activity){state.detail.activity=snapshot.run.activity;renderMessages(state.detail);openChat();}return;}
+    if(action==='message.locate'){if(openTaskChat)return openTaskChat(d.task);openChat(id);return;}
+    if(action==='run.messages'){if(openTaskChat)return openTaskChat(d.task);const snapshot=await api.runActivitySnapshot(id);if(snapshot?.run?.activity){state.detail.activity=snapshot.run.activity;renderMessages(state.detail);openChat();}return;}
     if(action==='properties'){
       const project=state.snapshot.projects.find(p=>p.id===String(d.task.project_id));
       if(d.task.state==='accepted'){showDialog('事情属性',`<pre>${e(JSON.stringify({state:stateLabels[d.task.state],executor:taskExecutorLabel(d.task,d.task.executor_id||'未分配'),priority:d.task.priority,tags:d.task.tags||d.task.raw?.tags,creator:d.task.creator_name||d.task.raw?.creator_id,created_at:d.task.created_at||d.task.raw?.created_at,updated_at:d.task.updated_at,completion_at:d.task.completion_at,father_id:d.task.father_id,project:project?.name},null,2))}</pre>`,async()=>{},'关闭');return;}

@@ -54,13 +54,20 @@ export function createChatNativeSurface({api,coordinator,getProject,getSession,r
  picker.querySelector('input').addEventListener('input',options);
  picker.addEventListener('keydown',e=>{const buttons=[...picker.querySelectorAll('[data-pick]')];if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();const i=buttons.indexOf(document.activeElement);buttons[(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus()}if(e.key==='Enter'&&e.target.matches('input')){e.preventDefault();buttons[0]?.click()}});
  const trigger=()=>{if(input.value==='/'||input.value==='@')performAction(()=>open(input.value==='/'?'capabilities':'refs',input.value))};input.addEventListener('input',e=>{if(!e.isComposing)trigger()});input.addEventListener('compositionend',trigger);
- async function openTask(id){await coordinator.flushDraft();const result=await api.chatNativeOpen({...owner(),task_id:id});await coordinator.selectSession(result.session_id);closeList();onTaskOpened();render();if(!state().snapshot.messages.length){await coordinator.send({text:'读取这个待办，继续在这里分析和讨论。',preserve_draft:true});render()}await load(true)}
+ async function openTask(id){await coordinator.flushDraft();const result=await api.chatNativeOpen({...owner(),task_id:id});await coordinator.selectSession(result.session_id);closeList();onTaskOpened();render();await load(true)}
  document.getElementById('chatView').addEventListener('click',e=>{const b=e.target.closest('[data-native-task]');if(b)performAction(()=>openTask(b.dataset.nativeTask))});
  function paint(){
-  const s=getSession(),t=catalog?.tasks?.find(t=>t.id===s?.task_id);identity.innerHTML=s? s.task_id?`本会话对应待办 #${esc(s.task_id)} · ${esc(t?.state||'待读取')} <button type="button" data-read>查看最新内容</button>${s.source_session_id?` <button data-source="${esc(s.source_session_id)}">创建来源</button>`:''}`:'<button type="button" data-convert>整理为待办</button>':'';
-  for(const button of identity.querySelectorAll('[data-convert],[data-read]'))button.disabled=active(s)||state().sending;
+  const s=getSession(),t=catalog?.tasks?.find(t=>t.id===s?.task_id);identity.innerHTML=s? s.task_id?`本会话对应待办 #${esc(s.task_id)} · ${esc(t?.state||'待读取')} <button type="button" data-read>查看最新内容</button>${s.execution?.resumable?` <button type="button" data-resume>继续 Auto</button>`:""}${s.source_session_id?` <button data-source="${esc(s.source_session_id)}">创建来源</button>`:''}`:'<button type="button" data-convert>整理为待办</button>':'';
+  for(const button of identity.querySelectorAll('[data-convert],[data-read],[data-resume]'))button.disabled=active(s)||state().sending;
   identity.querySelector('[data-convert]')?.addEventListener('click',()=>performAction(async()=>{await coordinator.send({text:'把这段对话整理成当前项目的待办，并关联当前会话。',native_context:{capability:{id:'summarize',kind:'native',label:'整理为待办'},refs:[]},preserve_draft:true});render()}));
   identity.querySelector('[data-read]')?.addEventListener('click',()=>performAction(async()=>{await coordinator.send({text:'读取本会话对应待办的最新内容。',preserve_draft:true});render()}));
+  identity.querySelector('[data-resume]')?.addEventListener('click',()=>performAction(async()=>{
+   const sessionId=s.id,taskId=s.task_id;
+   const detail=await api.projectWorkbenchDetail(taskId);
+   if(getSession()?.id!==sessionId)return;
+   await api.projectWorkbenchCommand('auto.resume',{task_id:taskId,expected_revision:detail.scene.revision,request_id:crypto.randomUUID(),input:{}});
+   await coordinator.refresh();render();
+  }));
   identity.querySelector('[data-source]')?.addEventListener('click',e=>performAction(async()=>{await coordinator.selectSession(e.target.dataset.source);render()}));
  }
  function update(){

@@ -59,12 +59,12 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 ### 消息与运行能力
 
-- Chat 是 ArcOrbit Conversation Surface 的体验基准。Automation Intervention Workbench 直接使用同一个消息列表、Markdown/代码复制、reasoning、工具/权限状态、流式更新、滚动锚点和“回到最新”实现；共享只发生在无业务语义的对话呈现层，不合并两类 session、thread、Composer 权限或控制状态。
+- Chat 是待办人工讨论与 Auto 执行的唯一对话入口。同一待办复用 session、持久 thread 和连续消息流；Automation 保留队列、执行状态及恢复控制，查看对话进入该待办 Chat。自由 Chat 不要求创建待办。
 - Composer 接受多行文本，支持输入法组合，`Enter` 发送、`Shift+Enter` 换行；空白内容和重复提交不启动 turn。
 - 用户消息在提交成功后立即进入 transcript；Agent 正文以稳定消息 ID 流式更新，不为每个 delta 创建新消息。
 - Assistant 正文支持段落、列表、引用、链接、代码块与复制。reasoning 默认折叠；工具调用以单行活动展示开始、进行中、完成或失败，不把完整 stdout、stderr、文件正文或 raw protocol payload 填入普通消息。
 - 生成期间 Composer 保留草稿编辑能力，并提供明确的停止按钮。停止调用当前 Codex turn 的 interrupt，保留已显示的部分回答并标记“已中断”；再次继续会启动同一 thread 的新 turn，不伪装成恢复原 turn。
-- 一个会话同一时间只有一个活动 turn；不同 Chat 会话的执行所有权彼此隔离，也不占用或解除 Automation 的任务执行 lease。
+- 一个待办同一时间只有一个写入者；人工讨论与 Auto 通过同一任务锁串行接力。人工 turn 必须确认 app-server 退出后才能释放任务锁；不同待办和自由 Chat 保持隔离。
 - 用户切换会话或页面不会隐式中断活动 turn；对应会话在列表中显示运行状态，返回后继续接收同一 turn 的投影。
 - transcript 位于底部阈值内时自动跟随新内容；用户上滚后保持阅读位置并显示“回到最新”。
 - app-server 初始化、thread resume、turn start、权限请求、运行失败和进程退出均产生可恢复状态。可重试错误保留用户输入、部分消息与 thread 绑定；只有 Codex 明确确认 thread 不存在时才创建替代 thread，并显示恢复记录。
@@ -73,16 +73,25 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 - 首次发送前必须在新会话内确认一个已绑定本地目录且 Setup Readiness 可用的 Product Workspace；即使只有一个可用工作区，页面也持续显示其归属。不存在可用工作区时页面说明阻塞原因，并提供前往工作区配置的恢复入口。
 - Product Workspace 决定 Codex 的 `cwd`、workspace root、project skill discovery 和文件权限边界；会话消息不会自动注入整个 Workset、Workshop 任务或 ledger state。
-- Chat 直接使用 Codex 自由对话 prompt，不触发 `$using-arckit`，不要求 `arckit-agent-loop-result/v1`，也不调用 trusted ledger entrypoint。
+- 人工 Chat 默认使用自由对话 prompt，不隐式触发 Loop 或要求其结果 schema；用户显式调用 skill 时按该授权执行。Auto 继续使用原 Runtime Loop、结果合约与 ledger 边界。
 - Codex 发起需要批准的文件、命令或网络操作时，沿用 app-server 的用户 approval request；拒绝只影响该操作或 turn，不改变 Workshop 与 Automation 状态。
 
 ### 边界
 
 Chat 可恢复待办对应 session 和可信 task thread；创建、读取及修改待办通过受控原生能力执行，业务成功以工具回执为准。普通问答不自动写入 Project State、Case 或 Idea，不自动进入 Automation 队列或解除 human Gate。
 
-Chat 与 Automation 共享 Conversation Surface 不表示共享消息数据或执行能力。Automation 专属的 gap、round、ledger、证据、耗时、用量、恢复和提交能力只存在于 Automation 左右面板；Chat 不读取也不显示这些对象。
+同一待办在 Chat 连续展示人工消息、Auto 正文、工具活动及可折叠执行进展。历史 Run 归档仍可读取；消息来源、送达结果和执行控制各自保留真实语义。诊断和结构化证据不冒充用户或 Agent 正文。
 
 Chat 不提供附件、语音、共享链接、跨设备同步、会话分支或模型管理；它使用 ArcOrbit 当前配置的 Codex 能力，集中保证文本自由对话及其会话、消息、停止和恢复体验。
+
+### 待办的统一执行语义
+
+- 打开待办只选择或恢复已有身份，不自动发送“读取待办”等消息、不占用 thread 写锁。创建或关联待办不授权 Automation。
+- Auto 运行时 Composer 显示“补充信息”。输入先持久化，当前 turn 可接收时发送；回合间隙排队，明确显示等待送达、发送中、已送达、失败或送达未确认。
+- 已送达只表示执行端接受输入，不表示 Agent 已完成要求。未知送达结果在重启后不自动重发，同一客户端提交标识保持幂等；用户核对后可发新消息。
+- “暂停并接管”停止该待办的当前自动执行，确认退出后允许人工讨论；“继续 Auto”是显式控制动作。讨论、浏览、刷新不恢复自动执行。
+- 人工与 Auto 保留各自模型默认值、技能场景和审批规则；共享会话不扩大权限。既有执行恢复、Case 检查点、Git 收尾仍由 Automation 管理。
+- 删除待办在 Chat 中的入口只隐藏列表项，保留任务会话、thread 和执行历史；从待办再次打开可恢复。
 
 ### Work 入口与右侧待办详情
 
@@ -146,7 +155,7 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 - Chat 会话列表在全局产品范围内按 Product Workspace 分组；每组默认最多显示 5 条，查看更多每次增加 5 条，项目收起再展开恢复 5 条。
 - Chat 新对话在首条消息发送前显式显示目标 Product Workspace，允许保留草稿快速切换；发送后项目归属固定，不能迁移既有 thread。
 - Chat 支持工作区绑定、新建/切换/重命名/删除会话、持久 thread、流式消息、工具活动、停止、重试、错误恢复和重启恢复。
-- Chat 与 Automation Intervention 的消息列表由同一 Conversation Surface 呈现；对 Markdown、代码复制、reasoning、工具/权限状态、流式消息和滚动行为的修改不需要在两处重复实现或验收。
+- 待办所有入口打开同一 Chat；人工与 Auto 历史连续，打开空会话不发消息，执行中补充有送达回执，暂停后讨论不隐式恢复 Auto。
 - Chat 停止后保留部分回答并以新 turn 继续；删除活动会话先完成 interrupt，且不会误删其他会话。
 - Chat 不自动调用 state-driven Runtime 或 trusted ledger；待办会话可进入 Chat 列表，待办写入使用原生能力及版本约束。
 - Idea 展示探索、讨论与确认后建项目。

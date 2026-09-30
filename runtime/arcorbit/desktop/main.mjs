@@ -1,3 +1,4 @@
+import { createTaskConversation } from '../src/task-conversation.mjs';
 import { createChatNative } from '../src/chat-native.mjs';
 import { createChatFiles } from '../src/chat-files.mjs';
 import { createChatFilesLeaveGuard } from './chat-files-leave.mjs';
@@ -187,7 +188,10 @@ app.whenReady().then(async () => {
     receiptStore: createCodexOwnerReceiptStore(join(app.getPath("userData"), "codex-owner-receipts.json")),
     recheckReadiness: ({ codexProbe }) => skillProvisioningManager.check({ quiet: true, codexProbeResult: codexProbe })
   });
+  const taskConversation = createTaskConversation({ runManager, automation: () => automationCoordinator,
+    validateInput: (input, session) => chatNative.supplement(input, session) });
   chatCoordinator = createChatCoordinator({
+    conversation: taskConversation,
     runManager,
     acceptedSessionKinds:['chat','automation-task'],
     authorizeSession:(session,context)=>chatNative?.authorizeSession(session,context) ?? true,
@@ -201,6 +205,9 @@ app.whenReady().then(async () => {
   });
   chatCoordinator.onEvent((event) => {
     if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:chat-event", event);
+  });
+  runManager.onEvent(event => {
+    if (['run.started', 'run.finished', 'run.activity_changed', 'run.conversation_changed'].includes(event.type)) chatCoordinator.notifyConversation(event.session_id || event.owner?.session_id || event.run?.session_id || '');
   });
   automationCoordinator = createAutomationCoordinator({
     runManager,

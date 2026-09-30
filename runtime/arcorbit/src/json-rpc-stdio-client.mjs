@@ -143,12 +143,14 @@ export class JsonRpcStdioClient {
     this.requestHandlers = [];
     this.closeHandlers = [];
     this.closed = false;
+    this.exited = new Promise(resolve => { this.resolveExit = resolve; });
     this.spawnSpec = buildJsonRpcSpawnSpec({ command, args, cwd, stderr, platform, env, isFile });
     this.proc = spawnProcess(this.spawnSpec.command, this.spawnSpec.args, this.spawnSpec.options);
     this.readline = createInterface({ input: this.proc.stdout });
     this.readline.on("line", (line) => this.#handleLine(line));
     this.proc.on("exit", (code, signal) => {
       this.closed = true;
+      this.resolveExit();
       const error = new Error(`JSON-RPC process exited: code=${code} signal=${signal || ""}`);
       for (const { reject } of this.pending.values()) {
         reject(error);
@@ -160,6 +162,7 @@ export class JsonRpcStdioClient {
     });
     this.proc.on("error", (error) => {
       this.closed = true;
+      if (!this.proc.pid) this.resolveExit();
       const launchError = new Error(
         `Unable to start JSON-RPC process ${JSON.stringify(this.spawnSpec.requestedCommand)} ` +
         `(mode=${this.spawnSpec.launchMode}, platform=${platform}, cwd=${JSON.stringify(cwd)}): ${error.message}`,
@@ -209,14 +212,25 @@ export class JsonRpcStdioClient {
   }
 
   close() {
-    if (this.closed) {
-      return;
+    if (this.closePromise) return this.closePromise;
+    if (!this.closed) {
+      this.closed = true;
+      this.readline.close();
+      if (this.terminateOwnedTree) terminateProcessTree(this.proc);
+      this.proc.stdin.end();
+      if (!this.terminateOwnedTree) this.proc.kill("SIGTERM");
     }
-    this.closed = true;
-    this.readline.close();
-    if (this.terminateOwnedTree) terminateProcessTree(this.proc);
-    this.proc.stdin.end();
-    if (!this.terminateOwnedTree) this.proc.kill("SIGTERM");
+    this.closePromise = new Promise((resolve, reject) => {
+      const kill = setTimeout(() => {
+        if (this.terminateOwnedTree) terminateProcessTree(this.proc, 'SIGKILL');
+        else this.proc.kill('SIGKILL');
+      }, 2000);
+      const deadline = setTimeout(() => reject(new Error('Codex process exit could not be confirmed.')), 5000);
+      this.exited.then(() => { clearTimeout(kill); clearTimeout(deadline); resolve(); });
+    });
+    // Some diagnostic callers only initiate shutdown; awaited callers still see failure.
+    this.closePromise.catch(() => {});
+    return this.closePromise;
   }
 
   #send(message) {

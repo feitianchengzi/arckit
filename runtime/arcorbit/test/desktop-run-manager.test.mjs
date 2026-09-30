@@ -604,3 +604,24 @@ test('stopping one acceptance execution does not poison another execution of the
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+test('unified task history keeps old run archives, input receipts and a single task session',async()=>{
+ const dataDir=await mkdtemp(join(tmpdir(),'arcorbit-task-history-'));await writeStore(dataDir,dataDir);const children=[],controls=[];
+ const manager=createDesktopRunManager({dataDir,runtimeRoot:dataDir,ensureProject:async()=>({}),runtimeHost:{controlMode:'parent-port',spawn:()=>fakeChild(children),sendControl:(child,packet)=>controls.push(packet),terminate:child=>child.kill()}});
+ try{
+  const [session,again]=await Promise.all([manager.createSession('PROJECT-1',{task_id:'T',kind:'automation-task'}),manager.createSession('PROJECT-1',{task_id:'T',kind:'automation-task'})]);assert.equal(session.id,again.id);
+  assert.deepEqual(await manager.taskConversationHistory(session),[]);
+  const run=await manager.startRun({projectId:'PROJECT-1',taskId:'T',sessionId:session.id,task:'work',dryRun:true});
+  await manager.controlRun(run.id,{type:'steer',request_id:'input-1',message:'supplement'});assert.equal(controls.length,0);
+  children[0].stderr.write(JSON.stringify({event:{type:'codex.turn.started',turn_id:'TURN'}})+'\n');
+  for(let i=0;i<100&&!controls.length;i++)await new Promise(r=>setTimeout(r,5));assert.equal(controls.length,1);
+  children[0].stderr.write(JSON.stringify({event:{type:'runtime.operator.delivery',request_id:'input-1',status:'delivered'}})+'\n');
+  for(let i=0;i<100;i++){if((await manager.taskConversationHistory(session)).some(m=>m.delivery_status==='delivered'))break;await new Promise(r=>setTimeout(r,5));}
+  assert.ok((await manager.taskConversationHistory(session)).some(m=>m.delivery_status==='delivered'));
+  writeAgentItem(children[0],'output','auto answer');
+  const ended=new Promise(resolve=>manager.onEvent(e=>{if(e.type==='run.finished')resolve();}));children[0].emit('close',0);await ended;
+  await manager.updateDesktopStore(store=>{store.runs=[];return store;});
+  const history=await manager.taskConversationHistory(session);assert.ok(history.some(m=>m.content==='auto answer'));assert.ok(history.some(m=>m.delivery_status==='delivered'));
+  assert.equal((await manager.taskConversationHistory({...session,id:'other',project_id:'OTHER'})).length,0);
+ }finally{children.forEach(c=>c.kill());await rm(dataDir,{recursive:true,force:true});}
+});

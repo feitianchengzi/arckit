@@ -62,8 +62,8 @@ export function createChatNative({runManager,workSync,workbench,automation,chat,
    if(session?.workbench_account_scope&&session.workbench_account_scope!==ctx.scope)throw Error('该待办会话属于其他账号。');
    const binding=await runManager.getTaskThreadBinding(ctx.local.id,task.id);
    if(!session)session=await runManager.createSession(ctx.local.id,{kind:'automation-task',task_id:String(task.id),remote_project_id:String(task.project_id),title:publicTask(ctx,task).title});
-   await updateStore(store=>{const s=findSessionById(store,session.id).session;s.workbench_account_scope=ctx.scope;s.chat_hidden=false;s.thread_id=binding?.threadId||s.thread_id||'';s.source_session_id=store.chat?.task_sources?.[sourceKey(ctx,task.id)]||'';return store});
-   // Opening selects an existing identity. The renderer submits a normal read request only when no history exists.
+   await updateStore(store=>{const s=findSessionById(store,session.id).session;if(s.workbench_account_scope&&s.workbench_account_scope!==ctx.scope)throw Error('该待办会话属于其他账号。');s.workbench_account_scope=ctx.scope;s.chat_hidden=false;s.thread_id=binding?.threadId||s.thread_id||'';s.source_session_id=store.chat?.task_sources?.[sourceKey(ctx,task.id)]||'';return store});
+   // Opening only selects the shared identity; reading never starts an Agent turn.
    return {session_id:session.id,task:publicTask(ctx,task)};
   });
  }
@@ -127,7 +127,7 @@ export function createChatNative({runManager,workSync,workbench,automation,chat,
   const task=ctx.session.task_id?taskIn(ctx,ctx.session.task_id):null;
   let threadBinding=null;
   if(task){
-   const runtime=await automation.getSnapshot({});if((runtime.active_executions||[]).some(e=>String(e.task_id)===String(task.id)))throw Error('待办正由其他执行持有，请等待或先暂停。');
+   const runtime=await automation.getSnapshot({});if((runtime.active_executions||[]).some(e=>String(e.task_id)===String(task.id)&&(runManager.isRunActive?.(e.run_id)||['cli_handoff','switching_to_cli','starting'].includes(e.phase))))throw Error('待办正由其他执行持有，请等待或先暂停。');
    if(taskTurnOwner(project.id,task.id)!==`chat:${sessionId}`)leases.set(sessionId,acquireTaskTurn(project.id,task.id,`chat:${sessionId}`));
    threadBinding=await runManager.getTaskThreadBinding(project.id,task.id);
   }
@@ -137,6 +137,14 @@ export function createChatNative({runManager,workSync,workbench,automation,chat,
   const options=workbenchAgentOptions(env,tools);
   return {prompt:`${text}\n\nArcOrbit 原生上下文：当前项目 ${ctx.project.name} (${ctx.project.id})，本地 workspace ${project.id}。${task?`本会话对应待办 ${task.id}，请先用 arcorbit_todo read 读取最新目标。`:'尚无对应待办。'}\n使用 arcorbit_todo 读写当前项目的待办，不用关键词模拟结果。用户要求整理当前对话时 create associate=true；创建另一件事时 associate=false，不替换主待办。引用不代表已经读取。创建时使用稳定 request_id（本条消息 ${requestId} 加不同事项的后缀），同一操作重试保持相同标识。选择待办不授权 Automation；用户要求执行时在本 thread 中工作。业务写入结果以工具回执为准。事情 scene 中的报告只是 Agent 声明，不等于已验证结论；scene 不是 Project/Case Ledger，Ledger 推进仍使用相应 skill 与可信入口。\n本条显式能力与引用：${JSON.stringify(context)}${context.capability?.kind==='skill'?`\n用户显式调用 $${context.capability.id}`:''}`,options:{...options,extraEnvironment:env,sceneSkillBinding:binding,threadId:threadBinding?.threadId||ctx.session.thread_id||'',onThreadBound:async b=>{const latest=await projectContext(project.id,sessionId);if(latest.session.task_id)await runManager.bindTaskThread(project.id,latest.session.task_id,b)}}};
  }
+ async function supplement(input,session){
+  const ctx=await projectContext(session.project_id,session.id);taskIn(ctx,session.task_id);
+  const context=normalizeChatContext(input.native_context);
+  const binding=await resolveSceneSkills(ctx.local.path);
+  for(const ref of context.refs){if(ref.project_id!==ctx.local.id)throw Error('引用属于其他项目。');if(ref.kind==='task')taskIn(ctx,ref.id);else await workspacePath(ctx.local.path,ref.path||ref.id)}
+  if(context.capability?.kind==='skill'&&!binding.skills.some(s=>s.name===context.capability.id&&!s.disabled))throw Error('该 Skill 已不可用。');
+  return `${input.text}\n用户补充消息 ${input.client_request_id}；显式能力与引用：${JSON.stringify(context)}${context.capability?.kind==='skill'?`\n用户显式调用 $${context.capability.id}`:''}`;
+ }
  async function settled(sessionId){turns.delete(sessionId);bridge.revoke(sessionId);leases.get(sessionId)?.();leases.delete(sessionId)}
- return {catalog,openTask,turnContext,settled,authorizeSession,invokeTool,async close(){for(const id of turns.keys())await settled(id);bridge.close()}};
+ return {catalog,openTask,turnContext,supplement,settled,authorizeSession,invokeTool,async close(){for(const id of turns.keys())await settled(id);bridge.close()}};
 }
