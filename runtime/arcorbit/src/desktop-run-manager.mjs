@@ -161,6 +161,7 @@ export function createDesktopRunManager({
       repaired: initialization.repaired === true,
       recovery_required: initialization.recovery_required === true,
       compatibility: initialization.compatibility || null,
+      workspace_preparation: initialization.workspace_preparation || null,
       controller_trigger: controllerInvocation.skill_trigger,
       trusted_entrypoints: trustedEntrypoints
     };

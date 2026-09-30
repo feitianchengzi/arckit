@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import { prepareProjectWorkspace } from './project-gitignore.mjs';
+export { prepareProjectWorkspace } from './project-gitignore.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultSoftwareDefinition, validateCoreDecisionAreas } from './project-software-definition.mjs';
@@ -220,7 +222,7 @@ function writeRecord(record) {
 }
 
 function usage() {
-  console.log('Usage: project-state.mjs init|register-case|render|validate|audit|summary [record]');
+  console.log('Usage: project-state.mjs prepare-workspace|init|register-case|render|validate|audit|summary [record]');
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
@@ -228,8 +230,11 @@ if (isMain) {
   try {
     const args = parseArgs(process.argv.slice(2));
     const command = args._[0];
-    if (command === 'init') {
+    if (command === 'prepare-workspace') {
+      console.log(JSON.stringify(await prepareProjectWorkspace(process.cwd()), null, 2));
+    } else if (command === 'init') {
       if (!args.name) throw new Error('init requires --name');
+      await prepareProjectWorkspace(process.cwd());
       writeRecord(createProjectStateRecord({ name: args.name, intent: args.intent || '' }));
       console.log(STATE_RECORD_PATH);
     } else if (command === 'register-case') {

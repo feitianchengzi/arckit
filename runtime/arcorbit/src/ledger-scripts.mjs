@@ -25,7 +25,14 @@ export async function runLedgerScript(projectRoot, args, { capability = null } =
   });
   const scriptPath = resolveCapabilityEntrypoint(selectedCapability, entrypoint);
   let stdout;
-  if (script === "protocol-compatibility.mjs" && rest[0] === "probe") {
+  let preparation = null;
+  if (script === "project-state.mjs" && ["prepare-workspace", "init"].includes(rest[0])) {
+    const module = await import(pathToFileURL(scriptPath).href);
+    preparation = await module.prepareProjectWorkspace(projectRoot);
+  }
+  if (script === "project-state.mjs" && rest[0] === "prepare-workspace") {
+    stdout = `${JSON.stringify(preparation, null, 2)}\n`;
+  } else if (script === "protocol-compatibility.mjs" && rest[0] === "probe") {
     const module = await import(pathToFileURL(scriptPath).href);
     stdout = `${JSON.stringify(module.probeProtocolCompatibility(projectRoot), null, 2)}\n`;
   } else if (script === "loop-snapshot.mjs" && rest[0] === "read") {

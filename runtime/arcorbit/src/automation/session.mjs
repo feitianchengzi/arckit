@@ -96,6 +96,7 @@ async function runGitCloseout({ adapter, projectRoot, threadKey, threadId, check
     `Read the delivery context and accepted Case evidence at ${contextPath}.`,
     'The trusted Ledger has accepted the bound Case. Confirm the accepted work covers the original task before committing.',
     'Create one final commit for the reviewed task work on the current branch. Preserve unrelated staged and unstaged changes. Ledger paths are evidence, not an exhaustive allowlist. Do not push, tag or change branches.',
+    'Exclude ignored local state and execution evidence from delivery, including already tracked or staged local data. Do not bypass ignore rules with force-add or a temporary index. Untracking existing files requires explicit migration authorization; ignore maintenance alone does not grant it.',
     'Do not add content changes or another semantic review here. If concrete evidence shows unfinished original-task work, return resume_loop with evidence before committing. Independent new issues are hints, not authorization to resume work.',
     'Return completed with outcome committed and the actual commit hash, or no_changes if already committed or no task diff remains. Respect user stop.',
     `Output contract: ${TASK_CLOSEOUT_VERSION}. Git commit authorized: ${deliveryPolicy.commit_authorized}.`

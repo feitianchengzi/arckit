@@ -33,6 +33,8 @@ Case 是本次目标及其已知义务；Gap 是其中尚未成立的具体结�
 
 **检查可用性。** fresh canonical state 不可用且 ledger compatibility probe 报告协议不一致时，先进入协议恢复模式；此时不得创建、选择或推进普通 Case Gap。恢复规则按需读取 [references/protocol-compatibility-recovery.md](references/protocol-compatibility-recovery.md)。 `unavailable` 时暂停普通 Loop；协议恢复由同一 Agent 完成语义 reconciliation，trusted ledger 原子验收成功后重新调用 snapshot，再从原始用户事项判断。
 
+**准备可写工作区。** 本轮将写入状态或证据时，遵循当前 Ledger 包的 `references/workspace-preparation.md`，通过其 manifest-declared 入口完成工作区准备；Host 已提供本次准备回执时复用。准备失败先处理失败，不带病继续写入；纯只读分析不因恢复上下文而修改项目配置。回执中的既有 Git 跟踪问题应如实保留，不能把忽略规则生效当成历史跟踪已迁移。
+
 **读取场景契约。** 读取 snapshot.state_definition.definition 的事实分类、选择规则、完成规则、实现判断指引和状态来源；首次使用该场景时，按定义指引读取随包概念示例。结合项目确认维护对象、实现载体、生效方式及验证方式，不按文件扩展名推断事实角色。稳定上下文在 Case 中保存一次，后续确认仍适用后引用；变化时更新，未知时说明缺口。定义缺失或不可用时先恢复可信能力。
 
 **恢复状态与证据。** `available` 时读取用户当前增量、fresh Project/Iteration、全部 active Cases、场景定义、当前决策、不变量与 candidate catalog，再读取完成判断所需的持久事实载体和工作区证据。

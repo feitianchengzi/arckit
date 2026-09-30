@@ -73,7 +73,8 @@
   ],
   "allowed_write_targets": [
     "arckit/project/**",
-    "arckit/cases/**"
+    "arckit/cases/**",
+    ".gitignore"
   ],
   "forbidden_decisions": [
     "product_requirement_final",
@@ -94,7 +95,8 @@
     "Case rendering is content-transparent and dry-run preflights Structured Record round trips plus existing Case index inputs.",
     "Direct Agents and Runtime consume the same manifest-declared loop_snapshot receipt; Runtime does not parse canonical record versions or derive candidates independently.",
     "Successful transition writeback returns an accepted round_closeout with no next candidate, followed by a separately verified post-commit snapshot.",
-    "Protocol incompatibility is detected deterministically and handed to the same Agent for semantic reconciliation; trusted writeback binds source digests and commits all canonical replacements atomically."
+    "Protocol incompatibility is detected deterministically and handed to the same Agent for semantic reconciliation; trusted writeback binds source digests and commits all canonical replacements atomically.",
+    "project_state prepare-workspace maintains the root .gitignore managed block for local state and evidence before project initialization or task preparation; it preserves the Git index, reports tracked paths and does not change canonical state."
   ],
   "agent_contracts": {
     "case_command": {

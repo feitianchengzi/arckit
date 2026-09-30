@@ -37,6 +37,8 @@ services/workshop-api/workshop-api*
 /arckit/visual/_explorations/orange-tone/comparison.png
 
 # State Driven Loop
+# BEGIN Arckit local state and evidence
+/arckit/debug/
 /arckit/project/
 /arckit/cases/
-/arckit/debug/
+# END Arckit local state and evidence

@@ -9,6 +9,8 @@ description: "维护 Arckit Project/Iteration/Case canonical state、协议兼�
 
 ## 接口所有权
 
+首次接入和开始/恢复会写入本地状态或证据的任务前，使用 `project_state prepare-workspace` 自动维护项目 `.gitignore`，读取 [references/workspace-preparation.md](references/workspace-preparation.md) 的写入边界、回执与已有跟踪处理。此入口不修改 canonical state 或 Git 索引；纯读取操作不触发维护。
+
 Ledger manifest 的 `agent_contracts` 是 Host 组装语义载荷 schema 和定位接口说明的唯一来源；Host 只维护结果封装与授权绑定。语义提交前读取 [references/semantic-command-handoff.md](references/semantic-command-handoff.md)。Agent 决定事实、关系与验收结论；Ledger 校验合法性并物化身份、版本和派生关系，Runtime 不复制这些判断。
 
 可信软件场景契约位于 [templates/software-state-definition.json](templates/software-state-definition.json)，snapshot 携带定义和摘要，selection token 绑定该摘要。通用 Loop 消费定义；替换场景须同时替换 State 模型、初始化与验证适配器。首次使用软件场景或需要区分取证、正式结论与排障边界时，读取 [references/software-gap-examples.md](references/software-gap-examples.md)。
@@ -82,7 +84,7 @@ Ledger manifest 的 `agent_contracts` 是 Host 组装语义载荷 schema 和定�
 ## CLI
 
 ```text
-node scripts/project-state.mjs init|render|audit|validate|summary [record]
+node scripts/project-state.mjs prepare-workspace|init|render|audit|validate|summary [record]
 node scripts/development-case.mjs new|validate|audit|close ...
 node scripts/case-transition.mjs validate <transition.json|->
 node scripts/case-transition.mjs apply --case <case.md> --transition <transition.json|-> [--dry-run true]

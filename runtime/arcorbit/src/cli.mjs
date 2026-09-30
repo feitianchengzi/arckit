@@ -117,10 +117,11 @@ export async function main(argv) {
 export async function run(options) {
   if (options.sceneSkillBindingFile) options.sceneSkillBinding = await validateSceneSkillBinding(JSON.parse(await readFile(options.sceneSkillBindingFile, 'utf8')));
   const projectRoot = resolve(options.project);
-  await ensureArckitProject({
+  const initialization = await ensureArckitProject({
     projectRoot,
     intent: options.task || "Initialize Arckit project state before supervised runtime execution."
   });
+  options.runtimeContext = { ...options.runtimeContext, workspace_preparation: initialization.workspace_preparation };
   const stateStore = createStateStore(projectRoot);
   if (options.threadBindingFile) {
     options.onThreadBound = async (binding) => {

@@ -18,6 +18,9 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
     loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: 'protocol_compatibility' }),
   ]);
 
+  const preparation = JSON.parse((await runLedgerScript(root, ['project-state.mjs', 'prepare-workspace'], { capability: projectCapability })).stdout);
+  changedFiles.push(...preparation.changed_files);
+
   if (!existsSync(statePath)) {
     await runLedgerScript(root, [
       'project-state.mjs',
@@ -37,6 +40,7 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
       initialized: changedFiles.length > 0,
       repaired: false,
       recovery_required: true,
+      workspace_preparation: preparation,
       compatibility,
       project_root: root,
       state_path: 'arckit/project/state.record.json',
@@ -76,6 +80,7 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
     initialized: changedFiles.length > 0,
     repaired,
     recovery_required: false,
+    workspace_preparation: preparation,
     compatibility,
     project_root: root,
     state_path: 'arckit/project/state.record.json',
