@@ -81,6 +81,7 @@ type GetFeedbacksRequest struct {
 	UserEmail      string `form:"user_email"`      // 用户邮箱（可选）
 	CustomUserID   string `form:"custom_user_id"`  // 自定义用户ID（可选）
 	IncludeDeleted bool   `form:"include_deleted"` // 是否包含已删除记录（可选，默认false）
+	ShowResolved   *bool  `form:"show_resolved"`   // 是否显示已解决的反馈（可选，默认true，内部工作台设为false）
 	Page           int    `form:"page"`            // 页码（可选，默认1）
 	PageSize       int    `form:"page_size"`       // 每页条数（可选，默认50，最大200）
 }
@@ -673,6 +674,23 @@ func GetFeedbacks(c *gin.Context) {
 	}
 	if trimmed := strings.TrimSpace(req.CustomUserID); trimmed != "" {
 		query = query.Where("custom_user_id = ?", trimmed)
+	}
+
+	// 过滤已解决的反馈（内部工作台使用）
+	// show_resolved=false 时，只显示需要人工处理的反馈
+	if req.ShowResolved != nil && !*req.ShowResolved {
+		// 不显示的状态：auto_resolved（智能客服自动解决）、released（已交付）、ignored（已忽略）
+		query = query.Where("status NOT IN ?", []string{"auto_resolved", "released", "ignored"})
+	}
+
+	// 智能客服会话反馈在升级人工前不进入反馈列表（data.agent_session=true 且 data.escalated != true）
+	// 仅当按 project 查询（控制台列表）时生效；按 short_id/custom_user_id 精确查询不隐藏。
+	if req.ProjectID != nil {
+		query = query.Where(`(
+			data IS NULL
+			OR data NOT LIKE '%"agent_session":true%'
+			OR data LIKE '%"escalated":true%'
+		)`)
 	}
 
 	pagination, _ := ParsePagination(c)

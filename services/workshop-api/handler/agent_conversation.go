@@ -159,21 +159,14 @@ func BuildMessages(systemPrompt string, history []map[string]string, currentQuer
 	return messages
 }
 
-// GetSystemPrompt 获取系统提示
+// GetSystemPrompt 获取系统提示（人设单一事实来源：arcOrbitAgentPersona）。
 func GetSystemPrompt(projectID uint) string {
-	return `你是一个专业的技术支持助手，负责回答客户关于产品的问题。
+	return arcOrbitAgentPersona + `
 
 ## 能力
 - 搜索客户代码仓库，查找相关函数、类、模块的实现
 - 搜索项目文档，了解需求和设计
 - 搜索产品知识库，获取FAQ和最佳实践
-
-## 规则
-1. 基于检索结果回答问题，不要编造信息
-2. 引用具体的文件路径和代码片段
-3. 如果信息不足，主动询问更多细节
-4. 保持友好、专业的语气
-5. 使用中文回复
 
 ## 回复格式
 - 先直接回答问题

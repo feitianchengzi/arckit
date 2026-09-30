@@ -82,6 +82,8 @@ func openFeedbackWorkflowPostgres(t *testing.T) *gorm.DB {
 		&models.FeedbackSubscription{},
 		&models.FeedbackEmailDelivery{},
 		&models.FeedbackTaskLink{},
+		&AgentConversation{},
+		&AgentMessageRecord{},
 	); err != nil {
 		t.Fatalf("migrate PostgreSQL feedback workflow fixture: %v", err)
 	}
@@ -137,6 +139,50 @@ func performFeedbackWorkflowRequest(db *gorm.DB, userID uint, method string, pat
 	context.Set("userID", userID)
 	handler(context)
 	return recorder
+}
+
+// gormDB 仅为测试辅助类型别名，避免 escalate 测试文件重复导入 gorm。
+type gormDB = gorm.DB
+
+func (fixture feedbackWorkflowTestFixture) createAgentSessionFeedback(t *testing.T, firstMessage string) models.Feedback {
+	t.Helper()
+	data := fmt.Sprintf(
+		`{"feedback_state":%q,"status":%q,"source":"agent_chat","agent_session":true}`,
+		models.FeedbackTriagePending,
+		models.FeedbackTriagePending,
+	)
+	feedback := models.Feedback{
+		ProjectID:    fixture.project.ID,
+		ShortID:      fmt.Sprintf("AS-%d", time.Now().UnixNano()),
+		Title:        truncateRunes(firstMessage, 24),
+		Content:      firstMessage,
+		Status:       models.FeedbackTriagePending,
+		TriageStatus: models.FeedbackTriagePending,
+		Data:         &data,
+		CustomUserID: strPtr("user_demo_001"),
+	}
+	if err := fixture.db.Create(&feedback).Error; err != nil {
+		t.Fatalf("create agent session feedback: %v", err)
+	}
+	return feedback
+}
+
+func (fixture feedbackWorkflowTestFixture) seedAgentConversation(t *testing.T, feedbackID uint, messages []AgentMessageRecord) string {
+	t.Helper()
+	conv, err := CreateConversation(fixture.db, feedbackID, fixture.project.ID)
+	if err != nil {
+		t.Fatalf("create agent conversation: %v", err)
+	}
+	for i := range messages {
+		msg := messages[i]
+		msg.ConversationID = conv.ID
+		msg.FeedbackID = feedbackID
+		msg.ProjectID = fixture.project.ID
+		if err := SaveMessage(fixture.db, &msg); err != nil {
+			t.Fatalf("save agent message: %v", err)
+		}
+	}
+	return conv.ID
 }
 
 func waitForFeedbackRowLockWaiters(t *testing.T, db *gorm.DB, minimum int) {

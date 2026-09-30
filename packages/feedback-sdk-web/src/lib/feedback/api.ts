@@ -5,7 +5,11 @@ function getGatewayBaseUrl(): string {
   const cfg = getFeedbackSDKConfig()
   if (cfg.gatewayUrl?.trim()) return cfg.gatewayUrl.trim()
   if (import.meta.env.DEV) return '/gateway'
-  return import.meta.env.VITE_GATEWAY_URL || 'https://api.feitianchengzi.com'
+  // 构建期可注入 VITE_GATEWAY_URL；否则要求宿主通过 configure({ gatewayUrl }) 显式注入，
+  // 避免外部客户封装时误连到默认内部域名。
+  const envGateway = import.meta.env.VITE_GATEWAY_URL
+  if (envGateway) return envGateway
+  throw new Error('未配置反馈网关地址，请通过 window.FeedbackSDK.configure({ gatewayUrl }) 或环境变量 VITE_GATEWAY_URL 注入。')
 }
 
 const FEEDBACK_API_KEY_STORAGE = 'sdk_feedback_api_key'

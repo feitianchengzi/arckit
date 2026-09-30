@@ -1,8 +1,9 @@
 import { configureFeedbackSDK, getFeedbackSDKConfig, isFeedbackSDKV2NotificationsEnabled, setFeedbackSDKTheme } from './config'
-import type { FeedbackSDKConfig } from './config'
+import type { FeedbackSDKConfig, FeedbackSDKLocale } from './config'
 import { fetchFeedbackNotificationsV2 } from '@/lib/feedback/v2'
 import { buildAppPath } from './router'
 import { applyFeedbackSDKTheme, getFeedbackSDKTheme, type FeedbackSDKTheme } from './theme'
+import { setLocale as setI18nLocale, getLocale as getI18nLocale } from '@/i18n'
 
 export const FEEDBACK_SDK_CONFIGURED_EVENT = 'feedback-sdk:configured'
 export const FEEDBACK_SDK_NATIVE_IMAGE_EVENT = 'feedback-sdk:native-image-selected'
@@ -34,6 +35,8 @@ export interface FeedbackSDKBridge {
   setTheme: (theme: FeedbackSDKTheme) => void
   getTheme: () => FeedbackSDKTheme
   useSystemTheme: () => void
+  setLocale: (locale: FeedbackSDKLocale) => void
+  getLocale: () => FeedbackSDKLocale
   setImageFromNative: (payload: FeedbackSDKNativeImagePayload) => void
 }
 
@@ -68,6 +71,10 @@ function parseOrigins(value: string): string[] {
 }
 
 function getAllowedParentOrigins(): string[] {
+  // 运行时配置优先：宿主通过 configure({ parentOrigins }) 注入
+  const runtimeOrigins = parseOrigins((getFeedbackSDKConfig().parentOrigins || []).join(','))
+  if (runtimeOrigins.length) return runtimeOrigins
+
   const configuredOrigins = parseOrigins(
     import.meta.env.VITE_SDK_PARENT_ORIGINS || import.meta.env.VITE_SDK_PARENT_ORIGIN || ''
   )
@@ -88,6 +95,8 @@ function isFeedbackSDKConfig(value: unknown): value is FeedbackSDKConfig {
   if (!value || typeof value !== 'object') return false
 
   const config = value as Record<string, unknown>
+  const isStringArray = (v: unknown) =>
+    v === undefined || (Array.isArray(v) && v.every((item) => typeof item === 'string'))
   return (
     (config.apiKey === undefined || typeof config.apiKey === 'string') &&
     (config.projectId === undefined || typeof config.projectId === 'number') &&
@@ -97,6 +106,8 @@ function isFeedbackSDKConfig(value: unknown): value is FeedbackSDKConfig {
     (config.feedbackV2NotificationsEnabled === undefined || typeof config.feedbackV2NotificationsEnabled === 'boolean') &&
     (config.feedbackV2AuthMode === undefined || config.feedbackV2AuthMode === 'session' || config.feedbackV2AuthMode === 'apiKey') &&
     (config.feedbackSessionToken === undefined || typeof config.feedbackSessionToken === 'string') &&
+    (config.locale === undefined || config.locale === 'zh-CN' || config.locale === 'en-US') &&
+    isStringArray(config.parentOrigins) &&
     (config.theme === undefined || typeof config.theme === 'string')
   )
 }
@@ -229,6 +240,10 @@ function createBridge(): FeedbackSDKBridge {
   return {
     configure(config: FeedbackSDKConfig) {
       configureFeedbackSDK(config)
+      // 配置中的 locale 同步到运行时 i18n
+      if (config.locale === 'zh-CN' || config.locale === 'en-US') {
+        setI18nLocale(config.locale)
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(FEEDBACK_SDK_CONFIGURED_EVENT))
       }
@@ -254,6 +269,12 @@ function createBridge(): FeedbackSDKBridge {
     useSystemTheme() {
       setFeedbackSDKTheme('system')
     },
+    setLocale(locale: FeedbackSDKLocale) {
+      setI18nLocale(locale)
+    },
+    getLocale() {
+      return getI18nLocale()
+    },
     setImageFromNative(payload: FeedbackSDKNativeImagePayload) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(FEEDBACK_SDK_NATIVE_IMAGE_EVENT, { detail: payload }))
@@ -265,6 +286,11 @@ function createBridge(): FeedbackSDKBridge {
 export function installFeedbackSDKBridge() {
   if (typeof window === 'undefined') return
   applyFeedbackSDKTheme(getFeedbackSDKConfig().theme || 'light')
+  // 初始化时从配置同步 locale 到运行时 i18n
+  const configuredLocale = getFeedbackSDKConfig().locale
+  if (configuredLocale === 'zh-CN' || configuredLocale === 'en-US') {
+    setI18nLocale(configuredLocale)
+  }
   window.FeedbackSDK = createBridge()
   installHostMessageListener()
   notifyHostReady()

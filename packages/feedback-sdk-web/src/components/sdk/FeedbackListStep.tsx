@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import type { FeedbackItem, FeedbackStatus } from '@/lib/feedback/types'
 import { StatusFlowText, StatusTimeline } from '@/components/sdk/StatusTimeline'
+import { t } from '@/i18n'
 
-const statusLabel: Record<FeedbackStatus, string> = {
-  submitted: '已提交',
-	analyzing: '处理中',
-	reviewing: '已受理',
-  developing: '开发中',
-  released: '已上线',
-  completed: '已完成',
-  ignored: '已忽略',
+const statusLabelKey: Record<FeedbackStatus, string> = {
+  submitted: 'list.status.submitted',
+  analyzing: 'list.status.analyzing',
+  reviewing: 'list.status.reviewing',
+  developing: 'list.status.developing',
+  released: 'list.status.released',
+  completed: 'list.status.completed',
+  ignored: 'list.status.ignored',
 }
 
 const statusColor: Record<FeedbackStatus, string> = {
@@ -67,7 +68,7 @@ export function FeedbackListStep({ items, renderConversation, unreadItemIds }: F
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            {unreadItemIds?.has(item.id) ? <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="有未读更新" title="有未读更新" /> : null}
+            {unreadItemIds?.has(item.id) ? <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label={t('list.unread')} title={t('list.unread')} /> : null}
             <p className="truncate text-sm font-semibold text-foreground">{item.title}</p>
           </div>
           <p
@@ -83,18 +84,18 @@ export function FeedbackListStep({ items, renderConversation, unreadItemIds }: F
           </p>
         </div>
         <span className={clsx('shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold', statusColor[item.status])}>
-          {statusLabel[item.status]}
+          {t(statusLabelKey[item.status])}
         </span>
       </div>
 
       <div className="rounded-lg bg-surface p-2.5">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground-tertiary">提交于</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground-tertiary">{t('list.submitted_at')}</p>
             <p className="mt-0.5 text-xs font-medium text-foreground-secondary">{item.createdAt}</p>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground-tertiary">进展说明</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground-tertiary">{t('list.progress_note')}</p>
             <p className="mt-0.5 text-xs font-medium text-foreground-secondary">{item.etaText}</p>
           </div>
         </div>
@@ -110,7 +111,7 @@ export function FeedbackListStep({ items, renderConversation, unreadItemIds }: F
     if (!selected) {
       return (
         <div className="rounded-xl bg-surface p-4 text-sm text-foreground-secondary shadow-sm">
-          暂无可查看的反馈详情。
+          {t('list.empty_detail')}
         </div>
       )
     }
@@ -118,7 +119,7 @@ export function FeedbackListStep({ items, renderConversation, unreadItemIds }: F
     return (
       <div className="rounded-xl bg-surface p-4 shadow-sm">
         <div className="mb-3 border-b border-divider pb-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-tertiary">详情</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-tertiary">{t('list.detail')}</p>
           <h3 className="mt-1 text-base font-semibold text-foreground">{selected.title}</h3>
           <p className="mt-1 text-sm text-foreground-secondary">{selected.summary}</p>
           <p className="mt-1 text-xs text-foreground-tertiary">{selected.etaText}</p>
@@ -135,8 +136,8 @@ export function FeedbackListStep({ items, renderConversation, unreadItemIds }: F
     <section className="space-y-4">
       <header>
         <p className="text-xs font-semibold uppercase tracking-wide text-primary">My Feedback</p>
-        <h2 className="mt-1 text-xl font-bold text-foreground">反馈状态追踪</h2>
-        <p className="mt-1 text-sm text-foreground-secondary">透明查看你的反馈从提交到处理结果的完整流程。当前共 {items.length} 条。</p>
+        <h2 className="mt-1 text-xl font-bold text-foreground">{t('list.title')}</h2>
+        <p className="mt-1 text-sm text-foreground-secondary">{t('list.subtitle', { count: items.length })}</p>
       </header>
 
       <div className="lg:hidden space-y-3">
@@ -149,7 +150,7 @@ export function FeedbackListStep({ items, renderConversation, unreadItemIds }: F
             )}
             onClick={() => setMobileView('list')}
           >
-            列表
+            {t('list.list')}
           </button>
           <button
             type="button"
@@ -160,7 +161,7 @@ export function FeedbackListStep({ items, renderConversation, unreadItemIds }: F
             onClick={() => setMobileView('detail')}
             disabled={!hasSelected}
           >
-            详情
+            {t('list.detail')}
           </button>
         </div>
 
@@ -175,7 +176,7 @@ export function FeedbackListStep({ items, renderConversation, unreadItemIds }: F
               onClick={() => setMobileView('list')}
               className="text-xs font-semibold text-primary hover:text-primary-hover"
             >
-              返回列表
+              {t('list.back_to_list')}
             </button>
             {renderDetail()}
           </div>

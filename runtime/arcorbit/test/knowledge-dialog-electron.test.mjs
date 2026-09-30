@@ -19,6 +19,7 @@ test("knowledge dialog configures repos in a single two-view dialog without nest
   });
   const result = JSON.parse(stdout.trim());
 
+  assert.deepEqual(result.entryState, { configureAbsent: true, knowledgePlaceholderVisible: true, repositoryBlockVisible: true });
   assert.equal(result.opened, true);
   assert.equal(result.listView.listVisible, true);
   assert.equal(result.listView.addHidden, true);

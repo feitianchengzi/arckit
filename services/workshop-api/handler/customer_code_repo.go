@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os/exec"
 	"time"
@@ -80,6 +81,12 @@ func CreateCustomerCodeRepoHandler(c *gin.Context) {
 	}
 
 	// 创建记录
+	// UI 文案承诺"正在同步索引"：本地路径创建后必须启动索引管道，
+	// 否则仓库永远零 chunks、检索恒未命中。
+	status := "ready"
+	if req.RepoPath != "" {
+		status = "syncing"
+	}
 	repo := CustomerCodeRepo{
 		ProjectID:  projectID,
 		CustomerID: req.CustomerID,
@@ -87,12 +94,17 @@ func CreateCustomerCodeRepoHandler(c *gin.Context) {
 		RepoURL:    req.RepoURL,
 		Branch:     branch,
 		AutoSync:   req.AutoSync,
-		Status:     "ready",
+		Status:     status,
 	}
 
 	if err := db.Create(&repo).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建代码仓库记录失败: "+err.Error(), nil))
 		return
+	}
+
+	if req.RepoPath != "" {
+		created := repo
+		go runCodeIndexPipeline(db, projectID, created)
 	}
 
 	c.JSON(http.StatusOK, response.NewSuccessResponse(CustomerCodeRepoResponse{
@@ -223,9 +235,15 @@ func SyncCustomerCodeRepoHandler(c *gin.Context) {
 		}
 
 		if err := cmd.Run(); err != nil {
+			// 本地脏工作区 pull 失败很常见（开发仓有未提交修改）：
+			// 磁盘内容仍可索引，不得直接 error 导致检索永远未命中。
+			log.Printf("[code-repo] git pull failed project=%d repo=%d path=%s: %v (fallback: index local snapshot)",
+				repo.ProjectID, repo.ID, repo.RepoPath, err)
 			db.Model(&repo).Updates(map[string]interface{}{
-				"status": "error",
+				"status":         "ready",
+				"last_synced_at": time.Now(),
 			})
+			runCodeIndexPipeline(db, projectID, repo)
 			return
 		}
 

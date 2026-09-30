@@ -240,7 +240,11 @@ func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
 	// Agent 智能客服路由
 	group.POST("/feedbacks/:id/agent-message", handler.AgentMessageHandler)                               // 发送消息给 Agent
 	group.GET("/feedbacks/:id/agent-conversations", handler.GetAgentConversationsHandler)                 // 获取反馈关联的对话列表
+	group.GET("/feedbacks/:id/agent-messages", handler.GetFeedbackAgentMessagesHandler)                   // 获取反馈的所有 Agent 消息（chat-widget 历史）
 	group.GET("/agent-conversations/:conversationId/messages", handler.GetAgentConversationMessagesHandler) // 获取对话消息列表
+
+	// 反馈升级人工流转（客户转人工 / Agent 低置信升级，分诊→待办→回写一站式）
+	group.POST("/feedbacks/:id/escalate", handler.EscalateFeedbackHandler)
 }
 
 func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
@@ -253,6 +257,14 @@ func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
 	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessagesFromSession)
 	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessageFromSession)
 	group.GET("/feedbacks/:id/attachments/:attachment_id/oss/credentials", handler.GetFeedbackAttachmentOSSCredentialsFromSession)
+	// 智能客服（session 模式）：嵌入 SDK 客户与 Agent 对话。鉴权由 feedback session scope 完成。
+	group.POST("/feedbacks/:id/agent-message", handler.AgentMessageFromSession)
+	group.GET("/feedbacks/:id/agent-conversations", handler.GetAgentConversationsFromSession)
+	group.GET("/agent-conversations/:conversationId/messages", handler.GetAgentConversationMessagesFromSession)
+	// V2 实时通道：嵌入 SDK（session 模式）通过 subprotocol 携带 fbs_ token 连接，
+	// 加入项目房间以接收 feedback.message.created 广播。path 中的 id 仅占位，
+	// 实际 project scope 由 token 决定。
+	group.GET("/projects/:id/ws", handler.ConnectFeedbackSDKWebsocket)
 }
 
 func registerFeedbackNotificationRoutes(group *gin.RouterGroup) {

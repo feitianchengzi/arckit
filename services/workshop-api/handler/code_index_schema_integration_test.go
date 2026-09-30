@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -31,12 +30,25 @@ func TestCodeIndexChunksPersistToCodeIndexSchema(t *testing.T) {
 	if err := db.Exec(`CREATE SCHEMA IF NOT EXISTS code_index`).Error; err != nil {
 		t.Fatalf("create code_index schema: %v", err)
 	}
-	if err := db.Exec(`DROP TABLE IF EXISTS code_index.code_chunks`).Error; err != nil {
-		t.Fatalf("drop stale table: %v", err)
+	// 只确保表存在，绝不 DROP 共享表（DROP 曾把线上检索表删没）。
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS code_index.code_chunks (
+		id BIGSERIAL PRIMARY KEY,
+		project_id BIGINT NOT NULL,
+		source_id BIGINT NOT NULL,
+		file_path TEXT NOT NULL,
+		symbol_type VARCHAR(32),
+		symbol_name VARCHAR(200),
+		start_line INT NOT NULL,
+		end_line INT NOT NULL,
+		chunk_text TEXT NOT NULL,
+		embedding TEXT NOT NULL,
+		commit_sha VARCHAR(64),
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	)`).Error; err != nil {
+		t.Fatalf("ensure code_chunks: %v", err)
 	}
-	if err := db.AutoMigrate(&models.CodeChunk{}); err != nil {
-		t.Fatalf("migrate code_chunks into code_index schema: %v", err)
-	}
+	_ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_code_chunks_project_file ON code_index.code_chunks(project_id, file_path)`).Error
+	_ = db.Exec(`DELETE FROM code_index.code_chunks WHERE project_id = 9901`).Error
 
 	chunk := models.CodeChunk{
 		ProjectID:  9901,
@@ -60,7 +72,10 @@ func TestCodeIndexChunksPersistToCodeIndexSchema(t *testing.T) {
 		t.Fatalf("persist code chunk: %v", err)
 	}
 
-	results := searchCodeChunksBySQL(db, 9901, "LoginUser", 5)
+	results, searchErr := searchCodeChunksBySQL(db, 9901, "LoginUser", 5)
+	if searchErr != nil {
+		t.Fatalf("search after persist must not error: %v", searchErr)
+	}
 	if len(results) != 1 {
 		t.Fatalf("expected 1 search hit after persist, got %d", len(results))
 	}
@@ -76,7 +91,9 @@ func TestCodeIndexChunksPersistToCodeIndexSchema(t *testing.T) {
 		t.Fatalf("expected 1 row in code_index.code_chunks, got %d", count)
 	}
 
+	// 不得 DROP 共享库的 code_index.code_chunks：此前 cleanup 删表导致线上检索表缺失。
+	// 只清理本测试写入的行，保留表结构。
 	t.Cleanup(func() {
-		_ = db.Exec(fmt.Sprintf(`DROP TABLE IF EXISTS code_index.code_chunks`)).Error
+		_ = db.Exec(`DELETE FROM code_index.code_chunks WHERE project_id = 9901`).Error
 	})
 }

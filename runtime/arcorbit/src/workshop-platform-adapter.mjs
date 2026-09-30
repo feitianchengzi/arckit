@@ -113,6 +113,8 @@ export function createWorkshopPlatformAdapter({
       const query = { project_id: id };
       if (filters.short_id) query.short_id = String(filters.short_id).trim().slice(0, 100);
       if (filters.custom_user_id) query.custom_user_id = String(filters.custom_user_id).trim().slice(0, 200);
+      // 内部工作台不显示已解决的反馈
+      if (filters.show_resolved === false) query.show_resolved = false;
       return listAllPages(request, "/feedbacks", query, ["feedbacks", "items"], (feedback) => normalizeFeedbackV1(feedback, id));
     },
 
@@ -121,6 +123,8 @@ export function createWorkshopPlatformAdapter({
       const query = { project_id: id };
       if (filters.short_id) query.short_id = String(filters.short_id).trim().slice(0, 100);
       if (filters.custom_user_id) query.custom_user_id = String(filters.custom_user_id).trim().slice(0, 200);
+      // 内部工作台不显示已解决的反馈
+      if (filters.show_resolved === false) query.show_resolved = false;
       return listAllPages(v2Request, "/feedbacks", query, ["feedbacks", "items"], (feedback) => normalizeFeedbackV2(feedback, id));
     },
 

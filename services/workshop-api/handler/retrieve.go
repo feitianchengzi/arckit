@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 	"todo/middleware"
@@ -15,6 +17,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// filePathRegex 匹配回复文本中的代码文件路径（如 handler/retrieve.go、apps/todo-web/src/main.ts）
+var filePathRegex = regexp.MustCompile(`[\w./-]+\.(go|ts|tsx|js|jsx|py|java|sql|json|yaml|yml|md|swift)`)
+
 // RetrieveRequest 检索请求
 type RetrieveRequest struct {
 	ProjectID      uint   `json:"project_id" binding:"required"`
@@ -24,11 +29,23 @@ type RetrieveRequest struct {
 
 // RetrieveResponse 检索响应
 type RetrieveResponse struct {
-	Hits            []RetrievalHit `json:"hits"`
-	Confidence      float64        `json:"confidence"`
-	DraftReply      string         `json:"draft_reply,omitempty"`
-	NeedCollect     bool           `json:"need_collect"`
-	ConversationID  string         `json:"conversation_id,omitempty"`
+	Hits           []RetrievalHit `json:"hits"`
+	Confidence     float64        `json:"confidence"`
+	DraftReply     string         `json:"draft_reply,omitempty"`
+	NeedCollect    bool           `json:"need_collect"`
+	ConversationID string         `json:"conversation_id,omitempty"`
+	// Degraded true 表示 Agent 层调用失败/超时的降级响应，与"真未命中"区分：
+	// 前端据此保留上次结果（stale）并提示服务暂不可用，而非显示"未命中知识库"。
+	Degraded bool `json:"degraded"`
+}
+
+// degradedRetrieveResponse Agent 层失败且本地无命中时的降级响应。
+func degradedRetrieveResponse() RetrieveResponse {
+	return RetrieveResponse{
+		Hits:        []RetrievalHit{},
+		NeedCollect: true,
+		Degraded:    true,
+	}
 }
 
 // RetrievalHit 检索命中
@@ -125,7 +142,14 @@ func RetrieveHandler(c *gin.Context) {
 
 	// 两层检索：先本地代码搜索，再 OpenHands Agent
 	var localHits []RetrievalHit
-	localResults := searchCodeChunksBySQL(db, projectID, req.Query, 5)
+	degraded := false
+	localResults, localErr := searchCodeChunksBySQL(db, projectID, req.Query, 5)
+	if localErr != nil {
+		// 本地索引表故障：标记 degraded，不得伪装成"真未命中"
+		log.Printf("[retrieve] project=%d local_search_failed query_len=%d err=%v",
+			projectID, len(req.Query), localErr)
+		degraded = true
+	}
 	for _, r := range localResults {
 		localHits = append(localHits, RetrievalHit{
 			Source:    "customer_code",
@@ -142,16 +166,20 @@ func RetrieveHandler(c *gin.Context) {
 	if agent != nil {
 		var err error
 		agentResp, err = callOpenHandsAgent(agent, req.Query, req.ConversationID)
-		if err != nil && len(localHits) == 0 {
-			// 降级：转追问收集
-			c.JSON(200, gin.H{
-				"code": 0,
-				"data": RetrieveResponse{
-					NeedCollect: true,
-				},
-				"message": "我先帮你记录下来转团队跟进",
-			})
-			return
+		if err != nil {
+			// 降级与"真未命中"必须可区分：日志 + degraded 字段
+			log.Printf("[retrieve] project=%d agent_failed local_hits=%d query_len=%d err=%v",
+				projectID, len(localHits), len(req.Query), err)
+			if len(localHits) == 0 {
+				// 降级：转追问收集
+				c.JSON(200, gin.H{
+					"code":    0,
+					"data":    degradedRetrieveResponse(),
+					"message": "我先帮你记录下来转团队跟进",
+				})
+				return
+			}
+			degraded = true
 		}
 	}
 
@@ -186,6 +214,9 @@ func RetrieveHandler(c *gin.Context) {
 		convID = agentResp.ConversationID
 	}
 
+	log.Printf("[retrieve] project=%d local_hits=%d agent_hits=%d degraded=%v confidence=%.2f elapsed=%.2fs",
+		projectID, len(localHits), len(allHits)-len(localHits), degraded, confidence, elapsed)
+
 	c.JSON(200, gin.H{
 		"code": 0,
 		"data": RetrieveResponse{
@@ -194,6 +225,7 @@ func RetrieveHandler(c *gin.Context) {
 			DraftReply:     draftReply,
 			NeedCollect:    needCollect,
 			ConversationID: convID,
+			Degraded:       degraded,
 		},
 		"meta": gin.H{
 			"elapsed_seconds": elapsed,
@@ -213,109 +245,49 @@ func getAgentServerByProject(db *gorm.DB, projectID uint) *OpenHandsAgent {
 	return &agent
 }
 
-// callOpenHandsAgent 调用 OpenHands Agent Server
+// callOpenHandsAgent 调用 OpenHands Agent Server（真实契约：建会话→run→轮询→取回复）
 func callOpenHandsAgent(agent *OpenHandsAgent, query, conversationID string) (*RetrieveResponse, error) {
-	// 健康检查
-	healthURL := agent.URL + "/health"
-	healthClient := &http.Client{Timeout: 5 * time.Second}
-	healthReq, err := http.NewRequest("GET", healthURL, nil)
-	if err == nil {
-		healthResp, err := healthClient.Do(healthReq)
-		if err != nil {
-			return &RetrieveResponse{NeedCollect: true}, nil
-		}
-		healthResp.Body.Close()
-		if healthResp.StatusCode != http.StatusOK {
-			return &RetrieveResponse{NeedCollect: true}, nil
-		}
-	}
-
-	// 构造请求体
-	payload := map[string]interface{}{
-		"content": query,
-	}
-	if conversationID != "" {
-		payload["conversation_id"] = conversationID
-	}
-
-	jsonPayload, err := json.Marshal(payload)
+	result, err := callOpenHandsAgentSync(agent, query, conversationID, nil)
 	if err != nil {
-		return nil, fmt.Errorf("序列化请求失败: %w", err)
+		return nil, err
 	}
 
-	// 确定 API 端点
-	url := agent.URL + "/api/conversations"
-	if conversationID != "" {
-		url = agent.URL + "/api/conversations/" + conversationID + "/events"
-	}
-
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonPayload)))
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Session-API-Key", agent.APIKey)
-
-	// 使用配置的超时时间
-	timeoutMs := agent.TimeoutMs
-	if timeoutMs <= 0 {
-		timeoutMs = 10000
-	}
-	client := &http.Client{
-		Timeout: time.Duration(timeoutMs) * time.Millisecond,
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("调用 OpenHands Agent 失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
-	}
-
-	// 解析响应
-	var agentResp struct {
-		ConversationID string `json:"conversation_id"`
-		Content        string `json:"content"`
-		SourceFiles    []string `json:"source_files"`
-	}
-
-	if err := json.Unmarshal(body, &agentResp); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
-	}
-
-	// 构造检索结果
+	// 从 agent 回复中提取引用的文件路径，作为检索命中
 	hits := []RetrievalHit{}
-	if len(agentResp.SourceFiles) > 0 {
-		for _, file := range agentResp.SourceFiles {
-			hits = append(hits, RetrievalHit{
-				Source:    "customer_code",
-				Type:      "code",
-				Title:     file,
-				Snippet:   agentResp.Content,
-				Score:     0.9,
-				SourceRef: file,
-			})
-		}
-	}
-
-	// 使用置信度合并算法计算最终置信度
-	confidence, normalizedHits := mergeHitsAndComputeConfidence(hits)
-	if confidence == 0 && len(hits) > 0 {
-		confidence = 0.9 // fallback for backward compatibility
+	for _, file := range extractFilePaths(result.Content) {
+		hits = append(hits, RetrievalHit{
+			Source:    "customer_code",
+			Type:      "code",
+			Title:     file,
+			Snippet:   truncateStr(result.Content, 200),
+			Score:     0.9,
+			SourceRef: file,
+		})
 	}
 
 	return &RetrieveResponse{
-		Hits:           normalizedHits,
-		Confidence:     confidence,
-		DraftReply:     agentResp.Content,
+		Hits:           hits,
+		Confidence:     0.9,
+		DraftReply:     result.Content,
 		NeedCollect:    false,
-		ConversationID: agentResp.ConversationID,
+		ConversationID: result.ConversationID,
 	}, nil
+}
+
+// extractFilePaths 从文本中提取代码文件路径
+func extractFilePaths(content string) []string {
+	seen := map[string]bool{}
+	var paths []string
+	for _, m := range filePathRegex.FindAllString(content, -1) {
+		if !seen[m] {
+			seen[m] = true
+			paths = append(paths, m)
+		}
+	}
+	if len(paths) > 5 {
+		paths = paths[:5]
+	}
+	return paths
 }
 
 // parseProjectIDParam 解析项目ID参数

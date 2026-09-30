@@ -115,6 +115,63 @@ func signFeedbackSessionToken(projectID uint, customUserID string, now time.Time
 	return token, expiresAt, nil
 }
 
+// verifyFeedbackSessionToken 验证 workshop-api 自签的反馈会话 token，解出 session scope。
+// 与 signFeedbackSessionToken 对称：base64 解码 payload → 校验 HMAC → 校验 exp/iss/aud。
+// 该函数不依赖网关注入的 X-Feedback-* header，使 WebSocket 握手等无法携带自定义
+// header 的场景也能在 workshop-api 内完成 session 鉴权。
+func verifyFeedbackSessionToken(token string, now time.Time) (middleware.FeedbackSessionScope, error) {
+	signingKey, err := feedbackSessionSigningKey()
+	if err != nil {
+		return middleware.FeedbackSessionScope{}, err
+	}
+
+	if !strings.HasPrefix(token, feedbackSessionTokenPrefix) {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 格式无效")
+	}
+	body := strings.TrimPrefix(token, feedbackSessionTokenPrefix)
+
+	parts := strings.SplitN(body, ".", 2)
+	if len(parts) != 2 {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 结构无效")
+	}
+	encodedPayload, encodedMAC := parts[0], parts[1]
+
+	mac := hmac.New(sha256.New, signingKey)
+	_, _ = mac.Write([]byte(encodedPayload))
+	expectedMAC := mac.Sum(nil)
+	receivedMAC, err := base64.RawURLEncoding.DecodeString(encodedMAC)
+	if err != nil {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 签名无效")
+	}
+	if !hmac.Equal(expectedMAC, receivedMAC) {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 签名不匹配")
+	}
+
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(encodedPayload)
+	if err != nil {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 载荷无效")
+	}
+	var claims feedbackSessionClaims
+	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 载荷解析失败")
+	}
+	if claims.Issuer != feedbackSessionIssuer || claims.Audience != feedbackSessionAudience {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 签发方不匹配")
+	}
+	if claims.ExpiresAt > 0 && now.Unix() >= claims.ExpiresAt {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 已过期")
+	}
+	if claims.ProjectID == 0 || claims.CustomUserID == "" || claims.SessionID == "" {
+		return middleware.FeedbackSessionScope{}, errors.New("反馈会话 token 范围不完整")
+	}
+
+	return middleware.FeedbackSessionScope{
+		ProjectID:    claims.ProjectID,
+		CustomUserID: claims.CustomUserID,
+		SessionID:    claims.SessionID,
+	}, nil
+}
+
 // CreateUserFeedbackSession issues the Console self-feedback project a
 // customer-only session without granting project management membership.
 func CreateUserFeedbackSession(c *gin.Context) {

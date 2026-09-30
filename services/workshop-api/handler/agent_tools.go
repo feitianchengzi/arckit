@@ -135,7 +135,14 @@ func ExecuteTool(c *gin.Context, projectID uint, toolCall ToolCall) ToolResult {
 
 // searchCustomerCodeTool 搜索客户代码仓库
 func searchCustomerCodeTool(db *gorm.DB, projectID uint, query string, limit int) ToolResult {
-	results := searchCodeChunksBySQL(db, projectID, query, limit)
+	results, err := searchCodeChunksBySQL(db, projectID, query, limit)
+	if err != nil {
+		return ToolResult{
+			Tool:    "search_customer_code",
+			Content: "知识库检索失败（索引表不可用）: " + err.Error(),
+			Success: false,
+		}
+	}
 
 	if len(results) == 0 {
 		return ToolResult{
@@ -164,7 +171,14 @@ func searchCustomerCodeTool(db *gorm.DB, projectID uint, query string, limit int
 // searchCustomerDocsTool 搜索项目文档（代码仓库中的 .md/.txt 文件）
 func searchCustomerDocsTool(db *gorm.DB, projectID uint, query string, limit int) ToolResult {
 	// 直接搜索代码仓库中的文档文件（.md/.txt/.json 等）
-	results := searchCodeChunksBySQL(db, projectID, query, limit)
+	results, err := searchCodeChunksBySQL(db, projectID, query, limit)
+	if err != nil {
+		return ToolResult{
+			Tool:    "search_customer_docs",
+			Content: "知识库检索失败（索引表不可用）: " + err.Error(),
+			Success: false,
+		}
+	}
 
 	if len(results) == 0 {
 		return ToolResult{
@@ -193,7 +207,14 @@ func searchCustomerDocsTool(db *gorm.DB, projectID uint, query string, limit int
 // searchProductKnowledgeTool 搜索产品知识库（代码仓库中的文档）
 func searchProductKnowledgeTool(db *gorm.DB, projectID uint, query string, limit int) ToolResult {
 	// 搜索代码仓库中的知识文档（FAQ、README、配置说明等）
-	results := searchCodeChunksBySQL(db, projectID, query, limit)
+	results, err := searchCodeChunksBySQL(db, projectID, query, limit)
+	if err != nil {
+		return ToolResult{
+			Tool:    "search_product_knowledge",
+			Content: "知识库检索失败（索引表不可用）: " + err.Error(),
+			Success: false,
+		}
+	}
 
 	if len(results) == 0 {
 		return ToolResult{

@@ -1,6 +1,7 @@
 import { applyFeedbackSDKTheme, normalizeFeedbackSDKTheme, type FeedbackSDKTheme } from './theme'
 
 export type FeedbackSDKV2AuthMode = 'session' | 'apiKey'
+export type FeedbackSDKLocale = 'zh-CN' | 'en-US'
 
 export interface FeedbackSDKConfig {
   apiKey?: string
@@ -11,6 +12,9 @@ export interface FeedbackSDKConfig {
   feedbackV2NotificationsEnabled?: boolean
   feedbackV2AuthMode?: FeedbackSDKV2AuthMode
   feedbackSessionToken?: string
+  locale?: FeedbackSDKLocale
+  /** 允许向其 postMessage 的宿主 origin 列表（运行时可配，覆盖构建期 VITE_SDK_PARENT_ORIGINS） */
+  parentOrigins?: string[]
   theme?: FeedbackSDKTheme
 }
 
@@ -63,6 +67,12 @@ export function configureFeedbackSDK(config: FeedbackSDKConfig) {
   }
   if (config.feedbackSessionToken !== undefined) {
     runtimeConfig.feedbackSessionToken = trimValue(config.feedbackSessionToken)
+  }
+  if (config.locale === 'zh-CN' || config.locale === 'en-US') {
+    runtimeConfig.locale = config.locale
+  }
+  if (Array.isArray(config.parentOrigins)) {
+    runtimeConfig.parentOrigins = config.parentOrigins.map((origin) => trimValue(origin)).filter(Boolean)
   }
   const theme = normalizeFeedbackSDKTheme(config.theme)
   if (theme) {

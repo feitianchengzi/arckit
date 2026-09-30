@@ -7,13 +7,14 @@ import (
 )
 
 const (
-	FeedbackStatusPending    = "pending"     // 待处理
-	FeedbackStatusAccepted   = "accepted"    // 已确认
-	FeedbackStatusConverted  = "converted"   // 已流转为待办
-	FeedbackStatusInProgress = "in_progress" // 开发中
-	FeedbackStatusCompleted  = "completed"   // 已完成
-	FeedbackStatusIgnored    = "ignored"     // 已忽略
-	FeedbackStatusReleased   = "released"    // 已上线
+	FeedbackStatusPending      = "pending"       // 待处理
+	FeedbackStatusAccepted     = "accepted"      // 已确认
+	FeedbackStatusConverted    = "converted"     // 已流转为待办
+	FeedbackStatusInProgress   = "in_progress"   // 开发中
+	FeedbackStatusCompleted    = "completed"     // 已完成
+	FeedbackStatusIgnored      = "ignored"       // 已忽略
+	FeedbackStatusReleased     = "released"      // 已上线
+	FeedbackStatusAutoResolved = "auto_resolved" // 智能客服自动解决
 )
 
 const (
@@ -170,7 +171,8 @@ func IsValidFeedbackStatus(status string) bool {
 		FeedbackStatusInProgress,
 		FeedbackStatusCompleted,
 		FeedbackStatusIgnored,
-		FeedbackStatusReleased:
+		FeedbackStatusReleased,
+		FeedbackStatusAutoResolved:
 		return true
 	default:
 		return false

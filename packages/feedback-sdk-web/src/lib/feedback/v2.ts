@@ -86,7 +86,11 @@ function getGatewayBaseUrl(): string {
   const cfg = getFeedbackSDKConfig()
   if (cfg.gatewayUrl?.trim()) return cfg.gatewayUrl.trim()
   if (import.meta.env.DEV) return '/gateway'
-  return import.meta.env.VITE_GATEWAY_URL || 'https://api.feitianchengzi.com'
+  // 构建期可注入 VITE_GATEWAY_URL；否则要求宿主通过 configure({ gatewayUrl }) 显式注入，
+  // 避免外部客户封装时误连到默认内部域名。
+  const envGateway = import.meta.env.VITE_GATEWAY_URL
+  if (envGateway) return envGateway
+  throw new Error('未配置反馈网关地址，请通过 window.FeedbackSDK.configure({ gatewayUrl }) 或环境变量 VITE_GATEWAY_URL 注入。')
 }
 
 function currentSessionToken(): string {
@@ -405,6 +409,7 @@ export interface AgentMessageResponse {
   sender_type: 'agent'
   tool_calls?: ToolCall[]
   confidence: number
+  need_collect?: boolean
 }
 
 /**
@@ -414,14 +419,30 @@ export async function sendAgentMessage(params: {
   feedbackId: number
   content: string
   conversationId?: string
+  attachments?: FeedbackV2Attachment[]
 }): Promise<AgentMessageResponse> {
-  const { apiKey, projectId } = currentDirectAPIKeyContext()
-  
+  const authMode = currentV2AuthMode()
+  const directScope = authMode === 'apiKey' ? directScopePayload() : null
+
   const body: Record<string, unknown> = {
     content: params.content,
   }
   if (params.conversationId) {
     body.conversation_id = params.conversationId
+  }
+  if (directScope) {
+    body.custom_user_id = directScope.customUserId
+  }
+  // 图片附件：上传到 OSS 后传 object_key 等引用给后端落库；
+  // 后端在多模态开关开启时据此生成可访问 URL 传给 Agent 真实看图。
+  if (params.attachments && params.attachments.length > 0) {
+    body.attachments = params.attachments.map((att) => ({
+      type: att.type,
+      object_key: att.object_key,
+      url: att.url,
+      file_name: att.file_name,
+      mime_type: att.mime_type,
+    }))
   }
 
   const envelope = await requestJson<AgentMessageResponse>(
@@ -429,10 +450,7 @@ export async function sendAgentMessage(params: {
     `/feedbacks/${params.feedbackId}/agent-message`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     },
   )
@@ -448,16 +466,11 @@ export async function sendAgentMessage(params: {
  * 获取反馈关联的 Agent 对话列表
  */
 export async function getAgentConversations(feedbackId: number): Promise<AgentConversation[]> {
-  const { apiKey } = currentDirectAPIKeyContext()
-  
   const envelope = await requestJson<AgentConversation[]>(
     `/feedbacks/${feedbackId}/agent-conversations`,
     `/feedbacks/${feedbackId}/agent-conversations`,
     {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
     },
   )
 
@@ -468,16 +481,11 @@ export async function getAgentConversations(feedbackId: number): Promise<AgentCo
  * 获取 Agent 对话消息列表
  */
 export async function getAgentConversationMessages(conversationId: string): Promise<AgentMessage[]> {
-  const { apiKey } = currentDirectAPIKeyContext()
-  
   const envelope = await requestJson<AgentMessage[]>(
     `/agent-conversations/${conversationId}/messages`,
     `/agent-conversations/${conversationId}/messages`,
     {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
     },
   )
 

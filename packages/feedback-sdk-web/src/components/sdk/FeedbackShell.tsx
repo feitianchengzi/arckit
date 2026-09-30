@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import clsx from 'clsx'
+import { t } from '@/i18n'
 
 interface Props {
   mode: 'embed' | 'full'
@@ -36,8 +37,8 @@ export function FeedbackShell({ mode, children }: Props) {
           type="button"
           onClick={closeEmbeddedSdk}
           className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface-elevated text-2xl leading-7 text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          aria-label="关闭反馈"
-          title="关闭反馈"
+          aria-label={t('shell.close')}
+          title={t('shell.close')}
         >
           ×
         </button>

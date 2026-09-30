@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { FeedbackListStep } from '@/components/sdk/FeedbackListStep'
 import { FeedbackConversationPanel } from '@/components/sdk/FeedbackConversationPanel'
+import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 import { FeedbackShell } from '@/components/sdk/FeedbackShell'
 import type { FeedbackItem } from '@/lib/feedback/types'
 import { fetchFeedbackItemsByApiKey, getOrPersistApiKey, getOrPersistCustomUserId, resolveProjectId } from '@/lib/feedback/api'
 import { fetchFeedbackItemsV2, fetchFeedbackNotificationsV2 } from '@/lib/feedback/v2'
-import { useFeedbackRealtime } from '@/lib/feedback/realtime'
-import type { FeedbackRealtimeEvent } from '@/lib/feedback/realtime'
+import { useFeedbackRealtime, type FeedbackRealtimeEvent } from '@/lib/feedback/realtime'
+import { t } from '@/i18n'
 import {
   FEEDBACK_SDK_CONFIGURED_EVENT,
   getFeedbackSDKConfig,
@@ -22,11 +23,18 @@ export function SDKStatusPage() {
   const [unreadFeedbackIds, setUnreadFeedbackIds] = useState<Set<string>>(new Set())
   const [, setUnreadCount] = useState(0)
   const [retryCount, setRetryCount] = useState(0)
+  // 每条反馈的会话刷新计数：实时事件命中该反馈时递增，驱动 FeedbackConversationPanel 重拉
+  const [conversationRefreshKeys, setConversationRefreshKeys] = useState<Record<string, number>>({})
   const silentRefreshRef = useRef(false)
 
   const handleRealtimeEvent = useCallback((event: FeedbackRealtimeEvent) => {
     silentRefreshRef.current = true
     setRetryCount((prev) => prev + 1)
+    // 命中具体反馈时，刷新该反馈的会话消息（客服回复等）
+    if (event.type === 'feedback.message.created' && event.feedback_id) {
+      const key = String(event.feedback_id)
+      setConversationRefreshKeys((prev) => ({ ...prev, [key]: (prev[key] || 0) + 1 }))
+    }
   }, [])
 
   const projectId = getFeedbackSDKConfig().projectId
@@ -36,7 +44,8 @@ export function SDKStatusPage() {
   const { connected } = useFeedbackRealtime({
     projectId,
     onEvent: handleRealtimeEvent,
-    enabled: !!projectId && isFeedbackSDKV2Enabled(),
+    // V2 启用即连：session 模式由 token scope 决定 project，无需 projectId
+    enabled: isFeedbackSDKV2Enabled(),
   })
 
   useEffect(() => {
@@ -130,7 +139,7 @@ export function SDKStatusPage() {
       } catch (err: any) {
         if (canceled) return
         if (!silentRefresh) {
-          setError(err?.message || '状态加载失败，请稍后重试')
+          setError(err?.message || t('status.error_load'))
           setItems([])
         }
       } finally {
@@ -155,9 +164,9 @@ export function SDKStatusPage() {
       <div className={contentWrapClass}>
         <FeedbackShell mode="embed">
           <div className={innerWrapClass}>
-            {loading ? <p className="mb-3 text-sm text-foreground-secondary">正在加载反馈状态...</p> : null}
+            {loading ? <p className="mb-3 text-sm text-foreground-secondary">{t('status.loading')}</p> : null}
             {connected && isFeedbackSDKV2Enabled() ? (
-              <p className="mb-2 text-xs text-success">已连接实时推送</p>
+              <p className="mb-2 text-xs text-success">{t('status.realtime_connected')}</p>
             ) : null}
             {error ? (
               <div className="mb-3 rounded-lg bg-warning-lighter px-3 py-2 text-xs text-warning">
@@ -170,7 +179,7 @@ export function SDKStatusPage() {
                   }}
                   className="ml-3 font-semibold underline underline-offset-2"
                 >
-                  重试
+                  {t('common.retry')}
                 </button>
               </div>
             ) : null}
@@ -178,21 +187,25 @@ export function SDKStatusPage() {
               items={items}
               unreadItemIds={unreadFeedbackIds}
               renderConversation={isFeedbackSDKV2Enabled() ? (item) => (
-                <FeedbackConversationPanel
-                  feedbackId={item.id}
-                  onNotificationsRead={(feedbackId, markedCount) => {
-                    setUnreadFeedbackIds((current) => {
-                      const next = new Set(current)
-                      next.delete(feedbackId)
-                      return next
-                    })
-                    setUnreadCount((current) => {
-                      const next = Math.max(0, current - markedCount)
-                      notifyFeedbackSDKUnreadCount(next)
-                      return next
-                    })
-                  }}
-                />
+                <div className="space-y-5">
+                  <AgentChatPanel feedbackId={item.id} />
+                  <FeedbackConversationPanel
+                    feedbackId={item.id}
+                    refreshKey={conversationRefreshKeys[item.id] || 0}
+                    onNotificationsRead={(feedbackId, markedCount) => {
+                      setUnreadFeedbackIds((current) => {
+                        const next = new Set(current)
+                        next.delete(feedbackId)
+                        return next
+                      })
+                      setUnreadCount((current) => {
+                        const next = Math.max(0, current - markedCount)
+                        notifyFeedbackSDKUnreadCount(next)
+                        return next
+                      })
+                    }}
+                  />
+                </div>
               ) : undefined}
             />
           </div>

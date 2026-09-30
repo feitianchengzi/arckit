@@ -699,6 +699,10 @@ func CreateFeedbackMessage(c *gin.Context) {
 	if created {
 		notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.message.created", resp)
 		notifyFeedbackTaskAttachmentCreated(c, db, feedback.ProjectID, userID, taskComments)
+		// 开发者回复同步到 agent_message_records，供 chat-widget 加载
+		if senderType == models.FeedbackMessageSenderDeveloper && content != "" {
+			syncDeveloperReplyToAgentMessages(db, feedback, content)
+		}
 		c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 		return
 	}
@@ -727,7 +731,8 @@ func canonicalFeedbackStatus(raw string) string {
 		models.FeedbackStatusInProgress,
 		models.FeedbackStatusCompleted,
 		models.FeedbackStatusIgnored,
-		models.FeedbackStatusReleased:
+		models.FeedbackStatusReleased,
+		models.FeedbackStatusAutoResolved:
 		return status
 	case "developing", "processing", "inprogress":
 		return models.FeedbackStatusInProgress

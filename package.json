@@ -15,9 +15,10 @@
     "build:feedback-console": "npm run build --workspace @arckit/feedback-console",
     "build:feedback-sdk": "npm run build --workspace @arckit/feedback-sdk-web",
     "typecheck": "npm run build:check --workspace @arckit/todo-web && npm run build:check --workspace @arckit/feedback-console && npm run build:check --workspace @arckit/feedback-sdk-web",
-    "test": "npm run test:todo && npm run test:arcorbit && npm run test:workshop-api",
+    "test": "npm run test:todo && npm run test:arcorbit && npm run test:feedback-sdk && npm run test:workshop-api",
     "test:todo": "npm test --workspace @arckit/todo-web",
     "test:arcorbit": "npm test --workspace @arckit/arcorbit",
+    "test:feedback-sdk": "npm test --workspace @arckit/feedback-sdk-web",
     "test:workshop-api": "cd services/workshop-api && go test ./...",
     "check": "npm run build && npm test"
   },

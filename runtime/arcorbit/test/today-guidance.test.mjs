@@ -221,8 +221,8 @@ test("Renderer reuses owned mutations, fresh-reads after success, and preserves 
   // Executor identity must remain project-scoped; account-bound governance may use platform.user.
   const executorIdentity = source.slice(source.indexOf("function projectCurrentUserExecutorId("), source.indexOf("function projectCurrentUserExecutorId(") + 400);
   assert.doesNotMatch(executorIdentity, /state\.platform\.user/);
-  assert.match(source, /async function bindAutomationWorkspace[\s\S]*await api\.bindAutomationProject\(remoteProjectId, localProjectId\);[\s\S]*await refreshSnapshot\(\{ quiet: true \}\);/);
-  assert.match(source, /await api\.setProjectParticipation\(workspace\.id, true\);[\s\S]*await refreshSnapshot\(\);/);
+  assert.match(source, /async function bindAutomationWorkspace[\s\S]*await api\.bindAutomationProject\(remoteProjectId, localProjectId\);[\s\S]*await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\);/);
+  assert.match(source, /await api\.setProjectParticipation\(workspace\.id, true\);[\s\S]*await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\);/);
   assert.match(source, /await api\.setAutomationEnabled\(true\);[\s\S]*await refreshSnapshot\(\);/);
   assert.match(source, /case "resume_queue":[\s\S]*await api\.setQueuePaused\(false\);[\s\S]*await refreshSnapshot\(\);/);
   assert.match(source, /openChatWorkspaceSetup[\s\S]*await refreshChat\(\{ quiet: true, resetOwner: true \}\);/);

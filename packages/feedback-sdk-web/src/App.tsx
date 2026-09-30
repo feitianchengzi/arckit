@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SDKStatusPage } from '@/pages/SDKStatusPage'
 import { SDKSubmitPage } from '@/pages/SDKSubmitPage'
+import { SDKChatPage } from '@/pages/SDKChatPage'
 
 function RedirectToSubmit() {
   const location = useLocation()
@@ -13,6 +14,7 @@ export default function App() {
       <Route path="/" element={<RedirectToSubmit />} />
       <Route path="/index.html" element={<RedirectToSubmit />} />
       <Route path="/submit" element={<SDKSubmitPage />} />
+      <Route path="/chat" element={<SDKChatPage />} />
       <Route path="/status" element={<SDKStatusPage />} />
       <Route path="*" element={<RedirectToSubmit />} />
     </Routes>

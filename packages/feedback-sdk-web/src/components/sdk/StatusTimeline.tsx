@@ -1,15 +1,16 @@
 import clsx from 'clsx'
 import { feedbackStatusFlow } from '@/lib/feedback/types'
 import type { FeedbackStatus, TimelineNode } from '@/lib/feedback/types'
+import { t } from '@/i18n'
 
-const statusText: Record<FeedbackStatus, string> = {
-	submitted: '已提交',
-	analyzing: '处理中',
-	reviewing: '已受理',
-  developing: '开发中',
-  released: '已上线',
-  completed: '已完成',
-  ignored: '已忽略',
+const statusTextKey: Record<FeedbackStatus, string> = {
+	submitted: 'list.status.submitted',
+	analyzing: 'list.status.analyzing',
+	reviewing: 'list.status.reviewing',
+  developing: 'list.status.developing',
+  released: 'list.status.released',
+  completed: 'list.status.completed',
+  ignored: 'list.status.ignored',
 }
 
 export function StatusFlowText({ currentStatus }: { currentStatus: FeedbackStatus }) {
@@ -31,7 +32,7 @@ export function StatusFlowText({ currentStatus }: { currentStatus: FeedbackStatu
         const active = index <= currentIndex
         return (
           <span key={status} className={clsx(active ? 'text-foreground' : 'text-foreground-tertiary')}>
-            {statusText[status]}
+            {t(statusTextKey[status])}
             {index < flow.length - 1 ? <span className="mx-1 text-foreground-tertiary">→</span> : null}
           </span>
         )

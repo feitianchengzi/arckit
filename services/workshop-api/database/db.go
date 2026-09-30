@@ -151,6 +151,14 @@ func Migrate(db *gorm.DB) error {
 	if db == nil {
 		return gorm.ErrInvalidDB
 	}
+	// 知识库三张表用幂等 raw SQL：knowledge_workspaces 既有列级 UNIQUE 约束
+	// 与模型 partial uniqueIndex 冲突时 GORM AutoMigrate 会 DROP 不存在的
+	// uni_knowledge_workspaces_project_id 并整体失败，连带 code_chunks 建不出来。
+	if err := WithKnowledgeDDLLock(db, func() error {
+		return ensureKnowledgeSchema(db)
+	}); err != nil {
+		return err
+	}
 	return db.AutoMigrate(
 		&models.User{},
 		&models.Organization{},
@@ -173,6 +181,77 @@ func Migrate(db *gorm.DB) error {
 		&models.ProjectEvent{},
 		&models.TaskNotificationPreference{},
 	)
+}
+
+// ensureKnowledgeSchema 幂等创建知识库表/索引，并修复历史约束冲突。
+// 不依赖 AutoMigrate，保证任意既有库状态下检索链路可用。
+func ensureKnowledgeSchema(db *gorm.DB) error {
+	stmts := []string{
+		`CREATE SCHEMA IF NOT EXISTS code_index`,
+		`CREATE TABLE IF NOT EXISTS knowledge_workspaces (
+			id BIGSERIAL PRIMARY KEY,
+			project_id BIGINT,
+			weknora_workspace_id VARCHAR(128) NOT NULL,
+			scoped_api_key VARCHAR(500) NOT NULL,
+			scope VARCHAR(32) NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			delete_at TIMESTAMPTZ
+		)`,
+		// 历史列级 UNIQUE 无 WHERE delete_at IS NULL，与模型 partial uniqueIndex 冲突。
+		`ALTER TABLE knowledge_workspaces DROP CONSTRAINT IF EXISTS knowledge_workspaces_project_id_key`,
+		`ALTER TABLE knowledge_workspaces DROP CONSTRAINT IF EXISTS uni_knowledge_workspaces_project_id`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uniq_knowledge_workspace_project ON knowledge_workspaces(project_id) WHERE delete_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_workspaces_project_id ON knowledge_workspaces(project_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_workspaces_scope ON knowledge_workspaces(scope)`,
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_workspaces_deleted_at ON knowledge_workspaces(delete_at)`,
+		`CREATE TABLE IF NOT EXISTS knowledge_sources (
+			id BIGSERIAL PRIMARY KEY,
+			project_id BIGINT,
+			name VARCHAR(200) NOT NULL,
+			source_type VARCHAR(32) NOT NULL,
+			status VARCHAR(32) NOT NULL DEFAULT 'not_synced',
+			scope VARCHAR(32) NOT NULL,
+			repo_url VARCHAR(500),
+			branch VARCHAR(100),
+			last_indexed_at TIMESTAMPTZ,
+			last_index_error TEXT,
+			weknora_connector_id VARCHAR(128),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			delete_at TIMESTAMPTZ
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uniq_knowledge_source_project_name ON knowledge_sources(project_id, name) WHERE delete_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_sources_project_id ON knowledge_sources(project_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_sources_source_type ON knowledge_sources(source_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_sources_status ON knowledge_sources(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_sources_scope ON knowledge_sources(scope)`,
+		`CREATE INDEX IF NOT EXISTS idx_knowledge_sources_deleted_at ON knowledge_sources(delete_at)`,
+		`CREATE TABLE IF NOT EXISTS code_index.code_chunks (
+			id BIGSERIAL PRIMARY KEY,
+			project_id BIGINT NOT NULL,
+			source_id BIGINT NOT NULL,
+			file_path TEXT NOT NULL,
+			symbol_type VARCHAR(32),
+			symbol_name VARCHAR(200),
+			start_line INT NOT NULL,
+			end_line INT NOT NULL,
+			chunk_text TEXT NOT NULL,
+			embedding TEXT NOT NULL,
+			commit_sha VARCHAR(64),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_code_chunks_project_file ON code_index.code_chunks(project_id, file_path)`,
+		`CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_type ON code_index.code_chunks(symbol_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_code_chunks_symbol_name ON code_index.code_chunks(symbol_name)`,
+		`CREATE INDEX IF NOT EXISTS idx_code_chunks_source_id ON code_index.code_chunks(source_id)`,
+	}
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("knowledge schema: %w (stmt: %s)", err, stmt)
+		}
+	}
+	return nil
 }
 
 // ValidateRuntimeSchema fails closed when the durable event contract required
