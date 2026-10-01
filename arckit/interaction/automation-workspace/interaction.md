@@ -7,7 +7,7 @@
 
 ### 核心任务
 
-用户在 Automation Command Center 中沿用顶部产品集的全局观察范围，查看普通待办队列、验收问题队列、自动化吞吐、当前运行和需要人工判断的事项，并可用“仅看验收问题”聚焦独立问题工作。系统按项目拉取待办形成跨项目待办队列，并只从已完成待办的结果审查接收独立验收问题；任务消息仅在审查执行过程、提出验收问题或处理人工中断时进入独立的 Intervention Workbench。Personal / Chat 的自由会话不参与 Automation 数据或控制，但两处消息列表使用同一个 Conversation Surface。
+用户在 Automation Command Center 中沿用顶部产品集的全局观察范围，查看普通待办队列、验收问题队列、自动化吞吐、当前运行和需要人工判断的事项，并可用“仅看验收问题”聚焦独立问题工作。系统按项目拉取待办形成跨项目待办队列，并只从已完成待办的结果审查接收独立验收问题；任务消息仅在审查执行过程、提出验收问题或处理人工中断时进入独立的 Intervention Workbench。Personal / Chat 的自由会话不参与 Automation 数据或控制；绑定同一待办的 Chat 与 Workbench 共享会话和消息投影，两处消息列表使用同一个 Conversation Surface。
 
 Command Center 只消费 Work Sync 发布的本地待办状态与必要同步健康摘要，不建立 Workshop 连接、不读取 REST、不处理游标，也不在任务动作前独立确认服务器状态。Work Sync 独立负责实时事件、项目对账和任务 mutation；用户仍能查看现代实时、补取、旧服务兼容连接、连接异常和认证失效状态，但这些状态明确属于 Work，同步恢复不会越过正在等待的人工事项。
 
@@ -88,7 +88,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - 验收问题队列和普通待办队列在信息架构、计数、筛选和排序上彼此独立；两类工作在同一 workspace lane 共享串行仲裁，lane 与全局槽位是否空闲只影响问题项何时从 queued 进入 running，不改变它属于哪条队列。
 - “仅看验收问题”只隐藏普通待办指标、列表和普通最近完成投影，保留全部活动执行与恢复状态；它不把验收问题计入待办状态，也不改变两条队列的排序、lane 串行租约或全局容量。
 - 一个验收问题项显示稳定标识、来源待办、问题摘要、状态、当前 Case/Run、最近进展和阻塞/人工责任。多个问题项按创建时间分别展示，不合并为待办的一条备注。
-- 每个远端待办拥有独立的 Workbench 会话。对话区只加载该待办的初始 Run、续接、人工介入和收束消息；Personal / Chat session、其他待办以及归属不明的历史消息不得混入。
+- 每个远端待办拥有唯一的任务会话。Workbench 和待办 Chat 读取该会话的人工讨论、初始 Run、续接、人工介入、送达回执和收束消息；自由 Chat、其他待办以及归属不明的历史消息不得混入。
 - 同一待办的续接保持在同一 Workbench 会话和持久 Codex thread 中；fresh Case State 校正事实与授权，Run 或 turn 切换不创建新的待办对话。
 - Workbench 中间区域直接复用 Chat Conversation Surface。消息 DOM、Markdown、代码复制、reasoning、工具/权限状态、流式更新、滚动锚点和“回到最新”只有一份实现；两处不建立平行的消息渲染与浏览分支。
 - Conversation Surface 只承载用户、Agent、reasoning、工具和权限消息。candidate、Round、gap、writeback、fresh-read、handoff、结构化结果、验证和 ledger 结果进入左右面板；原始 JSON envelope、逐 token 文本 delta、逐字符 reasoning delta 和连续命令输出不直接呈现为普通用户消息。
@@ -326,7 +326,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - 项目选择只改变 Command Center 的观察范围；Work 面板的任务状态筛选进入 Task Browser，两种观察动作均不改变自动队列策略。
 - 当前运行、队列任务和最近完成项在同页打开 Inspector。
 - “处理”进入 Intervention Workbench 的人工模式。
-- “查看对话”进入 Intervention Workbench 的只读模式。
+- “查看对话”进入 Intervention Workbench 的只读模式，保留左右面板，不跳转 Chat、不触发待办同步，也不修改 Chat 会话选择或隐藏状态。持续进度更新保留语义未变的按钮节点，悬停和按下后松开均能稳定操作。
 - “切换到 Codex CLI”从当前运行直接打开目标项目的交互式 Codex 会话；返回 Command Center 后仍能看到该待办由 CLI 接管。
 
 ### 离开方式

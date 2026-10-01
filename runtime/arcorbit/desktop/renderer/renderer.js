@@ -25,7 +25,6 @@ import {
 } from "../../src/codex-model-settings.mjs";
 import {
   isConversationSurfaceMessageVisible,
-  mergeAutomationTranscript,
   statusGlyph,
   structuredResultPresentation,
   summarizeLoopStatus,
@@ -538,6 +537,11 @@ async function boot() {
     scheduleRefresh();
   });
   api.onChatEvent((event) => {
+    if (state.page === "workbench") {
+      const sessionId = (state.workbenchRun || state.snapshot.active_run)?.session_id;
+      if (event.session_id === sessionId && event.type !== "chat.draft.changed") scheduleWorkbenchTranscriptRefresh();
+      return;
+    }
     if (event?.type === "chat.draft.changed") return;
     if (event?.type === "chat.conversation.updated" && (state.page !== "chat" || (event.session_id && event.session_id !== chatState().snapshot.selected_session_id))) return;
     if (event?.type === "chat.message.changed") {
@@ -1593,7 +1597,7 @@ async function refreshVisibleAutomationActivity(runId) {
     if (state.page === page && activityRunIsVisible(event.runId)) renderWorkbench();
     return;
   }
-  renderCommandCenter();
+  renderCurrentRun((state.snapshot.blocked_pending_tasks || []).filter(scopedTaskFilter));
 }
 
 function visibleAutomationRun() {
@@ -5415,10 +5419,14 @@ function renderExecutionHistory() {
     .filter(item => !state.acceptanceFeedbackOnly || item.feedback_id)
     .filter(item => els.showArchivedExecutions.checked || !item.archived_at);
   const labels = { stopped: "已停止", cancelled: "已取消", resolved: "已解决", blocked: "已阻塞", recovery: "需要恢复", queued: "排队中", running: "运行中", awaiting_human: "等待人工", external_wait: "等待外部结果" };
-  els.executionHistoryList.innerHTML = items.length ? items.map(item => `<article class="execution-history-item"><div><strong>${escapeHtml(item.title || item.task_title)}</strong><p>${escapeHtml(labels[item.status] || item.status)}${item.archived_at ? " · 已归档" : ""} · ${escapeHtml(item.task_id)}${item.progress ? ` · ${escapeHtml(item.progress)}` : ""}</p></div><div class="execution-history-actions"><button class="text-button" data-history-open="${escapeHtml(item.history_id)}" type="button">查看对话</button>${executionActionButtons(item)}</div></article>`).join("") : `<div class="empty-state">当前范围没有执行历史。</div>`;
+  const html = items.length ? items.map(item => `<article class="execution-history-item"><div><strong>${escapeHtml(item.title || item.task_title)}</strong><p>${escapeHtml(labels[item.status] || item.status)}${item.archived_at ? " · 已归档" : ""} · ${escapeHtml(item.task_id)}${item.progress ? ` · ${escapeHtml(item.progress)}` : ""}</p></div><div class="execution-history-actions"><button class="text-button" data-history-open="${escapeHtml(item.history_id)}" type="button">查看对话</button>${executionActionButtons(item)}</div></article>`).join("") : `<div class="empty-state">当前范围没有执行历史。</div>`;
+  if (els.executionHistoryList._renderedMarkup === html) return;
+  els.executionHistoryList._renderedMarkup = html;
+  els.executionHistoryList.innerHTML = html;
   wireExecutionActions(els.executionHistoryList);
   els.executionHistoryList.querySelectorAll("[data-history-open]").forEach(button => button.addEventListener("click", () => runAction(async () => {
-    const item = items.find(item => item.history_id === button.dataset.historyOpen);
+    const item = (state.snapshot.execution_history || []).find(item => item.history_id === button.dataset.historyOpen);
+    if (!item) throw new Error("执行已变化，请刷新后重试。");
     const task = state.snapshot.tasks.find(task => String(task.id) === String(item.task_id));
     await openWorkbench("review", item.run_id, { task, feedbackId: item.feedback_id || "", historyId: item.history_id });
   })));
@@ -5506,6 +5514,7 @@ function renderCurrentRun(blockedPendingTasks = []) {
       ? `<div class="run-empty"><div><strong>执行已停止</strong><p>${escapeHtml(taskDisplayTitle(stopped.task_title, stopped.task_id))}</p><p>${escapeHtml(stopped.execution_outcome?.reason || "已保留未完成事项。")}</p><small>待办状态保持不变；请在下方“执行历史与恢复”中恢复原执行。</small></div></div>`
       : `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.some(scopedTaskFilter) ? "自动化将从下一队列领取一项任务。" : blockedPendingTasks.length ? "存在待处理任务，但项目尚未满足自动执行条件。" : "同步后继续监听待处理任务。"}</p></div></div>`;
     els.currentRunActions.innerHTML = "";
+    delete els.currentRunActions.dataset.renderKey;
     return;
   }
   const phases = runtimeStages(active.phase, run);
@@ -5522,6 +5531,10 @@ function renderCurrentRun(blockedPendingTasks = []) {
     state.snapshot = await api.selectAutomationExecution(button.dataset.automationExecution);
     renderCommandCenter();
   })));
+  const actionMode = active.phase === "cli_handoff" ? "cli" : active.phase === "switching_to_cli" ? "switching" : ["starting", "running", "continuing"].includes(active.phase) ? "running" : externalDependency ? "external" : "review";
+  const actionKey = JSON.stringify([active.execution_id || active.task_id, actionMode]);
+  if (els.currentRunActions.dataset.renderKey === actionKey) return;
+  els.currentRunActions.dataset.renderKey = actionKey;
   if (active.phase === "cli_handoff") {
     els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="reopenCliButton" class="text-button" type="button">重新打开终端</button><button id="resumeRuntimeButton" class="primary-button" type="button">恢复自动执行</button>`;
   } else if (active.phase === "switching_to_cli") {
@@ -5533,7 +5546,7 @@ function renderCurrentRun(blockedPendingTasks = []) {
   } else {
     els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button>`;
   }
-  document.getElementById("reviewRunButton").addEventListener("click", () => openWorkbench("review"));
+  document.getElementById("reviewRunButton").addEventListener("click", () => runAction(() => openWorkbench("review")));
   document.getElementById("handoffCliButton")?.addEventListener("click", () => runAction(async () => {
     await api.handoffAutomationToCli({ execution_id: state.snapshot.selected_execution_id });
     await refreshSnapshot();
@@ -5572,9 +5585,12 @@ function renderQueue(queue, blockedPendingTasks = []) {
 
 function renderRecentCompletions() {
   const items = state.snapshot.recent_completions.filter(scopedTaskFilter).slice(0, 5);
-  els.recentCompletions.innerHTML = items.length ? items.map((item) => `<button class="completion-item" data-completion-run="${escapeHtml(item.run_id)}" type="button"><span><strong>${escapeHtml(taskDisplayTitle(item.title, item.task_id))}</strong><small>${escapeHtml(item.project_id)} · ${formatDateTime(item.completed_at)}</small></span><span class="status-pill completed">已完成</span></button>`).join("") : `<div class="empty-state">暂无由自动化完成的任务。</div>`;
+  const html = items.length ? items.map((item) => `<button class="completion-item" data-completion-run="${escapeHtml(item.run_id)}" type="button"><span><strong>${escapeHtml(taskDisplayTitle(item.title, item.task_id))}</strong><small>${escapeHtml(item.project_id)} · ${formatDateTime(item.completed_at)}</small></span><span class="status-pill completed">已完成</span></button>`).join("") : `<div class="empty-state">暂无由自动化完成的任务。</div>`;
+  if (els.recentCompletions._renderedMarkup === html) return;
+  els.recentCompletions._renderedMarkup = html;
+  els.recentCompletions.innerHTML = html;
   els.recentCompletions.querySelectorAll("[data-completion-run]").forEach((button) => button.addEventListener("click", () => {
-    const completion = items.find((item) => item.run_id === button.dataset.completionRun);
+    const completion = state.snapshot.recent_completions.find((item) => item.run_id === button.dataset.completionRun);
     const task = state.snapshot.tasks.find((item) => String(item.id) === String(completion?.task_id));
     openWorkbench("review", button.dataset.completionRun, { task });
   }));
@@ -5757,6 +5773,12 @@ function workAcceptanceSelectionTarget(taskId) {
 }
 
 async function openWorkbench(mode = "review", runId = "", context = {}) {
+  const opening = state.workbenchOpenRequest = (state.workbenchOpenRequest || 0) + 1;
+  const originPage = state.page;
+  const selectedRun = runId && state.snapshot.active_run?.id !== runId
+    ? (await api.listRuns({})).find((run) => run.id === runId) || null
+    : null;
+  if (opening !== state.workbenchOpenRequest || state.page !== originPage) return;
   state.workbenchMode = mode;
   state.workbenchHistoryId = context.historyId || "";
   state.workbenchCompletion = runId
@@ -5764,28 +5786,24 @@ async function openWorkbench(mode = "review", runId = "", context = {}) {
     : null;
   state.workbenchTask = context.task || null;
   state.workbenchFeedbackId = context.feedbackId || "";
-  state.workbenchRun = runId && state.snapshot.active_run?.id !== runId
-    ? (await api.listRuns({})).find((run) => run.id === runId) || null
-    : null;
+  state.workbenchRun = selectedRun;
   const selectedHistory = currentWorkbenchExecution();
   if (selectedHistory && !state.workbenchRun && state.snapshot.active_run?.id !== selectedHistory.run_id) {
     state.workbenchRun = { id: selectedHistory.run_id, project_id: selectedHistory.local_project_id,
       session_id: selectedHistory.session_id, task_id: selectedHistory.task_id, activity: {} };
   }
-  const run = state.workbenchRun || state.snapshot.active_run;
-  const execution = selectedHistory || state.snapshot.active_task || state.workbenchCompletion;
-  const taskId = context.task?.id || execution?.task_id || run?.task_id;
-  const localProjectId = run?.project_id || execution?.local_project_id;
-  if (!taskId || !localProjectId) throw new Error('缺少待办会话绑定，请同步后重试。');
-  await chatStateCoordinator.flushDraft();
-  const opened = await api.chatNativeOpen({ project_id: localProjectId, task_id: String(taskId) });
-  await chatStateCoordinator.selectSession(opened.session_id);
-  chatTaskPanelMode = 'detail';
-  showPage('chat');
+  state.transcriptSessionId = "";
+  state.transcript = [];
+  state.transcriptRuns = [];
+  workbenchConversationSurface.followLatest();
+  showPage("workbench");
+  await loadTranscript({ force: true });
+  if (state.page === "workbench") renderWorkbench();
 
 }
 
 async function loadTranscript({ force = false } = {}) {
+  const request = state.workbenchTranscriptRequest = (state.workbenchTranscriptRequest || 0) + 1;
   const selectedExecution = currentWorkbenchExecution();
   const active = selectedExecution?.active
     ? (state.snapshot.active_executions || []).find(item => item.execution_id === selectedExecution.execution_id) || null
@@ -5799,25 +5817,34 @@ async function loadTranscript({ force = false } = {}) {
     state.transcriptRuns = [];
     return;
   }
-  const taskId = state.workbenchTask?.id || state.workbenchCompletion?.task_id || active?.task_id || "";
+  const taskId = state.workbenchTask?.id || state.workbenchCompletion?.task_id || active?.task_id || run?.task_id || "";
   const sessionKey = `${localProjectId}:${run.session_id}:${taskId}`;
-  if (force || state.transcriptSessionId !== sessionKey) {
-    const [messages, runs] = await Promise.all([
-      api.listMessages(localProjectId, run.session_id),
-      api.listRuns({ projectId: localProjectId, sessionId: run.session_id })
-    ]);
-    state.transcriptSessionId = sessionKey;
-    state.transcriptSessionMessages = messages.filter((message) => !message.task_id || String(message.task_id) === String(taskId));
-    state.transcriptRuns = runs.filter((item) => !item.task_id || String(item.task_id) === String(taskId));
-  }
-  const currentRunIndex = state.transcriptRuns.findIndex((item) => item.id === run.id);
+  const [messages, runs] = await Promise.all([
+    api.listMessages(localProjectId, run.session_id),
+    force || state.transcriptSessionId !== sessionKey
+      ? api.listRuns({ projectId: localProjectId, sessionId: run.session_id }) : state.transcriptRuns
+  ]);
+  if (request !== state.workbenchTranscriptRequest || state.page !== "workbench") return;
+  state.transcriptSessionId = sessionKey;
+  state.transcriptSessionMessages = messages;
+  state.transcriptRuns = runs.filter(item => !item.task_id || String(item.task_id) === String(taskId));
+  const currentRunIndex = state.transcriptRuns.findIndex(item => item.id === run.id);
   if (currentRunIndex >= 0) state.transcriptRuns[currentRunIndex] = run;
   else state.transcriptRuns.push(run);
-  state.transcript = mergeAutomationTranscript({
-    sessionMessages: state.transcriptSessionMessages,
-    runs: state.transcriptRuns,
-    taskId
-  });
+  // Main process provides the same live/persisted messages used by Chat.
+  state.transcript = messages.filter(message => !message.task_id || String(message.task_id) === String(taskId));
+
+}
+
+function scheduleWorkbenchTranscriptRefresh() {
+  if (state.page !== "workbench" || state.workbenchTranscriptRefreshQueued) return;
+  state.workbenchTranscriptRefreshQueued = true;
+  window.setTimeout(async () => {
+    state.workbenchTranscriptRefreshQueued = false;
+    if (state.page !== "workbench") return;
+    try { await loadTranscript(); if (state.page === "workbench") renderWorkbench(); }
+    catch (error) { showToast(error.message); }
+  }, 120);
 }
 
 function renderWorkbench() {
@@ -5848,8 +5875,12 @@ function renderWorkbench() {
   els.interventionInput.placeholder = "向当前执行补充说明；发送后继续处理该执行…";
   els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : executionTarget?.status === "running" ? "发送给当前执行" : "发送并恢复执行";
   if (els.workbenchExecutionActions) {
-    els.workbenchExecutionActions.innerHTML = executionTarget ? executionActionButtons(executionTarget) : `<p>查看历史对话；提出新验收问题请返回待办详情。</p>`;
-    wireExecutionActions(els.workbenchExecutionActions);
+    const html = executionTarget ? executionActionButtons(executionTarget) : `<p>查看历史对话；提出新验收问题请返回待办详情。</p>`;
+    if (els.workbenchExecutionActions._renderedMarkup !== html) {
+      els.workbenchExecutionActions._renderedMarkup = html;
+      els.workbenchExecutionActions.innerHTML = html;
+      wireExecutionActions(els.workbenchExecutionActions);
+    }
   }
   const selectedGap = activity.controller_frame?.selected_gap || null;
   const sourceFacts = activity.artifact_ownership_scan?.source_facts_changed || [];
@@ -5879,6 +5910,7 @@ function renderWorkbench() {
     ["恢复条件", completion ? "只读审查不改变任务状态" : attention?.question || "返回自动化观察"]
   ]) : `<div class="empty-state">没有可审查的任务上下文。</div>`;
   workbenchConversationSurface.render({
+    contextId: state.transcriptSessionId,
     messages: state.transcript,
     emptyHtml: `<div class="chat-empty"><strong>当前没有已加载的对话</strong><p>Runtime 产生用户、Agent、reasoning 或 tool 消息后会显示在这里；Automation 轮次与结构化结果保留在右栏。</p></div>`,
   });

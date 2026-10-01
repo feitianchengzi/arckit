@@ -798,7 +798,8 @@ test("Automation activity invalidation refreshes only the visible Run surface", 
   assert.match(activityRefresh, /applyRunActivityPatch/);
   assert.match(activityRefresh, /api\.runActivitySnapshot/);
   assert.match(activityRefresh, /activityEventOwnerIsVisible/);
-  assert.match(activityRefresh, /renderCommandCenter\(\)/);
+  assert.match(activityRefresh, /renderCurrentRun\(/);
+  assert.doesNotMatch(activityRefresh, /renderCommandCenter\(/);
   assert.match(activityRefresh, /renderWorkbench\(\)/);
   assert.doesNotMatch(activityRefresh, /automationSnapshot|platformSnapshot|getAuthStatus|render\(\)|routeAuthentication/);
 });
@@ -917,11 +918,11 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /personName\(member\) \|\| "执行人姓名不可用"/);
   assert.doesNotMatch(source, /task\.assignee\?\.username \|\| task\.assignee\?\.name \|\| task\.executor_id/);
   assert.doesNotMatch(source, /`成员 \$\{item\.user_id\}`/);
-  const createTaskHandler = source.slice(source.indexOf("async function createTask"), source.indexOf("async function editTask"));
+  const createTaskHandler = source.slice(source.indexOf("async function createTask("), source.indexOf("async function editTask("));
   const editTaskHandler = source.slice(source.indexOf("async function editTask"), source.indexOf("async function deleteTask"));
-  assert.match(createTaskHandler, /taskProjectFields\(defaultProjectId, \{ includeExecutorAutomationHelp: true, taskState: "pending_review" \}\)/);
-  assert.match(createTaskHandler, /bindTaskFormProjectScope\(defaultProjectId, \{ includeExecutorAutomationHelp: true \}\)/);
-  assert.match(createTaskHandler, /platformField\("state", "状态", \{ type: "select", value: "pending_review", options: taskStateOptions\(\)/);
+  assert.match(createTaskHandler, /taskProjectFields\(defaultProjectId, \{ includeExecutorAutomationHelp: true, taskState: defaults.state \}\)/);
+  assert.match(createTaskHandler, /bindTaskFormProjectScope\(defaultProjectId, \{ executorId: defaults.executor_id, fatherId: defaults.father_id, tags: defaults.tag_ids, includeExecutorAutomationHelp: true \}\)/);
+  assert.match(createTaskHandler, /platformField\("state", "状态", \{ type: "select", value: defaults.state, options: taskStateOptions\(\)/);
   assert.match(createTaskHandler, /platformField\("priority", "优先级", \{ type: "select"/);
   assert.doesNotMatch(createTaskHandler, /服务优先级|type: "number"/);
   assert.match(editTaskHandler, /taskProjectFields\(task\.project_id/);
@@ -1772,7 +1773,7 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /work_replacement_recovery: "Work 移动收口"/);
   assert.match(source, /retryTaskProjectReplacement\(item\.source_object_id\)/);
   assert.match(source, /function renderPlatformWork\(\)[\s\S]+state\.selectedPlatformTaskId = String\(tasks\[0\]\?\.id \|\| ""\)/);
-  assert.match(source, /api\.onAutomationEvent\(\(\) => scheduleAutomationRefresh\(\)\)/);
+  assert.match(source, /api\.onAutomationEvent\(\(\) => \{\s*scheduleAutomationRefresh\(\);/);
   assert.match(source, /function scheduleAutomationRefresh\(delay = 80\)[\s\S]+if \(state\.refreshing\) \{\s*scheduleAutomationRefresh\(delay\);\s*return;\s*\}[\s\S]+refreshSnapshot\(\{ quiet: true \}\)/);
   assert.match(source, /platformField\("state", "状态", \{\s*type: "select",[\s\S]+options: taskStateOptions\(\)/);
   assert.doesNotMatch(styles, /\.work-task-status-editor/);
@@ -1918,7 +1919,7 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /上下文压缩/);
   assert.match(source, /context_compactions/);
   assert.match(source, /Git 收尾/);
-  assert.match(source, /mergeAutomationTranscript/);
+  assert.match(source, /api\.listMessages\(localProjectId, run\.session_id\)/);
   assert.equal((source.match(/createConversationSurface\(\{/g) || []).length, 2);
   assert.equal((source.match(/performAction: runAction/g) || []).length, 5);
   assert.match(source, /chatConversationSurface\.render/);
@@ -2514,7 +2515,8 @@ test('workbench activation follows Workshop authentication through startup, logi
     renderedWorkspaceSurface: "",
     api: { setWorkspaceSurface: surface => surfaces.push(surface) },
     projectWorkbenchSurface: { show: active => activations.push(active) },
-    engineeringSurface: { show() {} }, releaseSurface: { show() {} }
+    engineeringSurface: { show() {} }, releaseSurface: { show() {} },
+    chatConversationSurface: { setSuspended() {} }
   });
   vm.runInContext(source.slice(start, end), context);
   for (const authenticated of [false, true, false]) {

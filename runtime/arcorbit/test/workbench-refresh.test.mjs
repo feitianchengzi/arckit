@@ -204,7 +204,7 @@ test('health events update only source and realtime projection, preserving conte
 test('the production renderer rebuilds only the visible workspace', async () => {
   const source = await readFile(new URL('../desktop/renderer/renderer.js', import.meta.url), 'utf8');
   const render = source.slice(source.indexOf('function render() {'), source.indexOf('\nfunction renderWorkSurface()'));
-  const shared = ['dismissStaleMemberAddSheet', 'renderPageVisibility', 'renderNavigation', 'renderCommandBar', 'renderWorkset'];
+  const shared = ['updateTaskCreationAutomation', 'dismissStaleMemberAddSheet', 'renderPageVisibility', 'renderNavigation', 'renderCommandBar', 'renderWorkset'];
   const pages = { today: 'renderToday', chat: 'renderChat', organization: 'renderOrganization', work: 'renderPlatformWork', feedback: 'renderPlatformFeedback', command: 'renderCommandCenter', tasks: 'renderTaskBrowser', workbench: 'renderWorkbench', recovery: 'renderRecovery' };
   for (const page of [...Object.keys(pages), 'project-workbench']) {
     const calls = [];
@@ -219,7 +219,7 @@ test('production sync subscription handles health without scheduling data reads'
   const subscription = source.slice(source.indexOf('  api.onWorkSyncEvent('), source.indexOf('  api.onChatEvent('));
   let listener, reads = 0, statusPaints = 0;
   const context = { api: { onWorkSyncEvent(fn) { listener = fn; } }, state: { page: 'command', snapshot: {} }, applyWorkSyncHealth,
-    renderNavigation() { statusPaints++; }, renderCommandSyncSummary() {}, renderGlobalStatus() {}, scheduleRefresh() { reads++; } };
+    updateTaskCreationAutomation() {}, renderNavigation() { statusPaints++; }, renderCommandSyncSummary() {}, renderGlobalStatus() {}, scheduleRefresh() { reads++; } };
   vm.runInNewContext(subscription, context);
   for (const type of ['work.sync', 'work.syncing']) listener({ type, projectId: 'p', state: 'connected' });
   assert.equal(reads, 0); assert.equal(statusPaints, 2);
@@ -251,4 +251,41 @@ test('Thing refresh updates global runtime without overwriting unrelated state',
  assert.equal(state.snapshot.enabled,false);assert.equal(state.snapshot.queue_paused,true);
  assert.equal(state.snapshot.tasks,tasks);assert.equal(paints,1);
  update({source_status:'syncing'});assert.equal(state.snapshot.queue.length,1);
+});
+
+
+test('Auto events refresh execution controls and only the visible task Chat', async () => {
+  const source=await readFile(new URL('../desktop/renderer/renderer.js',import.meta.url),'utf8');
+  const subscription=source.slice(source.indexOf('  api.onAutomationEvent('),source.indexOf('  api.onWorkSyncEvent('));
+  let listener, automationReads=0, chatReads=0, session=null;
+  const context={api:{onAutomationEvent(fn){listener=fn;}},state:{page:'command'},scheduleAutomationRefresh(){automationReads++;},scheduleChatRefresh(){chatReads++;},selectedChatSession:()=>session};
+  vm.runInNewContext(subscription,context);
+  listener();assert.equal(chatReads,0);
+  context.state.page='chat';listener();assert.equal(chatReads,0);
+  session={id:'task-chat',task_id:'T'};listener();assert.equal(chatReads,1);
+  context.state.page='work';listener();assert.equal(chatReads,1);
+  assert.equal(automationReads,4);
+});
+
+
+test('Workbench ignores stale shared transcript reads when switching tasks', async () => {
+  const source = await readFile(new URL('../desktop/renderer/renderer.js', import.meta.url), 'utf8');
+  const body = source.slice(source.indexOf('async function loadTranscript('), source.indexOf('\nfunction scheduleWorkbenchTranscriptRefresh('));
+  const pending = new Map();
+  const state = { page: 'workbench', snapshot: {}, transcriptRuns: [], workbenchRun: { id: 'run-a', project_id: 'p', session_id: 'a', task_id: 'a' } };
+  const context = { state, currentWorkbenchExecution: () => null, api: {
+    listMessages: (_project, session) => new Promise(resolve => pending.set(session, resolve)),
+    listRuns: async () => []
+  }};
+  const load = vm.runInNewContext(body + '\nloadTranscript;', context);
+  const first = load();
+  state.workbenchRun = { id: 'run-b', project_id: 'p', session_id: 'b', task_id: 'b' };
+  const second = load();
+  pending.get('b')([{ task_id: 'b', content: 'current' }, { task_id: 'a', content: 'wrong task' }]);
+  await second;
+  pending.get('a')([{ task_id: 'a', content: 'stale' }]);
+  await first;
+  assert.equal(state.transcriptSessionId, 'p:b:b');
+  assert.deepEqual(state.transcript.map(message => message.content), ['current']);
+  assert.equal(state.transcriptRuns[0].id, 'run-b');
 });

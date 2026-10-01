@@ -890,3 +890,24 @@ test('task association during a free Chat turn waits for confirmed writer releas
   releaseClose();for(let i=0;i<100&&!settled;i++)await new Promise(r=>setTimeout(r,5));assert.equal(settled,true);
  }finally{releaseClose?.();await coordinator.close();await fixture.cleanup();}
 });
+
+test('Auto reads the same authorized task conversation without selecting Chat, unhiding it, or starting a turn', async () => {
+  const fixture=await chatFixture();let allowed=true;
+  const {createTaskConversation}=await import('../src/task-conversation.mjs');
+  const manager=fixture.options.runManager;
+  manager.readDesktopChatMetadata=manager.readDesktopStore;
+  manager.taskConversationHistory=async()=>[{id:'RUN-M',role:'assistant',content:'Auto output',created_at:'2'}];
+  manager.taskConversationRun=()=>null;
+  const coordinator=createChatCoordinator({...fixture.options,acceptedSessionKinds:['chat','automation-task'],authorizeSession:async()=>allowed,
+    conversation:createTaskConversation({runManager:manager,automation:()=>({})}),createAdapter:()=>{throw Error('Read must not start a turn');}});
+  try {
+    await coordinator.getSnapshot();
+    await manager.updateDesktopStore(store=>{store.sessions['PROJECT-1']=[{id:'SHARED',project_id:'PROJECT-1',task_id:'T',kind:'automation-task',chat_hidden:true,status:'completed'}];store.messages.SHARED=[{id:'CHAT-M',role:'assistant',kind:'text',content:'Discussion',created_at:'1'}];store.chat.selected_session_id='';return store;});
+    assert.deepEqual((await coordinator.getSnapshot()).sessions,[]);
+    const messages=await coordinator.readConversation('PROJECT-1','SHARED');
+    assert.deepEqual(messages.map(m=>m.content),['Discussion','Auto output']);
+    const store=await manager.readDesktopStore();assert.equal(store.chat.selected_session_id,'');assert.equal(store.sessions['PROJECT-1'][0].chat_hidden,true);
+    await assert.rejects(coordinator.readConversation('OTHER','SHARED'),/Unknown/);
+    allowed=false;await assert.rejects(coordinator.readConversation('PROJECT-1','SHARED'),/账号/);
+  }finally{await coordinator.close();await fixture.cleanup();}
+});

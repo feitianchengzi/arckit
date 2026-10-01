@@ -618,7 +618,7 @@ function registerIpc() {
   });
 
   ipcMain.handle("arckit:list-runs", async (_event, filter) => runManager.listRuns(filter));
-  ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => runManager.listMessages(projectId, sessionId));
+  ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => sessionId ? chatCoordinator.readConversation(projectId, sessionId) : runManager.listMessages(projectId, sessionId));
   ipcMain.handle("arckit:product-snapshot", async (event, input = {}) => {
     assertMainRenderer(event);
     return input.refresh ? productCoordinator.refresh() : productCoordinator.snapshot();

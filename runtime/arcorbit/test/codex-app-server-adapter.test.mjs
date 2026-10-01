@@ -64,7 +64,7 @@ test('scene roots are configured once per process and exclusions travel with thr
   await collect(adapter.runTurn({projectRoot:'/workspace/project',prompt:'one',options}));
   await collect(adapter.runTurn({projectRoot:'/workspace/project',prompt:'two',options}));
   assert.equal(client.requests.filter(x=>x.method==='skills/extraRoots/set').length,1);
-  assert.deepEqual(client.requests.find(x=>x.method==='thread/resume').params.config,{'skills.config':[{path:'/legacy/using-arckit/SKILL.md',enabled:false}]});
+  assert.deepEqual(client.requests.find(x=>x.method==='thread/resume').params.config['skills.config'],[{path:'/legacy/using-arckit/SKILL.md',enabled:false}]);
   assert.equal(client.requests.filter(x=>x.method==='turn/start').length,2);
  } finally {adapter.close();}
 });

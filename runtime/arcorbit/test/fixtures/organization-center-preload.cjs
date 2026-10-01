@@ -665,4 +665,5 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   ...(process.env.ARCORBIT_UNIFIED_CONVERSATION_FIXTURE === '1' ? require('./unified-conversation-preload.cjs') : {}),
   ...(process.env.ARCORBIT_CHAT_GIT_TEST === '1' ? {chatGit:(action,input)=>ipcRenderer.invoke('test:chat-git',action,input),onChatGitEvent:listener=>{const handler=(_e,state)=>listener(state);ipcRenderer.on('test:chat-git-event',handler);return()=>ipcRenderer.off('test:chat-git-event',handler);}} : {}),
+  ...(process.env.ARCORBIT_AUTO_CONVERSATION_TEST === '1' ? require('./automation-conversation-preload.cjs')(automation) : {})
 });

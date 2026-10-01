@@ -59,7 +59,7 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 ### 消息与运行能力
 
-- Chat 是待办人工讨论与 Auto 执行的唯一对话入口。同一待办复用 session、持久 thread 和连续消息流；Automation 保留队列、执行状态及恢复控制，查看对话进入该待办 Chat。自由 Chat 不要求创建待办。
+- Chat 与 Auto 保留各自对话入口。同一待办复用 session、持久 thread 和连续消息流；Automation 的“查看对话”进入自身 Intervention Workbench，保留左右执行面板，中间复用 Chat Conversation Surface。自由 Chat 不要求创建待办。
 - Composer 接受多行文本，支持输入法组合，`Enter` 发送、`Shift+Enter` 换行；空白内容和重复提交不启动 turn。
 - 用户消息在提交成功后立即进入 transcript；Agent 正文以稳定消息 ID 流式更新，不为每个 delta 创建新消息。
 - Assistant 正文支持段落、列表、引用、链接、代码块与复制。reasoning 默认折叠；工具调用以单行活动展示开始、进行中、完成或失败，不把完整 stdout、stderr、文件正文或 raw protocol payload 填入普通消息。
@@ -155,7 +155,7 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 - Chat 会话列表在全局产品范围内按 Product Workspace 分组；每组默认最多显示 5 条，查看更多每次增加 5 条，项目收起再展开恢复 5 条。
 - Chat 新对话在首条消息发送前显式显示目标 Product Workspace，允许保留草稿快速切换；发送后项目归属固定，不能迁移既有 thread。
 - Chat 支持工作区绑定、新建/切换/重命名/删除会话、持久 thread、流式消息、工具活动、停止、重试、错误恢复和重启恢复。
-- 待办所有入口打开同一 Chat；人工与 Auto 历史连续，打开空会话不发消息，执行中补充有送达回执，暂停后讨论不隐式恢复 Auto。
+- Work/Thing 打开待办 Chat，Automation 打开自身 Workbench，两者读取同一待办会话；人工与 Auto 历史连续，打开空会话不发消息，执行中补充有送达回执，暂停后讨论不隐式恢复 Auto。
 - Chat 停止后保留部分回答并以新 turn 继续；删除活动会话先完成 interrupt，且不会误删其他会话。
 - Chat 不自动调用 state-driven Runtime 或 trusted ledger；待办会话可进入 Chat 列表，待办写入使用原生能力及版本约束。
 - Idea 展示探索、讨论与确认后建项目。

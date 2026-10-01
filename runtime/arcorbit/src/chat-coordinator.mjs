@@ -86,11 +86,11 @@ export function createChatCoordinator({
     initialized = true;
   }
 
-  async function getSnapshot(input = {}) {
+  async function getSnapshot(input = {}, { includeHidden = false } = {}) {
     await ensureInitialized();
     const store = await (runManager.readDesktopChatSnapshotStore?.(input) || readChatStore());
     const sessions = Object.values(store.sessions || {}).flat()
-      .filter((session) => accepts(session) && !session.chat_hidden)
+      .filter((session) => accepts(session) && (!session.chat_hidden || (includeHidden && session.id === input.session_id)))
       .sort((left, right) => String(right.created_at || "").localeCompare(String(left.created_at || "")) || String(left.id).localeCompare(String(right.id)));
     const accessContext={store};
     const allowed = await Promise.all(sessions.map(session => authorizeSession(session,accessContext)));
@@ -121,6 +121,15 @@ export function createChatCoordinator({
       }
     };
     return conversation ? conversation.snapshot(snapshot) : snapshot;
+  }
+
+  // Read the shared projection without selecting Chat, opening a task, or syncing Work.
+  async function readConversation(projectId, sessionId) {
+    await ensureInitialized();
+    const located = findSessionById(await readChatMetadata(), sessionId);
+    if (!located || located.project_id !== projectId) throw new Error("Unknown conversation in this project.");
+    if (!await authorizeSession(located.session)) throw new Error("该会话属于其他账号或不可访问的项目。");
+    return (await getSnapshot({ session_id: sessionId }, { includeHidden: true })).messages;
   }
 
   async function createDraft(input = {}) {
@@ -780,6 +789,7 @@ export function createChatCoordinator({
 
   return {
     getSnapshot,
+    readConversation,
     notifyNative:sessionId=>changed("chat.native.updated",sessionId),
     notifyConversation:sessionId=>changed("chat.conversation.updated",sessionId),
     createDraft,

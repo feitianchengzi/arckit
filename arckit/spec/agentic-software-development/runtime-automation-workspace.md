@@ -205,7 +205,7 @@ Runtime 只有在缺少授权、稳定事实、产品判断或其他必须由人
 
 只有 `next_responsibility=human`、`human_decision_required=true` 或等价的 user-decision handoff 才属于人工事项。Agent 可继续的 handoff、自动续轮失败和服务器/本地状态差异分别属于 Agent continuation 或 Recovery Center，不得仅因需要 Runtime 操作而标记为人工决策。
 
-用户进入待办 Chat 查看连续讨论和执行历史；仅浏览不发消息。Auto 活动时提交补充到当前执行并显示接收状态，暂停后普通发送只开展讨论，显式“继续 Auto”恢复推进。人工 Gate、外部依赖、验收及恢复动作继续使用原业务控制。
+用户从 Automation 进入 Intervention Workbench 查看连续讨论和执行历史，保留左右执行与证据面板；仅浏览不发消息、不触发待办同步、不选择或取消隐藏 Chat 列表项。待办 Chat 仍提供人工讨论入口。Auto 活动时提交补充到当前执行并显示接收状态，暂停后普通发送只开展讨论，显式“继续 Auto”恢复推进。人工 Gate、外部依赖、验收及恢复动作继续使用原业务控制。
 
 统一 Conversation Surface 展示对话、工具及可折叠执行进展；完整结构化证据保留在诊断查看器，阅读不修改原消息。
 
@@ -245,7 +245,7 @@ Command Center 首屏回答当前项目范围、系统是否健康、有哪些�
 
 七种任务状态是 Task Browser 的导航入口，用于浏览和人工处置；它们不在主页面直接替换当前运行与队列态势。项目选择只改变观察范围。
 
-任务执行对话不作为 Automation 常驻区域。当前运行、历史完成项和人工事项的对话入口统一进入 Personal / Chat 中该待办的同一会话；Automation 保留队列、诊断、恢复及验收控制。
+任务执行对话不作为 Automation 常驻区域。当前运行、历史完成项和人工事项的对话入口进入 Automation 自身的 Intervention Workbench，保留左右面板及返回路径；中间消息列表与待办 Chat 共享会话、消息投影和浏览组件。进度更新不重建语义未变化的操作按钮，鼠标悬停与按下期间仍可稳定点击。
 
 ## Token 用量与上下文治理
 
@@ -333,4 +333,4 @@ State Driven Loop 保持一轮一个 Gap、可信写回、post-commit fresh-read
 
 Automation 的任务交付约定要求提交已审查的本任务成果，由产品调度显式传递提交授权；Case 完成本身不包含 Git 策略。同一会话的 Agent 使用原生 Git 能力执行，Automation 请求只约定交付目标、范围、事实、策略授权与结果契约，不新增技能依赖。Git 收尾发现新的实质义务时，可在原授权下恢复同一 thread 的普通 Loop。Host 保留发现和原 Case 关联；Agent fresh-read 后选择或创建后续 Case，Ledger 接受后才更新当前任务绑定。前后 Case 历史保留，没有可信续办关系的多个 Case 仍报绑定冲突。恢复阶段及累计 Ledger 变更路径必须持久保存，不能因退出时缺少最终结果文件而丢失发现、重复收尾或误报人工决定。
 
-统一会话规则以 [Chat 规格](arcorbit-planned-workspaces.md#待办的统一执行语义) 为准；本文既有 Workbench 状态与诊断要求继续约束执行控制，不再要求另开一个对话界面或输入面。
+统一会话规则以 [Chat 规格](arcorbit-planned-workspaces.md#待办的统一执行语义) 为准；本文既有 Workbench 状态与诊断要求继续约束执行控制，保留 Automation 自身 Workbench 页面和介入输入面；统一的是会话身份、写入接力、消息投影与消息浏览组件。

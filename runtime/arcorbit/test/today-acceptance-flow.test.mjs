@@ -13,7 +13,9 @@ function extract(name) {
 }
 function rendererContext(fixture) {
   const state = { page: "today", selectedProjectId: "12", selectedTaskId: "", todaySelectedItemId: "work:W-COMPLETED:completed", todayDrafts: {}, refreshing: false, organizationScopeId: "personal", feedbackSnapshotEpoch: 0 };
-  const context = vm.createContext({ state, Date, window: { setTimeout() {} },
+  const context = vm.createContext({ state, Date,
+    taskCreationSourceReadFailed: false, taskCreationSetupChecks: new Map(), updateTaskCreationAutomation() {},
+    STATE_LABELS: { completed: "已完成" }, taskCreatorName: () => "Fixture creator", taskExecutorName: () => "Fixture executor", formatPriority: String, window: { setTimeout() {} },
     api: {
       submitAcceptanceFeedback: (input) => fixture.automation.submitAcceptanceFeedback(input),
       automationSnapshot: (input) => fixture.automation.getSnapshot(input),

@@ -449,4 +449,4 @@ Auto 活动时 `chat.send` 校验账号、项目及补充上下文后交给该 R
 
 Chat 中的暂停解析真实活动 run 对应的 execution，调用既有 stopCurrent；没有活跃 Run 的合法暂停态允许自由讨论。继续 Auto 使用 fresh scene revision 的 auto.resume，保留既有恢复、Loop、检查点和 Git 收尾。Chat/Automation 模型、技能场景、审批参数仍在各自 turn/Run 开始时固定；共享身份不改变这些授权。
 
-Run 变化通知统一会话，Renderer 只刷新可见 Chat 的当前投影；Automation 队列、状态与诊断继续沿用原控制投影。所有面向待办的对话导航统一进入 Chat；项目事情台的旧输入转移为 Chat 草稿，不保留第二个生产对话编辑面。验证载体为 `runtime/arcorbit/test/task-conversation.test.mjs`、协调器/Run Manager 集成测试及 `test/fixtures/unified-conversation-electron.mjs`。
+Run 变化通知统一会话，Renderer 只刷新可见 Chat 或 Workbench 的当前投影；Automation 队列、状态与诊断继续沿用原控制投影。Work/Thing 对话导航进入 Chat；Automation 的查看对话进入自身 Workbench，保留左右面板及介入控制。`arckit:list-messages` 通过 `chatCoordinator.readConversation` 读取同一授权会话投影，允许读取当前账号隐藏的任务会话但不取消隐藏、不选择 Chat、不调用 openTask 或同步。Workbench 合并活动通知刷新，使用请求序号拒绝过期读取；高频进度只更新当前运行信息，语义未变的操作按钮保留 DOM。项目事情台的旧输入转移为 Chat 草稿。验证载体为 `runtime/arcorbit/test/task-conversation.test.mjs`、协调器/Run Manager 集成测试及 `test/fixtures/unified-conversation-electron.mjs`。
