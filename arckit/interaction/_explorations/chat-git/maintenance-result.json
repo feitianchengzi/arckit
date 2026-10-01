@@ -1,0 +1,139 @@
+{
+  "document_scope": {
+    "scope_kind": "change",
+    "root": "arckit/interaction/",
+    "created": [
+      {
+        "path": "_explorations/chat-git/exploration.md",
+        "source_basis": "待办1358已确认边界与尚未确认的详情容器取舍",
+        "summary": "候选比较、模拟验证或结果记录；不建立正式交互事实"
+      },
+      {
+        "path": "_explorations/chat-git/options/compare/default.html",
+        "source_basis": "待办1358已确认边界与尚未确认的详情容器取舍",
+        "summary": "候选比较、模拟验证或结果记录；不建立正式交互事实"
+      },
+      {
+        "path": "_explorations/chat-git/options/compare/app.js",
+        "source_basis": "待办1358已确认边界与尚未确认的详情容器取舍",
+        "summary": "候选比较、模拟验证或结果记录；不建立正式交互事实"
+      },
+      {
+        "path": "_explorations/chat-git/options/compare/style.css",
+        "source_basis": "待办1358已确认边界与尚未确认的详情容器取舍",
+        "summary": "候选比较、模拟验证或结果记录；不建立正式交互事实"
+      },
+      {
+        "path": "_explorations/chat-git/verify.cjs",
+        "source_basis": "待办1358已确认边界与尚未确认的详情容器取舍",
+        "summary": "候选比较、模拟验证或结果记录；不建立正式交互事实"
+      },
+      {
+        "path": "_explorations/chat-git/maintenance-result.json",
+        "source_basis": "待办1358已确认边界与尚未确认的详情容器取舍",
+        "summary": "候选比较、模拟验证或结果记录；不建立正式交互事实"
+      },
+      {
+        "path": "chat-workspace/git-ui.js",
+        "source_basis": "用户选择右侧栏",
+        "summary": "正式原型资源与验证"
+      },
+      {
+        "path": "chat-workspace/git.css",
+        "source_basis": "用户选择右侧栏",
+        "summary": "正式原型资源与验证"
+      },
+      {
+        "path": "chat-workspace/verify-git.cjs",
+        "source_basis": "用户选择右侧栏",
+        "summary": "正式原型资源与验证"
+      }
+    ],
+    "updated": [
+      {
+        "path": "_explorations/INDEX.md",
+        "source_basis": "新增未采纳候选",
+        "summary": "登记比较入口"
+      },
+      {
+        "path": "chat-workspace/interaction.md",
+        "source_basis": "用户选择右侧栏",
+        "summary": "正式整合 Git 摘要与右栏详情"
+      },
+      {
+        "path": "chat-workspace/default.html",
+        "source_basis": "用户选择右侧栏",
+        "summary": "正式整合 Git 摘要与右栏详情"
+      }
+    ],
+    "deleted": [],
+    "reorganized": []
+  },
+  "fact_result": {
+    "schema_version": "arckit-fact-result/v2",
+    "mode": "managed_case",
+    "case_id": "CASE-20260930-002",
+    "gap_id": "GAP-20260930-002-002",
+    "outcome": "updated",
+    "facts": [
+      {
+        "statement": "用户采纳右侧栏，正式规则和完整 Chat 原型已整合。",
+        "basis": "消息 98d2f126-7400-4bd1-addf-e5f258668242 的明确选择。",
+        "source_refs": [
+          "arckit/interaction/chat-workspace/interaction.md"
+        ],
+        "evidence": [
+          "arckit/cases/evidence/CASE-20260930-002/git-adopted-prototype-final/result.json"
+        ]
+      }
+    ],
+    "unresolved": [],
+    "human_decision_required": false
+  },
+  "exploration_result": {
+    "mode": "managed_case",
+    "case_id": "CASE-20260930-002",
+    "gap_id": "GAP-20260930-002-002",
+    "objective": "比较详情容器并支持正式方向选择",
+    "artifact_status": "complete",
+    "formal_fact_effect": "updated",
+    "artifacts": [
+      {
+        "path": "arckit/interaction/_explorations/chat-git/options/compare/default.html",
+        "status": "候选",
+        "basis_refs": [
+          "arckit/interaction/chat-workspace/interaction.md",
+          "arckit/visual/CONVENTIONS.md"
+        ],
+        "baseline": "d9d9411683edbdf358728b41945d59d0fe80eb8e；未提交上下文说明见 exploration.md",
+        "evidence": "arckit/cases/evidence/CASE-20260930-002/git-design-options-final/result.json"
+      }
+    ],
+    "decision": {
+      "required_for_current_objective": false,
+      "question": "详情采用右栏还是窗口内弹窗？",
+      "basis": "用户已选择右侧栏"
+    },
+    "adoption": [
+      {
+        "source_refs": [
+          "arckit/interaction/_explorations/chat-git/options/compare/default.html"
+        ],
+        "adopted_parts": [
+          "右侧栏概览和层内差异／提交查看"
+        ],
+        "excluded_parts": [
+          "模态详情"
+        ],
+        "decision_basis": "用户明确选择推荐方案",
+        "target_paths": [
+          "arckit/interaction/chat-workspace/interaction.md",
+          "arckit/interaction/chat-workspace/default.html"
+        ]
+      }
+    ],
+    "remaining_work": [
+      "生产兑现与验证由 GAP-004 承接"
+    ]
+  }
+}

@@ -34,3 +34,5 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 - 全局创建待办：共享顶部与 Work 入口复用当前页模态；产品范围、默认待评审、取消/焦点、提交防重和失败保留输入。普通创建新增“沿用上次创建设置”，正文留空，恢复有效选项；原型使用本地成员/父待办/标签样本演示成功、取消、失败与范围回退，生产验收独立进行。
 
 普通创建 Automation 提示：`task-browser/interaction.md` 定义状态优先级、原因与开启指引，共享 `global-shell.js` 模拟动态合并提示；开启使用既有 success 语义，不表示任务已运行。
+
+Chat Git：项目分组摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表；正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。

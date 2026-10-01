@@ -1,0 +1,12 @@
+.git-group-head { display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
+.git-group-head .session-project { flex:1 1 130px; width:auto; min-width:0; white-space:normal; overflow-wrap:anywhere; }
+.git-summary { flex:0 1 auto; max-width:100%; min-height:36px; font-size:13px; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+.git-summary.muted { color:var(--semantic-muted); }
+.chat-git-detail { flex:1; min-height:0; overflow:auto; padding:12px; overflow-wrap:anywhere; }
+.chat-git-detail header,.git-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.chat-git-detail h2 { font-size:16px; } .chat-git-detail h3 { font-size:14px; margin:8px 0; }
+.chat-git-detail small { display:block; color:var(--semantic-muted); font-size:12px; }
+.chat-git-detail section { border-bottom:1px solid var(--semantic-divider); padding:12px 0; }
+.chat-git-detail section > button { display:block; width:100%; min-height:40px; text-align:left; margin:4px 0; white-space:normal; overflow-wrap:anywhere; }
+.chat-git-detail pre { max-width:100%; overflow:auto; padding:8px; font:13px/1.6 var(--typography-family-mono); background:var(--semantic-elevated); }
+.chat-git-detail :focus-visible,.git-summary:focus-visible { outline:2px solid var(--semantic-focus); outline-offset:2px; }

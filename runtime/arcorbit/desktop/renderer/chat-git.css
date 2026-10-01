@@ -1,0 +1,19 @@
+#chatView .chat-project-heading { display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
+#chatView .chat-project-heading .chat-project-group-head { flex:1 1 130px; width:auto; min-height:36px; }
+#chatView .chat-project-heading strong { white-space:normal; overflow-wrap:anywhere; }
+#chatView .chat-git-summary { flex:0 1 auto; min-width:0; max-width:100%; min-height:36px; white-space:normal; overflow-wrap:anywhere; text-align:left; font-size:13px; }
+#chatView .chat-git-summary.is-muted { color:var(--semantic-muted); }
+#chatView .chat-sidebar.is-git { grid-template-rows:auto minmax(0,1fr); }
+.chat-git-panel { min-width:0; min-height:0; overflow:auto; overflow-wrap:anywhere; }
+.chat-git-panel h2 { font-size:16px; margin:12px 0; }
+.chat-git-panel h3 { font-size:14px; margin:10px 0; }
+.chat-git-panel p { font-size:14px; line-height:1.6; }
+.chat-git-panel small { display:block; font-size:12px; color:var(--semantic-muted); line-height:1.6; }
+.chat-git-panel section { border-bottom:1px solid var(--semantic-divider); padding:10px 0; }
+.chat-git-panel button { min-height:36px; white-space:normal; overflow-wrap:anywhere; text-align:left; max-width:100%; }
+.chat-git-panel > button[data-commit],.chat-git-panel > button[data-path] { display:block; width:100%; min-height:40px; }
+.chat-git-actions { display:flex; flex-wrap:wrap; gap:4px; margin:8px 0; }
+.chat-git-file { padding:8px 0; border-bottom:1px solid var(--semantic-divider); }
+.chat-git-file strong { font-size:13px; font-weight:500; }
+.chat-git-panel pre { max-width:100%; overflow:auto; white-space:pre; font:13px/1.6 var(--typography-family-mono,monospace); padding:10px; background:var(--semantic-elevated); }
+.chat-git-panel :focus-visible,.chat-git-summary:focus-visible { outline:2px solid var(--semantic-focus); outline-offset:2px; }

@@ -153,3 +153,5 @@
   - verify-appearance.cjs 明暗主题、系统变化、偏好失败恢复与共享设置入口验证。
 
   - verify-global-create.cjs 全局创建的跨页、失败恢复、键盘与窄窗原型验证；输出目录由环境指定。
+
+- chat-workspace/git-ui.js / git.css 项目分组 Git 摘要、右栏详情和只读差异模拟；正式行为见同目录 interaction.md。

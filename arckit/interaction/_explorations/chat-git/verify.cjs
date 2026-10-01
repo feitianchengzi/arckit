@@ -1,0 +1,63 @@
+const {app,BrowserWindow}=require('electron');
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
+const output=process.env.ARCORBIT_TEST_OUTPUT||fs.mkdtempSync(path.join(os.tmpdir(),'chat-git-design-'));
+fs.mkdirSync(output,{recursive:true});
+app.setPath('userData',fs.mkdtempSync(path.join(os.tmpdir(),'chat-git-design-browser-')));
+app.disableHardwareAcceleration();
+app.whenReady().then(async()=>{
+ const w=new BrowserWindow({show:false,width:1200,height:850,webPreferences:{sandbox:true,contextIsolation:true}});
+ const errors=[],checks=[];
+ w.webContents.on('console-message',(_e,level,text)=>{if(level>=3&&!text.includes('Content Security Policy'))errors.push(text);});
+ const run=s=>w.webContents.executeJavaScript(s);
+ const click=sel=>run(`document.querySelector(${JSON.stringify(sel)}).focus();document.querySelector(${JSON.stringify(sel)}).click()`);
+ const select=(sel,value)=>run(`document.querySelector(${JSON.stringify(sel)}).value=${JSON.stringify(value)};document.querySelector(${JSON.stringify(sel)}).dispatchEvent(new Event('change'))`);
+ try{
+  await w.loadFile(path.join(__dirname,'options/compare/default.html'));
+  const draft=await run('document.querySelector("#draft").value');
+  await click('[data-collapse="0"]');
+  assert.equal(await run(`document.querySelector('[data-collapse="0"]').getAttribute("aria-expanded")`),'false');
+  await click('[data-git="0"]');
+  assert.equal(await run('document.querySelector("#side-detail").hidden'),false);
+  await click('#side-detail [data-action="staged"]');
+  assert.match(await run('document.querySelector("#side-detail").textContent'),/已暂存差异/);
+  await click('#side-detail [data-action="overview"]');
+  await click('#side-detail [data-action="commit"]');
+  await click('#side-detail [data-action="commitdiff"]');
+  assert.match(await run('document.querySelector("#side-detail").textContent'),/提交相对父提交/);
+  await run('document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');
+  assert.equal(await run('document.activeElement.dataset.git'),'0');
+  assert.equal(await run('document.querySelector("#draft").value'),draft);
+  checks.push('折叠后摘要可操作；标题动作独立；文件与提交差异可达；Esc 返回并恢复焦点和草稿');
+  await select('#mode','modal'); await click('[data-git="1"]');
+  assert.equal(await run('document.querySelector("#modal").open'),true);
+  assert.match(await run('document.querySelector("#modal").textContent'),/另一个项目/);
+  await click('#modal [data-action="close"]');
+  assert.equal(await run('document.activeElement.dataset.git'),'1');
+  checks.push('弹窗方案按所点项目打开；关闭恢复摘要焦点；当前对话未切换');
+  await select('#mode','side');
+  for(const scenario of ['clean','ahead','behind','diverged','conflict','unknown','stale','error','fetcherror','norepo','unbound']){
+   await select('#scenario',scenario); await click('[data-git="0"]');
+   const text=await run('document.querySelector("#side-detail").textContent');
+   assert.ok(text.length>20); await click('#side-detail [data-action="close"]');
+  }
+  checks.push('11 个补充场景均可打开和返回；状态语义需结合源码和视觉核对');
+  await select('#scenario','fetcherror'); await click('[data-git="0"]'); await click('#side-detail [data-action="fetch"]');
+  assert.match(await run('document.querySelector("#side-detail").textContent'),/本次预览获取时间/);
+  await click('#side-detail [data-action="close"]');
+  await select('#scenario','diverged');
+  await run('document.querySelector("#width").value=220;document.querySelector("#width").dispatchEvent(new Event("input"))');
+  await new Promise(r=>setTimeout(r,100));
+  fs.writeFileSync(path.join(output,'narrow-sidebar.png'),(await w.webContents.capturePage()).toPNG());
+  await click('[data-git="0"]');
+  await select('#theme','dark');
+  await new Promise(r=>setTimeout(r,100));
+  fs.writeFileSync(path.join(output,'dark-detail.png'),(await w.webContents.capturePage()).toPNG());
+  w.setSize(390,844); await new Promise(r=>setTimeout(r,200));
+  assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));
+  fs.writeFileSync(path.join(output,'narrow-window.png'),(await w.webContents.capturePage()).toPNG());
+  checks.push('220px 侧栏和 390px 窗口无页面横向溢出；保存明暗与窄窗截图供核验');
+  assert.deepEqual(errors,[]);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors,limits:['本地独立候选样本，未接入正式 Chat 原型或真实 Git','未验证原生屏幕阅读器与生产焦点恢复']},null,2));
+ }catch(error){fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,checks,errors,error:String(error)},null,2));process.exitCode=1;}
+ console.log(output);w.destroy();app.quit();
+});

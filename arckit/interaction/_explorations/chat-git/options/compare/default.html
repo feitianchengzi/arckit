@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-Hans" data-theme="light">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chat Git 详情承载方式比较</title>
+<link rel="stylesheet" href="../../../../../visual/_library/generated-tokens.css">
+<link rel="stylesheet" href="style.css">
+<aside class="tools" aria-label="原型场景工具">
+  <strong>候选原型 · 全部为本地模拟</strong>
+  <label>承载方式 <select id="mode"><option value="side">右侧栏</option><option value="modal">窗口内弹窗</option></select></label>
+  <label>状态 <select id="scenario"></select></label>
+  <label>侧栏宽度 <input id="width" type="range" min="220" max="560" value="330"></label>
+  <label>主题 <select id="theme"><option>light</option><option>dark</option></select></label>
+</aside>
+<main>
+  <section class="chat" aria-label="当前对话">
+    <header><strong>Chat · 当前会话保持不变</strong><button id="list-toggle">会话列表</button></header>
+    <div class="transcript"><h1>检查这次修改</h1><p>项目分组显示的是工作区状态；其他会话和外部工具产生的修改也会计入。</p><p>这里保留当前阅读位置。打开其他项目的 Git 详情也不切换当前会话。</p></div>
+    <label class="composer">未发送草稿<textarea id="draft">请继续核对这个修改。</textarea></label>
+  </section>
+  <aside id="sidebar" aria-label="会话侧栏"><div id="list"></div><div id="side-detail" hidden></div></aside>
+</main>
+<dialog id="modal" aria-labelledby="modal-heading"></dialog>
+<script src="app.js"></script>
+</html>

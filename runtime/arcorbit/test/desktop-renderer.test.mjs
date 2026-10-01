@@ -971,7 +971,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /api\.automationSnapshot/);
   assert.match(source, /invalidateTaskAttachmentCaches\(state, \{ clearPending: identityChanged \}\)/);
   assert.match(source, /taskAttachmentIdentityKey\(\{ platform: state\.platform, authentication: state\.authentication \}\)/);
-  assert.match(source, /state\.authentication = normalizeAuthentication\(result\.authentication\);\s+productSurface\.reset\(\);\s+releaseSurface\.reset\(\);\s+invalidatePlatformTaskSelectionContext\(\);\s+state\.settings = normalizeSettings\(await api\.getSettings\(\)\);[\s\S]+state\.platform = emptyPlatformSnapshot\(\);[\s\S]+invalidateTaskAttachmentCaches\(state, \{ clearPending: true \}\)/);
+  assert.match(source, /state\.authentication = normalizeAuthentication\(result\.authentication\);\s+globalThis\.arcorbitChatFiles\?\.reset\(\);\s+(?:globalThis\.\w+\?\.reset\(\);\s+)*(?:chatGitSurface\.reset\(\);\s+)?productSurface\.reset\(\);\s+releaseSurface\.reset\(\);\s+invalidatePlatformTaskSelectionContext\(\);\s+state\.settings = normalizeSettings\(await api\.getSettings\(\)\);[\s\S]+state\.platform = emptyPlatformSnapshot\(\);[\s\S]+invalidateTaskAttachmentCaches\(state, \{ clearPending: true \}\)/);
   assert.match(source, /captureTaskAttachmentRequest\(state\)[\s\S]+task\.attachments\.list[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
   assert.match(source, /captureTaskAttachmentRequest\(state, \{ identityOnly: true \}\)[\s\S]+pickWorkTaskAttachment[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
   assert.match(source, /api\.setAutomationEnabled/);
@@ -2581,12 +2581,13 @@ test('feedback 会话：存在 scrollFeedbackConversationToBottom 自动滚动�
 });
 
 test('Empty Chat projects render a new-conversation row rather than a persisted session', async () => {
+  const {gitSummaryButton}=await import('../desktop/renderer/chat-git-surface.mjs');
   const { groupChatSessions, chatSessionVisibility, CHAT_SESSION_PREVIEW_LIMIT } = await import('../desktop/renderer/chat-session-groups.mjs');
   const source = await readFile(rendererPath, 'utf8');
   const start = source.indexOf('function renderChatSessionGroups(chat)');
   const end = source.indexOf('\nfunction renderChat()', start);
   const context = {
-    groupChatSessions, chatSessionVisibility, CHAT_SESSION_PREVIEW_LIMIT,
+    groupChatSessions, chatSessionVisibility, CHAT_SESSION_PREVIEW_LIMIT, gitSummaryButton,
     chatProjectsInScope: () => [{ id: 'EMPTY', name: 'Empty project' }],
     collapsedChatProjectIds: new Set(), chatProjectLimits: new Map(),
     escapeHtml: value => value,

@@ -198,11 +198,12 @@ if (todayCreateIdentityMode) {
   automation.acceptance_feedback_counts = { open: 0 };
 }
 
+if (process.env.ARCORBIT_CHAT_GIT_TEST === '1') { automation.projects[1].local_project_id='local-12'; automation.local_projects.push({id:'local-12',name:'无仓库项目',path:'/fixture/empty'}); }
 const noOp = async () => ({});
 const fileNavigationDrafts = new Map();
 const testChatSnapshotValue = (requested = selectedChatSessionId) => ({
   generated_at: new Date().toISOString(),
-  projects: chatFixtureEnabled ? [{ id: "local-11", name: "ArcOrbit Local" }] : [],
+  projects: chatFixtureEnabled ? [{ id: "local-11", name: "ArcOrbit Local" }, ...(process.env.ARCORBIT_CHAT_GIT_TEST === "1" ? [{id:"local-12",name:"无仓库项目"}] : [])] : [],
   sessions: chatSessions,
   selected_session_id: requested,
   messages: chatMessages[requested] || [],
@@ -662,5 +663,6 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   emitTestWorkSyncEvent: async (event = { type: "work-sync.changed" }) => {
     for (const listener of workSyncListeners) listener(event);
   },
-  ...(process.env.ARCORBIT_UNIFIED_CONVERSATION_FIXTURE === '1' ? require('./unified-conversation-preload.cjs') : {})
+  ...(process.env.ARCORBIT_UNIFIED_CONVERSATION_FIXTURE === '1' ? require('./unified-conversation-preload.cjs') : {}),
+  ...(process.env.ARCORBIT_CHAT_GIT_TEST === '1' ? {chatGit:(action,input)=>ipcRenderer.invoke('test:chat-git',action,input),onChatGitEvent:listener=>{const handler=(_e,state)=>listener(state);ipcRenderer.on('test:chat-git-event',handler);return()=>ipcRenderer.off('test:chat-git-event',handler);}} : {}),
 });

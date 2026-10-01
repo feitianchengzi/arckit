@@ -89,6 +89,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   chatNativeCatalog: input => ipcRenderer.invoke("arckit:chat-native-catalog", input),
   chatFiles: (action, input) => ipcRenderer.invoke("arckit:chat-files", action, input),
+  chatGit: (action, input) => ipcRenderer.invoke('arckit:chat-git', action, input),
+  onChatGitEvent: listener => { const handler = (_event, value) => listener(value); ipcRenderer.on('arckit:chat-git-event', handler); return () => ipcRenderer.removeListener('arckit:chat-git-event', handler); },
   chatNativeOpen: input => ipcRenderer.invoke("arckit:chat-native-open", input),
   chatSnapshot: (input) => ipcRenderer.invoke("arckit:chat-snapshot", input),
   createChat: (input) => ipcRenderer.invoke("arckit:chat-create", input),

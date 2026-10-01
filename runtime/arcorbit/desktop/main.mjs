@@ -1,6 +1,7 @@
 import { createTaskConversation } from '../src/task-conversation.mjs';
 import { createChatNative } from '../src/chat-native.mjs';
 import { createChatFiles } from '../src/chat-files.mjs';
+import { createChatGit } from '../src/chat-git.mjs';
 import { createChatFilesLeaveGuard } from './chat-files-leave.mjs';
 import { registerChatFilesIpc } from './chat-files-ipc.mjs';
 import { createAppearance, appearanceBackground, registerAppearanceIpc } from '../src/desktop/appearance.mjs';
@@ -76,6 +77,7 @@ let automationCoordinator;
 let chatCoordinator;
 let chatNative;
 let chatFiles;
+let chatGit;
 const chatFilesLeave=createChatFilesLeaveGuard(()=>mainWindow);
 let projectWorkbench;
 let workbenchAgentBridge;
@@ -204,6 +206,7 @@ app.whenReady().then(async () => {
     }
   });
   chatCoordinator.onEvent((event) => {
+    if (event.type === 'chat.turn.completed') void chatGit?.refreshAll();
     if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:chat-event", event);
   });
   runManager.onEvent(event => {
@@ -270,6 +273,11 @@ app.whenReady().then(async () => {
   chatFiles=createChatFiles({runManager,getAccountScope:workbenchAccountScope,
     authorizeSession:(session,context)=>chatNative.authorizeSession(session,context),
     trashItem:path=>shell.trashItem(path),revealItem:path=>shell.showItemInFolder(path)});
+  chatGit = createChatGit({ runManager, getAccountScope: workbenchAccountScope,
+    authorizeSession: (session, context) => chatNative.authorizeSession(session, context) });
+  chatGit.onEvent(event => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('arckit:chat-git-event', event);
+  });
   workbenchAgentBridge = createWorkbenchAgentBridge({coordinator:projectWorkbench,getAccountScope:workbenchAccountScope});
   projectWorkbench.onEvent(event => { if (!mainWindow?.isDestroyed()) mainWindow?.webContents.send('arckit:project-workbench-event',event); });
   runManager.onEvent(event => { if(event.type==='run.finished') workbenchAgentBridge.revoke(event.run?.id || event.runId); });
@@ -294,6 +302,7 @@ app.whenReady().then(async () => {
     openPath: async path => { const error = await shell.openPath(path); if(error) throw new Error(error); }
   });
   releaseCoordinator.onEvent(event => {
+    if (event.type === 'changed') void chatGit?.refreshAll();
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("arckit:release-event", event);
   });
   const productSkillRoot = app.isPackaged
@@ -437,6 +446,7 @@ app.on("before-quit", async (event) => {
     }
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
+    chatGit?.close();
     await chatNative?.close();
     await projectWorkbench?.close();
     workbenchAgentBridge?.close();
@@ -482,6 +492,9 @@ async function createWindow({ show = true } = {}) {
   });
 
   chatFilesLeave.install(mainWindow, {isQuitting: () => quitAfterCleanup, resumeQuit: () => app.quit()});
+  mainWindow.on('focus', () => { void chatGit?.refreshAll(); });
+  mainWindow.webContents.on('did-start-loading', () => chatGit?.close());
+  mainWindow.on('closed', () => chatGit?.close());
   const rendererEntry = join(desktopDir, "renderer/index.html");
   const rendererUrl = pathToFileURL(rendererEntry).href;
   installMainWindowNavigationBoundary(mainWindow.webContents, rendererUrl);
@@ -643,6 +656,9 @@ function registerIpc() {
   });
   ipcMain.handle("arckit:chat-native-catalog", async (event,input) => {assertMainRenderer(event);return chatNative.catalog(input || {});});
   registerChatFilesIpc({ipcMain,assertMainRenderer,files:chatFiles});
+  ipcMain.handle('arckit:chat-git', (event, action, input) => {
+    assertMainRenderer(event); return chatGit.command(action, input || {});
+  });
   ipcMain.handle("arckit:chat-native-open", async (event,input) => {assertMainRenderer(event);return chatNative.openTask(input || {});});
   ipcMain.handle("arckit:chat-snapshot", async (event, input) => {
     assertMainRenderer(event);
@@ -690,6 +706,7 @@ function registerIpc() {
   ipcMain.handle("arckit:auth-login", async (_event, input) => {
     if (!await chatFilesLeave.request()) throw new Error("已取消账号切换，文件草稿保留。");
     const authentication = await workshopService.loginWithCode(input);
+    chatGit?.close();
     await workSyncCoordinator.reconcile({ reason: "login" });
     productFeedbackService.refreshUnread().catch(() => {});
     return authentication;
@@ -709,6 +726,7 @@ function registerIpc() {
       await automationCoordinator.stopAll();
     }
     await releaseCoordinator?.closeScope();
+    chatGit?.close();
     await projectWorkbench?.close();
     const authentication = await workshopService.logout();
     productFeedbackService.resetSession();

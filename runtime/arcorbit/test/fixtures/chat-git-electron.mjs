@@ -1,0 +1,73 @@
+import { app, BrowserWindow, ipcMain } from 'electron';
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import assert from 'node:assert/strict';
+import { createChatGit } from '../../src/chat-git.mjs';
+import { mkdtempSync, realpathSync } from 'node:fs';
+const temp=realpathSync(mkdtempSync(join(tmpdir(),'chat-git-ui-'))),root=join(temp,'repo');
+app.setPath('userData',join(temp,'userData'));app.disableHardwareAcceleration();
+const here=dirname(fileURLToPath(import.meta.url)),exec=promisify(execFile);
+async function main() {
+const output=process.env.ARCORBIT_TEST_OUTPUT||join(temp,'evidence');
+await mkdir(root);await mkdir(join(temp,"empty"));await mkdir(output,{recursive:true});
+const git=async(...args)=>(await exec('git',args,{cwd:root,env:{...process.env,GIT_AUTHOR_NAME:'Test',GIT_AUTHOR_EMAIL:'test@example.invalid',GIT_COMMITTER_NAME:'Test',GIT_COMMITTER_EMAIL:'test@example.invalid'}})).stdout;
+await git('init','-b','main');await writeFile(join(root,'file.txt'),'base\n');await git('add','.');await git('-c','commit.gpgsign=false','commit','-m','base');
+await git('init','--bare',join(temp,'remote.git'));await git('remote','add','origin',join(temp,'remote.git'));await git('push','-u','origin','main');
+await git('-c','commit.gpgsign=false','commit','--allow-empty','-m','local commit');
+await writeFile(join(root,'file.txt'),'staged\n');await git('add','file.txt');await writeFile(join(root,'file.txt'),'worktree\n');
+await writeFile(join(root,'<unsafe>.txt'),'<script>unsafe</script>');
+const service=createChatGit({runManager:{readDesktopChatMetadata:async()=>({projects:[{id:'local-11',path:root},{id:'local-12',path:join(temp,'empty')}],sessions:{chat:[{id:'CHAT-A',project_id:'local-11'}]}})},getAccountScope:async()=> 'fixture',authorizeSession:async()=>true});
+process.env.ARCORBIT_CHAT_GIT_TEST='1';process.env.ARCORBIT_CHAT_STREAM_PERFORMANCE_FIXTURE='1';
+await app.whenReady();
+const w=new BrowserWindow({show:false,width:1440,height:960,webPreferences:{preload:join(here,'organization-center-preload.cjs'),contextIsolation:true,sandbox:false}});
+ipcMain.handle('test:chat-git',(_e,action,input)=>service.command(action,input));service.onEvent(s=>{if(!w.isDestroyed())w.webContents.send('test:chat-git-event',s);});
+const run=s=>w.webContents.executeJavaScript(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),errors=[],checks=[];
+w.webContents.on('console-message',(_e,level,text)=>{if(level>=3&&!text.includes('Content Security Policy'))errors.push(text);});
+const until=async s=>{for(let i=0;i<150;i++){if(await run(s))return;await sleep(40);}throw Error('Timed out: '+s);};
+const click=sel=>run(`document.querySelector(${JSON.stringify(sel)}).click()`);
+try {
+ await w.loadFile(join(here,'../../desktop/renderer/index.html'));await sleep(300);
+ await click('[data-page="chat"]');await until(`document.querySelector('[data-chat-git-project]')?.textContent.includes('2 个文件')`);
+ await run(`const e=document.querySelector('#chatInput');e.value='保留未发送草稿';e.dispatchEvent(new Event('input',{bubbles:true}))`);
+ const title=await run('document.querySelector("#chatTitle").textContent');
+ await click('[data-chat-project-toggle]');assert.equal(await run(`document.querySelector('[data-chat-project-toggle]').getAttribute('aria-expanded')`),'false');
+ await click('[data-chat-git-project]');await until(`!document.querySelector('#chatGitPanel').hidden`);
+ assert.ok(await run(`document.querySelector('#chatGitPanel').textContent.includes('main')`));
+ await click('[data-git-action="fetch"]');await until(`document.querySelector('#chatGitPanel').textContent.includes('远端最近获取')`);
+ await click('[data-git-action="file"][data-mode="staged"]');await until(`document.querySelector('#chatGitPanel pre')?.textContent.includes('+staged')`);
+ await click('[data-git-action="back"]');await click('[data-git-action="file"][data-mode="worktree"]');await until(`document.querySelector('#chatGitPanel pre')?.textContent.includes('+worktree')`);
+ await click('[data-git-action="back"]');await click('[data-git-action="file"][data-mode="untracked"]');await until(`document.querySelector('#chatGitPanel pre')?.textContent.includes('<script>unsafe')`);
+ assert.equal(await run(`document.querySelectorAll('#chatGitPanel script').length`),0);
+ await click('[data-git-action="back"]');await click('[data-git-action="commits"][data-direction="ahead"]');await until(`!!document.querySelector('[data-git-action="commit"]')`);
+ await click('[data-git-action="commit"]');await until(`document.querySelector('#chatGitPanel pre')?.textContent.includes('local commit')`);
+ await run(`document.querySelector('#chatGitPanel button').focus();document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+ await sleep(50);assert.equal(await run('document.activeElement.dataset.chatGitProject'),'local-11');
+ assert.equal(await run('document.querySelector("#chatTitle").textContent'),title);
+ assert.equal(await run('document.querySelector("#chatInput").value'),'保留未发送草稿');
+ await click('[data-chat-git-project="local-12"]');assert.ok(await run(`document.querySelector('#chatGitPanel').textContent.includes('不是 Git 仓库')`));assert.equal(await run('document.querySelector("#chatTitle").textContent'),title);await click('[data-git-action="close"]');
+ checks.push('multi-project no-repository detail preserves current conversation');
+ checks.push('real Git: collapsed summary, staged/worktree/untracked paths, escaped content, commit list and detail, return focus and draft');
+ await run(`window.savedGitEntry=document.querySelector('[data-chat-git-project="local-11"]')`);
+ await writeFile(join(root,'external.txt'),'external');await until(`document.querySelector('[data-chat-git-project]')?.textContent.includes('3 个文件')`);
+ assert.ok(await run(`savedGitEntry===document.querySelector('[data-chat-git-project="local-11"]')`));
+ await git('add','.');await git('-c','commit.gpgsign=false','commit','-m','external commit');await until(`document.querySelector('[data-chat-git-project]')?.textContent.includes('↑2') && !document.querySelector('[data-chat-git-project]').textContent.includes('文件')`);
+ checks.push('external filesystem edit, stage and commit update production summary');
+ await git('remote','set-url','origin',join(temp,'missing.git'));await click('[data-chat-git-project]');await click('[data-git-action="fetch"]');await until(`document.querySelector('#chatGitPanel').textContent.includes('获取失败')`);checks.push('manual Fetch failure remains distinct from local clean state');await click('[data-git-action="commits"][data-direction="ahead"]');await until(`!!document.querySelector('[data-git-action="commit"]')`);await click('[data-git-action="commit"]');await until(`!!document.querySelector('[data-git-action="file"]')`);await click('[data-git-action="file"]');await until(`document.querySelector('#chatGitPanel pre')?.textContent.includes('diff --git')`);
+ checks.push('real related commit file diff reachable');
+ await click('[data-git-action="close"]');
+ await run(`document.querySelector('#chatView .chat-workspace').style.setProperty('--chat-sidebar-width','220px')`).catch(()=>{});
+ await sleep(100);await writeFile(join(output,'summary.png'),(await w.webContents.capturePage()).toPNG());
+ await click('[data-chat-git-project]');await run(`document.documentElement.dataset.theme='dark'`);await sleep(100);await writeFile(join(output,'dark-detail.png'),(await w.webContents.capturePage()).toPNG());
+ w.setSize(390,844);if(!await run(`document.body.classList.contains('chat-sessions-open')`))await click('#chatSessionsToggle');await sleep(200);assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));assert.ok(await run(`document.querySelector('#chatGitPanel').getBoundingClientRect().width>100`));
+ await writeFile(join(output,'narrow.png'),(await w.webContents.capturePage()).toPNG());
+ assert.deepEqual(errors,[]);await writeFile(join(output,'result.json'),JSON.stringify({passed:true,checks,errors,limits:['isolated account/Chat fixture; real production Renderer and real Git IPC service','no remote credentials or packaged application installation']},null,2));
+ console.log(JSON.stringify({passed:true,checks}));
+} catch(e) {await writeFile(join(output,'result.json'),JSON.stringify({passed:false,checks,errors,error:String(e)},null,2));console.error(e);process.exitCode=1;}
+finally {service.close();w.destroy();await rm(temp,{recursive:true,force:true});app.exit(process.exitCode || 0);}
+
+}
+main().catch(e=>{console.error(e);app.exit(1);});

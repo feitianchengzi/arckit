@@ -2,6 +2,10 @@
 
 候选目录不代表正式预期。正式页面从 ../INDEX.md 进入。
 
+- chat-git/ Chat 项目分组 Git 详情：右栏已采纳并整合 chat-workspace；弹窗保留为未采纳比较。
+  - exploration.md 基线、状态语义、取舍、验证与待决定问题。
+  - options/compare/default.html 可操作比较入口，支持状态、宽度和主题切换。
+
 - project-workbench-v2/ 项目事情台 V2：已采纳，正式稿位于 ../project-workbench/。
   - exploration.md 基线、分项采纳和正式目标。
   - options/original/index.html 采纳前的独立候选与原始视觉。

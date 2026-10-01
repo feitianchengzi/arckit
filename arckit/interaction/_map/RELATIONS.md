@@ -129,3 +129,5 @@ Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保�
 ## Chat 项目文件工作区
 
 `arckit/interaction/chat-workspace/interaction.md` 定义文件树、常见操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能通过 files-model.js / files-ui.js / files.css 接入完整原型；浏览器验证记录在 arckit/cases/evidence/CASE-20260922-006/files-prototype-final/，生产兑现待验证。
+
+Chat Git：项目分组摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表；正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。

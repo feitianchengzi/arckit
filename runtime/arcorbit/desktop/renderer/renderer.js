@@ -1,3 +1,5 @@
+import { createChatGitSurface, gitSummaryButton, gitSummary } from './chat-git-surface.mjs';
+import { createChatGitState } from './chat-git-state.mjs';
 import { taskCreationAutomation } from './task-creation-automation.mjs';
 import { taskCreationSettingsKey, taskCreationSelection, readTaskCreationSettings, writeTaskCreationSettings, restoreTaskCreationSettings } from './task-creation-settings.mjs';
 import { executorLabel } from './executor-label.mjs';
@@ -428,6 +430,11 @@ globalThis.arcorbitChatFiles=createChatFilesSurface({api,coordinator:chatStateCo
   getOwner:()=>({session_id:selectedChatSession()?.id||'',project_id:selectedChatProject()?.id||''}),
   isVisible:()=>state.page==='chat',getPanel:()=>chatTaskPanelMode,setPanel:setChatTaskPanel,
   closeList:()=>setChatSessionsOpen(false),openList:()=>setChatSessionsOpen(true),notify:showToast});
+globalThis.arcorbitChatGit = createChatGitState({ api,
+  getContext: () => ({ active: state.page === 'chat', scope: globalScope().key,
+    project_ids: chatProjectsInScope().map(p => p.id), selected_project_id: chatState().owner.project_id }),
+  onChange: () => { if (state.page === 'chat') renderChat(); } });
+const chatGitSurface = createChatGitSurface({api,states:globalThis.arcorbitChatGit,host:document.getElementById('chatGitPanel'),getProjects:chatProjectsInScope,getPanel:()=>chatTaskPanelMode,setPanel:setChatTaskPanel});
 const workbenchConversationSurface = createConversationSurface({
   element: els.transcriptList,
   jumpButton: els.jumpToLatestButton,
@@ -1745,7 +1752,7 @@ function renderChatSessionGroups(chat) {
     const id = escapeHtml(group.project_id);
     const history = !visibility.collapsed && visibility.hidden_count
       ? `<button class="chat-history-toggle" data-chat-history-project-id="${id}" type="button">查看更多（剩余 ${visibility.hidden_count} 个）</button>` : "";
-    return `<section class="chat-project-group" data-chat-project-group="${id}"><button type="button" class="chat-project-group-head" data-chat-project-toggle="${id}" aria-expanded="${!visibility.collapsed}"><span aria-hidden="true">${visibility.collapsed ? "▸" : "▾"}</span><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length}</span></button><div class="chat-project-sessions" ${visibility.collapsed ? "hidden" : ""}>${group.sessions.length ? visibility.sessions.map(item => renderChatSession(item, chat.owner.session_id)).join("") : `<button class="chat-session" data-chat-new-project-id="${id}" type="button" aria-label="在 ${escapeHtml(group.project_name)} 新建对话"><strong>＋ 新建对话</strong></button>`}</div>${history}</section>`;
+    return `<section class="chat-project-group" data-chat-project-group="${id}"><div class="chat-project-heading"><button type="button" class="chat-project-group-head" data-chat-project-toggle="${id}" aria-expanded="${!visibility.collapsed}"><span aria-hidden="true">${visibility.collapsed ? "▸" : "▾"}</span><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length}</span></button>${gitSummaryButton(group.project_id,group.project_name)}</div><div class="chat-project-sessions" ${visibility.collapsed ? "hidden" : ""}>${group.sessions.length ? visibility.sessions.map(item => renderChatSession(item, chat.owner.session_id)).join("") : `<button class="chat-session" data-chat-new-project-id="${id}" type="button" aria-label="在 ${escapeHtml(group.project_name)} 新建对话"><strong>＋ 新建对话</strong></button>`}</div>${history}</section>`;
   }).join("");
 }
 
@@ -1753,6 +1760,7 @@ function renderChat() {
   if (!els.chatTranscript) return;
   renderChatTaskPanel();
   globalThis.arcorbitChatFiles?.sync();
+  void globalThis.arcorbitChatGit?.sync();
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
@@ -1776,8 +1784,8 @@ function renderChat() {
   if (sessionList !== renderedChatSessionList) {
     const listScroll = els.chatSessionList.scrollTop;
     const focused = els.chatSessionList.contains(document.activeElement) ? document.activeElement : null;
-    const focusedProject = focused?.dataset.chatProjectToggle || focused?.dataset.chatHistoryProjectId;
-    const focusedAction = focused?.dataset.chatHistoryProjectId ? 'chatHistoryProjectId' : 'chatProjectToggle';
+    const focusedProject = focused?.dataset.chatGitProject || focused?.dataset.chatProjectToggle || focused?.dataset.chatHistoryProjectId;
+    const focusedAction = focused?.dataset.chatGitProject ? 'chatGitProject' : focused?.dataset.chatHistoryProjectId ? 'chatHistoryProjectId' : 'chatProjectToggle';
     els.chatSessionList.innerHTML = sessionList;
     els.chatSessionList.scrollTop = listScroll;
     if (focusedProject) {
@@ -1804,6 +1812,7 @@ function renderChat() {
       renderChat();
       els.chatInput.focus();
     })));
+    els.chatSessionList.querySelectorAll("[data-chat-git-project]").forEach(button=>button.addEventListener("click",()=>chatGitSurface.open(button.dataset.chatGitProject)));
     els.chatSessionList.querySelectorAll("[data-chat-project-toggle]").forEach(button => button.addEventListener("click", () => {
       const id = button.dataset.chatProjectToggle;
       if (collapsedChatProjectIds.has(id)) collapsedChatProjectIds.delete(id);
@@ -1816,6 +1825,13 @@ function renderChat() {
       renderedChatSessionList = "";
       renderChat();
     }));
+  }
+  // Update status text in place so a background refresh cannot replace a pressed entry.
+  for (const button of els.chatSessionList.querySelectorAll('[data-chat-git-project]')) {
+    const id=button.dataset.chatGitProject, summary=gitSummary(globalThis.arcorbitChatGit?.get(id));
+    button.textContent=summary.label;button.title=summary.meaning;
+    button.classList.toggle('is-muted',Boolean(summary.muted));
+    button.setAttribute('aria-label',`${chatProjectsInScope().find(p=>p.id===id)?.name||id} Git：${summary.meaning}`);
   }
   els.chatWorkspaceLabel.textContent = project?.name
     ? `LOCAL WORKSPACE · ${project.name}`
@@ -2008,6 +2024,7 @@ function setChatSessionsOpen(open, restoreFocus = false) {
   else if (restoreFocus) document.getElementById('chatSessionsToggle').focus();
 }
 function renderPageVisibility() {
+  void globalThis.arcorbitChatGit?.sync();
   if(state.page!=='chat')chatConversationSurface.setSuspended(true);
   document.body.classList.toggle('chat-active', state.page === 'chat');
   const workspaceSurface = state.page === 'project-workbench' ? 'workbench' : state.page === 'chat' ? 'chat' : 'legacy';
@@ -2918,15 +2935,17 @@ async function refreshChatTaskDetail() {
 
 function renderChatTaskPanel() {
   const host = document.getElementById('chatTaskInspector');
-  const detail = chatTaskPanelMode === 'detail', files = chatTaskPanelMode === 'files';
+  const detail = chatTaskPanelMode === 'detail', files = chatTaskPanelMode === 'files', git = chatTaskPanelMode === 'git';
   const panel = document.getElementById('chatSessionsPanel');
   panel.classList.toggle('is-task-detail', detail);
   panel.classList.toggle('is-files', files);
+  panel.classList.toggle('is-git', git);
+  chatGitSurface.render();
   document.getElementById('chatSidebarFiles').setAttribute('aria-pressed', String(files));
-  document.getElementById('chatSidebarSessions').setAttribute('aria-pressed', String(!detail&&!files));
+  document.getElementById('chatSidebarSessions').setAttribute('aria-pressed', String(!detail&&!files&&!git));
   document.getElementById('chatSidebarTask').setAttribute('aria-pressed', String(detail));
-  els.chatSessionList.hidden = detail || files;
-  els.newChatButton.hidden = detail || files;
+  els.chatSessionList.hidden = detail || files || git;
+  els.newChatButton.hidden = detail || files || git;
   host.hidden = !detail;
   const owner = chatTaskOwner();
   if (owner !== chatTaskDetailOwner) {
@@ -6222,6 +6241,8 @@ async function login() {
     }));
     state.settings = normalizeSettings(await api.getSettings());
     globalThis.arcorbitChatFiles?.reset();
+    globalThis.arcorbitChatGit?.reset();
+    chatGitSurface.reset();
     productSurface.reset();
     releaseSurface.reset();
     workQueryState.clear();
@@ -6252,6 +6273,8 @@ async function logout() {
     }
     state.authentication = normalizeAuthentication(result.authentication);
     globalThis.arcorbitChatFiles?.reset();
+    globalThis.arcorbitChatGit?.reset();
+    chatGitSurface.reset();
     productSurface.reset();
     releaseSurface.reset();
     invalidatePlatformTaskSelectionContext();

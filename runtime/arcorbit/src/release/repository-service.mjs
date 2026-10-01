@@ -16,6 +16,36 @@ export function createRepositoryService() {
   const client = root => simpleGit({baseDir:root,maxConcurrentProcesses:1,timeout:{block:120000},trimmed:false});
   async function raw(root,args) { const {stdout}=await exec('git',args,{cwd:root,timeout:120000,maxBuffer:MAX,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_EDITOR:process.platform==='win32'?'cmd /c exit':'true'}});return stdout; }
   async function identity(root) { const gitRoot=(await raw(root,['rev-parse','--show-toplevel'])).trim();const common=(await raw(root,['rev-parse','--path-format=absolute','--git-common-dir'])).trim();return {root:await realpath(gitRoot),common:await realpath(common)}; }
+  // Chat's always-visible summary must not load history, patches or the full index.
+  async function summary(root) {
+    let repo;
+    try { repo = await identity(root); }
+    catch (error) {
+      if (/not a git repository/i.test(error.stderr || error.message)) return { kind: 'not_repository' };
+      throw error;
+    }
+    const { GIT_PAGER: _gitPager, PAGER: _pager, ...environment } = process.env;
+    const git = client(repo.root).env({ ...environment, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' });
+    const status = await git.status();
+    const [gitDir, remotes] = await Promise.all([
+      raw(repo.root, ['rev-parse', '--absolute-git-dir']), git.getRemotes(true)
+    ]);
+    const trackingRemote = status.current
+      ? await raw(repo.root, ['config', '--get', `branch.${status.current}.remote`]).catch(error => {
+        if (error.code === 1) return ''; throw error;
+      }) : '';
+    const remote = remotes.find(r => r.name === trackingRemote.trim()) || remotes.find(r => r.name === 'origin') || remotes[0];
+    const upstreamKind = !status.tracking ? 'none' : trackingRemote.trim() === '.' ? 'local' : 'remote';
+    const comparisonAvailable = upstreamKind === 'remote' && status.tracking ? Boolean(await raw(repo.root, ['rev-parse', '--verify', '@{upstream}']).catch(() => '')) : false;
+    return { kind: 'repository', upstream_kind: upstreamKind, comparison_available: comparisonAvailable, ...repo, git_dir: gitDir.trim(), branch: status.current || '',
+      tracking: status.tracking || '', ahead: status.ahead, behind: status.behind,
+      files: status.files, conflicted: status.conflicted, dirty: !status.isClean(),
+      remote: remote?.name || '', remote_url: remote?.refs?.fetch || '' };
+  }
+  async function fetchSummary(root, remote, assertCurrent = async () => {}) {
+    const repo = await identity(root);
+    return serial(repo.common, async () => { await assertCurrent(); return raw(repo.root, ['fetch', ref(remote)]); });
+  }
   async function snapshot(root) {
     const repo=await identity(root); const git=client(repo.root);
     const status=await git.status();
@@ -86,5 +116,5 @@ export function createRepositoryService() {
       }catch(error){return {ok:false,error:error.message,snapshot:await snapshot(repo.root)};}
     });
   }
-  return {snapshot,async diff(root,input={}){const baseline=await snapshot(root);return {...await readDiff(root,input),revision:baseline.revision};},prepare,execute,identity,async history(root,name){const repo=await identity(root);return (await client(repo.root).log(['-60','--follow','--',pathArg(name)])).all;}};
+  return {summary,fetchSummary,snapshot,async diff(root,input={}){const baseline=await snapshot(root);return {...await readDiff(root,input),revision:baseline.revision};},prepare,execute,identity,async history(root,name){const repo=await identity(root);return (await client(repo.root).log(['-60','--follow','--',pathArg(name)])).all;}};
 }
