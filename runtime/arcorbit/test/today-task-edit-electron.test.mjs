@@ -28,6 +28,7 @@ test("Today edits Work task content through the confirmed mutation and preserves
   assert.equal(result.displayFacts['优先级'], 'P1');
   assert.equal(result.displayFacts['对象'], '待办 W-COMPLETED · Ready for acceptance check');
   assert.equal(result.editButtonVisible, true);
+  assert.deepEqual([...new Set(result.fieldNames)].sort(), ["content", "executor_id", "father_id", "priority", "project_id", "state", "tag_ids"].sort());
   assert.equal(result.initialDraft, "Ready for acceptance check");
   assert.equal(result.failureSheetVisible, true);
   assert.match(result.failureStatus, /Fixture version conflict/);
@@ -40,6 +41,10 @@ test("Today edits Work task content through the confirmed mutation and preserves
     && input.task_id === "W-COMPLETED"
     && input.expected_state === "completed"
     && input.content === "Corrected in Today"
-    && !Object.hasOwn(input, "state")), true);
+    && input.state === "completed"
+    && input.executor_id === "7"
+    && input.father_id === ""
+    && input.tags === ""
+    && input.priority === "1"), true);
   assert.deepEqual(result.errors, []);
 });

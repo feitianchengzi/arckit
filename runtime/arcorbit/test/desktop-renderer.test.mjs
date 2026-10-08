@@ -1815,6 +1815,7 @@ test("Today directly renders acceptance issue progress and preserves valid selec
   const todayRender = source.slice(source.indexOf("function renderToday()"), source.indexOf("\nfunction renderTodayResult"));
   const todayOperator = source.slice(source.indexOf("function renderTodayOperator(item, view)"), source.indexOf("\nfunction renderTodaySourceContext"));
   const sourceContext = source.slice(source.indexOf("function renderTodaySourceContext(item)"), source.indexOf("\nfunction todayFactRows"));
+  const acceptanceSheet = source.slice(source.indexOf("async function openTodayAcceptanceIssue(item)"), source.indexOf("\nfunction todayPreference"));
   const actionFlow = source.slice(source.indexOf("async function performTodayAction(item, action)"), source.indexOf("\nasync function performTodayProjectSetupAction"));
   const editFlow = source.slice(source.indexOf("async function editTodayTaskContent(item)"), source.indexOf("\nasync function submitTaskEdit"));
   const manageRule = source.slice(source.indexOf("function canManagePlatformTask(task)"), source.indexOf("\nfunction servicePriority"));
@@ -1822,7 +1823,8 @@ test("Today directly renders acceptance issue progress and preserves valid selec
   assert.match(source, /createKeyedDetailSurface/);
   assert.match(todayRender, /todayDetailSurface\.render\(\{[\s\S]+contextId: `\$\{view\.mode\}:\$\{view\.selected_item\?\.id \|\| "empty"\}`/);
   assert.doesNotMatch(todayRender, /els\.todayOperator\.innerHTML\s*=/);
-  assert.match(source, /data-today-draft data-detail-focus-key="draft"/);
+  assert.match(todayOperator, /const needsDraft = item\.source === "automation"/);
+  assert.doesNotMatch(todayOperator, /验收问题或补充说明/);
   assert.match(sourceContext, /验收问题与进展/);
   assert.match(sourceContext, /class="acceptance-feedback-list"/);
   assert.match(sourceContext, /issue\.original_feedback/);
@@ -1831,12 +1833,18 @@ test("Today directly renders acceptance issue progress and preserves valid selec
   assert.doesNotMatch(sourceContext, /<details|today-context-disclosure/);
   assert.match(actionFlow, /await api\.submitAcceptanceFeedback\([^\n]+\n\s+await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\)/);
   assert.match(actionFlow, /if \(action !== "raise_acceptance_issue"\) state\.todaySelectedItemId = ""/);
+  assert.match(todayOperator, /data-today-acceptance-issue/);
+  assert.match(todayOperator, /\$\{acceptanceIssueButton\}\$\{editTaskButton\}/);
+  assert.match(todayOperator, /filter\(\(action\) => action !== "raise_acceptance_issue"\)/);
+  assert.match(acceptanceSheet, /openPlatformAction\(\{[\s\S]+title: "提出验收问题"/);
+  assert.match(acceptanceSheet, /platformField\("message", "验收问题", \{[\s\S]+type: "textarea"/);
+  assert.match(acceptanceSheet, /await performTodayAction\(item, "raise_acceptance_issue"\)/);
+  assert.match(acceptanceSheet, /querySelector\("\[data-today-acceptance-issue\]"\)[\s\S]+focus/);
   assert.match(todayOperator, /item\.source === "work" && canManagePlatformTask\(item\)/);
   assert.match(todayOperator, /data-today-edit-task/);
   assert.match(todayRender, /editTodayTaskContent\(view\.selected_item\)/);
-  assert.match(editFlow, /platformField\("content", "待办内容", \{ type: "textarea", required: true, value: item\.content \?\? "" \}\)/);
-  assert.match(editFlow, /executeManagedAction\("task\.update", \{ task_id: taskId, expected_state: expectedState, content \}/);
-  assert.doesNotMatch(editFlow, /platformField\("(?:project_id|state|executor_id|father_id|priority|tag_ids)"/);
+  assert.match(editFlow, /await editTask\(taskId\)/);
+  assert.doesNotMatch(editFlow, /openPlatformAction|platformField|executeManagedAction/);
   assert.match(manageRule, /if \(task\.state !== "in_progress"\) return true;[\s\S]+findWorkspace\(task\.project_id\)/);
 });
 

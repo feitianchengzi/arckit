@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { app, BrowserWindow, ipcMain } from "electron";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,17 +39,34 @@ try {
     document.querySelector('[data-today-mode="intervention"]').click();
     const row = await until(()=>document.querySelector('[data-today-item="work:W-COMPLETED:completed"]'));
     row.click();
-    const composer = await until(()=>document.querySelector('#todayOperator textarea'));
+    const embeddedComposerAbsent = !document.querySelector('#todayOperator textarea');
+    const acceptance = document.querySelector('#todayOperator [data-today-acceptance-issue]');
+    const edit = document.querySelector('#todayOperator [data-today-edit-task]');
+    if(!acceptance || !edit) throw new Error('Missing Today acceptance or edit action');
+    const actionOrder = acceptance.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING ? 'acceptance-before-edit' : 'unexpected';
+    acceptance.click();
+    const firstComposer = await until(()=>!document.querySelector('#platformActionOverlay').classList.contains('hidden') && document.querySelector('#platformActionForm [name="message"]'));
+    const popupFocused = document.activeElement === firstComposer;
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+    await until(()=>document.querySelector('#platformActionOverlay').classList.contains('hidden'));
+    const cancelled = document.querySelector('#platformActionOverlay').classList.contains('hidden');
+    const focusRestored = document.activeElement === acceptance;
+    acceptance.click();
+    const composer = await until(()=>!document.querySelector('#platformActionOverlay').classList.contains('hidden') && document.querySelector('#platformActionForm [name="message"]'));
     composer.value='Today 第三栏真实提交验收问题';
     composer.dispatchEvent(new Event('input',{bubbles:true}));
-    const submit = document.querySelector('#todayOperator [data-today-action="raise_acceptance_issue"]');
-    if(!submit) throw new Error('No Today submit action');
-    submit.click();
+    document.querySelector('#platformActionForm').requestSubmit();
     const issue = await until(()=>document.querySelector('#todayOperator [data-today-acceptance-feedback]'));
+    await until(()=>document.querySelector('#platformActionOverlay').classList.contains('hidden'));
     issue.scrollIntoView({block:'center'});
     const rect=issue.getBoundingClientRect();
-    return {text:issue.textContent, visible:rect.width>0&&rect.height>0&&getComputedStyle(issue).visibility!=='hidden', selected:document.querySelector('#todayResponsibilityList .is-active')?.dataset.todayItem, count:document.querySelectorAll('#todayOperator [data-today-acceptance-feedback]').length};
+    return {embeddedComposerAbsent, actionOrder, cancelled, focusRestored, popupFocused, text:issue.textContent, visible:rect.width>0&&rect.height>0&&getComputedStyle(issue).visibility!=='hidden', selected:document.querySelector('#todayResponsibilityList .is-active')?.dataset.todayItem, count:document.querySelectorAll('#todayOperator [data-today-acceptance-feedback]').length};
   })()`);
+  assert.equal(submitted.embeddedComposerAbsent, true);
+  assert.equal(submitted.actionOrder, "acceptance-before-edit");
+  assert.equal(submitted.cancelled, true);
+  assert.equal(submitted.focusRestored, true);
+  assert.equal(submitted.popupFocused, true);
   assert.equal(submitted.visible, true);
   assert.equal(submitted.count, 1);
   assert.match(submitted.text, /Today 第三栏真实提交验收问题/);
@@ -77,10 +94,16 @@ try {
   assert.equal((await fixture.runManager.readDesktopStore()).automation.snapshot.tasks[0].state, "completed");
   assert.deepEqual(errors, []);
   const result = { submitted, updated, errors, warnings, electron: process.versions.electron, scope: "current development renderer and production coordinators; isolated disk store, synthetic Work and account, no live Agent or installed-package replacement" };
-  const evidenceDir = new URL("../../../../arckit/cases/evidence/CASE-20260911-002/", import.meta.url);
-  await writeFile(new URL("today-electron.json", evidenceDir), JSON.stringify(result, null, 2) + "\n");
-  await new Promise((resolve) => setTimeout(resolve, 250));
-  await writeFile(new URL("today-third-column.png", evidenceDir), (await window.webContents.capturePage()).toPNG());
+  if (process.env.ARCORBIT_TEST_OUTPUT_DIR) {
+    await mkdir(process.env.ARCORBIT_TEST_OUTPUT_DIR, { recursive: true });
+    await writeFile(join(process.env.ARCORBIT_TEST_OUTPUT_DIR, "today-acceptance-electron.json"), JSON.stringify(result, null, 2) + "\n");
+    await window.webContents.executeJavaScript(`document.querySelector('#todayOperator [data-today-acceptance-issue]').click()`);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await writeFile(join(process.env.ARCORBIT_TEST_OUTPUT_DIR, "today-acceptance-sheet.png"), (await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await writeFile(join(process.env.ARCORBIT_TEST_OUTPUT_DIR, "today-acceptance-list.png"), (await window.webContents.capturePage()).toPNG());
+  }
   process.stdout.write(JSON.stringify(result) + "\n");
 } catch (error) {
   exitCode = 1;
