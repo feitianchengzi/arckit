@@ -725,7 +725,8 @@ test("Chat navigation renders the cached page before starting its background ref
 
   assert.ok(chatBranch.indexOf("renderPageVisibility();") < chatBranch.indexOf("refreshChat()"));
   assert.ok(chatBranch.indexOf("renderChat();") < chatBranch.indexOf("refreshChat()"));
-  assert.match(source, /chat\.refreshing \? " · 正在同步"/);
+  assert.doesNotMatch(source, /els\.chatStatusText/);
+  assert.doesNotMatch(await readFile(rendererHtmlPath, "utf8"), /id="chatStatusText"/);
   assert.match(source, /setAttribute\("aria-busy", String\(chat\.refreshing\)\)/);
 });
 
@@ -754,9 +755,28 @@ test("Chat project selector changes only the new draft owner and persisted sessi
   assert.match(source, /const projectId = defaultChatDraftProject\(\)\?\.id \|\| ""/);
   assert.match(source, /projects.find\(p=>p.id===chat.owner.project_id\)/);
   assert.match(source, /session\.project_id\)}（不可用）/);
-  assert.match(source, /els\.chatWorkspacePickerLabel\.textContent = session \? "固定归属" : "新对话属于"/);
-  assert.match(html, /id="chatWorkspacePickerLabel">新对话属于/);
+  assert.match(source, /els\.chatWorkspacePickerLabel\.textContent = "Product Workspace"/);
+  assert.match(html, /id="chatWorkspacePickerLabel">Product Workspace/);
   assert.ok(html.indexOf('id="chatProjectSelect"') > html.indexOf('<header class="chat-header">'));
+});
+
+test("Chat header keeps secondary session management behind one accessible menu", async () => {
+  const [source, html, layout] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8"),
+    readFile(new URL("../desktop/renderer/chat-layout.css", import.meta.url), "utf8")
+  ]);
+
+  assert.match(html, /id="chatSessionMenuButton"[^>]+aria-label="会话操作"[^>]+aria-haspopup="menu"/);
+  assert.match(html, /id="chatSessionMenu"[^>]+role="menu"[^>]+hidden/);
+  assert.match(html, /id="renameChatButton"[^>]+role="menuitem">重命名/);
+  assert.match(html, /id="deleteChatButton"[^>]+role="menuitem">删除会话/);
+  assert.doesNotMatch(html, /id="chatStatusText"|data-convert/);
+  assert.match(layout, /height:64px; min-height:64px/);
+  assert.match(layout, /text-overflow:ellipsis; white-space:nowrap/);
+  assert.match(source, /function handleChatSessionMenuKeydown/);
+  assert.match(source, /\['ArrowDown', 'ArrowUp', 'Home', 'End'\]/);
+  assert.match(source, /setChatSessionMenuOpen\(false, \{ restoreFocus: true \}\)/);
 });
 
 test("Chat Renderer groups scoped sessions by Product Workspace with bounded inline history", async () => {

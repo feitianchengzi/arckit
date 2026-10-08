@@ -3,6 +3,7 @@
   const dialog = document.getElementById('chat-dialog');
   let resizeDrag = null;
   let composing = false, noticeTimer, returnFocus, listScroll = 0;
+  let sessionMenuReturnFocus = null;
   function notice(text) { document.getElementById('chat-notice').textContent = text; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => document.getElementById('chat-notice').textContent = '', 4000); }
   function capture() {
     const thread = document.querySelector('.chat-thread'), s = M.current();
@@ -43,6 +44,26 @@
     dialog.innerHTML = `<form data-chat-form="${form}"><h2 id="chat-dialog-title">${title}</h2>${body}<p role="alert"></p><footer>${btn('close','取消')}<button type="submit" class="primary">${submit}</button></footer></form>`;
     dialog.showModal(); (dialog.querySelector('input,select') || dialog.querySelector('button')).focus();
   }
+  function sessionMenu() { return document.querySelector('.chat-session-menu'); }
+  function closeSessionMenu({ focus = true } = {}) {
+    const menu = sessionMenu();
+    if (!menu || menu.hidden) return false;
+    menu.hidden = true;
+    const trigger = document.querySelector('.chat-session-menu-trigger');
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (focus) (sessionMenuReturnFocus?.isConnected ? sessionMenuReturnFocus : trigger)?.focus({ preventScroll: true });
+    sessionMenuReturnFocus = null;
+    return true;
+  }
+  function toggleSessionMenu(trigger) {
+    const menu = sessionMenu();
+    if (!menu) return;
+    if (!menu.hidden) { closeSessionMenu(); return; }
+    sessionMenuReturnFocus = trigger;
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    menu.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+  }
   function send() {
     try { const s = M.send(); if (s) { notice(''); s.follow = true; render({ capturePosition: false }); document.getElementById('chat-input').focus(); } }
     catch (error) { notice(error.message); M.save(); }
@@ -73,7 +94,8 @@
     if(e.key!==up&&e.key!==down)return;e.preventDefault();resize(kind,(kind==='width'?(M.state.sidebarWidth||300):(M.state.inputHeight||90))+(e.key===up?20:-20));
   });
   document.addEventListener('click', async event => {
-    const el = event.target.closest('[data-chat-action]'); if (!el) return;
+    const el = event.target.closest('[data-chat-action]');
+    if (!el) { if (!event.target.closest('.chat-session-actions')) closeSessionMenu({ focus: false }); return; }
     const s = M.current();
     try {
       switch (el.dataset.chatAction) {
@@ -90,8 +112,9 @@
         case 'toggle-list': toggleList(); break;
         case 'history': M.state.limits[el.dataset.project] = (M.state.limits[el.dataset.project]||5)+5; render(); break;
         case 'project': M.state.collapsed[el.dataset.project]=!M.state.collapsed[el.dataset.project]; delete M.state.limits[el.dataset.project]; render(); break;
-        case 'rename': open('重命名会话', `<label>会话标题<input name="title" value="${esc(s.title)}" required maxlength="120"></label>`, '保存', 'rename'); break;
-        case 'delete': open('删除会话', `<p>${esc(s.title)} · ${esc(M.project(s.project).name)} · ${s.messages.length} 条消息</p><p>${M.active(s) ? '将先停止当前回答，成功后删除本地会话记录。' : '将删除此会话的本地消息、草稿与恢复记录。'}不承诺擦除 Codex 自身保留的底层数据。</p>`, '确认删除', 'delete'); break;
+        case 'session-menu': toggleSessionMenu(el); break;
+        case 'rename': closeSessionMenu(); open('重命名会话', `<label>会话标题<input name="title" value="${esc(s.title)}" required maxlength="120"></label>`, '保存', 'rename'); break;
+        case 'delete': closeSessionMenu(); open('删除会话', `<p>${esc(s.title)} · ${esc(M.project(s.project).name)} · ${s.messages.length} 条消息</p><p>${M.active(s) ? '将先停止当前回答，成功后删除本地会话记录。' : '将删除此会话的本地消息、草稿与恢复记录。'}不承诺擦除 Codex 自身保留的底层数据。</p>`, '确认删除', 'delete'); break;
         case 'close': close(); break;
         case 'stop': s.status = 'interrupting'; render(); break;
         case 'latest': s.follow = true; s.unread = 0; render({ capturePosition: false }); break;
@@ -156,9 +179,18 @@
   document.addEventListener('compositionend', event => { if (event.target.id === 'chat-input') { composing = false; M.owner().draft = event.target.value; M.save(); } });
   document.addEventListener('keydown', event => {
     if (document.getElementById('account-dialog')?.open || document.getElementById('native-picker')?.open || document.getElementById('model-settings')?.open) return;
+    const menu = sessionMenu();
+    if (menu && !menu.hidden && ['ArrowDown','ArrowUp','Home','End'].includes(event.key)) {
+      event.preventDefault();
+      const items = [...menu.querySelectorAll('[role="menuitem"]')], index = items.indexOf(document.activeElement);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus({ preventScroll: true });
+      return;
+    }
     if (event.key === 'Enter' && event.target.id === 'chat-input' && !event.shiftKey && !event.isComposing && !composing) { event.preventDefault(); if (!M.active(M.current())) send(); }
     if (event.key === 'Escape') {
-      if (dialog.open) { event.preventDefault(); if (!dialog.querySelector('[data-busy]')) close(); }
+      if (closeSessionMenu()) event.preventDefault();
+      else if (dialog.open) { event.preventDefault(); if (!dialog.querySelector('[data-busy]')) close(); }
       else if (M.state.listOpen) { event.preventDefault(); toggleList(); }
     }
   });

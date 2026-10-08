@@ -31,30 +31,30 @@
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
   - interaction.md Today 交互：产品集成员、局部选择与按需初始化、双工作区、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (241行)
   - product-continuity.html 产品续接：添加 Idea、独立新消息和本机草稿。✅ (5行)
-- chat-workspace/ Chat 文件树与文件 Tab 约定及可操作样本已同步；项目分组单行 Git 符号计数摘要已完成浏览器及生产 Renderer／真实临时 Git 验证。✅
-  - 既有 Chat 正式交互：会话列表与当前待办详情切换，Work 入口恢复绑定会话；会话创建时间倒序，Agent 当前项目待办读写与统一能力/Skill/上下文选择；保留完整会话、账户和响应式行为。✅
-  - default.html 四组导航、中央对话、会话列表与统一能力引用的完整入口。✅ (31行)
+- chat-workspace/ Chat 文件树与文件 Tab 约定及可操作样本已同步；中央对话使用 64px 固定顶栏突出标题/项目归属，统一菜单承载重命名/删除；项目分组单行 Git 符号计数摘要已完成浏览器及生产 Renderer／真实临时 Git 验证。✅
+  - 既有 Chat 正式交互：会话列表与当前待办详情切换，Work 入口恢复绑定会话；会话创建时间倒序，Agent 当前项目待办读写与统一能力/Skill/上下文选择；顶栏不展示整理入口或完成/运行状态，保留完整会话、账户和响应式行为。✅
+  - default.html 四组导航、中央对话、会话列表与统一能力引用的完整入口。✅ (36行)
   - files-model.js / files-ui.js / files.css 完整文件树、动作、编辑 Tab 与状态保护样本；内存目录和 textarea 不代表真实文件或 Monaco。
   - verify-files.cjs 新增文件路径浏览器验证；ARCORBIT_TEST_OUTPUT 指定 Case 证据目录，默认临时目录。
   - interaction.md 能力/引用、紧凑 Git 摘要、文件树操作、Monaco 文件 Tab、同一 thread 与恢复规则；正式样本已同步。✅ (307行)
   - README.md 预览、模拟边界、视觉与验证依据。✅ (54行)
   - model.js 独立本地会话、工作区、草稿、turn 与恢复样本。✅ (56行)
   - views.js 右侧项目会话分组、可压缩项目标题、中央消息与 Composer。✅ (40行)
-  - app.js 会话操作、焦点、滚动、输入法、场景与逐段回复。✅ (194行)
-  - chat.css 中央阅读宽度、右侧列表与窄窗抽屉。✅ (80行)
+  - app.js 会话操作、焦点、滚动、输入法、场景与逐段回复。✅ (226行)
+  - chat.css 固定中央顶栏、统一会话菜单、阅读宽度、右侧列表与窄窗抽屉。✅ (88行)
   - markdown.js 受限 Markdown、代码和表格呈现。✅ (102行)
   - scenarios.html 独立本地异常工具。✅ (4行)
   - scenario-controls.js 场景工具消息转发。✅ (1行)
   - states.html 从旧主稿迁移的右侧列表状态辅助说明。✅ (55行)
   - workspace-setup.html 原位目录绑定与 Setup Readiness 辅助说明。✅ (12行)
-  - verify.cjs 主路径、恢复、滚动与响应式浏览器验证。✅ (62行)
+  - verify.cjs 主路径、固定顶栏/统一菜单、恢复、滚动与响应式浏览器验证。✅ (80行)
   - verification.json 实际本地交互验证结果。✅ (21行)
   - maintenance-result.json 本轮文件范围与正式交互事实结果。✅
   - native-model.js 当前项目待办、绑定、意图与原生回执本地模型。✅ (104行)
-  - native-views.js 会话/待办独立单行列表、标签、对象卡片与正式视图组合。✅ (29行)
+  - native-views.js 会话/待办独立单行列表、标签、对象卡片与正式视图组合。✅ (26行)
   - native-input.js 统一能力/引用选择器、对象进入与异常恢复。✅ (75行)
   - native.css 消费正式 Token 的能力选择、标签与回执样式。✅ (49行)
-  - verify-native.cjs 正式新增主路径、状态恢复、键盘与响应式验证。✅ (61行)
+  - verify-native.cjs 正式新增主路径、状态恢复、键盘与响应式验证。✅ (62行)
   - verification-native.json 新增能力原型的实际本地验证结果。✅ (17行)
 
   - model-settings.js 当前会话模型/推理级别弹出配置、自动保存与焦点恢复。✅

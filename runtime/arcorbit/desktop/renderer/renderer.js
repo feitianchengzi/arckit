@@ -752,14 +752,35 @@ function wireEvents() {
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   installChatResize(document);
-  document.getElementById('chatSessionsToggle').addEventListener('click', () => setChatSessionsOpen(!document.body.classList.contains('chat-sessions-open')));
+  document.getElementById('chatSessionsToggle').addEventListener('click', () => {
+    setChatSessionMenuOpen(false);
+    setChatSessionsOpen(!document.body.classList.contains('chat-sessions-open'));
+  });
   document.getElementById('chatSessionsClose').addEventListener('click', () => setChatSessionsOpen(false, true));
   window.matchMedia('(max-width: 760px)').addEventListener('change', () => setChatSessionsOpen(false));
+  els.chatSessionMenuButton.addEventListener('click', () => setChatSessionMenuOpen(els.chatSessionMenu.hidden, { focus: 'first' }));
+  els.chatSessionMenuButton.addEventListener('keydown', (event) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    setChatSessionMenuOpen(true, { focus: ['ArrowUp', 'End'].includes(event.key) ? 'last' : 'first' });
+  });
+  els.chatSessionMenu.addEventListener('keydown', handleChatSessionMenuKeydown);
+  document.addEventListener('click', (event) => {
+    if (!els.chatSessionMenu.hidden && !event.target.closest?.('.chat-session-menu')) setChatSessionMenuOpen(false);
+  });
+  document.addEventListener('focusin', (event) => {
+    if (!els.chatSessionMenu.hidden && !event.target.closest?.('.chat-session-menu')) setChatSessionMenuOpen(false);
+  });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && document.body.classList.contains('chat-sessions-open')) setChatSessionsOpen(false, true);
+    if (event.key !== 'Escape') return;
+    if (!els.chatSessionMenu.hidden) {
+      event.preventDefault();
+      setChatSessionMenuOpen(false, { restoreFocus: true });
+    } else if (document.body.classList.contains('chat-sessions-open')) setChatSessionsOpen(false, true);
   });
   els.newChatButton.addEventListener("click", () => runAction(async () => {
     const projectId = defaultChatDraftProject()?.id || "";
+    setChatSessionMenuOpen(false);
     chatScopeController.capture();
     await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
     chatScopeController.capture();
@@ -777,16 +798,27 @@ function wireEvents() {
   els.renameChatButton.addEventListener("click", () => runAction(async () => {
     const session = selectedChatSession();
     if (!session) return;
+    setChatSessionMenuOpen(false);
     const title = window.prompt("重命名对话", session.title);
-    if (title === null || !title.trim()) return;
+    if (title === null || !title.trim()) {
+      els.chatSessionMenuButton.focus();
+      return;
+    }
     await chatStateCoordinator.renameCurrentSession(title.trim());
     renderChat();
+    els.chatSessionMenuButton.focus();
   }));
   els.deleteChatButton.addEventListener("click", () => runAction(async () => {
     const session = selectedChatSession();
-    if (!session || !window.confirm(`删除“${session.title}”？活动回答会先安全停止。本操作只删除 ArcOrbit 本地会话与恢复记录。`)) return;
+    if (!session) return;
+    setChatSessionMenuOpen(false);
+    if (!window.confirm(`删除“${session.title}”？活动回答会先安全停止。本操作只删除 ArcOrbit 本地会话与恢复记录。`)) {
+      els.chatSessionMenuButton.focus();
+      return;
+    }
     await chatStateCoordinator.deleteCurrentSession();
     renderChat();
+    els.chatInput.focus();
   }));
   chatComposer = createConversationComposer({
     input: els.chatInput, sendButton: els.chatSendButton, stopButton: els.chatStopButton, hint: els.chatComposerHint,
@@ -1780,7 +1812,7 @@ function renderChat() {
     renderedChatProjectOptions = projectOptions;
   }
   els.chatProjectSelect.disabled = Boolean(session) || chatProjectsInScope().length === 0;
-  els.chatWorkspacePickerLabel.textContent = session ? "固定归属" : "新对话属于";
+  els.chatWorkspacePickerLabel.textContent = "Product Workspace";
   els.newChatButton.disabled = chatProjectsInScope().length === 0;
   const sessionList = chatProjectsInScope().length
     ? renderChatSessionGroups(chat)
@@ -1799,6 +1831,7 @@ function renderChat() {
     }
     renderedChatSessionList = sessionList;
     els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+      setChatSessionMenuOpen(false);
       chatScopeController.capture();
       await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
       chatScopeController.capture();
@@ -1838,16 +1871,15 @@ function renderChat() {
     button.setAttribute('aria-label',`${chatProjectsInScope().find(p=>p.id===id)?.name||id} Git：${summary.meaning}`);
   }
   els.chatWorkspaceLabel.textContent = project?.name
-    ? `LOCAL WORKSPACE · ${project.name}`
-    : session?.project_id ? `LOCAL WORKSPACE · ${session.project_id} · 不可用` : "选择本地工作区";
+    ? `Product Workspace · ${project.name}`
+    : session?.project_id ? `Product Workspace · ${session.project_id} · 不可用` : "Product Workspace";
+  els.chatWorkspaceLabel.hidden = !session;
+  els.chatHeaderWorkspacePicker.hidden = Boolean(session);
   els.chatTitle.textContent = session?.title || "新对话";
-  els.chatStatusText.textContent = session
-    ? `${session.execution?.mode === "automation" ? "Auto 正在执行" : chatStatusLabel(session.status)}${chat.refreshing ? " · 正在同步" : ""}${session.error ? ` · ${session.error}` : ""}`
-    : chat.refreshing ? "正在同步最新会话…"
-      : project ? "从一个问题开始，消息与回答会保存在这段对话中。" : "先在 Workset 中配置一个本地 Product Workspace。";
+  els.chatTitle.title = els.chatTitle.textContent;
   els.chatTranscript.setAttribute("aria-busy", String(chat.refreshing));
-  els.renameChatButton.disabled = !session;
-  els.deleteChatButton.disabled = !session;
+  els.chatSessionMenuButton.hidden = !session;
+  if (!session) setChatSessionMenuOpen(false);
   els.chatErrorHost.innerHTML = chat.error || session?.error
     ? `<div class="chat-error" role="alert"><span>${escapeHtml(chat.error || session.error)}</span>${session?.status === "failed" ? `<button class="secondary-button" data-chat-retry-last type="button">编辑后重试</button>` : ""}</div>`
     : "";
@@ -2018,6 +2050,40 @@ function renderWorkSurface() {
 }
 
 let renderedWorkspaceSurface = "";
+function chatSessionMenuItems() {
+  return [...els.chatSessionMenu.querySelectorAll('[role="menuitem"]:not(:disabled)')];
+}
+
+function setChatSessionMenuOpen(open, { focus = '', restoreFocus = false } = {}) {
+  const visible = Boolean(open && selectedChatSession());
+  els.chatSessionMenu.hidden = !visible;
+  els.chatSessionMenuButton.setAttribute('aria-expanded', String(visible));
+  if (visible && focus) {
+    const items = chatSessionMenuItems();
+    (focus === 'last' ? items.at(-1) : items[0])?.focus();
+  } else if (!visible && restoreFocus && !els.chatSessionMenuButton.hidden) {
+    els.chatSessionMenuButton.focus({ preventScroll: true });
+  }
+}
+
+function handleChatSessionMenuKeydown(event) {
+  const items = chatSessionMenuItems();
+  if (!items.length) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    setChatSessionMenuOpen(false, { restoreFocus: true });
+    return;
+  }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const current = Math.max(0, items.indexOf(document.activeElement));
+  const next = event.key === 'Home' ? 0
+    : event.key === 'End' ? items.length - 1
+      : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+  items[next]?.focus();
+}
+
 function setChatSessionsOpen(open, restoreFocus = false) {
   const narrow = window.matchMedia('(max-width: 760px)').matches;
   const visible = Boolean(open && narrow && state.page === 'chat');

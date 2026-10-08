@@ -41,7 +41,7 @@ test('native rendering is read-only and identical in-flight catalog requests are
  assert.match(h.document.querySelector('.chat-native-identity').textContent,/latest/);
  for(let i=0;i<10;i++)h.surface.render();assert.equal(h.calls.length,count);
 });
-test('sidebar keeps sessions only while native association/read controls remain',async()=>{
+test('task identity stays in the detail host while organize remains a Composer capability',async()=>{
  const h=setup();await h.startLoad();
  assert.equal(h.document.querySelector('.chat-native-tabs,.chat-native-task-list,.chat-task-filter-dialog'),null);
  assert.equal(h.calls[0].query.include_task_filters,undefined);
@@ -49,7 +49,8 @@ test('sidebar keeps sessions only while native association/read controls remain'
  h.calls[0].resolve(h.result('pending'));await tick();
  assert.ok(h.document.querySelector('[data-read]'));
  h.setOwner({id:'P1'},{id:'S2',status:'completed'});h.surface.render();
- assert.ok(h.document.querySelector('[data-convert]'));
+ assert.equal(h.document.querySelector('[data-convert]'),null);
+ assert.equal(h.document.querySelector('.chat-native-identity').hidden,true);
  h.calls.at(-1).resolve(h.result('pending'));await tick();
 });
 test('owner changes and clearing scope reject obsolete catalog errors and results',async()=>{

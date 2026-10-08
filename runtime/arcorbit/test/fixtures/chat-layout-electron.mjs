@@ -11,13 +11,14 @@ app.setPath('userData',join(base,'user'));app.disableHardwareAcceleration();
 // Cleanup must finish before explicit success/failure exit, including after the last window closes.
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
-let preload=(await readFile(join(here,'organization-center-preload.cjs'),'utf8')).replace('const testChatSnapshotValue =', 'const layoutDrafts = new Map(); const testChatSnapshotValue =').replace('text: "" }\n});','text: layoutDrafts.get(requested) || "" }\n});').replace('calls.push(["createChat", input]);', 'calls.push(["createChat", input]); layoutDrafts.set(input.session_id || "", input.text);');
+let preload=(await readFile(join(here,'organization-center-preload.cjs'),'utf8')).replace('const testChatSnapshotValue =', 'const layoutDrafts = new Map(); const testChatSnapshotValue =').replace("text: process.env.ARCORBIT_CHAT_FILES_FIXTURE === '1' ? fileNavigationDrafts.get(requested) || '' : ''","text: layoutDrafts.get(requested) || ''").replace('calls.push(["createChat", input]);', 'calls.push(["createChat", input]); layoutDrafts.set(input.session_id || "", input.text);');
+preload=preload.replace('deleteChat: noOp, renameChat: noOp,','deleteChat: async input => { calls.push(["deleteChat", input]); return { snapshot: testChatSnapshotValue(input.session_id) }; }, renameChat: async input => { calls.push(["renameChat", input]); return testChatSnapshotValue(input.session_id); },');
 preload=preload.replace("files:[{id:'README.md'", "files:[{id:'src',path:'src',kind:'file',label:'src',directory:true},{id:'README.md'");
 await writeFile(join(base,'preload.cjs'),preload.replace('const testChatSnapshotValue =', `chatSessions.push(...Array.from({length:10},(_,i)=>({id:'HISTORY-'+i,project_id:'local-11',title:'历史会话 '+i,status:'completed',created_at:'2026-09-'+String(i+1).padStart(2,'0'),updated_at:'2026-09-01'}))); const testChatSnapshotValue =`));
 const win=new BrowserWindow({show:false,width:1440,height:960,webPreferences:{preload:join(base,'preload.cjs'),contextIsolation:true,sandbox:false}});
 const errors=[],checks=[],sizes=[];
 let exitStatus=0;
-win.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
+win.webContents.on('console-message',(_event,level,message,lineNumber,sourceId)=>{if(level>=3)errors.push(`${message} @ ${sourceId}:${lineNumber}`);});
 const js=async code=>{try{return await win.webContents.executeJavaScript(code)}catch(error){throw new Error(`Renderer check failed: ${code}\n${errors.join('\n')}`,{cause:error})}};
 const pause=()=>new Promise(r=>setTimeout(r,250));
 try {
@@ -26,11 +27,26 @@ try {
  await js(`document.querySelector('[data-page=chat]').click()`);await pause();
  for(const width of [1440,1000,760,390]){
   win.setSize(width,960);await pause();
-  const result=await js(`(()=>{const q=s=>document.querySelector(s),r=s=>q(s).getBoundingClientRect();return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,main:r('.chat-main').toJSON(),sidebar:r('.chat-sidebar').toJSON(),composer:r('#chatView .chat-composer').toJSON(),drawer:getComputedStyle(q('.chat-sidebar')).display==='none'};})()`);
+  const result=await js(`(()=>{const q=s=>document.querySelector(s),r=s=>q(s).getBoundingClientRect();return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,main:r('.chat-main').toJSON(),sidebar:r('.chat-sidebar').toJSON(),header:r('.chat-header').toJSON(),composer:r('#chatView .chat-composer').toJSON(),drawer:getComputedStyle(q('.chat-sidebar')).display==='none'};})()`);
   assert.ok(result.main.width>300 && result.main.height>300);assert.equal(result.overflow,false);assert.ok(Math.abs(result.composer.x+result.composer.width/2-result.main.x-result.main.width/2)<2);
+  assert.equal(result.header.height,64);assert.equal(await js(`getComputedStyle(document.querySelector('#chatTitle')).whiteSpace`),'nowrap');
+  assert.equal(await js(`document.querySelector('#chatStatusText')`),null);assert.equal(await js(`document.querySelector('.chat-header').textContent.includes('整理为待办')`),false);
   if(width>760)assert.ok(result.sidebar.x>=result.main.right-1);else assert.equal(result.drawer,true);
   sizes.push(result);await writeFile(join(out,`chat-${width}.png`),(await win.webContents.capturePage()).toPNG());
  }
+ await js(`document.querySelector('#chatSessionMenuButton').focus();document.querySelector('#chatSessionMenuButton').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);
+ assert.equal(await js(`!document.querySelector('#chatSessionMenu').hidden && document.activeElement.id==='renameChatButton'`),true);
+ await js(`document.querySelector('#chatSessionMenu').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))`);
+ assert.equal(await js(`document.activeElement.id`),'deleteChatButton');
+ await writeFile(join(out,'chat-session-menu.png'),(await win.webContents.capturePage()).toPNG());
+ await js(`document.querySelector('#chatSessionMenu').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+ assert.equal(await js(`document.querySelector('#chatSessionMenu').hidden && document.activeElement.id==='chatSessionMenuButton'`),true);
+ assert.deepEqual(await js(`[...document.querySelectorAll('#chatSessionMenu [role="menuitem"]')].map(button=>button.textContent)`),['重命名','删除会话']);
+ await js(`window.prompt=()=> '通过菜单重命名';document.querySelector('#chatSessionMenuButton').click();document.querySelector('#renameChatButton').click()`);await pause();
+ assert.equal(await js(`window.arckitDesktop.getTestCalls().then(calls=>calls.some(([name,input])=>name==='renameChat'&&input.title==='通过菜单重命名'))`),true);
+ await js(`window.__chatDeleteConfirmed=false;window.confirm=()=>{window.__chatDeleteConfirmed=true;return true};document.querySelector('#chatSessionMenuButton').click();document.querySelector('#deleteChatButton').click()`);await pause();
+ assert.equal(await js(`window.__chatDeleteConfirmed && window.arckitDesktop.getTestCalls().then(calls=>calls.some(([name])=>name==='deleteChat'))`),true);
+ checks.push('Header stays 64px at 1440/1000/760/390; session menu exposes only rename/delete, restores keyboard focus, invokes rename/delete IPC, and preserves delete confirmation.');
  // Exercise native menus against the real renderer DOM at desktop and compact widths.
  for(const width of [1440,760,390]){
   win.setSize(width,960);await pause();await js(`document.querySelector('#chatNativeInvoke').click()`);await pause();
@@ -64,8 +80,9 @@ try {
  assert.equal(await js(`document.querySelectorAll('[data-chat-session-id]').length`),5);
  assert.deepEqual(await js(`[...document.querySelectorAll('[data-chat-session-id]')].map(e=>e.dataset.chatSessionId)`),['HISTORY-9','HISTORY-8','HISTORY-7','HISTORY-6','HISTORY-5']);
  assert.equal(await js(`document.querySelectorAll('.chat-native-tabs,.chat-native-task-list,.chat-task-filter-dialog').length`),0);
- assert.equal(await js(`document.querySelector('.chat-sidebar-head h2').textContent`),'会话');
- assert.ok(await js(`document.querySelector('#chatNativeInvoke') && document.querySelector('.chat-native-identity button')`));
+ assert.equal(await js(`document.querySelector('#chatSidebarSessions').textContent`),'会话列表');
+ assert.ok(await js(`document.querySelector('#chatNativeInvoke') && document.querySelector('[data-pick="native:summarize"]')`));
+ assert.equal(await js(`document.querySelector('[data-convert]')`),null);
  assert.equal(await js(`document.querySelectorAll('.chat-session-relation').length`),0);
  assert.ok(await js(`[...document.querySelectorAll('.chat-session')].every(e=>e.querySelector('.chat-session-status'))`));
  await js(`document.querySelector('[data-chat-history-project-id]').click();document.querySelector('[data-chat-history-project-id]').click()`);
@@ -117,8 +134,12 @@ try {
  await js(`document.querySelector('#chatSessionsToggle').click();document.querySelector('[data-chat-session-id="CHAT-B"]').click()`);await pause();
  assert.equal(await js(`document.querySelector('#chatInput').value`),'保留这个草稿');
  checks.push('Drawer selection closes and restores input; per-session draft survives switching.');
- await js(`document.querySelector('#chatSessionsToggle').click();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+ await js(`document.querySelector('#chatSessionsToggle').click();document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
  assert.equal(await js(`document.activeElement.id==='chatSessionsToggle' && !document.querySelector('.chat-main').inert`),true);
+ await js(`document.querySelector('#newChatButton').click()`);await pause();
+ assert.equal(await js(`document.querySelector('.chat-header').getBoundingClientRect().height`),64);
+ assert.equal(await js(`!document.querySelector('#chatHeaderWorkspacePicker').hidden && document.querySelector('#chatSessionMenuButton').hidden`),true);
+ checks.push('Temporary draft keeps the 64px header and compact Product Workspace picker; existing sessions were verified separately with the action menu.');
  await js(`document.querySelector('#legacyPagesButton').click()`);
  assert.equal(await js(`getComputedStyle(document.querySelector('.sidebar')).display`),'flex');
  await js(`document.querySelector('#accountButton').click()`);await pause();

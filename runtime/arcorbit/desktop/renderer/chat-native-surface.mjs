@@ -5,7 +5,7 @@ export function createChatNativeSurface({api,coordinator,getProject,getSession,r
  const state=()=>coordinator.getState();
  const owner=()=>({session_id:getSession()?.id||'',project_id:getProject()?.id||''});
  let currentKey='',catalog=null,request=0,mode='all',prefix='',focus=null,inFlight=null;
- const identity=document.createElement('div');identity.className='chat-native-identity';document.getElementById('chatStatusText').after(identity);
+ const identity=document.getElementById('chatTaskIdentity');
  const chips=document.createElement('div');chips.className='chat-native-chips';foot.before(chips);
  const invoke=document.createElement('button');invoke.type='button';invoke.className='secondary-button';invoke.id='chatNativeInvoke';invoke.textContent='＋ 能力与引用';foot.prepend(invoke);
  const config=document.querySelector('.chat-composer-config');const model=document.createElement('button');model.type='button';model.className='secondary-button';model.id='chatModelSettings';invoke.after(model);
@@ -57,9 +57,8 @@ export function createChatNativeSurface({api,coordinator,getProject,getSession,r
  async function openTask(id){await coordinator.flushDraft();const result=await api.chatNativeOpen({...owner(),task_id:id});await coordinator.selectSession(result.session_id);closeList();onTaskOpened();render();await load(true)}
  document.getElementById('chatView').addEventListener('click',e=>{const b=e.target.closest('[data-native-task]');if(b)performAction(()=>openTask(b.dataset.nativeTask))});
  function paint(){
-  const s=getSession(),t=catalog?.tasks?.find(t=>t.id===s?.task_id);identity.innerHTML=s? s.task_id?`本会话对应待办 #${esc(s.task_id)} · ${esc(t?.state||'待读取')} <button type="button" data-read>查看最新内容</button>${s.execution?.resumable?` <button type="button" data-resume>继续 Auto</button>`:""}${s.source_session_id?` <button data-source="${esc(s.source_session_id)}">创建来源</button>`:''}`:'<button type="button" data-convert>整理为待办</button>':'';
-  for(const button of identity.querySelectorAll('[data-convert],[data-read],[data-resume]'))button.disabled=active(s)||state().sending;
-  identity.querySelector('[data-convert]')?.addEventListener('click',()=>performAction(async()=>{await coordinator.send({text:'把这段对话整理成当前项目的待办，并关联当前会话。',native_context:{capability:{id:'summarize',kind:'native',label:'整理为待办'},refs:[]},preserve_draft:true});render()}));
+  const s=getSession(),t=catalog?.tasks?.find(t=>t.id===s?.task_id);identity.hidden=!s?.task_id;identity.innerHTML=s?.task_id?`本会话对应待办 #${esc(s.task_id)} · ${esc(t?.state||'待读取')} <button type="button" data-read>查看最新内容</button>${s.execution?.resumable?` <button type="button" data-resume>继续 Auto</button>`:""}${s.source_session_id?` <button data-source="${esc(s.source_session_id)}">创建来源</button>`:''}`:'';
+  for(const button of identity.querySelectorAll('[data-read],[data-resume]'))button.disabled=active(s)||state().sending;
   identity.querySelector('[data-read]')?.addEventListener('click',()=>performAction(async()=>{await coordinator.send({text:'读取本会话对应待办的最新内容。',preserve_draft:true});render()}));
   identity.querySelector('[data-resume]')?.addEventListener('click',()=>performAction(async()=>{
    const sessionId=s.id,taskId=s.task_id;
