@@ -13,7 +13,7 @@ function fixture(){
  let session={id:'s1',project_id:'local',remote_project_id:'107',task_id:'1'},deferred=null;
  const calls=[];
  const context={document,state,els:{chatSessionList:document.getElementById('chatSessionList'),newChatButton:document.getElementById('newChatButton'),platformWorkInspector:document.getElementById('platformWorkInspector')},
-  taskInspectorRenders:new WeakMap(),chatTaskPanelMode:'detail',chatTaskDetailOwner:'',chatTaskDetailStatus:'idle',chatTaskDetailError:'',
+  taskInspectorRenders:new WeakMap(),chatTaskPanelMode:'detail',chatTaskDetailOwner:'',chatTaskDetailStatus:'idle',chatTaskDetailError:'',chatGitSurface:{render:()=>{}},
   selectedChatSession:()=>session,refreshSnapshot:()=>deferred?new Promise((resolve,reject)=>{deferred.resolve=resolve;deferred.reject=reject}):Promise.resolve(),
   chatStateCoordinator:{flushDraft:async()=>calls.push('flush'),selectSession:async id=>calls.push(['select',id])},api:{chatNativeOpen:async input=>{calls.push(input);return {session_id:'s1'}}},
   showPage:page=>{state.page=page},setChatSessionsOpen:value=>calls.push(['drawer',value]),

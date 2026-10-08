@@ -13,7 +13,14 @@ const ref = value => { if(typeof value!=='string'||!value||value.startsWith('-')
 const pathArg = value => { validRelative(value); if(!value || value.startsWith('-'))throw new Error('请选择文件。');return value; };
 export function createRepositoryService() {
   const confirmations = new Map();
-  const client = root => simpleGit({baseDir:root,maxConcurrentProcesses:1,timeout:{block:120000},trimmed:false});
+  const client = root => {
+    // These clients only read repository state; terminal editor/pager commands
+    // are unnecessary and simple-git rejects them in an explicit environment.
+    const { EDITOR: _editor, GIT_EDITOR: _gitEditor, GIT_SEQUENCE_EDITOR: _sequenceEditor,
+      GIT_PAGER: _gitPager, PAGER: _pager, ...environment } = process.env;
+    return simpleGit({baseDir:root,maxConcurrentProcesses:1,timeout:{block:120000},trimmed:false})
+      .env({ ...environment, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' });
+  };
   async function raw(root,args) { const {stdout}=await exec('git',args,{cwd:root,timeout:120000,maxBuffer:MAX,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_EDITOR:process.platform==='win32'?'cmd /c exit':'true'}});return stdout; }
   async function identity(root) { const gitRoot=(await raw(root,['rev-parse','--show-toplevel'])).trim();const common=(await raw(root,['rev-parse','--path-format=absolute','--git-common-dir'])).trim();return {root:await realpath(gitRoot),common:await realpath(common)}; }
   // Chat's always-visible summary must not load history, patches or the full index.
@@ -24,8 +31,7 @@ export function createRepositoryService() {
       if (/not a git repository/i.test(error.stderr || error.message)) return { kind: 'not_repository' };
       throw error;
     }
-    const { GIT_PAGER: _gitPager, PAGER: _pager, ...environment } = process.env;
-    const git = client(repo.root).env({ ...environment, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' });
+    const git = client(repo.root);
     const status = await git.status();
     const [gitDir, remotes] = await Promise.all([
       raw(repo.root, ['rev-parse', '--absolute-git-dir']), git.getRemotes(true)

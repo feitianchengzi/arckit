@@ -29,6 +29,21 @@ async function until(predicate) {
   while (Date.now() < deadline) { if (await predicate()) return; await new Promise(r => setTimeout(r, 25)); }
   assert.fail('state did not converge');
 }
+test('repository reads work with terminal editor and pager environment variables', async t => {
+  const { root } = await fixture(t);
+  const variables = ['EDITOR', 'GIT_EDITOR', 'GIT_SEQUENCE_EDITOR', 'PAGER', 'GIT_PAGER'];
+  const previous = variables.map(name => [name, process.env[name]]);
+  t.after(() => {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  });
+  for (const name of variables) process.env[name] = 'arcorbit-test-must-not-launch';
+  const repository = createRepositoryService();
+  assert.equal((await repository.summary(root)).dirty, false);
+  assert.equal((await repository.snapshot(root)).log[0].message, 'base');
+  assert.equal((await repository.history(root, 'file'))[0].message, 'base');
+});
 test('light summary: local files, staging, cached divergence, conflicts and non-repository', async t => {
   const { base, root } = await fixture(t), repository = createRepositoryService();
   assert.equal((await repository.summary(root)).dirty, false);
