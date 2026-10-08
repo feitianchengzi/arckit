@@ -203,19 +203,30 @@ test('on-demand Git details: staged/worktree, literal filenames, paged commits a
   await assert.rejects(details.read(root,'commits',{direction:'ahead',offset:40,range:one.range}),/分支已变化/);
 });
 
-test('summary states never equate unknown or cached remote data with clean synchronization', async () => {
-  const {gitSummary}=await import('../desktop/renderer/chat-git-surface.mjs');
+test('summary uses compact independent Git groups without descriptive visible copy', async () => {
+  const {gitSummary,gitSummaryButton}=await import('../desktop/renderer/chat-git-surface.mjs');
   const value={kind:'repository',files:[],conflicted:[],tracking:'origin/main',ahead:0,behind:0};
-  assert.match(gitSummary().label,/读取中/);
-  assert.match(gitSummary({value,stale:true}).label,/过期/);
-  assert.match(gitSummary({value,error:'failed'}).label,/失败/);
+  assert.equal(gitSummary().label,'…');
+  assert.equal(gitSummary({unavailable:true,error:'unbound'}).label,'◇');
+  assert.equal(gitSummary({value:{kind:'not_repository'}}).label,'⊘');
+  assert.equal(gitSummary({value,stale:true}).label,'◷ ✓0');
+  assert.equal(gitSummary({value,error:'failed'}).label,'× ✓0');
   assert.match(gitSummary({value}).meaning,/尚未获取远端/);
-  assert.match(gitSummary({value:{...value,ahead:2}}).label,/↑2/);
-  assert.match(gitSummary({value:{...value,ahead:2,behind:3}}).label,/分歧/);
-  assert.match(gitSummary({value:{...value,conflicted:['a'],files:[{path:'a'},{path:'a'}]}}).label,/1 个冲突 · 1 个文件/);
+  assert.equal(gitSummary({value:{...value,ahead:2}}).label,'✓0 ↑2');
+  assert.equal(gitSummary({value:{...value,ahead:2,behind:3}}).label,'✓0 ↑2 ↓3');
+  const mixed={...value,conflicted:['conflict','conflict'],files:[
+    {path:'both',index:'M',working_dir:'M'}, {path:'new',index:'?',working_dir:'?'},
+    {path:'conflict',index:'U',working_dir:'U'}, {path:'both',index:'M',working_dir:'M'}
+  ]};
+  assert.equal(gitSummary({value:mixed}).label,'!1 +2 M2 ?1');
   assert.match(gitSummary({value:{...value,comparison_available:false,ahead:2}}).meaning,/未设置可比较/);
   assert.doesNotMatch(gitSummary({value:{...value,comparison_available:false,ahead:2}}).label,/↑2/);
-  assert.match(gitSummary({value,remote:{error:'offline'}}).label,/远端获取失败/);
+  assert.equal(gitSummary({value:{...value,ahead:2},remote:{error:'offline'}}).label,'⇅× ✓0');
+  const html=gitSummaryButton('p','Project',{value:mixed});
+  const visible=html.match(/>(.*)<\/button>$/s)[1];
+  assert.match(html,/chat-git-status-group/);
+  assert.doesNotMatch(visible,/本地干净|个文件未提交|待推送|分歧/);
+  assert.match(html,/aria-label="Project Git：冲突 1，已暂存 2/);
 });
 
 test('detail response is rejected if project binding changes during the read', async t => {

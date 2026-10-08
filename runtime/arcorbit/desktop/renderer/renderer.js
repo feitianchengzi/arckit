@@ -1,4 +1,4 @@
-import { createChatGitSurface, gitSummaryButton, gitSummary } from './chat-git-surface.mjs';
+import { createChatGitSurface, gitSummaryButton, gitSummary, gitSummaryMarkup } from './chat-git-surface.mjs';
 import { createChatGitState } from './chat-git-state.mjs';
 import { taskCreationAutomation } from './task-creation-automation.mjs';
 import { taskCreationSettingsKey, taskCreationSelection, readTaskCreationSettings, writeTaskCreationSettings, restoreTaskCreationSettings } from './task-creation-settings.mjs';
@@ -1830,10 +1830,10 @@ function renderChat() {
       renderChat();
     }));
   }
-  // Update status text in place so a background refresh cannot replace a pressed entry.
+  // Update status groups in place so a background refresh cannot replace a pressed entry.
   for (const button of els.chatSessionList.querySelectorAll('[data-chat-git-project]')) {
     const id=button.dataset.chatGitProject, summary=gitSummary(globalThis.arcorbitChatGit?.get(id));
-    button.textContent=summary.label;button.title=summary.meaning;
+    button.innerHTML=gitSummaryMarkup(summary);button.title=summary.meaning;
     button.classList.toggle('is-muted',Boolean(summary.muted));
     button.setAttribute('aria-label',`${chatProjectsInScope().find(p=>p.id===id)?.name||id} Git：${summary.meaning}`);
   }

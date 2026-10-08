@@ -35,4 +35,4 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 
 普通创建 Automation 提示：`task-browser/interaction.md` 定义状态优先级、原因与开启指引，共享 `global-shell.js` 模拟动态合并提示；开启使用既有 success 语义，不表示任务已运行。
 
-Chat Git：项目分组摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表；正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。
+Chat Git：项目名称与紧凑 Git 符号计数组保持单行，空间不足时优先省略项目名称；摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表。正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。

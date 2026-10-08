@@ -1,28 +1,65 @@
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const stamp = value => value ? new Date(value).toLocaleString() : '尚未成功读取';
+const group = (icon, count = null) => ({ icon, count });
+const paths = files => new Set(files.map(file => file.path)).size;
+function gitCounts(value) {
+  const files = value?.files || [];
+  return {
+    conflicts: new Set(value?.conflicted || []).size,
+    staged: paths(files.filter(file => file.index && file.index !== ' ' && file.index !== '?')),
+    modified: paths(files.filter(file => file.working_dir && file.working_dir !== ' ' && file.working_dir !== '?')),
+    untracked: paths(files.filter(file => file.index === '?' && file.working_dir === '?'))
+  };
+}
+function valueGroups(value, { remote = true } = {}) {
+  const counts = gitCounts(value), groups = [];
+  for (const [icon, count] of [['!', counts.conflicts], ['+', counts.staged], ['M', counts.modified], ['?', counts.untracked]]) {
+    if (count) groups.push(group(icon, count));
+  }
+  if (!groups.length) groups.push(group('✓', 0));
+  if (remote && value?.tracking && value.comparison_available !== false) {
+    if (value.ahead) groups.push(group('↑', value.ahead));
+    if (value.behind) groups.push(group('↓', value.behind));
+  }
+  return { counts, groups };
+}
+function valueMeaning(value, counts) {
+  const local = counts.conflicts || counts.staged || counts.modified || counts.untracked
+    ? [`冲突 ${counts.conflicts}`, `已暂存 ${counts.staged}`, `未暂存修改 ${counts.modified}`, `未跟踪 ${counts.untracked}`].join('，')
+    : '0 项本地变更';
+  const comparable = value?.tracking && value.comparison_available !== false;
+  const comparison = comparable
+    ? `缓存中待推送 ${value.ahead || 0}、待拉取 ${value.behind || 0}`
+    : value?.upstream_kind === 'local' ? '上游为本地分支，无法比较远端' : '未设置可比较的上游';
+  return `${local}；${comparison}`;
+}
 export function gitSummary(state) {
-  if (!state) return { label:'Git · 读取中', muted:true, meaning:'尚未取得本地 Git 状态' };
-  if (state.unavailable) return { label:'Git · 不可用', meaning:state.error || '工作区未绑定或不可访问' };
-  if (state.error) return { label:'Git · 读取失败', meaning:`${state.error}；上次结果不能代表当前状态` };
-  if (state.stale) return { label:'Git · 状态过期', meaning:'正在校验工作区；详情保留上次结果' };
-  const v=state.value;
-  if (!v) return { label:'Git · 读取中', muted:true, meaning:'尚未取得本地 Git 状态' };
-  if (v.kind==='not_repository') return { label:'无 Git 仓库', muted:true, meaning:'绑定目录不是 Git 仓库' };
-  const comparable=v.tracking && v.comparison_available!==false;
-  const count=new Set((v.files||[]).map(f=>f.path)).size, parts=[];
-  if(v.conflicted?.length)parts.push(`${v.conflicted.length} 个冲突`);
-  if(count)parts.push(`${count} 个文件未提交`);
-  if(comparable && v.ahead)parts.push(`↑${v.ahead}`);
-  if(comparable && v.behind)parts.push(`↓${v.behind}`);
-  if(comparable && v.ahead && v.behind)parts.push('分歧');
-  if(!parts.length)parts.push('Git · 本地干净');
-  if(state.remote?.error)parts.push('远端获取失败');
-  return { label:parts.join(' · '), muted:!count&&!v.ahead&&!v.behind&&!state.remote?.error,
-    meaning:`${count} 个文件未提交；${comparable?`缓存中 ${v.ahead} 个待推送、${v.behind} 个待拉取`:v.upstream_kind==='local'?'上游为本地分支，无法比较远端':'未设置可比较的上游'}；${state.remote?.checked_at?'远端最近获取 '+stamp(state.remote.checked_at):'本次观察尚未获取远端更新'}。不是实时远端状态。` };
+  if (!state) return { groups:[group('…')], label:'…', muted:true, meaning:'尚未取得本地 Git 状态，数量尚不可确认' };
+  if (state.unavailable) return { groups:[group('◇')], label:'◇', muted:true, meaning:state.error || '项目没有绑定可访问的本地工作区' };
+  const value = state.value;
+  if (!value) {
+    const groups = state.error ? [group('×')] : [group('…')];
+    return { groups, label:groups[0].icon, muted:!state.error,
+      meaning:state.error ? `本地 Git 状态读取失败：${state.error}` : '尚未取得本地 Git 状态，数量尚不可确认' };
+  }
+  if (value.kind === 'not_repository') return { groups:[group('⊘')], label:'⊘', muted:true, meaning:'绑定目录不是 Git 仓库' };
+  const local = valueGroups(value, { remote:!state.remote?.error });
+  const meta = state.error ? group('×') : state.stale ? group('◷') : state.remote?.error ? group('⇅×') : null;
+  const groups = meta ? [meta, ...local.groups] : local.groups;
+  const freshness = state.error ? `本地 Git 状态读取失败：${state.error}；保留上次可信数字。`
+    : state.stale ? '状态已过期；保留上次可信数字。'
+      : state.remote?.error ? `远端获取失败：${state.remote.error}；本地状态仍为当前结果。` : '';
+  const remote = state.remote?.checked_at ? `远端最近获取 ${stamp(state.remote.checked_at)}` : '本次观察尚未获取远端更新';
+  return { groups, label:groups.map(item => `${item.icon}${item.count ?? ''}`).join(' '),
+    muted:groups.every(item => item.icon === '✓' || item.icon === '…' || item.icon === '◇' || item.icon === '⊘'),
+    meaning:`${freshness}${valueMeaning(value, local.counts)}；${remote}。不是实时远端状态。` };
+}
+export function gitSummaryMarkup(summary) {
+  return summary.groups.map(item => `<span class="chat-git-status-group" aria-hidden="true"><span class="chat-git-status-icon">${esc(item.icon)}</span>${item.count === null ? '' : `<span>${esc(item.count)}</span>`}</span>`).join('');
 }
 export function gitSummaryButton(id,name,state) {
   const s=gitSummary(state);
-  return `<button type="button" class="chat-git-summary text-button ${s.muted?'is-muted':''}" data-chat-git-project="${esc(id)}" title="${esc(s.meaning)}" aria-label="${esc(name)} Git：${esc(s.meaning)}">${esc(s.label)}</button>`;
+  return `<button type="button" class="chat-git-summary text-button ${s.muted?'is-muted':''}" data-chat-git-project="${esc(id)}" title="${esc(s.meaning)}" aria-label="${esc(name)} Git：${esc(s.meaning)}">${gitSummaryMarkup(s)}</button>`;
 }
 
 export function createChatGitSurface({api,states,host,getProjects,getPanel,setPanel}) {
