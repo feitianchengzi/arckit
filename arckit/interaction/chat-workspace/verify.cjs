@@ -20,7 +20,11 @@ app.whenReady().then(async()=>{
   assert.deepEqual(await run('[...document.querySelectorAll(".page-navigation h2")].map(e=>e.textContent)'),['PERSONAL','PRODUCT','PRODUCT LIFECYCLE','ORGANIZATION']);
   assert.equal(await run('document.querySelector(".chat-heading").getBoundingClientRect().height'),64);
   assert.equal(await run('document.querySelector(".chat-heading h1").textContent'),await state('M.current().title'));
-  assert.match(await run('document.querySelector(".chat-heading p").textContent'),/固定工作区/);
+  assert.equal(await run('document.querySelector(".chat-heading h1").title'),await state('M.current().title'));
+  assert.equal(await run('getComputedStyle(document.querySelector(".chat-heading h1")).whiteSpace'),'nowrap');
+  assert.equal(await run('document.querySelector(".chat-heading p")'),null);
+  assert.match(await run('document.querySelector(".chat-project-fixed").getAttribute("aria-label")'),/固定项目/);
+  assert.ok(await run('document.querySelector(".chat-project-fixed").getBoundingClientRect().left < document.querySelector(".chat-session-menu-trigger").getBoundingClientRect().left'));
   assert.equal(await run('document.querySelector(".chat-heading").textContent.includes("整理为待办")'),false);
   assert.equal(await run('document.querySelector(".chat-heading").textContent.includes("已完成")'),false);
   assert.equal(await run('document.querySelectorAll(".chat-session-menu-trigger").length'),1);
@@ -28,13 +32,14 @@ app.whenReady().then(async()=>{
   assert.equal(await state('M.state.nativeVersion>0&&window.ChatNative.capabilities.some(x=>x.id==="summarize")'),true);
   await click('[data-chat-action=session-menu]');
   assert.equal(await run('document.querySelector(".chat-session-menu-trigger").getAttribute("aria-expanded")'),'true');
+  assert.ok(await run('document.querySelector(".chat-session-menu").getBoundingClientRect().top >= document.querySelector(".chat-session-menu-trigger").getBoundingClientRect().bottom'));
   await shot('chat-session-menu');
   await run('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true}))');
   assert.equal(await run('document.activeElement.dataset.chatAction'),'delete');
   await run('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');
   assert.equal(await run('document.querySelector(".chat-session-menu").hidden'),true);
   assert.equal(await run('document.activeElement.classList.contains("chat-session-menu-trigger")'),true);
-  checks.push('64px header prioritizes title and workspace; status/convert are absent; one keyboard-accessible session menu retains rename/delete');
+  checks.push('64px header keeps a single-line title with a full tooltip; fixed workspace and the downward session menu share the right action group');
   const geometry=await run('(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return {nav:r(".sidebar").right,centerLeft:r(".chat-center").left,centerRight:r(".chat-center").right,list:r(".chat-sessions").left,reading:r(".chat-reading").width}})()');
   assert.ok(geometry.nav<=geometry.centerLeft&&geometry.centerRight<=geometry.list&&geometry.reading>=geometry.centerRight-geometry.centerLeft-60);
   assert.equal(await run('document.querySelectorAll(".session-group:first-child .session-row").length'),5);
@@ -47,7 +52,22 @@ app.whenReady().then(async()=>{
   await shot('chat-desktop');checks.push('Four navigation groups; Chat centered between app navigation and right session list; Full reading width; history increases by five');
   await input('chat-input','草稿 A');await click('[data-chat-action=select][data-id=b1]');await input('chat-input','草稿 B');await click('[data-chat-action=select][data-id=a1]');assert.equal(await state('M.owner().draft'),'草稿 A');
   await click('[data-chat-action=new]');const count=await state('M.state.sessions.length');await input('chat-input','检查本地缓存边界');
-  await run('document.getElementById("chat-project").value="borealis";document.getElementById("chat-project").dispatchEvent(new Event("change",{bubbles:true}))');
+  const longProjectName='ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容';
+  await run(`ChatModel.state.projects.find(project=>project.id==='atlas').name=${JSON.stringify(longProjectName)};ChatPrototype.render()`);await wait();
+  assert.equal(await run('document.querySelector(".chat-project-menu-trigger").getAttribute("aria-haspopup")'),'listbox');
+  await click('[data-chat-action=project-menu]');
+  assert.equal(await run('document.querySelector(".chat-project-menu-trigger").getAttribute("aria-expanded")'),'true');
+  assert.ok(await run('document.querySelector(".chat-project-menu").getBoundingClientRect().top >= document.querySelector(".chat-project-menu-trigger").getBoundingClientRect().bottom'));
+  assert.deepEqual(await run('(()=>{const option=document.querySelector("[data-chat-action=project-option][data-project=atlas]"),label=option.querySelector(".chat-project-option-label");return {clipped:label.scrollWidth>label.clientWidth,title:option.title,fullName:label.textContent}})()'),{clipped:true,title:longProjectName,fullName:longProjectName});
+  await shot('chat-project-menu');
+  await run('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');
+  assert.equal(await run('document.querySelector(".chat-project-menu").hidden'),true);
+  assert.equal(await run('document.activeElement.classList.contains("chat-project-menu-trigger")'),true);
+  await click('[data-chat-action=project-menu]');
+  await run('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true}));document.activeElement.click()');await wait();
+  assert.equal(await state('M.state.newDraft.project'),'borealis');
+  assert.equal(await run('document.activeElement.classList.contains("chat-project-menu-trigger")'),true);
+  checks.push('New-draft project entry shares the right action group, opens downward, ellipsizes long option labels with a complete title prompt, supports arrow/Escape navigation, and restores focus after selection');
   assert.equal(await state('M.owner().draft'),'检查本地缓存边界');assert.equal(await state('M.state.sessions.length'),count);
   await input('chat-level','medium');await submit();assert.equal(await state('M.state.sessions.length'),count+1);assert.equal(await state('M.current().project'),'borealis');
   const created=await state('M.current().id'),thread=await state('M.current().thread');
@@ -70,10 +90,17 @@ app.whenReady().then(async()=>{
   await click('[data-chat-action=bind]');await scenario('failure');await run('document.querySelector("#chat-dialog form").requestSubmit()');await wait();assert.match(await run('document.querySelector("#chat-dialog [role=alert]").textContent'),/失败/);await run('document.querySelector("#chat-dialog form").requestSubmit()');await wait();assert.equal(await state('M.owner().draft'),'绑定前草稿');
   await scenario('recover');checks.push('Workspace setup failure retains draft and choices, retry returns to same draft');
   await click('.account-trigger');await wait(350);assert.equal(await run('document.getElementById("account-dialog").open'),true);assert.ok(await run('!!document.getElementById("codexProxyUrl")'));await click('#accountClose');
-  for(const width of [1500,1024,900,760,390]){win.setContentSize(width,950);await wait(90);assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));assert.equal(await run('document.querySelector(".chat-heading").getBoundingClientRect().height'),64);if(width<=760){await click('[data-chat-action=toggle-list]');assert.equal(await run('getComputedStyle(document.querySelector(".chat-sessions")).display'),'flex');await shot('chat-list-'+width);await run('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');assert.equal(await state('M.state.listOpen'),false);if(width===390)await shot('chat-mobile');}}
+  await click(`[data-chat-action=select][data-id="${created}"]`);
+  const longTitle='这是一个用于验证中央对话区域顶部栏单行省略与完整悬浮提示的超长会话标题';
+  await run(`ChatModel.current().title=${JSON.stringify(longTitle)};ChatPrototype.render()`);await wait();
+  for(const width of [1500,1024,900,760,390]){win.setContentSize(width,950);await wait(90);assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));assert.equal(await run('document.querySelector(".chat-heading").getBoundingClientRect().height'),64);assert.equal(await run('document.querySelector(".chat-heading h1").title'),longTitle);if(width===390){assert.ok(await run('document.querySelector(".chat-heading h1").scrollWidth>document.querySelector(".chat-heading h1").clientWidth'));assert.equal(await run('getComputedStyle(document.querySelector(".chat-heading h1")).textOverflow'),'ellipsis');}if(width<=760){await click('[data-chat-action=toggle-list]');assert.equal(await run('getComputedStyle(document.querySelector(".chat-sessions")).display'),'flex');await shot('chat-list-'+width);await run('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');assert.equal(await state('M.state.listOpen'),false);if(width===390)await shot('chat-mobile');}}
+  await click('[data-chat-action=new]');await click('[data-chat-action=project-menu]');
+  assert.ok(await run('(()=>{const menu=document.querySelector(".chat-project-menu").getBoundingClientRect(),trigger=document.querySelector(".chat-project-menu-trigger").getBoundingClientRect();return menu.left>=0&&menu.right<=innerWidth&&menu.top>=trigger.bottom})()'));
+  await shot('chat-project-menu-390');await run('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))');
+  await click(`[data-chat-action=select][data-id="${created}"]`);
   win.setContentSize(1440,1000);win.webContents.setZoomFactor(2);await wait();assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));win.webContents.setZoomFactor(1);win.setContentSize(1500,1000);await wait();
   await click(`[data-chat-action=select][data-id="${created}"]`);await click('[data-chat-action=session-menu]');await click('[data-chat-action=delete]');await click('[data-chat-action=close]');assert.ok(await state(`M.state.sessions.some(s=>s.id===${JSON.stringify(created)})`));await click('[data-chat-action=session-menu]');await click('[data-chat-action=delete]');await run('document.querySelector("#chat-dialog form").requestSubmit()');await wait();assert.equal(await state(`M.state.sessions.some(s=>s.id===${JSON.stringify(created)})`),false);
-  checks.push('Shared account popup, 390–1500px layout, right drawer Escape/focus, 200% zoom, delete confirmation/cancel');
+  checks.push('Shared account popup, 390–1500px single-line title ellipsis/full tooltip, right drawer Escape/focus, 200% zoom, delete confirmation/cancel');
   assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);
   const report={ok:true,checks,geometry,errors,externalRequests:requests,outputRoot:evidenceRoot,scope:'Local interactive fixtures only; real Codex, filesystem, sync and authentication are not executed.'};fs.mkdirSync(evidenceRoot,{recursive:true});fs.writeFileSync(path.join(evidenceRoot,'verification.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));app.exit(0);
  }catch(error){console.error(error,errors);await shot('failure');app.exit(1);}

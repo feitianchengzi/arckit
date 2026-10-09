@@ -753,11 +753,32 @@ function wireEvents() {
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   installChatResize(document);
   document.getElementById('chatSessionsToggle').addEventListener('click', () => {
+    setChatProjectMenuOpen(false);
     setChatSessionMenuOpen(false);
     setChatSessionsOpen(!document.body.classList.contains('chat-sessions-open'));
   });
   document.getElementById('chatSessionsClose').addEventListener('click', () => setChatSessionsOpen(false, true));
   window.matchMedia('(max-width: 760px)').addEventListener('change', () => setChatSessionsOpen(false));
+  els.chatProjectMenuButton.addEventListener('click', () => setChatProjectMenuOpen(els.chatProjectMenu.hidden, { focus: 'selected' }));
+  els.chatProjectMenuButton.addEventListener('keydown', (event) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    setChatProjectMenuOpen(true, { focus: ['ArrowUp', 'End'].includes(event.key) ? 'last' : 'first' });
+  });
+  els.chatProjectMenu.addEventListener('click', (event) => {
+    const option = event.target.closest('[data-chat-project-option]');
+    if (!option) return;
+    runAction(async () => {
+      const projectId = option.dataset.chatProjectOption;
+      if (!chatProjectsInScope().some(project => project.id === projectId) || selectedChatSession()) return;
+      setChatProjectMenuOpen(false, { restoreFocus: true });
+      await chatStateCoordinator.changeDraftWorkspace(projectId);
+      chatScopeController.capture();
+      renderChat();
+      els.chatProjectMenuButton.focus({ preventScroll: true });
+    });
+  });
+  els.chatProjectMenu.addEventListener('keydown', handleChatProjectMenuKeydown);
   els.chatSessionMenuButton.addEventListener('click', () => setChatSessionMenuOpen(els.chatSessionMenu.hidden, { focus: 'first' }));
   els.chatSessionMenuButton.addEventListener('keydown', (event) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -766,14 +787,19 @@ function wireEvents() {
   });
   els.chatSessionMenu.addEventListener('keydown', handleChatSessionMenuKeydown);
   document.addEventListener('click', (event) => {
+    if (!els.chatProjectMenu.hidden && !event.target.closest?.('.chat-header-project')) setChatProjectMenuOpen(false);
     if (!els.chatSessionMenu.hidden && !event.target.closest?.('.chat-session-menu')) setChatSessionMenuOpen(false);
   });
   document.addEventListener('focusin', (event) => {
+    if (!els.chatProjectMenu.hidden && !event.target.closest?.('.chat-header-project')) setChatProjectMenuOpen(false);
     if (!els.chatSessionMenu.hidden && !event.target.closest?.('.chat-session-menu')) setChatSessionMenuOpen(false);
   });
   document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
-    if (!els.chatSessionMenu.hidden) {
+    if (!els.chatProjectMenu.hidden) {
+      event.preventDefault();
+      setChatProjectMenuOpen(false, { restoreFocus: true });
+    } else if (!els.chatSessionMenu.hidden) {
       event.preventDefault();
       setChatSessionMenuOpen(false, { restoreFocus: true });
     } else if (document.body.classList.contains('chat-sessions-open')) setChatSessionsOpen(false, true);
@@ -787,13 +813,6 @@ function wireEvents() {
     setChatSessionsOpen(false);
     renderChat();
     els.chatInput.focus();
-  }));
-  els.chatProjectSelect.addEventListener("change", () => runAction(async () => {
-    const projectId = els.chatProjectSelect.value;
-    if (!chatProjectsInScope().some(p=>p.id===projectId)) return;
-    await chatStateCoordinator.changeDraftWorkspace(projectId);
-    chatScopeController.capture();
-    renderChat();
   }));
   els.renameChatButton.addEventListener("click", () => runAction(async () => {
     const session = selectedChatSession();
@@ -1801,18 +1820,23 @@ function renderChat() {
   const session = selectedChatSession();
   const project = selectedChatProject();
   const bindableRemoteProjects = (state.platform.projects || []).filter(p=>includesProject(globalScope(),p.id));
-  const unavailableSessionProjectOption = session && !project
-    ? `<option value="${escapeHtml(session.project_id)}" selected>${escapeHtml(session.project_id)}（不可用）</option>`
-    : "";
-  const projectOptions = chatProjectsInScope().length || unavailableSessionProjectOption
-    ? unavailableSessionProjectOption + chatProjectsInScope().map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === project?.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
-    : `<option value="">尚无本地 Product Workspace</option>`;
+  const projectOptions = chatProjectsInScope().length
+    ? chatProjectsInScope().map((item) => `<button type="button" role="option" data-chat-project-option="${escapeHtml(item.id)}" aria-selected="${item.id === project?.id}" title="${escapeHtml(item.name)}"><span class="chat-project-check" aria-hidden="true">${item.id === project?.id ? "✓" : ""}</span><span class="chat-project-label">${escapeHtml(item.name)}</span></button>`).join("")
+    : `<p>暂无可用项目</p>`;
   if (projectOptions !== renderedChatProjectOptions) {
-    els.chatProjectSelect.innerHTML = projectOptions;
+    els.chatProjectMenu.innerHTML = projectOptions;
     renderedChatProjectOptions = projectOptions;
   }
-  els.chatProjectSelect.disabled = Boolean(session) || chatProjectsInScope().length === 0;
-  els.chatWorkspacePickerLabel.textContent = "Product Workspace";
+  const projectLabel = project?.name || (session?.project_id ? `${session.project_id} · 不可用` : "选择项目");
+  els.chatWorkspaceFixedLabel.textContent = projectLabel;
+  els.chatWorkspaceLabel.title = `固定项目：${projectLabel}`;
+  els.chatWorkspaceLabel.setAttribute('aria-label', `固定项目：${projectLabel}`);
+  els.chatWorkspaceLabel.hidden = !session;
+  els.chatProjectMenuLabel.textContent = projectLabel;
+  els.chatProjectMenuButton.title = `选择项目：${projectLabel}`;
+  els.chatProjectMenuButton.setAttribute('aria-label', `选择项目：${projectLabel}`);
+  els.chatProjectMenuButton.hidden = Boolean(session);
+  els.chatProjectMenuButton.disabled = chatProjectsInScope().length === 0;
   els.newChatButton.disabled = chatProjectsInScope().length === 0;
   const sessionList = chatProjectsInScope().length
     ? renderChatSessionGroups(chat)
@@ -1870,16 +1894,12 @@ function renderChat() {
     button.classList.toggle('is-muted',Boolean(summary.muted));
     button.setAttribute('aria-label',`${chatProjectsInScope().find(p=>p.id===id)?.name||id} Git：${summary.meaning}`);
   }
-  els.chatWorkspaceLabel.textContent = project?.name
-    ? `Product Workspace · ${project.name}`
-    : session?.project_id ? `Product Workspace · ${session.project_id} · 不可用` : "Product Workspace";
-  els.chatWorkspaceLabel.hidden = !session;
-  els.chatHeaderWorkspacePicker.hidden = Boolean(session);
   els.chatTitle.textContent = session?.title || "新对话";
   els.chatTitle.title = els.chatTitle.textContent;
   els.chatTranscript.setAttribute("aria-busy", String(chat.refreshing));
   els.chatSessionMenuButton.hidden = !session;
-  if (!session) setChatSessionMenuOpen(false);
+  if (session) setChatProjectMenuOpen(false);
+  else setChatSessionMenuOpen(false);
   els.chatErrorHost.innerHTML = chat.error || session?.error
     ? `<div class="chat-error" role="alert"><span>${escapeHtml(chat.error || session.error)}</span>${session?.status === "failed" ? `<button class="secondary-button" data-chat-retry-last type="button">编辑后重试</button>` : ""}</div>`
     : "";
@@ -2054,8 +2074,45 @@ function chatSessionMenuItems() {
   return [...els.chatSessionMenu.querySelectorAll('[role="menuitem"]:not(:disabled)')];
 }
 
+function chatProjectMenuItems() {
+  return [...els.chatProjectMenu.querySelectorAll('[role="option"]:not(:disabled)')];
+}
+
+function setChatProjectMenuOpen(open, { focus = '', restoreFocus = false } = {}) {
+  const visible = Boolean(open && !selectedChatSession() && !els.chatProjectMenuButton.hidden && !els.chatProjectMenuButton.disabled);
+  if (visible) setChatSessionMenuOpen(false);
+  els.chatProjectMenu.hidden = !visible;
+  els.chatProjectMenuButton.setAttribute('aria-expanded', String(visible));
+  if (visible && focus) {
+    const items = chatProjectMenuItems();
+    const selected = items.find(item => item.getAttribute('aria-selected') === 'true');
+    (focus === 'last' ? items.at(-1) : focus === 'first' ? items[0] : selected || items[0])?.focus({ preventScroll: true });
+  } else if (!visible && restoreFocus && !els.chatProjectMenuButton.hidden) {
+    els.chatProjectMenuButton.focus({ preventScroll: true });
+  }
+}
+
+function handleChatProjectMenuKeydown(event) {
+  const items = chatProjectMenuItems();
+  if (!items.length) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    setChatProjectMenuOpen(false, { restoreFocus: true });
+    return;
+  }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const current = Math.max(0, items.indexOf(document.activeElement));
+  const next = event.key === 'Home' ? 0
+    : event.key === 'End' ? items.length - 1
+      : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+  items[next]?.focus({ preventScroll: true });
+}
+
 function setChatSessionMenuOpen(open, { focus = '', restoreFocus = false } = {}) {
   const visible = Boolean(open && selectedChatSession());
+  if (visible) setChatProjectMenuOpen(false);
   els.chatSessionMenu.hidden = !visible;
   els.chatSessionMenuButton.setAttribute('aria-expanded', String(visible));
   if (visible && focus) {

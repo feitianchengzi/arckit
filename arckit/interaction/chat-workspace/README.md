@@ -47,7 +47,7 @@ swift arckit/interaction/chat-workspace/verify-layout-webkit.swift "$PWD"
 
 本地截图位于 previews/native-*.png。states.html 与 workspace-setup.html 为专项辅助稿；新增原生能力以完整入口和正式说明为准。
 
-菜单以各自入口为锚点向上展开，并随窗口尺寸调整。共享顶部栏按生产 renderer 的现有布局校准；产品集管理仅修改原型本地样本。
+Composer 的模型与能力菜单以各自入口为锚点向上展开；中央顶栏的项目菜单和会话菜单按正式交互从入口下方向下展开，并随窗口尺寸调整。共享顶部栏按生产 renderer 的现有布局校准；产品集管理仅修改原型本地样本。
 
 verification-layout.json 专门检查顶部入口同排、菜单高度、固定搜索/技能设置，以及逐个滚动到候选后真实命中点击区域；覆盖 390–1500px 宽、640–1000px 高。
 

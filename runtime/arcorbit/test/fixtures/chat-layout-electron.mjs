@@ -11,8 +11,11 @@ app.setPath('userData',join(base,'user'));app.disableHardwareAcceleration();
 // Cleanup must finish before explicit success/failure exit, including after the last window closes.
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
-let preload=(await readFile(join(here,'organization-center-preload.cjs'),'utf8')).replace('const testChatSnapshotValue =', 'const layoutDrafts = new Map(); const testChatSnapshotValue =').replace("text: process.env.ARCORBIT_CHAT_FILES_FIXTURE === '1' ? fileNavigationDrafts.get(requested) || '' : ''","text: layoutDrafts.get(requested) || ''").replace('calls.push(["createChat", input]);', 'calls.push(["createChat", input]); layoutDrafts.set(input.session_id || "", input.text);');
+let preload=(await readFile(join(here,'organization-center-preload.cjs'),'utf8')).replace('const testChatSnapshotValue =', 'const layoutDrafts = new Map(); let rejectNextLayoutCreateChat = false; const testChatSnapshotValue =').replace("text: process.env.ARCORBIT_CHAT_FILES_FIXTURE === '1' ? fileNavigationDrafts.get(requested) || '' : ''","text: layoutDrafts.get(requested) || ''").replace('calls.push(["createChat", input]);', 'calls.push(["createChat", input]); layoutDrafts.set(input.session_id || "", input.text); if (rejectNextLayoutCreateChat) { rejectNextLayoutCreateChat = false; throw new Error("Fixture workspace change failed"); }');
+preload=preload.replace('return codexSettingsFixture ? testChatSnapshotValue("") : {};','return testChatSnapshotValue("");');
 preload=preload.replace('deleteChat: noOp, renameChat: noOp,','deleteChat: async input => { calls.push(["deleteChat", input]); return { snapshot: testChatSnapshotValue(input.session_id) }; }, renameChat: async input => { calls.push(["renameChat", input]); return testChatSnapshotValue(input.session_id); },');
+preload=preload.replace('getTestCalls: async () => calls,','getTestCalls: async () => calls, setTestChatCreateFailure: async () => { rejectNextLayoutCreateChat = true; },');
+preload=preload.replace('{ id: "local-11", name: "ArcOrbit Local" }, ...(process.env.ARCORBIT_CHAT_GIT_TEST', '{ id: "local-11", name: "ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容" }, ...(process.env.ARCORBIT_CHAT_GIT_TEST');
 preload=preload.replace("files:[{id:'README.md'", "files:[{id:'src',path:'src',kind:'file',label:'src',directory:true},{id:'README.md'");
 await writeFile(join(base,'preload.cjs'),preload.replace('const testChatSnapshotValue =', `chatSessions.push(...Array.from({length:10},(_,i)=>({id:'HISTORY-'+i,project_id:'local-11',title:'历史会话 '+i,status:'completed',created_at:'2026-09-'+String(i+1).padStart(2,'0'),updated_at:'2026-09-01'}))); const testChatSnapshotValue =`));
 const win=new BrowserWindow({show:false,width:1440,height:960,webPreferences:{preload:join(base,'preload.cjs'),contextIsolation:true,sandbox:false}});
@@ -25,15 +28,35 @@ try {
  if(process.argv.includes("--force-failure")) assert.fail("Forced assertion verifies the Electron runner exit status.");
  await mkdir(out,{recursive:true});await win.loadFile(join(here,'../../desktop/renderer/index.html'));await pause();
  await js(`document.querySelector('[data-page=chat]').click()`);await pause();
+ await js(`document.querySelector('#chatTitle').textContent='这是一个用于验证 ArcOrbit Chat 顶栏单行省略与完整悬浮提示的超长会话标题 '.repeat(8);document.querySelector('#chatTitle').title=document.querySelector('#chatTitle').textContent`);
  for(const width of [1440,1000,760,390]){
   win.setSize(width,960);await pause();
-  const result=await js(`(()=>{const q=s=>document.querySelector(s),r=s=>q(s).getBoundingClientRect();return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,main:r('.chat-main').toJSON(),sidebar:r('.chat-sidebar').toJSON(),header:r('.chat-header').toJSON(),composer:r('#chatView .chat-composer').toJSON(),drawer:getComputedStyle(q('.chat-sidebar')).display==='none'};})()`);
+  const result=await js(`(()=>{const q=s=>document.querySelector(s),r=s=>q(s).getBoundingClientRect(),title=q('#chatTitle'),project=r('#chatWorkspaceLabel'),more=r('#chatSessionMenuButton');return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,main:r('.chat-main').toJSON(),sidebar:r('.chat-sidebar').toJSON(),header:r('.chat-header').toJSON(),composer:r('#chatView .chat-composer').toJSON(),drawer:getComputedStyle(q('.chat-sidebar')).display==='none',titleClipped:title.scrollWidth>title.clientWidth,titleTooltip:title.title===title.textContent,titleWhiteSpace:getComputedStyle(title).whiteSpace,projectBeforeMore:project.right<=more.left,projectSameRow:Math.abs(project.y+project.height/2-more.y-more.height/2)<2,fixedProjectVisible:!q('#chatWorkspaceLabel').hidden&&q('#chatProjectMenuButton').hidden};})()`);
   assert.ok(result.main.width>300 && result.main.height>300);assert.equal(result.overflow,false);assert.ok(Math.abs(result.composer.x+result.composer.width/2-result.main.x-result.main.width/2)<2);
-  assert.equal(result.header.height,64);assert.equal(await js(`getComputedStyle(document.querySelector('#chatTitle')).whiteSpace`),'nowrap');
+  assert.equal(result.header.height,64);assert.equal(result.titleWhiteSpace,'nowrap');assert.equal(result.titleClipped,true);assert.equal(result.titleTooltip,true);
+  assert.equal(result.projectBeforeMore,true);assert.equal(result.projectSameRow,true);assert.equal(result.fixedProjectVisible,true);
   assert.equal(await js(`document.querySelector('#chatStatusText')`),null);assert.equal(await js(`document.querySelector('.chat-header').textContent.includes('整理为待办')`),false);
   if(width>760)assert.ok(result.sidebar.x>=result.main.right-1);else assert.equal(result.drawer,true);
   sizes.push(result);await writeFile(join(out,`chat-${width}.png`),(await win.webContents.capturePage()).toPNG());
  }
+ await js(`document.querySelector('#newChatButton').click()`);await pause();
+ assert.equal(await js(`!document.querySelector('#chatProjectMenuButton').hidden&&document.querySelector('#chatWorkspaceLabel').hidden&&document.querySelector('#chatSessionMenuButton').hidden`),true);
+ await js(`document.querySelector('#chatProjectMenuButton').focus();document.querySelector('#chatProjectMenuButton').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);
+ const projectMenuOpen=await js(`({ok:!document.querySelector('#chatProjectMenu').hidden&&document.activeElement.matches('[data-chat-project-option]'),hidden:document.querySelector('#chatProjectMenu').hidden,active:document.activeElement.id||document.activeElement.tagName,options:document.querySelectorAll('[data-chat-project-option]').length,disabled:document.querySelector('#chatProjectMenuButton').disabled})`);
+ assert.equal(projectMenuOpen.ok,true,JSON.stringify(projectMenuOpen));
+ assert.equal(await js(`(()=>{const menu=document.querySelector('#chatProjectMenu').getBoundingClientRect(),trigger=document.querySelector('#chatProjectMenuButton').getBoundingClientRect();return menu.top>=trigger.bottom+5&&menu.right<=innerWidth-11})()`),true);
+ assert.deepEqual(await js(`(()=>{const option=document.querySelector('[data-chat-project-option="local-11"]'),label=option.querySelector('.chat-project-label');return {clipped:label.scrollWidth>label.clientWidth,title:option.title,fullName:label.textContent}})()`),{clipped:true,title:'ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容',fullName:'ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容'});
+ await writeFile(join(out,'chat-project-menu-390.png'),(await win.webContents.capturePage()).toPNG());
+ await js(`document.querySelector('#chatProjectMenu').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+ assert.equal(await js(`document.querySelector('#chatProjectMenu').hidden&&document.activeElement.id==='chatProjectMenuButton'`),true);
+ await js(`(async()=>{await window.arckitDesktop.setTestChatCreateFailure();document.querySelector('#chatProjectMenuButton').click();document.querySelector('[data-chat-project-option]').click()})()`);await pause();
+ assert.equal(await js(`document.querySelector('#chatProjectMenu').hidden&&document.activeElement.id==='chatProjectMenuButton'&&document.querySelector('#toast').textContent.includes('Fixture workspace change failed')`),true);
+ const expectedWorkspaceFailure=errors.findIndex(error=>error.includes('Fixture workspace change failed'));
+ assert.notEqual(expectedWorkspaceFailure,-1);errors.splice(expectedWorkspaceFailure,1);
+ await js(`document.querySelector('#chatProjectMenuButton').click();document.querySelector('[data-chat-project-option]').click()`);await pause();
+ assert.equal(await js(`document.querySelector('#chatProjectMenu').hidden&&document.activeElement.id==='chatProjectMenuButton'&&document.querySelector('#chatProjectMenuLabel').textContent==='ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容'`),true);
+ await js(`document.querySelector('[data-chat-session-id]').click()`);await pause();
+ checks.push('Project control stays immediately before session more; draft listbox opens downward at 390px, ellipsizes a long project while retaining its complete title prompt, restores trigger focus after Escape, success and rejected workspace changes, and changes only draft ownership; persisted session project stays fixed.');
  await js(`document.querySelector('#chatSessionMenuButton').focus();document.querySelector('#chatSessionMenuButton').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);
  assert.equal(await js(`!document.querySelector('#chatSessionMenu').hidden && document.activeElement.id==='renameChatButton'`),true);
  await js(`document.querySelector('#chatSessionMenu').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))`);
@@ -141,8 +164,8 @@ try {
  assert.equal(await js(`document.activeElement.id==='chatSessionsToggle' && !document.querySelector('.chat-main').inert`),true);
  await js(`document.querySelector('#newChatButton').click()`);await pause();
  assert.equal(await js(`document.querySelector('.chat-header').getBoundingClientRect().height`),64);
- assert.equal(await js(`!document.querySelector('#chatHeaderWorkspacePicker').hidden && document.querySelector('#chatSessionMenuButton').hidden`),true);
- checks.push('Temporary draft keeps the 64px header and compact Product Workspace picker; existing sessions were verified separately with the action menu.');
+ assert.equal(await js(`!document.querySelector('#chatProjectMenuButton').hidden && document.querySelector('#chatSessionMenuButton').hidden`),true);
+ checks.push('Temporary draft keeps the 64px header and compact project listbox trigger; existing sessions were verified separately with the fixed project and action menu.');
  await js(`document.querySelector('#legacyPagesButton').click()`);
  assert.equal(await js(`getComputedStyle(document.querySelector('.sidebar')).display`),'flex');
  await js(`document.querySelector('#accountButton').click()`);await pause();

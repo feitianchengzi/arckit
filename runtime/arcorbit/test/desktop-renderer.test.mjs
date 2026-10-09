@@ -744,20 +744,27 @@ test("Chat Renderer delegates all owner, epoch, projection, retry, send and pers
   assert.doesNotMatch(source, /keepSelection|preserveDraftOnSelectionAdoption|\.begin\(\)|\.observe\(\)|\.invalidate\(\)/);
 });
 
-test("Chat project selector changes only the new draft owner and persisted session ownership stays fixed", async () => {
+test("Chat project menu changes only the new draft owner and persisted session ownership stays fixed", async () => {
   const [source, html] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8")
   ]);
 
-  assert.match(source, /els\.chatProjectSelect\.disabled = Boolean\(session\) \|\| chatProjectsInScope\(\)\.length === 0;/);
+  assert.match(source, /els\.chatProjectMenuButton\.hidden = Boolean\(session\)/);
+  assert.match(source, /role=\"option\" data-chat-project-option/);
+  assert.match(source, /aria-selected=\"\$\{item\.id === project\?\.id\}\" title=\"\$\{escapeHtml\(item\.name\)\}\"/);
   assert.match(source, /chatStateCoordinator\.changeDraftWorkspace\(projectId\)/);
+  assert.match(source, /setChatProjectMenuOpen\(false, \{ restoreFocus: true \}\);\s*await chatStateCoordinator\.changeDraftWorkspace\(projectId\)/);
   assert.match(source, /const projectId = defaultChatDraftProject\(\)\?\.id \|\| ""/);
   assert.match(source, /projects.find\(p=>p.id===chat.owner.project_id\)/);
-  assert.match(source, /session\.project_id\)}（不可用）/);
-  assert.match(source, /els\.chatWorkspacePickerLabel\.textContent = "Product Workspace"/);
-  assert.match(html, /id="chatWorkspacePickerLabel">Product Workspace/);
-  assert.ok(html.indexOf('id="chatProjectSelect"') > html.indexOf('<header class="chat-header">'));
+  assert.match(source, /session\?\.project_id \? `\$\{session\.project_id\} · 不可用`/);
+  assert.match(source, /function handleChatProjectMenuKeydown/);
+  assert.match(source, /setChatProjectMenuOpen\(false, \{ restoreFocus: true \}\)/);
+  assert.match(html, /id="chatProjectMenuButton"[^>]+aria-haspopup="listbox"/);
+  assert.match(html, /id="chatProjectMenu"[^>]+role="listbox"[^>]+hidden/);
+  assert.doesNotMatch(html, /id="chatProjectSelect"/);
+  assert.ok(html.indexOf('id="chatProjectMenuButton"') > html.indexOf('class="chat-header-actions"'));
+  assert.ok(html.indexOf('id="chatProjectMenuButton"') < html.indexOf('id="chatSessionMenuButton"'));
 });
 
 test("Chat header keeps secondary session management behind one accessible menu", async () => {
@@ -774,6 +781,7 @@ test("Chat header keeps secondary session management behind one accessible menu"
   assert.doesNotMatch(html, /id="chatStatusText"|data-convert/);
   assert.match(layout, /height:64px; min-height:64px/);
   assert.match(layout, /text-overflow:ellipsis; white-space:nowrap/);
+  assert.match(layout, /\.chat-project-menu-popover \{ position:absolute; top:calc\(100% \+ 6px\); right:0/);
   assert.match(source, /function handleChatSessionMenuKeydown/);
   assert.match(source, /\['ArrowDown', 'ArrowUp', 'Home', 'End'\]/);
   assert.match(source, /setChatSessionMenuOpen\(false, \{ restoreFocus: true \}\)/);
@@ -1031,7 +1039,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
   assert.match(html, /class="commandbar"/);
-  for (const id of ["chatProjectSelect", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
+  for (const id of ["chatProjectMenuButton", "chatProjectMenu", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
   assert.match(source, /api\.chatSnapshot/);

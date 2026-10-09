@@ -4,6 +4,7 @@
   let resizeDrag = null;
   let composing = false, noticeTimer, returnFocus, listScroll = 0;
   let sessionMenuReturnFocus = null;
+  let projectMenuReturnFocus = null;
   function notice(text) { document.getElementById('chat-notice').textContent = text; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => document.getElementById('chat-notice').textContent = '', 4000); }
   function capture() {
     const thread = document.querySelector('.chat-thread'), s = M.current();
@@ -59,10 +60,32 @@
     const menu = sessionMenu();
     if (!menu) return;
     if (!menu.hidden) { closeSessionMenu(); return; }
+    closeProjectMenu({ focus: false });
     sessionMenuReturnFocus = trigger;
     menu.hidden = false;
     trigger.setAttribute('aria-expanded', 'true');
     menu.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+  }
+  function projectMenu() { return document.querySelector('.chat-project-menu'); }
+  function closeProjectMenu({ focus = true } = {}) {
+    const menu = projectMenu();
+    if (!menu || menu.hidden) return false;
+    menu.hidden = true;
+    const trigger = document.querySelector('.chat-project-menu-trigger');
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (focus) (projectMenuReturnFocus?.isConnected ? projectMenuReturnFocus : trigger)?.focus({ preventScroll: true });
+    projectMenuReturnFocus = null;
+    return true;
+  }
+  function toggleProjectMenu(trigger) {
+    const menu = projectMenu();
+    if (!menu) return;
+    if (!menu.hidden) { closeProjectMenu(); return; }
+    closeSessionMenu({ focus: false });
+    projectMenuReturnFocus = trigger;
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    (menu.querySelector('[aria-selected="true"]') || menu.querySelector('[role="option"]'))?.focus({ preventScroll: true });
   }
   function send() {
     try { const s = M.send(); if (s) { notice(''); s.follow = true; render({ capturePosition: false }); document.getElementById('chat-input').focus(); } }
@@ -95,7 +118,11 @@
   });
   document.addEventListener('click', async event => {
     const el = event.target.closest('[data-chat-action]');
-    if (!el) { if (!event.target.closest('.chat-session-actions')) closeSessionMenu({ focus: false }); return; }
+    if (!el) {
+      if (!event.target.closest('.chat-session-actions')) closeSessionMenu({ focus: false });
+      if (!event.target.closest('.chat-project-control')) closeProjectMenu({ focus: false });
+      return;
+    }
     const s = M.current();
     try {
       switch (el.dataset.chatAction) {
@@ -112,6 +139,14 @@
         case 'toggle-list': toggleList(); break;
         case 'history': M.state.limits[el.dataset.project] = (M.state.limits[el.dataset.project]||5)+5; render(); break;
         case 'project': M.state.collapsed[el.dataset.project]=!M.state.collapsed[el.dataset.project]; delete M.state.limits[el.dataset.project]; render(); break;
+        case 'project-menu': toggleProjectMenu(el); break;
+        case 'project-option': {
+          M.state.newDraft.project = el.dataset.project;
+          closeProjectMenu({ focus: false });
+          render();
+          document.querySelector('.chat-project-menu-trigger')?.focus({ preventScroll: true });
+          break;
+        }
         case 'session-menu': toggleSessionMenu(el); break;
         case 'rename': closeSessionMenu(); open('重命名会话', `<label>会话标题<input name="title" value="${esc(s.title)}" required maxlength="120"></label>`, '保存', 'rename'); break;
         case 'delete': closeSessionMenu(); open('删除会话', `<p>${esc(s.title)} · ${esc(M.project(s.project).name)} · ${s.messages.length} 条消息</p><p>${M.active(s) ? '将先停止当前回答，成功后删除本地会话记录。' : '将删除此会话的本地消息、草稿与恢复记录。'}不承诺擦除 Codex 自身保留的底层数据。</p>`, '确认删除', 'delete'); break;
@@ -150,9 +185,6 @@
     if (submit) submit.disabled = !o.draft.trim() || !M.project(o.project)?.ready;
     M.save();
   });
-  document.addEventListener('change', event => {
-    if (event.target.id === 'chat-project') { M.state.newDraft.project = event.target.value; render(); }
-  });
   document.addEventListener('submit', async event => {
     if (event.target.id === 'chat-compose') { event.preventDefault(); if (!composing) send(); return; }
     if (!event.target.dataset.chatForm) return;
@@ -187,9 +219,18 @@
       items[next]?.focus({ preventScroll: true });
       return;
     }
+    const projects = projectMenu();
+    if (projects && !projects.hidden && ['ArrowDown','ArrowUp','Home','End'].includes(event.key)) {
+      event.preventDefault();
+      const items = [...projects.querySelectorAll('[role="option"]')], index = items.indexOf(document.activeElement);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus({ preventScroll: true });
+      return;
+    }
     if (event.key === 'Enter' && event.target.id === 'chat-input' && !event.shiftKey && !event.isComposing && !composing) { event.preventDefault(); if (!M.active(M.current())) send(); }
     if (event.key === 'Escape') {
-      if (closeSessionMenu()) event.preventDefault();
+      if (closeProjectMenu()) event.preventDefault();
+      else if (closeSessionMenu()) event.preventDefault();
       else if (dialog.open) { event.preventDefault(); if (!dialog.querySelector('[data-busy]')) close(); }
       else if (M.state.listOpen) { event.preventDefault(); toggleList(); }
     }
