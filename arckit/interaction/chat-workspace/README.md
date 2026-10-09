@@ -57,7 +57,7 @@ Work 的 `../task-browser/default.html` 提供待办“打开 Chat”路径；Ch
 
 ## 项目文件与编辑 Tab
 
-右栏“文件”显示完整项目目录样本（包括隐藏/忽略条目和符号链接），逐层展开并分页加载；右键或 Shift+F10 打开文件操作菜单，可把相对路径插入 Chat 光标处。点击文件进入中央多 Tab，Chat 保留，文件用 × 关闭。新建、重命名、模拟废纸篓、未保存关闭、保存失败、磁盘冲突、重新读取与项目切换均可操作。场景页提供文件故障、外部改动和慢响应入口。
+右栏“文件”显示完整项目目录样本（包括隐藏/忽略条目和符号链接），逐层展开并分页加载。项目名称右侧的更多入口打开根目录菜单，收纳刷新、在根目录新建文件/文件夹及系统显示；它与行尾/右键更多菜单共用层级、键盘和焦点恢复语义，但不提供对根目录无效的重命名、删除或相对路径动作。文件树使用 28px 紧凑条目，可展开目录用独立 16px chevron 显示收起向右、展开向下。右键或 Shift+F10 打开普通条目操作菜单，可把相对路径插入 Chat 光标处；文件树条目有选择时，焦点位于条目内按 Esc 可取消选择，菜单和编辑器仍优先处理各自的 Esc。点击文件进入中央多 Tab，Chat 保留，文件用 × 关闭。新建、重命名、模拟废纸篓、未保存关闭、保存失败、磁盘冲突、重新读取与项目切换均可操作。场景页提供文件故障、外部改动和慢响应入口。
 
 files-model.js 管理隔离内存目录；files-ui.js 保持编辑草稿、光标与后台 Chat 的独立性；files.css 使用既有明暗主题 Tokens。编辑区 textarea 仅表达交互，不是 Monaco。真实目录权限、IPC、Monaco 模型与 Worker、系统废纸篓、账户/重绑定/退出保存保护由生产验证；样本只用 beforeunload 提示刷新丢失。内存文件不跨刷新持久化。
 
@@ -66,4 +66,4 @@ env -u ELECTRON_RUN_AS_NODE ARCORBIT_TEST_OUTPUT="$PWD/arckit/cases/evidence/CAS
 env -u ELECTRON_RUN_AS_NODE ARCORBIT_TEST_OUTPUT="$PWD/arckit/cases/evidence/CASE-20260922-006/files-native-regression" runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-native.cjs
 ```
 
-每次复测使用新的输出目录保留历史。最新文件行为证据为 `../../cases/evidence/CASE-20260922-006/files-prototype-final/verification.json`；既有 Chat 原生路径回归见 `../../cases/evidence/CASE-20260922-006/files-native-regression/verification-native.json`。前几次失败和修复后的中间截图仍保存在相邻 run 目录中，不作为最终通过依据。
+每次复测使用新的输出目录保留历史。完整文件行为基线见 `../../cases/evidence/CASE-20260922-006/files-prototype-final/verification.json`；项目根目录菜单的最新原型/生产验证见 `../../cases/evidence/CASE-20261009-001/root-menu-prototype-v3/verification.json` 和 `../../cases/evidence/CASE-20261009-001/root-menu-production-v3/result.json`；Esc 取消选择的最新验证见 `../../cases/evidence/CASE-20261009-001/escape-selection-prototype-v2/verification.json` 和 `../../cases/evidence/CASE-20261009-001/escape-selection-production-v2/result.json`；28px 文件树和 disclosure 的最新原型/生产验证及截图见 `../../cases/evidence/CASE-20261009-001/file-tree-visual-prototype-v2/verification.json`、`../../cases/evidence/CASE-20261009-001/file-tree-visual-prototype-v2/file-tree-density.png`、`../../cases/evidence/CASE-20261009-001/file-tree-visual-production-v4/result.json` 和 `../../cases/evidence/CASE-20261009-001/file-tree-visual-production-v4/file-tree-density.png`；既有 Chat 原生路径回归见 `../../cases/evidence/CASE-20260922-006/files-native-regression/verification-native.json`。前几次失败和修复后的中间截图仍保存在相邻 run 目录中，不作为最终通过依据。

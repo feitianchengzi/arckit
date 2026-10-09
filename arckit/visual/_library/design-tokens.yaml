@@ -1,6 +1,6 @@
 metadata:
   project: ArcOrbit Desktop
-  last_updated: "2026-09-18"
+  last_updated: "2026-10-09"
   brief: ./brief.md
 
 colors:
@@ -78,6 +78,7 @@ layout:
   inspector_width: { value: 312, description: 运行边界和证据检查器宽度 }
   compact_control_height: { value: 32, description: 仅图标工具和极紧凑辅助控件的最小高度 }
   control_height: { value: 36, description: 常规按钮、输入框和选择控件的最小高度 }
+  file_tree_row_height: { value: 28, description: Chat 文件树高密度层级导航的专用行高，不扩散到数据行 }
   compact_row_height: { value: 40, description: 高频数据行的最小高度 }
   row_height: { value: 44, description: 标准可操作列表行高度 }
   min_window_width: { value: 390, description: 视觉适配检查下限，不改变原生窗口约束 }

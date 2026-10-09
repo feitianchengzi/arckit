@@ -9,7 +9,7 @@
 | `_library/design-tokens.yaml` | ✅ | 系统字体、可读状态色、语义主题角色、尺寸、层级与动效。 |
 | `_library/components/foundation.yaml` | ✅ | 应用壳、导航、图标、按钮、七状态标签。 |
 | `_library/components/workbench.yaml` | ✅ | 事情台顶栏、事情行、输入、Composer、运行浮层、成果证据与上下文。 |
-| `_library/components/conversation.yaml` | ✅ | 共享消息层级、登录与账号表单。 |
+| `_library/components/conversation.yaml` | ✅ | 共享消息层级、Chat 高密度文件树、登录与账号表单。 |
 | `_library/components/execution.yaml` | ✅ | 队列、运行事实、人工处理、恢复与执行记录。 |
 | `_library/state-contract.md` | ✅ | 公共状态与角色配色、业务/执行状态分界、验证要求。 |
 | `themes/dark.yaml` | ✅ | 暗色主题规范与组件样张；生产接入待验证。 |

@@ -1,6 +1,6 @@
 import {app,BrowserWindow,ipcMain} from 'electron';
 import assert from 'node:assert/strict';
-import {readFile,writeFile,mkdtemp,mkdir,rm,rename} from 'node:fs/promises';
+import {readFile,writeFile,mkdtemp,mkdir,rm,rename,realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,dirname} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -22,8 +22,8 @@ app.whenReady().then(async()=>{
   await writeFile(join(root,'.env'),'KEY=example');await writeFile(join(root,'src','app.js'),'const answer = 1;\n');await writeFile(join(root,'a.js'),'let a = 1;\n');await writeFile(join(root,'bad.bin'),Buffer.from([0,1]));
   for(let i=0;i<105;i++)await writeFile(join(root,'many',`item-${i}`),'');
   const store={projects:[{id:'p',name:'Project',path:root},{id:'q',name:'Other',path:join(base,'other')}],sessions:{p:[{id:'s',kind:'chat',project_id:'p'}]}};
-  let account='account',metadataFails=false;const drafts=[];
-  const files=createChatFiles({runManager:{readDesktopChatMetadata:async()=>{if(metadataFails)throw Error('temporary fixture context error');return store;}},getAccountScope:async()=>account,authorizeSession:async()=>true,trashItem:path=>rename(path,join(base,'trash',path.split('/').at(-1))),revealItem:async()=>{}});
+  let account='account',metadataFails=false;const drafts=[],revealed=[];
+  const files=createChatFiles({runManager:{readDesktopChatMetadata:async()=>{if(metadataFails)throw Error('temporary fixture context error');return store;}},getAccountScope:async()=>account,authorizeSession:async()=>true,trashItem:path=>rename(path,join(base,'trash',path.split('/').at(-1))),revealItem:async path=>{revealed.push(path);}});
   registerChatFilesIpc({ipcMain,files,assertMainRenderer:e=>{if(e.sender!==win.webContents)throw Error('wrong sender');}});
   ipcMain.on('arckit:appearance-initial',e=>{e.returnValue={preference:'light',resolved:'light',revision:0};});
   ipcMain.handle('arckit:chat-create',(_e,input)=>{drafts.push(input);return {saved:true};});
@@ -35,6 +35,7 @@ app.whenReady().then(async()=>{
   const waitFor=async expression=>{for(let i=0;i<100;i++){if(await run(expression))return;await pause();}throw Error('timeout '+expression);};
   const click=async selector=>{await run(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});if(!n||n.disabled)throw Error('missing '+${JSON.stringify(selector)});n.click()})()`);await pause();};
   const action=(a,path='',prefix='#chatView')=>click(`${prefix} [data-chat-file="${a}"][data-path="${path}"]`);
+  const rootMenu=()=>click('.chat-file-tree-tools [data-root-menu="true"]');
   const menu=async path=>{await run(`document.querySelector(${JSON.stringify(`[data-file-row="${path}"]`)}).dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`);await pause();};
   const edit=async text=>{await run(`fixture.surface.editor().getModel().setValue(${JSON.stringify(text)})`);await pause();};
   const shot=async name=>writeFile(join(output,name+'.png'),(await win.webContents.capturePage()).toPNG());
@@ -54,7 +55,14 @@ app.whenReady().then(async()=>{
     document.getElementById('chatInput').value='前 后';
   })()`);
   await waitFor('Boolean(document.querySelector("[data-file-row]"))');
+  assert.equal(await run('document.querySelectorAll(".chat-file-tree-tools [data-chat-file]").length'),1);
+  await rootMenu();assert.deepEqual(await run('[...document.querySelectorAll(".chat-file-menu button")].map(b=>b.textContent)'),['刷新','新建文件','新建文件夹','在系统中显示']);await shot('root-menu');
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await run('document.activeElement.dataset.rootMenu'),'true');
+  await rootMenu();
+  await action('reveal-root','','.chat-file-menu');assert.deepEqual(revealed,[await realpath(root)]);checks.push('project root actions use one type-aware secondary menu and reveal the actual workspace root');
   assert(await run('!!document.querySelector("[data-file-row=\\\".env\\\"]")'));
+  const compactTree=await run('(()=>{const row=document.querySelector("[data-file-row=\\\"many\\\"]"),name=row.querySelector(".chat-file-name"),more=row.querySelector(".chat-file-more"),icon=row.querySelector(".chat-file-disclosure svg"),root=getComputedStyle(document.documentElement);return {height:row.getBoundingClientRect().height,token:root.getPropertyValue("--layout-file-tree-row-height").trim(),name:{height:name.getBoundingClientRect().height,minHeight:getComputedStyle(name).minHeight},more:{height:more.getBoundingClientRect().height,minHeight:getComputedStyle(more).minHeight},collapsed:getComputedStyle(icon).transform,canvas:[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height]}})()');assert(compactTree.height>=27.5&&compactTree.height<=28.5,JSON.stringify(compactTree));assert.deepEqual(compactTree.canvas,[16,16]);
+  await action('open','.git');const expandedTree=await run('(()=>{const row=document.querySelector("[data-file-row=\\\".git\\\"]"),icon=row.querySelector(".chat-file-disclosure svg");return {expanded:row.getAttribute("aria-expanded"),transform:getComputedStyle(icon).transform}})()');assert.equal(expandedTree.expanded,'true');assert.notEqual(expandedTree.transform,compactTree.collapsed);await shot('file-tree-density');await action('open','.git');checks.push('28px file rows and distinct collapsed/expanded 16px disclosure icons');
   await action('open','many');assert.equal(await run('document.querySelectorAll("[data-file-row^=\\\"many/\\\"]").length'),100);
   await action('more','many');assert.equal(await run('document.querySelectorAll("[data-file-row^=\\\"many/\\\"]").length'),105);await action('open','many');checks.push('hidden files and explicit directory pagination');
   await run('document.getElementById("chatInput").setSelectionRange(1,1);document.getElementById("chatInput").dispatchEvent(new Event("select"))');await menu('.env');await action('reference','.env','.chat-file-menu');assert.equal(await run('fixture.coordinator.getState().draft'),'前 .env 后');assert.equal(drafts.at(-1).text,'前 .env 后');checks.push('relative path inserted at cursor through production draft persistence');
@@ -100,7 +108,7 @@ app.whenReady().then(async()=>{
   await run('fixture.beforeRecovery=fixture.surface.editor().getModel();void 0');
   metadataFails=true;await run('fixture.surface.model.select(fixture.owner,true)');
   assert.equal(await run('document.querySelector(".chat-file-tools [data-chat-file=save]").disabled'),true);
-  metadataFails=false;await action('refresh');
+  metadataFails=false;await rootMenu();await action('refresh','','.chat-file-menu');
   assert.equal(await run('fixture.surface.model.current().invalid'),false);
   assert.equal(await run('document.querySelector(".chat-file-tools [data-chat-file=save]").disabled'),false);
   assert(await run('fixture.surface.editor().getModel()===fixture.beforeRecovery'));
@@ -120,9 +128,12 @@ app.whenReady().then(async()=>{
   const leave=guard.request();await waitFor('document.querySelector(".chat-file-dialog").open');await click('.chat-file-dialog [data-cancel]');assert.equal(await leave,false);assert.equal(await run('fixture.surface.editor().getValue()'),'background draft');
   win.close();await waitFor('document.querySelector(".chat-file-dialog").open');await click('.chat-file-dialog [data-cancel]');assert.equal(win.isDestroyed(),false);checks.push('actual window close cancelled without losing dirty editor');
   const saveLeave=guard.request();await waitFor('document.querySelector(".chat-file-dialog").open');await click('.chat-file-dialog [data-choice="0"]');assert.equal(await saveLeave,true);assert.equal(await readFile(join(root,'renamed','app.js'),'utf8'),'background draft');checks.push('main-to-renderer leave guard supports cancel and save before transition');
-  await action('new-file');await run('document.querySelector(".chat-file-dialog input").value="created.txt"');await click('.chat-file-dialog [data-choice="0"]');await waitFor('fixture.surface.model.current().active.endsWith("created.txt")');
+  await rootMenu();await action('new-file-root','','.chat-file-menu');await run('document.querySelector(".chat-file-dialog input").value="created.txt"');await click('.chat-file-dialog [data-choice="0"]');await waitFor('fixture.surface.model.current().active.endsWith("created.txt")');
   const created=await run('fixture.surface.model.current().active');await edit('new unsaved');await menu(created);await action('trash',created,'.chat-file-menu');await click('.chat-file-dialog [data-cancel]');assert.equal(await run('fixture.surface.editor().getValue()'),'new unsaved');
   await menu(created);await action('trash',created,'.chat-file-menu');await click('.chat-file-dialog [data-choice="1"]');assert.equal(await run('fixture.surface.model.current().tabs.some(t=>t.path.endsWith("created.txt"))'),false);checks.push('create and dirty deletion cancel/discard through real filesystem adapter');
+  await action('open','.env');win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await run('fixture.surface.model.current().selected'),'.env');
+  await action('show-files');await run('document.querySelector("[data-file-row=\\\".env\\\"]").focus()');win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await run('fixture.surface.model.current().selected'),'');assert.equal(await run('document.activeElement.dataset.fileRow'),'.env');assert.equal(await run('document.activeElement.getAttribute("aria-selected")'),'false');
+  await action('open','.git');win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await run('fixture.surface.model.current().selected'),'');assert.equal(await run('document.activeElement.dataset.fileRow'),'.git');checks.push('file and directory Escape selection clearing preserves row focus while editor Escape retains priority');
   await run('document.querySelector("[data-file-row=\\\".env\\\"]").focus()');win.webContents.sendInputEvent({type:'keyDown',keyCode:'F10',modifiers:['shift']});await pause();assert.equal(await run('document.querySelector(".chat-file-menu").hidden'),false);win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await run('document.activeElement.dataset.fileRow'),'.env');checks.push('real keyboard context menu and Escape focus restoration');
   await action('open','bad.bin');assert.equal(await run('document.querySelector(".chat-file-tools [data-chat-file=save]").disabled'),true);await action('tab','renamed/app.js');
   for(const width of [1450,760,390]){win.setContentSize(width,800);await pause();assert(await run('document.documentElement.scrollWidth<=innerWidth'));await shot('editor-'+width);if(width<=760){await action('show-files');await menu('.env');assert(await run('(()=>{const r=document.querySelector(".chat-file-menu").getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight})()'));await shot('menu-'+width);await action('open','.env','.chat-file-menu');}}

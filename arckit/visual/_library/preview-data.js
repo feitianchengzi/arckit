@@ -77,6 +77,7 @@ window.visualData = {
     "layout.inspector_width": 312,
     "layout.compact_control_height": 32,
     "layout.control_height": 36,
+    "layout.file_tree_row_height": 28,
     "layout.compact_row_height": 40,
     "layout.row_height": 44,
     "layout.min_window_width": 390,
@@ -816,6 +817,58 @@ window.visualData = {
       ],
       "accessibility": {
         "requirement": "reasoning 使用原生可聚焦展开控件并提供可读标题；空 reasoning 不产生控件；工具与权限状态同时使用图标和文字；工具目标溢出时保留可访问全称；阅读历史时新消息不强制改变滚动位置"
+      }
+    },
+    "FileTree": {
+      "role": "在 Chat 右侧栏以高密度、可扫描的层级导航呈现项目文件，并清楚区分目录展开与收起状态",
+      "variants": {
+        "file": {
+          "disclosure": "placeholder",
+          "foreground": "{semantic.text}"
+        },
+        "directory_collapsed": {
+          "disclosure": "chevron_right",
+          "foreground": "{semantic.text}"
+        },
+        "directory_expanded": {
+          "disclosure": "chevron_down",
+          "foreground": "{semantic.text}"
+        },
+        "link": {
+          "disclosure": "external",
+          "foreground": "{semantic.muted}"
+        }
+      },
+      "sizes": {
+        "dense": {
+          "row_height": "{layout.file_tree_row_height}",
+          "label_padding_y": "{spacing.1}",
+          "label_padding_x": "{spacing.2}",
+          "disclosure_canvas": 16,
+          "disclosure_stroke": 2,
+          "typography": "{typography.label}"
+        }
+      },
+      "states": [
+        "default",
+        "hover",
+        "focused",
+        "selected",
+        "directory_collapsed",
+        "directory_expanded"
+      ],
+      "token_refs": [
+        "layout.file_tree_row_height",
+        "spacing.1",
+        "spacing.2",
+        "typography.label",
+        "semantic.text",
+        "semantic.muted",
+        "semantic.nav_selected",
+        "semantic.focus"
+      ],
+      "accessibility": {
+        "requirement": "目录状态同时由 aria-expanded 和方向不同的独立 disclosure 图标表达；焦点与选择保持独立，名称操作占满剩余行宽"
       }
     },
     "MetricCard": {

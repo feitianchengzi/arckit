@@ -73,7 +73,7 @@ async function absent(path) {
 export async function performChatFile(root, action, input, { assertCurrent, trashItem, revealItem } = {}) {
   const check = assertCurrent || (async () => {});
   await check();
-  const name = chatRelative(input.path ?? '', ['list', 'create-file', 'create-directory'].includes(action));
+  const name = chatRelative(input.path ?? '', ['list', 'create-file', 'create-directory', 'reveal'].includes(action));
   if (action === 'list') {
     const path = await locate(root, name, { rootAllowed: true });
     const entries = (await readdir(path, { withFileTypes: true })).map(e => ({
@@ -117,7 +117,7 @@ export async function performChatFile(root, action, input, { assertCurrent, tras
     else { const handle = await open(target, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o666); await handle.close(); }
     return { path: name ? `${name}/${entry}` : entry, kind: action === 'create-file' ? 'file' : 'directory' };
   }
-  const path = await locate(root, name, { leafLink: true });
+  const path = await locate(root, name, { leafLink: true, rootAllowed: action === 'reveal' });
   if (action === 'rename') {
     const entry = chatEntryName(input.name), target = join(dirname(path), entry);
     await absent(target); await check(); await locate(root, name, { leafLink: true }); await absent(target);
@@ -127,7 +127,7 @@ export async function performChatFile(root, action, input, { assertCurrent, tras
   if (action === 'trash' || action === 'reveal') {
     const operation = action === 'trash' ? trashItem : revealItem;
     if (!operation) throw Error('系统文件操作不可用。');
-    await check(); await locate(root, name, { leafLink: true });
+    await check(); await locate(root, name, { leafLink: true, rootAllowed: action === 'reveal' });
     await operation(path);
     return { path: name, [action === 'trash' ? 'trashed' : 'revealed']: true };
   }

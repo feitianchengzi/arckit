@@ -128,6 +128,6 @@ Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保�
 
 ## Chat 项目文件工作区
 
-`arckit/interaction/chat-workspace/interaction.md` 定义文件树、常见操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能通过 files-model.js / files-ui.js / files.css 接入完整原型；浏览器验证记录在 arckit/cases/evidence/CASE-20260922-006/files-prototype-final/，生产兑现待验证。
+`arckit/interaction/chat-workspace/interaction.md` 定义文件树、项目根目录单一更多菜单、普通条目操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。根目录菜单与普通条目共用容器、键盘和焦点恢复语义，只保留适用于根的刷新、新建和系统显示。文件树消费 visual FileTree 的 28px 专用紧凑行与独立 16px disclosure，沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能通过 files-model.js / files-ui.js / files.css 接入完整原型；当前根菜单原型与生产验证见 `arckit/cases/evidence/CASE-20261009-001/root-menu-prototype-v3/` 和 `root-menu-production-v3/`。
 
 Chat Git：项目名称与紧凑 Git 符号计数组保持单行，空间不足时优先省略项目名称；摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表。正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。

@@ -25,7 +25,15 @@ app.whenReady().then(async () => {
     await w.loadFile(path.join(__dirname, 'default.html'), {query: {autoplay: 'off'}}); await pause();
     await run('document.documentElement.dataset.theme="light"');
     await click('[data-detail-mode="files"]');
+    assert.equal(await run('document.querySelectorAll(".file-tools [data-file-action]").length'),1);
+    await click('.file-root-menu');
+    assert.deepEqual(await run('[...document.querySelectorAll("#file-menu button")].map(b=>b.textContent)'),['刷新','新建文件','新建文件夹','在系统中显示']);await shot('root-menu');
+    w.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert(await run('document.activeElement.classList.contains("file-root-menu")'));
+    await click('.file-root-menu');await menuAction('new-file-root');await submitName('root-created.txt');assert(await state('s.disk.has("root-created.txt")'));await click('[data-file-action="close"][data-path="root-created.txt"]');
+    record('project root actions use one type-aware secondary menu with keyboard focus restoration');
     for (const p of ['.git','.env','node_modules','linked']) assert(await run(`!!document.querySelector('[data-file-row="${p}"]')`));
+    const compactTree=await run('(()=>{const row=document.querySelector("[data-file-row=\\\"many\\\"]"),icon=row.querySelector(".file-disclosure svg");return {height:row.getBoundingClientRect().height,collapsed:getComputedStyle(icon).transform,canvas:[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height]}})()');assert(compactTree.height>=27.5&&compactTree.height<=28.5,JSON.stringify(compactTree));assert.deepEqual(compactTree.canvas,[16,16]);
+    await open('.git');const expandedTree=await run('(()=>{const row=document.querySelector("[data-file-row=\\\".git\\\"]"),icon=row.querySelector(".file-disclosure svg");return {expanded:row.getAttribute("aria-expanded"),transform:getComputedStyle(icon).transform}})()');assert.equal(expandedTree.expanded,'true');assert.notEqual(expandedTree.transform,compactTree.collapsed);await shot('file-tree-density');await open('.git');record('28px file rows and distinct collapsed/expanded 16px disclosure icons');
     await open('many'); assert.equal(await run('document.querySelectorAll("[data-file-row^=\\"many/\\"]").length'), 50);
     await click('[data-file-action="more"][data-path="many"]'); await click('[data-file-action="more"][data-path="many"]');
     assert.equal(await run('document.querySelectorAll("[data-file-row^=\\"many/\\"]").length'), 125);
@@ -90,6 +98,11 @@ app.whenReady().then(async () => {
     await run('ChatPrototype.select("a1")');assert.equal(await state('t.path'),'README.md');
     record('background Chat completes without replacing editor; late file response cannot select another project');
     await run('ChatFileUI.scenario("files-recover")');
+    await open('.env');w.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await state('s.selected'),'.env');
+    await click('[data-detail-mode="files"]');await run('document.querySelector("[data-file-row=\\\".env\\\"]").focus()');
+    w.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await state('s.selected'),'');assert.equal(await run('document.activeElement.dataset.fileRow'),'.env');assert.equal(await run('document.activeElement.getAttribute("aria-selected")'),'false');
+    await open('.git');w.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await state('s.selected'),'');assert.equal(await run('document.activeElement.dataset.fileRow'),'.git');
+    record('file and directory Escape selection clearing preserves row focus while editor Escape retains priority');
     // Actual keyboard events through Chromium input.
     await run('document.querySelector("[data-file-row=\\".env\\"]").focus()');
     w.webContents.sendInputEvent({type:'keyDown',keyCode:'F10',modifiers:['shift']});await pause();assert.equal(await run('document.querySelector("#file-menu").hidden'),false);

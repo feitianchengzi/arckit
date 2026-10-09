@@ -22,7 +22,7 @@
 |---|---|---|
 | `arckit/interaction/project-workbench/default.html` 和 `interaction.md` | light、WorkbenchHeader、TaskListRow、Composer、RuntimePopover | 已消费正式视觉 light 主题；核对 54px 顶栏、31px 搜索、中央消息范围、右侧列表与 760px 抽屉 |
 | `arckit/interaction/_explorations/project-workbench-v2/options/original/index.html` | 同上 | 保留采纳前候选，不随正式视觉重绘；已采纳稿在 project-workbench/default.html |
-| `arckit/interaction/chat-workspace/default.html`、`automation-workspace/default.html` | ConversationSurface、Composer、AutomationExecutionOverview | 核对正文/工具/权限层级及保留阅读位置；不得重建平行消息系统 |
+| `arckit/interaction/chat-workspace/default.html`、`automation-workspace/default.html` | ConversationSurface、FileTree、Composer、AutomationExecutionOverview | Chat 文件树同步 28px 专用紧凑行与 16px disclosure；同时核对正文/工具/权限层级及保留阅读位置，不得重建平行消息系统 |
 | `arckit/interaction/login/default.html`、`setup-readiness/default.html` | FormField、AccountPanel、LoginGate | 核对输入对比度、就地错误与窄屏，不添加认证步骤 |
 | `arckit/interaction/task-browser/default.html`、`platform-workspace/default.html` | legacy-mixed、TaskTable、StatusPill | 七状态、可操作行尺寸、焦点，以及兼容主题范围 |
 | `arckit/interaction/CONVENTIONS.md` | 本域 CONVENTIONS 与消费契约 | 已明确正式视觉优先，旧静态线框按原有范围保留 |

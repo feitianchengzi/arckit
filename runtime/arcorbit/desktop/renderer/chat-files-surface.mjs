@@ -2,6 +2,9 @@ import { createChatFilesState, fileParent, fileName, fileDirty } from './chat-fi
 import { createFileDialog, fileEscape as esc } from './chat-files-dialog.mjs';
 const button = (action, label, path = '', extra = '') => `<button type="button" data-chat-file="${action}" data-path="${esc(path)}" ${extra}>${label}</button>`;
 const language = path => ({js:'javascript',mjs:'javascript',cjs:'javascript',ts:'typescript',tsx:'typescript',jsx:'javascript',md:'markdown',css:'css',html:'html',py:'python',go:'go'})[path.split('.').pop()] || 'plaintext';
+const treeIcon = kind => kind === 'directory'
+  ? '<span class="chat-file-disclosure" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m5.5 3.5 4.5 4.5-4.5 4.5"/></svg></span>'
+  : `<span class="chat-file-entry-icon" aria-hidden="true">${kind === 'link' ? '↗' : '·'}</span>`;
 let vendorPromise;
 const vendor = () => vendorPromise ||= import('./vendor/release-vendor.js').catch(e => {vendorPromise=null;throw e;});
 
@@ -13,22 +16,22 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
   const menu = document.createElement('div'); menu.className = 'chat-file-menu'; menu.hidden = true; menu.role = 'menu'; document.body.append(menu);
   const dialog = createFileDialog();
   const model = createChatFilesState({api, changed: render});
-  let editor, monacoApi, attached, editorRequest = 0, menuSession, menuPath, cursor = {start:0,end:0}, lastTabs = '', lastTree = '';
+  let editor, monacoApi, attached, editorRequest = 0, menuSession, menuPath, menuAnchor, cursor = {start:0,end:0}, lastTabs = '', lastTree = '';
   const active = () => {const s=model.current();return s?.tabs.find(t=>t.path===s.active);};
   const ownerMatches = s => model.current() === s && s.owner.project_id === getOwner().project_id;
   const assertOwner = s => {if(!ownerMatches(s))throw Error('项目已切换，旧文件操作已取消。');};
   const focusRow = path => [...treeHost.querySelectorAll('[data-file-row]')].find(n=>n.dataset.fileRow===path)?.focus();
-  const hideMenu = (restore=false) => {menu.hidden=true;if(restore)focusRow(menuPath);};
+  const hideMenu = (restore=false) => {menu.hidden=true;if(restore){if(menuAnchor?.isConnected)menuAnchor.focus();else focusRow(menuPath);}};
   function treeRows(s, dir='', depth=1) {
     const state=s.directories.get(dir);
     if(!state)return button('load','加载目录',dir);
-    return (state.error?`<p role="alert">${esc(state.error)}${button('load','重试',dir)}</p>`:'')+state.entries.map(e=>`<div class="chat-file-row" role="treeitem" tabindex="${s.selected===e.path?0:-1}" aria-level="${depth}" aria-selected="${s.selected===e.path}" ${e.kind==='directory'?`aria-expanded="${s.expanded.has(e.path)}"`:''} data-file-row="${esc(e.path)}" style="--depth:${depth}">${button('open',`${e.kind==='directory'?(s.expanded.has(e.path)?'▾':'▸'):e.kind==='link'?'↗':'·'} <span>${esc(e.name)}</span>${e.kind==='link'?'<small>链接</small>':''}`,e.path,'class="chat-file-name" tabindex="-1"')}${button('menu','⋯',e.path,`aria-label="${esc(e.name)} 更多操作" tabindex="-1"`)}</div>${e.kind==='directory'&&s.expanded.has(e.path)?`<div role="group">${treeRows(s,e.path,depth+1)}</div>`:''}`).join('')+(state.loading?'<p role="status">正在读取…</p>':state.next_offset!=null?button('more',`加载更多（剩余 ${state.total-state.entries.length} 项）`,dir):!state.entries.length&&!state.error?'<p class="chat-file-empty">空文件夹</p>':'');
+    return (state.error?`<p role="alert">${esc(state.error)}${button('load','重试',dir)}</p>`:'')+state.entries.map(e=>`<div class="chat-file-row" role="treeitem" tabindex="${s.selected===e.path?0:-1}" aria-level="${depth}" aria-selected="${s.selected===e.path}" ${e.kind==='directory'?`aria-expanded="${s.expanded.has(e.path)}"`:''} data-file-row="${esc(e.path)}" style="--depth:${depth}">${button('open',`${treeIcon(e.kind)}<span>${esc(e.name)}</span>${e.kind==='link'?'<small>链接</small>':''}`,e.path,'class="chat-file-name" tabindex="-1"')}${button('menu','⋯',e.path,`aria-label="${esc(e.name)} 更多操作" class="chat-file-more" tabindex="-1"`)}</div>${e.kind==='directory'&&s.expanded.has(e.path)?`<div role="group">${treeRows(s,e.path,depth+1)}</div>`:''}`).join('')+(state.loading?'<p role="status">正在读取…</p>':state.next_offset!=null?button('more',`加载更多（剩余 ${state.total-state.entries.length} 项）`,dir):!state.entries.length&&!state.error?'<p class="chat-file-empty">空文件夹</p>':'');
   }
   function render() {
     const s=model.current(), t=active();
     if (!ownerMatches(s || {owner:{}})) hideMenu();
     treeHost.hidden=getPanel()!=='files';
-    const html=s?`<div class="chat-file-tree-tools"><strong>${esc(s.name)}</strong>${button('refresh','刷新')}${button('new-file','新建文件')}${button('new-directory','新建文件夹')}</div>${s.error?`<p role="alert">${esc(s.error)}</p>`:''}${s.invalid?button('discard-workspace','放弃旧工作区草稿并重新打开'):''}<div class="chat-file-tree" role="tree" aria-label="项目文件">${treeRows(s)}</div>${s.opening?.size?'<p role="status">正在打开文件…</p>':''}`:`<p role="status">${esc(model.error()||'正在读取工作区…')}</p>${button('context-retry','重试')}`;
+    const html=s?`<div class="chat-file-tree-tools"><strong>${esc(s.name)}</strong>${button('menu','⋯','',`class="chat-file-root-menu" data-root-menu="true" aria-label="${esc(s.name)} 项目根目录更多操作"`)}</div>${s.error?`<p role="alert">${esc(s.error)}</p>`:''}${s.invalid?button('discard-workspace','放弃旧工作区草稿并重新打开'):''}<div class="chat-file-tree" role="tree" aria-label="项目文件">${treeRows(s)}</div>${s.opening?.size?'<p role="status">正在打开文件…</p>':''}`:`<p role="status">${esc(model.error()||'正在读取工作区…')}</p>${button('context-retry','重试')}`;
     if(html!==lastTree){const scroll=treeHost.querySelector('.chat-file-tree')?.scrollTop||0;const focus=document.activeElement?.dataset.fileRow;treeHost.innerHTML=html;lastTree=html;const tree=treeHost.querySelector('.chat-file-tree');if(tree)tree.scrollTop=scroll;if(focus)focusRow(focus);if(!treeHost.querySelector('[tabindex="0"]'))treeHost.querySelector('[data-file-row]')?.setAttribute('tabindex','0');}
     tabs.hidden=!s?.tabs.length;
     const tabHtml=s?button('chat','Chat','','role="tab" aria-selected="'+!s.active+'"')+s.tabs.map(x=>`<span class="chat-file-tab">${button('tab',`${esc(fileName(x.path))}${s.tabs.some(y=>y!==x&&fileName(y.path)===fileName(x.path))?' · '+esc(fileParent(x.path)):''}${fileDirty(x)?' ●':''}`,x.path,`role="tab" title="${esc(x.path)}" aria-selected="${s.active===x.path}"`)}${button('close','×',x.path,`aria-label="关闭 ${esc(x.path)}"`)}</span>`).join('')+button('show-files','文件','','class="chat-file-drawer-toggle"'):'';
@@ -90,6 +93,7 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
     if(name==='reload')return dialog.show({title:'重新读取文件？',body:'<p>放弃当前草稿并加载磁盘内容。</p>',actions:[{label:'放弃并重新读取',run:async()=>{assertOwner(s);await model.reload(s,t);}}]});
     if(name==='disk'){const disk=await model.command(s,'read',{path:t.path});assertOwner(s);return dialog.show({title:'当前磁盘内容',body:`<pre>${esc(disk.text??disk.unsupported)}</pre>`,actions:[{label:'返回编辑',run:async()=>{}}]});}
     if(name==='copy-draft'){await navigator.clipboard.writeText(t.text||'');notify('草稿已复制。');return;}
+    if(name==='reveal-root')return model.command(s,'reveal',{path:''});
     if(name==='reveal')return model.command(s,'reveal',{path:path||t?.path||s.selected});
     if(name==='copy-path'||name==='reference'){
       const value=path+(entry?.kind==='directory'?'/':'');
@@ -99,9 +103,10 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
       const insert=(before&&!/\s$/.test(before)?' ':'')+value+(after&&!/^\s/.test(after)?' ':'');coordinator.setDraft(before+insert+after);await coordinator.flushDraft();
       s.active='';closeList();render();const input=document.getElementById('chatInput');input.value=coordinator.getState().draft;input.focus();input.setSelectionRange((before+insert).length,(before+insert).length);return;
     }
-    if(name==='new-file'||name==='new-directory'||name==='rename'){
-      const target=path||s.selected,dir=entry?.kind==='directory'?target:fileParent(target);
-      return dialog.show({title:name==='rename'?'重命名':name==='new-file'?'新建文件':'新建文件夹',body:`<p>${esc(name==='rename'?target:dir||'工作区根目录')}</p><label>名称<input name="name" required value="${esc(name==='rename'?fileName(target):'')}"></label>`,actions:[{label:'确定',run:async data=>{assertOwner(s);if(name==='rename')await model.rename(s,target,data.get('name'));else{const result=await model.command(s,name==='new-file'?'create-file':'create-directory',{path:dir,name:data.get('name')});s.expanded.add(dir);s.selected=result.path;await model.list(s,dir);if(name==='new-file')await model.openFile(s,result.path);}render();}}]});
+    if(name==='new-file'||name==='new-directory'||name==='new-file-root'||name==='new-directory-root'||name==='rename'){
+      const rootCreate=name.endsWith('-root'),createAction=rootCreate?name.slice(0,-5):name;
+      const target=rootCreate?'':path||s.selected,dir=rootCreate?'':entry?.kind==='directory'?target:fileParent(target);
+      return dialog.show({title:name==='rename'?'重命名':createAction==='new-file'?'新建文件':'新建文件夹',body:`<p>${esc(name==='rename'?target:dir||'工作区根目录')}</p><label>名称<input name="name" required value="${esc(name==='rename'?fileName(target):'')}"></label>`,actions:[{label:'确定',run:async data=>{assertOwner(s);if(name==='rename')await model.rename(s,target,data.get('name'));else{const result=await model.command(s,createAction==='new-file'?'create-file':'create-directory',{path:dir,name:data.get('name')});s.expanded.add(dir);s.selected=result.path;await model.list(s,dir);if(createAction==='new-file')await model.openFile(s,result.path);}render();}}]});
     }
     if(name==='trash'){
       const targets=model.affected(s,path),dirty=targets.some(fileDirty);
@@ -110,8 +115,8 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
     if(name==='discard-workspace')return dialog.show({title:'放弃旧工作区草稿？',body:'<p>放弃后将读取新的工作区。需要保留的内容请先复制。</p>',actions:[{label:'放弃并重新打开',run:async()=>{model.discardSession(s);await model.select(getOwner(),true);}}]});
   }
   async function run(name,path,s){const current=s||model.current();if(current&&!current.invalid)current.error='';try{await action(name,path,s);}catch(e){const message=e.message.replace(/^Error invoking remote method '[^']+': Error: /,'');notify(message);if(current){current.error=message;render();}}}
-  function showMenu(path,anchor){menuSession=model.current();menuPath=path;menu.innerHTML=[['open','打开 / 展开'],['new-file','新建文件'],['new-directory','新建文件夹'],['rename','重命名'],['trash','删除到废纸篓'],['copy-path','复制相对路径'],['reference','添加相对路径引用到 Chat'],['reveal','在系统中显示']].map(([a,l])=>button(a,l,path,'role="menuitem"')).join('');menu.hidden=false;const r=anchor.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(r.left,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.max(8,Math.min(r.bottom,innerHeight-menu.offsetHeight-8))+'px';menu.querySelector('button').focus();}
-  document.addEventListener('click',e=>{const b=e.target.closest('[data-chat-file]');if(!b){hideMenu();return;}const s=menu.contains(b)?menuSession:model.current();if(b.dataset.chatFile==='menu'){showMenu(b.dataset.path,b);return;}hideMenu();void run(b.dataset.chatFile,b.dataset.path,s);});
+  function showMenu(path,anchor,rootMenu=false){menuSession=model.current();menuPath=path;menuAnchor=anchor;const actions=rootMenu?[['refresh','刷新'],['new-file-root','新建文件'],['new-directory-root','新建文件夹'],['reveal-root','在系统中显示']]:[['open','打开 / 展开'],['new-file','新建文件'],['new-directory','新建文件夹'],['rename','重命名'],['trash','删除到废纸篓'],['copy-path','复制相对路径'],['reference','添加相对路径引用到 Chat'],['reveal','在系统中显示']];menu.innerHTML=actions.map(([a,l])=>button(a,l,path,'role="menuitem"')).join('');menu.hidden=false;const r=anchor.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(r.left,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.max(8,Math.min(r.bottom,innerHeight-menu.offsetHeight-8))+'px';menu.querySelector('button').focus();}
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-chat-file]');if(!b){hideMenu();return;}const s=menu.contains(b)?menuSession:model.current();if(b.dataset.chatFile==='menu'){showMenu(b.dataset.path,b,b.dataset.rootMenu==='true');return;}hideMenu();void run(b.dataset.chatFile,b.dataset.path,s);});
   treeHost.addEventListener('contextmenu',e=>{const row=e.target.closest('[data-file-row]');if(row){e.preventDefault();showMenu(row.dataset.fileRow,row);}});
   for(const event of ['select','keyup','click','input'])document.getElementById('chatInput').addEventListener(event,e=>{cursor={start:e.target.selectionStart,end:e.target.selectionEnd};});
   document.addEventListener('keydown',e=>{
@@ -119,6 +124,7 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
     if(!menu.hidden){if(e.key==='Escape'){e.preventDefault();hideMenu(true);}if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();const items=[...menu.querySelectorAll('button')],i=items.indexOf(document.activeElement);items[(i+(e.key==='ArrowDown'?1:items.length-1))%items.length].focus();}return;}
     const row=e.target.closest('[data-file-row]'),s=model.current();
     if(row){const path=row.dataset.fileRow,rows=[...treeHost.querySelectorAll('[data-file-row]')],i=rows.indexOf(row);
+      if(e.key==='Escape'&&s.selected){e.preventDefault();const selected=rows.find(item=>item.dataset.fileRow===s.selected);s.selected='';selected?.setAttribute('aria-selected','false');}
       if(['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Home','End','Enter','F2','ContextMenu'].includes(e.key)||(e.shiftKey&&e.key==='F10'))e.preventDefault();
       if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){const next=rows[e.key==='Home'?0:e.key==='End'?rows.length-1:Math.max(0,Math.min(rows.length-1,i+(e.key==='ArrowDown'?1:-1)))];s.selected=next.dataset.fileRow;render();focusRow(s.selected);}
       if(e.key==='Enter'||e.key==='ArrowRight'&&!s.expanded.has(path))void run('open',path);
