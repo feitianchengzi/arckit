@@ -51,15 +51,18 @@ try {
  for(const width of [1440,760,390]){
   win.setSize(width,960);await pause();await js(`document.querySelector('#chatNativeInvoke').click()`);await pause();
   const menu=await js(`(()=>{const p=document.querySelector('.chat-capability-menu').getBoundingClientRect(),b=document.querySelector('#chatNativeInvoke').getBoundingClientRect(),l=document.querySelector('.chat-native-options'),f=document.querySelector('.chat-capability-menu footer').getBoundingClientRect();return {height:p.height,top:p.top,bottom:p.bottom,anchor:b.top,list:l.clientHeight,footer:f.bottom,count:l.querySelectorAll('[data-pick]').length}})()`);
-  assert.ok(menu.height>500&&menu.list>300&&menu.top>=11&&Math.abs(menu.anchor-menu.bottom-8)<2&&menu.footer<=menu.bottom,JSON.stringify(menu));assert.equal(menu.count,5);
-  assert.equal(await js(`!!document.querySelector('[data-pick="file:src"],[data-up]')`),false);
+  assert.ok(menu.height>500&&menu.list>300&&menu.top>=11&&Math.abs(menu.anchor-menu.bottom-8)<2&&menu.footer<=menu.bottom,JSON.stringify(menu));assert.equal(menu.count,3);
+  assert.equal(await js(`!!document.querySelector('[data-pick^="file:"],[data-pick^="task:"],[data-up]')`),false);
+  assert.equal(await js(`document.querySelector('.chat-capability-menu input').placeholder`),'搜索能力或 Skill');
   await writeFile(join(out,`native-menu-${width}.png`),(await win.webContents.capturePage()).toPNG());
   await js(`document.querySelector('[data-pick="native:create"]').click()`);assert.equal(await js(`document.querySelector('.chat-native-chips').textContent.includes('创建待办')`),true);
   await js(`document.querySelector('[data-remove]').click()`);await js(`document.querySelector('#chatModelSettings').click()`);await pause();
   assert.ok(await js(`(()=>{const p=document.querySelector('.chat-model-menu').getBoundingClientRect(),a=document.querySelector('#chatModelSettings').getBoundingClientRect();return Math.abs(a.top-p.bottom-8)<2&&p.right<=innerWidth})()`));
   await js(`document.querySelector('.chat-model-menu').close()`);
  }
- checks.push('Capability and model menus anchor above own trigger; candidates/footer visible; removable capability chips at 1440/760/390.');
+ await js(`document.querySelector('#chatInput').value='@';document.querySelector('#chatInput').dispatchEvent(new Event('input',{bubbles:true}))`);
+ assert.equal(await js(`document.querySelector('.chat-capability-menu').open`),false);
+ checks.push('Capability picker exposes only native abilities and Skills, treats @ as ordinary input, and both native/model menus stay anchored with visible footer at 1440/760/390.');
  checks.push('Right sessions and centered composer at 1440/1000; no overflow at 760/390.');
  if(process.argv.includes('--native-picker-only')){
   assert.deepEqual(errors,[]);

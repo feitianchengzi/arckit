@@ -1,24 +1,21 @@
 (() => {
  const M=ChatModel,N=ChatNative,P=ChatPrototype,V=ChatNativeViews,esc=ChatViews.esc;
- const picker=document.getElementById('native-picker');let returnFocus=null,prefix='',mode='all';
+ const picker=document.getElementById('native-picker');let returnFocus=null,prefix='';
  const input=()=>document.getElementById('chat-input');
  const notify=text=>{document.getElementById('chat-notice').textContent=text};
- const candidates=()=>[...(mode!=='refs'?N.capabilities:[]),...(mode!=='capabilities'?N.refs():[])];
- function options(){const q=document.getElementById('native-query').value.toLowerCase(),rows=candidates().filter(x=>(x.kind+x.label+x.detail).toLowerCase().includes(q));document.getElementById('native-options').innerHTML=['调用能力','引用上下文'].map(group=>{
-  const items=rows.filter(x=>(['原生能力','Skill'].includes(x.kind)?'调用能力':'引用上下文')===group);
-  return items.length?`<section><h3>${group}</h3>${items.map(x=>`<button class="native-option" type="button" data-native-pick="${x.id}">${esc(x.label)} · ${esc(x.kind)}<small>${esc(x.detail)}</small></button>`).join('')}</section>`:'';
- }).join('')||'<p>没有匹配项，请调整搜索。</p>'}
+ const candidates=()=>N.capabilities;
+ function options(){const q=document.getElementById('native-query').value.toLowerCase(),rows=candidates().filter(x=>(x.kind+x.label+x.detail).toLowerCase().includes(q));document.getElementById('native-options').innerHTML=rows.length?`<section><h3>调用能力</h3>${rows.map(x=>`<button class="native-option" type="button" data-native-pick="${x.id}">${esc(x.label)} · ${esc(x.kind)}<small>${esc(x.detail)}</small></button>`).join('')}</section>`:'<p>没有匹配项，请调整搜索。</p>'}
  function close(focus=true){picker.close();if(focus){if(returnFocus?.isConnected)returnFocus.focus();else input()?.focus()}prefix=''}
- function open(category='all',token=''){
-  if(picker.open)return;returnFocus=document.activeElement;mode=category;prefix=token;
-  picker.innerHTML='<div class="native-picker-heading"><strong id="native-picker-title">能力与引用</strong><button type="button" data-native-close>关闭</button></div><input id="native-query" aria-label="搜索能力与引用" placeholder="搜索能力、Skill、文件或待办"><div id="native-options"></div><p class="native-picker-note">选择后放入输入框，发送时交给 Agent。</p><footer class="native-picker-footer"><a href="../engineering-profile/default.html" target="_blank" rel="noopener">技能设置 ↗</a></footer>';
+ function open(token=''){
+  if(picker.open)return;returnFocus=document.activeElement;prefix=token;
+  picker.innerHTML='<div class="native-picker-heading"><strong id="native-picker-title">能力与引用</strong><button type="button" data-native-close>关闭</button></div><input id="native-query" aria-label="搜索能力与 Skill" placeholder="搜索能力或 Skill"><div id="native-options"></div><p class="native-picker-note">选择后放入输入框，发送时交给 Agent。</p><footer class="native-picker-footer"><a href="../engineering-profile/default.html" target="_blank" rel="noopener">技能设置 ↗</a></footer>';
   options();ChatPopup.show(picker,'[data-native-action=invoke]',640);document.getElementById('native-query').focus();
  }
- function choose(item){const c=N.context();if(['原生能力','Skill'].includes(item.kind))c.capability=item;else if(!c.refs.some(r=>r.id===item.id))c.refs.push(item);
+ function choose(item){if(!item||!['原生能力','Skill'].includes(item.kind))return;const c=N.context();c.capability=item;
   if(prefix&&M.owner().draft===prefix)M.owner().draft='';
   if(picker.open)close(false);P.render();input().focus();M.save();
  }
- function trigger(){const text=M.owner().draft;if(text==='/'||text==='@')open(text==='/'?'capabilities':'refs',text)}
+ function trigger(){const text=M.owner().draft;if(text==='/')open(text)}
  function openTask(id){
   const t=N.task(id);if(!t||t.unavailable)throw Error('待办不可访问，对话和草稿保持。');if(!N.inScope(t.project))throw Error('待办不在当前产品范围。');
   const existing=M.state.sessions.find(s=>s.thread===t.thread);if(existing){P.select(existing.id);return}

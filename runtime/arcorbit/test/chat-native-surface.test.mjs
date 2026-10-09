@@ -16,21 +16,31 @@ function setup(){
  const startLoad=async()=>{surface.render();};
  return {document,window,surface,state,calls,result,startLoad,setOwner(p,s){project=p;session=s}};
 }
-test('picker excludes directory candidates and preserves file, task and capability selection',async()=>{
+test('picker exposes only capabilities and skills while preserving legacy references',async()=>{
  const h=setup(),picker=h.document.querySelector('.chat-capability-menu');
+ h.state.native_context.refs=[{id:'README.md',path:'README.md',label:'README.md',kind:'file'}];
  picker.open=true;picker.close=()=>{};
  await h.startLoad();
- h.calls[0].resolve({...h.result('task'),capabilities:[{id:'create',kind:'native',label:'创建待办'}],skills:[{id:'skill',kind:'skill',label:'Skill'}],files:[{id:'src',path:'src',label:'src',kind:'file',directory:true},{id:'README.md',path:'README.md',label:'README.md',kind:'file',directory:false}]});
+ h.calls[0].resolve({...h.result('task'),capabilities:[{id:'create',kind:'native',label:'创建待办'},{id:'misfiled-task',kind:'task',label:'错误归类待办'}],skills:[{id:'skill',kind:'skill',label:'Skill'},{id:'misfiled-file',kind:'file',label:'错误归类文件'}],files:[{id:'src',path:'src',label:'src',kind:'file',directory:true},{id:'README.md',path:'README.md',label:'README.md',kind:'file',directory:false}]});
  await tick();
  const picks=[...picker.querySelectorAll('[data-pick]')];
- assert.deepEqual(picks.map(b=>b.dataset.pick),['native:create','skill:skill','file:README.md','task:T1']);
+ assert.deepEqual(picks.map(b=>b.dataset.pick),['native:create','skill:skill']);
  assert.equal(picker.querySelector('[data-up]'),null);
- assert.doesNotMatch(picker.textContent,/文件夹|上级目录/);
+ assert.doesNotMatch(picker.textContent,/引用上下文|项目文件|待办 ·|文件夹|上级目录/);
+ assert.equal(picker.querySelector('input').getAttribute('placeholder'),'搜索能力或 Skill');
  assert.equal(h.calls[0].query.path,undefined);
  for(const button of picks)button.click();
  assert.equal(h.state.native_context.capability.id,'skill');
- assert.deepEqual(h.state.native_context.refs.map(r=>r.id),['README.md','T1']);
- assert.equal(h.calls.length,1,'selecting references does not load a directory');
+ assert.deepEqual(h.state.native_context.refs.map(r=>r.id),['README.md']);
+ assert.equal(h.calls.length,1,'selecting a capability does not reload the catalog');
+});
+test('@ remains ordinary input and does not open the picker',async()=>{
+ const h=setup(),input=h.document.getElementById('chatInput'),picker=h.document.querySelector('.chat-capability-menu');
+ await h.startLoad();
+ input.value='@';input.dispatchEvent(new h.window.Event('input',{bubbles:true}));
+ assert.equal(Boolean(picker.open),false);
+ assert.equal(h.state.draft,'');
+ assert.equal(h.calls.length,1);
 });
 test('native rendering is read-only and identical in-flight catalog requests are shared',async()=>{
  const h=setup();await h.startLoad();const count=h.calls.length;

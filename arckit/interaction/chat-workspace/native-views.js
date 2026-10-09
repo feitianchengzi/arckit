@@ -8,7 +8,7 @@
   base();N.init();const s=M.current(),o=M.owner(),c=N.context();
   document.querySelector('.chat-compose-controls').insertAdjacentHTML('afterbegin',button('invoke','＋ 能力与引用','aria-haspopup="dialog"'));
   document.querySelector('#chat-input').insertAdjacentHTML('beforebegin',`<div class="native-chips" id="native-chips">${chips(c,true)}</div>`);
-  document.querySelector('#chat-input').placeholder=c.capability?.id==='create'?'描述要在当前项目记下的事情…':'发送消息；/ 调用能力，@ 引用上下文…';
+  document.querySelector('#chat-input').placeholder=c.capability?.id==='create'?'描述要在当前项目记下的事情…':'发送消息；/ 调用能力…';
   document.querySelector('.chat-compose-controls a').remove();
   document.querySelectorAll('.chat-compose-controls label').forEach(el=>el.remove());
   document.querySelector('[data-native-action=invoke]').insertAdjacentHTML('afterend',button('model-settings',`模型能力 · ${esc(o.level)}`,`aria-haspopup="dialog" title="${esc(o.model)} · ${esc(o.level)}"`));

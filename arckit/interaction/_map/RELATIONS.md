@@ -112,13 +112,13 @@ Chat 的会话列表稳定定位、五条递增与折叠重置，以及双向尺
 
 ## Chat 原生待办能力与统一输入
 
-chat-workspace/interaction.md 定义当前项目待办与会话同一 thread、创建来源独立呈现、Agent 原生读写及统一能力/Skill/上下文选择。中央对话顶栏固定为 64px，只突出标题与 Product Workspace，重命名/删除收纳到统一菜单；待办整理、状态和关联身份留在 Composer、右栏或对象卡片。default.html 组合旧有 Chat 会话、账户和布局原型与 native-model.js、native-views.js、native-input.js；正式运行不引用 _explorations/。
+chat-workspace/interaction.md 定义当前项目待办与会话同一 thread、创建来源独立呈现、Agent 原生读写，以及“能力与引用”只选择原生能力/Skill、不再提供文件或待办候选。中央对话顶栏固定为 64px，只突出标题与 Product Workspace，重命名/删除收纳到统一菜单；待办整理、状态和关联身份留在 Composer、右栏或对象卡片。default.html 组合旧有 Chat 会话、账户和布局原型与 native-model.js、native-views.js、native-input.js；正式运行不引用 _explorations/。
 
 Chat 会话标签以 session 为准，待办标签以 task 为准；关联身份在右栏待办详情与卡片展示，关联对象进入同一 Chat。任务身份与能力机制参考 project-workbench；Work 继续承担完整属性与验收，Engineering 继续管理技能配置。选择某条 Skill 只作用于本条输入，不变更全局配置。原型样本数据库分别隔离，不作为生产任务/thread 分叉的设计要求。
 
 采纳来源：_explorations/chat-todo/exploration.md（2026-09-19）。验证：chat-workspace/verification.json、verification-native.json。spec/agentic-software-development/arcorbit-planned-workspaces.md 与 tech/arcorbit/project-workbench-solution.md 的能力边界需依正式交互同步；本轮未宣称生产实现完成。visual 组件目录可进一步登记能力选择器/上下文标签/回执卡片，现页面消费既有正式 Token 和通用组件规则。
 
-Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保留关联、整理、引用与读写待办能力。
+Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保留关联、整理与读写待办能力，但 Composer 选择器不再提供待办引用。
 
 - Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../chat-workspace/interaction.md`。
 
