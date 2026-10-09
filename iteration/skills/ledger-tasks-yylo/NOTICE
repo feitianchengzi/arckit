@@ -1,0 +1,4 @@
+ledger-tasks-yylo
+Adapted from YYLO Skills (https://github.com/yylo-dev/yylo-skills), skills/ledger-tasks-yylo, MIT License, Copyright (c) 2026 JUNO AI INC.
+
+Localization adaptation for Arckit: rewritten in Chinese under the Arckit skill folder conventions (trigger/exclusion description, 使用边界 / 模式选择 / 入口授权门禁 / 操作协议 / 最终汇报 sections); the full command reference was moved into references/command-reference.md to keep SKILL.md focused; upstream-internal controller bootstrap and orchestration details not needed for task-board operation were trimmed. Upstream remains the source of truth for future updates.
