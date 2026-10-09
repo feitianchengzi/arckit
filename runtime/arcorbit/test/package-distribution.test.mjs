@@ -112,6 +112,7 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     assert.equal(config.appId, "com.feitianchengzi.arckit.runtime");
     assert.equal(config.productName, "ArcOrbit");
     assert.equal(config.executableName, "arcorbit");
+    assert.equal(config.icon, "build/icon.png");
     assert.equal(config.afterPack, "scripts/flip-electron-fuses.cjs");
     const fuseHook = await readFile(path.join(runtimeRoot, config.afterPack), "utf8");
     assert.match(fuseHook, /\[FuseV1Options\.RunAsNode\]: false/);
