@@ -28,10 +28,12 @@ try {
  click('[data-member-add] .secondary-button');await wait();const focused=document.activeElement?.dataset.projectMemberAdd==='11';
  click('[data-project-member-add="11"]');await wait();click('[data-organization-project-open="12"]');await wait();const staleClosed=!root();
  const calls=await window.arckitDesktop.getTestCalls();const adds=calls.filter(x=>x[0]==='project.member.add');
- return {memberDenied,existingDisabled,matches,contextVisible,hiddenSelectionVisible,emptySearchSelectionVisible,success,refreshed,focused,staleClosed,adds};
+ const candidateLoads=calls.filter(x=>x[0]==='project.member.candidates');
+ return {memberDenied,existingDisabled,matches,contextVisible,hiddenSelectionVisible,emptySearchSelectionVisible,success,refreshed,focused,staleClosed,adds,candidateLoads};
  })()`);
  console.log(JSON.stringify(result));
- if(!result.memberDenied||!result.existingDisabled||result.matches!==1||!result.contextVisible||!result.hiddenSelectionVisible||!result.emptySearchSelectionVisible||!result.success||!result.refreshed||!result.focused||!result.staleClosed||result.adds.length!==1||result.adds[0][1].organization_member_id!=='501')process.exitCode=1;
+ const accountId='22d52ac6-1cf7-41a9-8314-a1cc0b95de2c';
+ if(!result.memberDenied||!result.existingDisabled||result.matches!==1||!result.contextVisible||!result.hiddenSelectionVisible||!result.emptySearchSelectionVisible||!result.success||!result.refreshed||!result.focused||!result.staleClosed||result.adds.length!==1||result.adds[0][1].organization_member_id!=='501'||result.adds[0][1].account_id!==accountId||!result.candidateLoads.length||result.candidateLoads.some(x=>x[1].account_id!==accountId))process.exitCode=1;
 } catch(error){console.error(error);process.exitCode=1;} finally {window.destroy();app.quit();}
 
 });

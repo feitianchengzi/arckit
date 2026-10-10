@@ -63,9 +63,10 @@ const chatMessages = chatStreamPerformanceTest ? {
 } : {};
 let selectedChatSessionId = chatStreamPerformanceTest ? "CHAT-A" : chatContentOverflowTest ? "CHAT-OVERFLOW" : "";
 let failedFeedbackV2ImagePreview = false;
+const memberAddAccountId = process.env.ARCORBIT_MEMBER_ADD_UUID_FIXTURE === "1" ? "22d52ac6-1cf7-41a9-8314-a1cc0b95de2c" : "7";
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
-  user: { id: "7", name: "Glare" },
+  user: { id: memberAddAccountId, name: "Glare" },
   local_projects: [{ id: "local-11", name: "ArcOrbit Local", path: "/repo/arcorbit" }],
   projects: [
     { id: "11", name: "ArcOrbit", local_project_id: "local-11", participating: true, eligible: true, source_status: "healthy", task_counts: { pending: 1 } },
@@ -115,7 +116,7 @@ const tags = [
   { id: "203", project_id: "12", project_name: "Workshop Todo", name: "[Docs](#ff2563eb)" }
 ];
 const platform = {
-  generated_at: "2026-08-18T00:00:00Z", source_status: "healthy", user: { id: "7", name: "Glare" },
+  generated_at: "2026-08-18T00:00:00Z", source_status: "healthy", user: { id: memberAddAccountId, name: "Glare" },
   worksets: [{ id: "WORKSET-DEFAULT", name: "核心推进", project_ids: ["11", "12"] }],
   active_workset: { id: "WORKSET-DEFAULT", name: "核心推进", project_ids: ["11", "12"] },
   projects, organizations: [{ id: "31", name: "飞天橙子", description: "产品组织" }],

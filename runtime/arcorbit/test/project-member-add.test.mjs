@@ -23,10 +23,37 @@ test('direct add adapter sends only relation id, traverses organization pages, n
 
 function coordinatorFixture(role='owner') {
  let account='7';const writes=[];
- const source={ listProjects:async()=>[{id:'11',organization_id:'31'}], listProjectMembers:async()=>[{id:'20',user_id:'7',role}],listOrganizationMembers:async()=>[target],addProjectMember:async(id,input)=>{writes.push([id,input]);return {id:88,project_id:11,user_id:17,role:"member"};} };
+ const source={ listProjects:async()=>[{id:'11',organization_id:'31'}], listProjectMembers:async()=>[{id:'20',user_id:'7',role,is_me:true}],listOrganizationMembers:async()=>[target],addProjectMember:async(id,input)=>{writes.push([id,input]);return {id:88,project_id:11,user_id:17,role:"member"};} };
  const coordinator=createPlatformCoordinator({platformSource:source,runManager:{},workSync:{},automationCoordinator:{getSnapshot:async()=>({user:{id:account}})}});
  return {source,coordinator,writes,setAccount:id=>account=id};
 }
+test('UUID session identity resolves the numeric acting member from the fresh is_me relation',async()=>{
+ const accountId='22d52ac6-1cf7-41a9-8314-a1cc0b95de2c';
+ const f=coordinatorFixture();f.setAccount(accountId);
+ const candidates=await f.coordinator.executeAction('project.member.candidates',{project_id:'11',account_id:accountId});
+ assert.equal(candidates.status,'ready');assert.equal(candidates.candidates[0].id,'91');
+ const added=await f.coordinator.executeAction('project.member.add',{project_id:'11',account_id:accountId,organization_member_id:'91'});
+ assert.equal(added.status,'completed');assert.deepEqual(f.writes,[['11',{organization_member_id:'91'}]]);
+});
+test('UUID session identity fails closed when the fresh current-member relation is missing or ambiguous',async()=>{
+ const accountId='22d52ac6-1cf7-41a9-8314-a1cc0b95de2c';
+ for(const members of [
+  [{id:'20',user_id:'7',role:'owner'}],
+  [{id:'20',user_id:'7',role:'owner',is_me:true},{id:'21',user_id:'8',role:'admin',is_me:true}]
+ ]) {
+  const f=coordinatorFixture();f.setAccount(accountId);f.source.listProjectMembers=async()=>members;
+  const result=await f.coordinator.executeAction('project.member.candidates',{project_id:'11',account_id:accountId});
+  assert.equal(result.error.status,403);assert.equal(f.writes.length,0);
+ }
+});
+test('numeric session identity remains compatible when the fresh relation omits is_me',async()=>{
+ const f=coordinatorFixture();
+ f.source.listProjectMembers=async()=>[{id:'20',user_id:'7',role:'owner'}];
+ const candidates=await f.coordinator.executeAction('project.member.candidates',{project_id:'11',account_id:'7'});
+ assert.equal(candidates.status,'ready');assert.equal(candidates.candidates[0].id,'91');
+ const added=await f.coordinator.executeAction('project.member.add',{project_id:'11',account_id:'7',organization_member_id:'91'});
+ assert.equal(added.status,'completed');assert.deepEqual(f.writes,[['11',{organization_member_id:'91'}]]);
+});
 test('bounded main command rejects non-admin, wrong account and target; preserves fixed add input',async()=>{
  for(const role of ['member','']) {
   const f=coordinatorFixture(role);const r=await f.coordinator.executeAction('project.member.add',{project_id:'11',account_id:'7',organization_member_id:'91'});
