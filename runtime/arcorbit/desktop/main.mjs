@@ -273,6 +273,9 @@ app.whenReady().then(async () => {
   chatFiles=createChatFiles({runManager,getAccountScope:workbenchAccountScope,
     authorizeSession:(session,context)=>chatNative.authorizeSession(session,context),
     trashItem:path=>shell.trashItem(path),revealItem:path=>shell.showItemInFolder(path)});
+  chatFiles.onEvent(event => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('arckit:chat-files-event', event);
+  });
   chatGit = createChatGit({ runManager, getAccountScope: workbenchAccountScope,
     authorizeSession: (session, context) => chatNative.authorizeSession(session, context) });
   chatGit.onEvent(event => {
@@ -446,6 +449,7 @@ app.on("before-quit", async (event) => {
     }
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
+    chatFiles?.close();
     chatGit?.close();
     await chatNative?.close();
     await projectWorkbench?.close();
@@ -493,8 +497,8 @@ async function createWindow({ show = true } = {}) {
 
   chatFilesLeave.install(mainWindow, {isQuitting: () => quitAfterCleanup, resumeQuit: () => app.quit()});
   mainWindow.on('focus', () => { void chatGit?.refreshAll(); });
-  mainWindow.webContents.on('did-start-loading', () => chatGit?.close());
-  mainWindow.on('closed', () => chatGit?.close());
+  mainWindow.webContents.on('did-start-loading', () => { chatFiles?.close(); chatGit?.close(); });
+  mainWindow.on('closed', () => { chatFiles?.close(); chatGit?.close(); });
   const rendererEntry = join(desktopDir, "renderer/index.html");
   const rendererUrl = pathToFileURL(rendererEntry).href;
   installMainWindowNavigationBoundary(mainWindow.webContents, rendererUrl);
@@ -706,6 +710,7 @@ function registerIpc() {
   ipcMain.handle("arckit:auth-login", async (_event, input) => {
     if (!await chatFilesLeave.request()) throw new Error("已取消账号切换，文件草稿保留。");
     const authentication = await workshopService.loginWithCode(input);
+    chatFiles?.close();
     chatGit?.close();
     await workSyncCoordinator.reconcile({ reason: "login" });
     productFeedbackService.refreshUnread().catch(() => {});
@@ -726,6 +731,7 @@ function registerIpc() {
       await automationCoordinator.stopAll();
     }
     await releaseCoordinator?.closeScope();
+    chatFiles?.close();
     chatGit?.close();
     await projectWorkbench?.close();
     const authentication = await workshopService.logout();

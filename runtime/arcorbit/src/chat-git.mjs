@@ -1,10 +1,8 @@
-import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { chatRoot } from './chat-workspace-files.mjs';
+import { chatRoot, chatWorkspaceToken } from './chat-workspace-files.mjs';
 import { createChatGitDetails } from './chat-git-details.mjs';
 import { createChatGitObserver } from './chat-git-observer.mjs';
 
-const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function createChatGit({ runManager, getAccountScope, authorizeSession,
   observer = createChatGitObserver(), details = createChatGitDetails() }) {
   const bindings = new Map(), events = new EventEmitter();
@@ -20,9 +18,9 @@ export function createChatGit({ runManager, getAccountScope, authorizeSession,
       throw Error('当前账号无法访问此工作区。');
     }
     const root = await chatRoot(project.path);
-    const key = hash([account || 'local', root.path, root.identity]);
+    const key = chatWorkspaceToken({ account, projectId, projectPath: project.path, root });
     return { project_id: projectId, root: root.path, key,
-      workspace: hash([projectId, project.path, key]) };
+      workspace: key };
   }
   async function assertCurrent(binding) {
     if (bindings.get(binding.project_id) !== binding || (await owner(binding.project_id)).workspace !== binding.workspace) {

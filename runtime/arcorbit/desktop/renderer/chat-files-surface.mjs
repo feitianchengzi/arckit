@@ -1,5 +1,6 @@
-import { createChatFilesState, fileParent, fileName, fileDirty } from './chat-files-state.mjs';
+import { createChatFilesState, fileParent, fileName, fileDirty, fileFocusFallback } from './chat-files-state.mjs';
 import { createFileDialog, fileEscape as esc } from './chat-files-dialog.mjs';
+import { projectFileGitStatus } from './chat-file-git-status.mjs';
 const button = (action, label, path = '', extra = '') => `<button type="button" data-chat-file="${action}" data-path="${esc(path)}" ${extra}>${label}</button>`;
 const language = path => ({js:'javascript',mjs:'javascript',cjs:'javascript',ts:'typescript',tsx:'typescript',jsx:'javascript',md:'markdown',css:'css',html:'html',py:'python',go:'go'})[path.split('.').pop()] || 'plaintext';
 const treeIcon = kind => kind === 'directory'
@@ -8,7 +9,7 @@ const treeIcon = kind => kind === 'directory'
 let vendorPromise;
 const vendor = () => vendorPromise ||= import('./vendor/release-vendor.js').catch(e => {vendorPromise=null;throw e;});
 
-export function createChatFilesSurface({api, coordinator, getOwner, isVisible, getPanel, setPanel, closeList, openList, notify, setChatSuspended = () => {}}) {
+export function createChatFilesSurface({api, coordinator, getOwner, isVisible, getPanel, setPanel, closeList, openList, notify, setChatSuspended = () => {}, getGitState = () => null, refreshGit = async () => {}}) {
   const root = document.getElementById('chatView'), main = root.querySelector('.chat-main'), sidebar = document.getElementById('chatSessionsPanel');
   const treeHost = document.createElement('section'); treeHost.id = 'chatFilesTree'; treeHost.className = 'chat-files-tree-host'; sidebar.append(treeHost);
   const tabs = document.createElement('div'); tabs.className = 'chat-file-tabs'; tabs.setAttribute('role','tablist'); tabs.setAttribute('aria-label','Chat 和文件'); main.prepend(tabs);
@@ -16,23 +17,49 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
   const menu = document.createElement('div'); menu.className = 'chat-file-menu'; menu.hidden = true; menu.role = 'menu'; document.body.append(menu);
   const dialog = createFileDialog();
   const model = createChatFilesState({api, changed: render});
-  let editor, monacoApi, attached, editorRequest = 0, menuSession, menuPath, menuAnchor, cursor = {start:0,end:0}, lastTabs = '', lastTree = '';
+  let editor, monacoApi, attached, editorRequest = 0, menuSession, menuPath, menuAnchor, cursor = {start:0,end:0}, lastTabs = '', lastTree = '', lastGit = null, wasVisible = false;
   const active = () => {const s=model.current();return s?.tabs.find(t=>t.path===s.active);};
   const ownerMatches = s => model.current() === s && s.owner.project_id === getOwner().project_id;
   const assertOwner = s => {if(!ownerMatches(s))throw Error('项目已切换，旧文件操作已取消。');};
   const focusRow = path => [...treeHost.querySelectorAll('[data-file-row]')].find(n=>n.dataset.fileRow===path)?.focus();
   const hideMenu = (restore=false) => {menu.hidden=true;if(restore){if(menuAnchor?.isConnected)menuAnchor.focus();else focusRow(menuPath);}};
-  function treeRows(s, dir='', depth=1) {
+  const gitBadge = status => status ? `<span class="chat-file-git chat-file-git-${status.category}" title="${esc(status.meaning)}" aria-hidden="true">${status.markers ? status.markers.map(item=>`<span>${esc(item.code)}</span>`).join('') : `<span>${esc(status.label)}</span>`}</span>` : '';
+  function gitView(s) {
+    const state = getGitState(s.owner.project_id);
+    if (!state || state.workspace !== s.workspace) return {projection:null,notice:''};
+    let projection = lastGit?.workspace === s.workspace ? lastGit.projection : null, projectionError = '';
+    if (state.value) {
+      try { projection = projectFileGitStatus(state.value); lastGit = {workspace:s.workspace,projection}; }
+      catch (error) { projectionError = error.message; }
+    }
+    const problem = projectionError || state.error || (state.unavailable ? 'Git 状态暂不可用。' : '');
+    if (projection?.kind === 'not_repository' && !problem) return {projection,notice:'此工作区不是 Git 仓库。'};
+    if (!problem && !state.stale) return {projection,notice:''};
+    const message = problem || 'Git 状态可能已过期。';
+    return {projection,notice:`${esc(message)}${button('git-refresh','重试 Git 状态')}`};
+  }
+  function treeRows(s, git, dir='', depth=1) {
     const state=s.directories.get(dir);
     if(!state)return button('load','加载目录',dir);
-    return (state.error?`<p role="alert">${esc(state.error)}${button('load','重试',dir)}</p>`:'')+state.entries.map(e=>`<div class="chat-file-row" role="treeitem" tabindex="${s.selected===e.path?0:-1}" aria-level="${depth}" aria-selected="${s.selected===e.path}" ${e.kind==='directory'?`aria-expanded="${s.expanded.has(e.path)}"`:''} data-file-row="${esc(e.path)}" style="--depth:${depth}">${button('open',`${treeIcon(e.kind)}<span>${esc(e.name)}</span>${e.kind==='link'?'<small>链接</small>':''}`,e.path,'class="chat-file-name" tabindex="-1"')}${button('menu','⋯',e.path,`aria-label="${esc(e.name)} 更多操作" class="chat-file-more" tabindex="-1"`)}</div>${e.kind==='directory'&&s.expanded.has(e.path)?`<div role="group">${treeRows(s,e.path,depth+1)}</div>`:''}`).join('')+(state.loading?'<p role="status">正在读取…</p>':state.next_offset!=null?button('more',`加载更多（剩余 ${state.total-state.entries.length} 项）`,dir):!state.entries.length&&!state.error?'<p class="chat-file-empty">空文件夹</p>':'');
+    return (state.error?`<p role="alert">${esc(state.error)}${button('load','重试',dir)}</p>`:'')+state.entries.map(e=>{const status=e.kind==='directory'?git?.directories.get(e.path):git?.files.get(e.path),gitLabel=status?`，${status.meaning.startsWith('Git：')?'':'Git：'}${status.meaning}`:'';return `<div class="chat-file-row" role="treeitem" tabindex="${s.selected===e.path?0:-1}" aria-level="${depth}" aria-selected="${s.selected===e.path}" ${e.kind==='directory'?`aria-expanded="${s.expanded.has(e.path)}"`:''} data-file-row="${esc(e.path)}" style="--depth:${depth}">${button('open',`${treeIcon(e.kind)}<span>${esc(e.name)}</span>${e.kind==='link'?'<small>链接</small>':''}${gitBadge(status)}`,e.path,`class="chat-file-name" tabindex="-1" aria-label="${esc(e.name+gitLabel)}"`)}${button('menu','⋯',e.path,`aria-label="${esc(e.name)} 更多操作" class="chat-file-more" tabindex="-1"`)}</div>${e.kind==='directory'&&s.expanded.has(e.path)?`<div role="group">${treeRows(s,git,e.path,depth+1)}</div>`:''}`;}).join('')+(state.loading?'<p role="status">正在读取…</p>':state.next_offset!=null?button('more',`加载更多（剩余 ${state.total-state.entries.length} 项）`,dir):!state.entries.length&&!state.error?'<p class="chat-file-empty">空文件夹</p>':'');
   }
   function render() {
     const s=model.current(), t=active();
     if (!ownerMatches(s || {owner:{}})) hideMenu();
     treeHost.hidden=getPanel()!=='files';
-    const html=s?`<div class="chat-file-tree-tools"><strong>${esc(s.name)}</strong>${button('menu','⋯','',`class="chat-file-root-menu" data-root-menu="true" aria-label="${esc(s.name)} 项目根目录更多操作"`)}</div>${s.error?`<p role="alert">${esc(s.error)}</p>`:''}${s.invalid?button('discard-workspace','放弃旧工作区草稿并重新打开'):''}<div class="chat-file-tree" role="tree" aria-label="项目文件">${treeRows(s)}</div>${s.opening?.size?'<p role="status">正在打开文件…</p>':''}`:`<p role="status">${esc(model.error()||'正在读取工作区…')}</p>${button('context-retry','重试')}`;
-    if(html!==lastTree){const scroll=treeHost.querySelector('.chat-file-tree')?.scrollTop||0;const focus=document.activeElement?.dataset.fileRow;treeHost.innerHTML=html;lastTree=html;const tree=treeHost.querySelector('.chat-file-tree');if(tree)tree.scrollTop=scroll;if(focus)focusRow(focus);if(!treeHost.querySelector('[tabindex="0"]'))treeHost.querySelector('[data-file-row]')?.setAttribute('tabindex','0');}
+    const git=s?gitView(s):{projection:null,notice:''}, rootGit=git.projection?.directories.get('');
+    const html=s?`<div class="chat-file-tree-tools"><strong${rootGit?` title="${esc(rootGit.meaning)}" aria-label="${esc(s.name+'，'+rootGit.meaning)}"`:''}>${esc(s.name)}</strong>${gitBadge(rootGit)}${button('menu','⋯','',`class="chat-file-root-menu" data-root-menu="true" aria-label="${esc(s.name)} 项目根目录更多操作"`)}</div>${s.error?`<p role="alert">${esc(s.error)}</p>`:''}${s.watch_error?`<p class="chat-file-stale" role="status">文件变化监听受限，正在定期核对。${esc(s.watch_error)}</p>`:''}${git.notice?`<p class="chat-file-stale" role="status">${git.notice}</p>`:''}${s.invalid?button('discard-workspace','放弃旧工作区草稿并重新打开'):''}<div class="chat-file-tree" role="tree" aria-label="项目文件">${treeRows(s,git.projection)}</div>${s.opening?.size?'<p role="status">正在打开文件…</p>':''}`:`<p role="status">${esc(model.error()||'正在读取工作区…')}</p>${button('context-retry','重试')}`;
+    if(html!==lastTree){
+      const scroll=treeHost.querySelector('.chat-file-tree')?.scrollTop||0, oldRows=[...treeHost.querySelectorAll('[data-file-row]')], before=oldRows.map(row=>row.dataset.fileRow);
+      const focus=document.activeElement?.closest?.('[data-file-row]')?.dataset.fileRow||'';
+      treeHost.innerHTML=html;lastTree=html;
+      const tree=treeHost.querySelector('.chat-file-tree'), newRows=[...treeHost.querySelectorAll('[data-file-row]')], after=newRows.map(row=>row.dataset.fileRow), recovery=s?.focusRecovery;
+      if(tree)tree.scrollTop=scroll;
+      const focusTarget=focus&&(after.includes(focus)?focus:(recovery?.removed===focus?recovery.target:fileFocusFallback(focus,before,after)));
+      if(!treeHost.querySelector('[tabindex="0"]'))(newRows.find(row=>row.dataset.fileRow===(recovery?.target||focusTarget))||newRows[0])?.setAttribute('tabindex','0');
+      if(focusTarget)focusRow(focusTarget);
+      if(s)s.focusRecovery=null;
+    }
     tabs.hidden=!s?.tabs.length;
     const tabHtml=s?button('chat','Chat','','role="tab" aria-selected="'+!s.active+'"')+s.tabs.map(x=>`<span class="chat-file-tab">${button('tab',`${esc(fileName(x.path))}${s.tabs.some(y=>y!==x&&fileName(y.path)===fileName(x.path))?' · '+esc(fileParent(x.path)):''}${fileDirty(x)?' ●':''}`,x.path,`role="tab" title="${esc(x.path)}" aria-selected="${s.active===x.path}"`)}${button('close','×',x.path,`aria-label="关闭 ${esc(x.path)}"`)}</span>`).join('')+button('show-files','文件','','class="chat-file-drawer-toggle"'):'';
     if(tabHtml!==lastTabs){tabs.innerHTML=tabHtml;lastTabs=tabHtml;const chosen=tabs.querySelector('[aria-selected="true"]')?.closest('.chat-file-tab');if(chosen){const r=chosen.getBoundingClientRect(),b=tabs.getBoundingClientRect();if(r.right>b.right)tabs.scrollLeft+=r.right-b.right;}}
@@ -77,12 +104,13 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
     if(name==='context-retry'){return model.select(getOwner(),true);}
     if(name==='show-files'){setPanel('files');openList();return;}
     if(!s)return;assertOwner(s);
+    if(name==='git-refresh'){return refreshGit(s.owner.project_id);}
     const t=s.tabs.find(t=>t.path===(path||s.active)), entry=[...s.directories.values()].flatMap(d=>d.entries).find(e=>e.path===(path||s.selected));
     if(name==='chat'){s.active='';render();document.getElementById('chatInput').focus();return;}
     if(name==='tab'){s.active=path;render();await model.check(s,t);return;}
     if(name==='open'){
       s.selected=path;
-      if(entry?.kind==='directory'){if(s.expanded.has(path))s.expanded.delete(path);else{s.expanded.add(path);if(!s.directories.has(path))await model.list(s,path);}render();focusRow(path);return;}
+      if(entry?.kind==='directory'){await model.setExpanded(s,path,!s.expanded.has(path));render();focusRow(path);return;}
       const tab=await model.openFile(s,path);if(tab&&ownerMatches(s)){closeList();render();editor?.focus();}return;
     }
     if(name==='refresh'){await model.select(getOwner(),true);if(model.current()===s&&!s.invalid)await model.refresh(s);return;}
@@ -106,7 +134,7 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
     if(name==='new-file'||name==='new-directory'||name==='new-file-root'||name==='new-directory-root'||name==='rename'){
       const rootCreate=name.endsWith('-root'),createAction=rootCreate?name.slice(0,-5):name;
       const target=rootCreate?'':path||s.selected,dir=rootCreate?'':entry?.kind==='directory'?target:fileParent(target);
-      return dialog.show({title:name==='rename'?'重命名':createAction==='new-file'?'新建文件':'新建文件夹',body:`<p>${esc(name==='rename'?target:dir||'工作区根目录')}</p><label>名称<input name="name" required value="${esc(name==='rename'?fileName(target):'')}"></label>`,actions:[{label:'确定',run:async data=>{assertOwner(s);if(name==='rename')await model.rename(s,target,data.get('name'));else{const result=await model.command(s,createAction==='new-file'?'create-file':'create-directory',{path:dir,name:data.get('name')});s.expanded.add(dir);s.selected=result.path;await model.list(s,dir);if(createAction==='new-file')await model.openFile(s,result.path);}render();}}]});
+      return dialog.show({title:name==='rename'?'重命名':createAction==='new-file'?'新建文件':'新建文件夹',body:`<p>${esc(name==='rename'?target:dir||'工作区根目录')}</p><label>名称<input name="name" required value="${esc(name==='rename'?fileName(target):'')}"></label>`,actions:[{label:'确定',run:async data=>{assertOwner(s);if(name==='rename')await model.rename(s,target,data.get('name'));else{const result=await model.command(s,createAction==='new-file'?'create-file':'create-directory',{path:dir,name:data.get('name')});await model.setExpanded(s,dir,true);s.selected=result.path;await model.reconcile(s,dir);if(createAction==='new-file')await model.openFile(s,result.path);}render();}}]});
     }
     if(name==='trash'){
       const targets=model.affected(s,path),dirty=targets.some(fileDirty);
@@ -128,7 +156,7 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
       if(['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Home','End','Enter','F2','ContextMenu'].includes(e.key)||(e.shiftKey&&e.key==='F10'))e.preventDefault();
       if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){const next=rows[e.key==='Home'?0:e.key==='End'?rows.length-1:Math.max(0,Math.min(rows.length-1,i+(e.key==='ArrowDown'?1:-1)))];s.selected=next.dataset.fileRow;render();focusRow(s.selected);}
       if(e.key==='Enter'||e.key==='ArrowRight'&&!s.expanded.has(path))void run('open',path);
-      if(e.key==='ArrowLeft'){if(s.expanded.has(path)){s.expanded.delete(path);render();focusRow(path);}else focusRow(fileParent(path));}
+      if(e.key==='ArrowLeft'){if(s.expanded.has(path)){void model.setExpanded(s,path,false).then(()=>focusRow(path));}else focusRow(fileParent(path));}
       if(e.key==='F2')void run('rename',path);
       if(e.key==='ContextMenu'||e.shiftKey&&e.key==='F10')showMenu(path,row);
     }
@@ -138,5 +166,5 @@ export function createChatFilesSurface({api, coordinator, getOwner, isVisible, g
   window.addEventListener('focus',()=>{if(isVisible())void model.select(getOwner(),true).then(()=>{const s=model.current();if(s&&!s.invalid)for(const t of s.tabs)void model.check(s,t);});});
   window.addEventListener('beforeunload',e=>{if(model.dirty().length||model.pendingSaves().length){e.preventDefault();e.returnValue=false;}});
   async function prepareLeave(){await model.settleSaves();const dirty=model.dirty();if(!dirty.length)return true;return dialog.show({title:'保存文件修改后离开？',body:`<p>${dirty.map(({s,t})=>esc(s.name+' / '+t.path)).join('<br>')}</p>`,actions:[{label:'全部保存并继续',run:async()=>{for(const {s,t} of dirty)await model.save(s,t);if(model.dirty().length)throw Error('仍有未保存修改，请处理后继续。');}},{label:'放弃修改并继续',run:async()=>{model.reset();}}]});}
-  return {sync(){if(isVisible())void model.select(getOwner());render();},prepareLeave,reset:model.reset,model,editor:()=>editor,fileActive:()=>Boolean(active())};
+  return {sync(){const visible=isVisible();if(visible)void model.select(getOwner());else if(wasVisible)void model.deactivate();wasVisible=visible;render();},prepareLeave,reset(){lastGit=null;wasVisible=false;model.reset();},model,editor:()=>editor,fileActive:()=>Boolean(active())};
 }

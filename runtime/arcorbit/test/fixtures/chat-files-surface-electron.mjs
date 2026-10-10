@@ -11,7 +11,7 @@ const base=await mkdtemp(join(tmpdir(),'arcorbit-files-ui-'));
 const output=process.env.ARCORBIT_TEST_OUTPUT||await mkdtemp(join(tmpdir(),'arcorbit-files-ui-evidence-'));
 await mkdir(output,{recursive:true});app.setPath('userData',join(base,'electron'));app.disableHardwareAcceleration();app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
- let win,result,releaseVendor;const checks=[],errors=[],requests=[];
+ let win,result,releaseVendor,files;const checks=[],errors=[],requests=[];
  try{
   const renderer=dirname(fileURLToPath(new URL('../../desktop/renderer/index.html',import.meta.url)));
   const original=await readFile(join(renderer,'index.html'),'utf8');
@@ -23,7 +23,8 @@ app.whenReady().then(async()=>{
   for(let i=0;i<105;i++)await writeFile(join(root,'many',`item-${i}`),'');
   const store={projects:[{id:'p',name:'Project',path:root},{id:'q',name:'Other',path:join(base,'other')}],sessions:{p:[{id:'s',kind:'chat',project_id:'p'}]}};
   let account='account',metadataFails=false;const drafts=[],revealed=[];
-  const files=createChatFiles({runManager:{readDesktopChatMetadata:async()=>{if(metadataFails)throw Error('temporary fixture context error');return store;}},getAccountScope:async()=>account,authorizeSession:async()=>true,trashItem:path=>rename(path,join(base,'trash',path.split('/').at(-1))),revealItem:async path=>{revealed.push(path);}});
+  files=createChatFiles({runManager:{readDesktopChatMetadata:async()=>{if(metadataFails)throw Error('temporary fixture context error');return store;}},getAccountScope:async()=>account,authorizeSession:async()=>true,trashItem:path=>rename(path,join(base,'trash',path.split('/').at(-1))),revealItem:async path=>{revealed.push(path);}});
+  files.onEvent(event=>{if(win&&!win.isDestroyed())win.webContents.send('arckit:chat-files-event',event);});
   registerChatFilesIpc({ipcMain,files,assertMainRenderer:e=>{if(e.sender!==win.webContents)throw Error('wrong sender');}});
   ipcMain.on('arckit:appearance-initial',e=>{e.returnValue={preference:'light',resolved:'light',revision:0};});
   ipcMain.handle('arckit:chat-create',(_e,input)=>{drafts.push(input);return {saved:true};});
@@ -46,15 +47,38 @@ app.whenReady().then(async()=>{
     const {createConversationSurface}=await import('./conversation-surface.mjs');
     const coordinator=createChatStateCoordinator({api:arckitDesktop,createRequestId:()=>crypto.randomUUID()});
     await coordinator.initialize({projects:[{id:'p',name:'Project'}],sessions:[{id:'s',project_id:'p'}],selected_session_id:'s',draft:{text:'前 后',project_id:'p'}});
-    globalThis.fixture={owner:{session_id:'s',project_id:'p'},panel:'files',coordinator};
+    globalThis.fixture={owner:{session_id:'s',project_id:'p'},panel:'files',visible:true,coordinator,gitState:null,gitRefreshes:0};
     const setPanel=mode=>{fixture.panel=mode;document.getElementById('chatSessionList').hidden=mode!=='sessions';document.getElementById('newChatButton').hidden=mode!=='sessions';document.getElementById('chatTaskInspector').hidden=mode!=='detail';document.getElementById('chatSessionsPanel').classList.toggle('is-files',mode==='files');for(const [id,value]of [['chatSidebarFiles','files'],['chatSidebarTask','detail'],['chatSidebarSessions','sessions']])document.getElementById(id).setAttribute('aria-pressed',String(mode===value));fixture.surface?.sync();};
-    fixture.surface=createChatFilesSurface({api:arckitDesktop,coordinator,getOwner:()=>fixture.owner,isVisible:()=>true,getPanel:()=>fixture.panel,setPanel,setChatSuspended:value=>fixture.conversation?.setSuspended?.(value),
+    fixture.setPanel=setPanel;fixture.surface=createChatFilesSurface({api:arckitDesktop,coordinator,getOwner:()=>fixture.owner,isVisible:()=>fixture.visible,getPanel:()=>fixture.panel,setPanel,setChatSuspended:value=>fixture.conversation?.setSuspended?.(value),
+      getGitState:()=>fixture.gitState,refreshGit:async()=>{fixture.gitRefreshes++;},
       closeList:()=>{document.body.classList.remove('chat-sessions-open');document.querySelector('.chat-main').inert=false;},openList:()=>{document.body.classList.add('chat-sessions-open');document.querySelector('.chat-main').inert=innerWidth<=760;},notify:text=>{fixture.notice=text;}});
     globalThis.arcorbitChatFiles=fixture.surface;setPanel('files');
     fixture.conversation=createConversationSurface({element:document.getElementById('chatTranscript'),jumpButton:document.getElementById('chatJumpLatestButton'),deferOffscreenLayout:true});
     document.getElementById('chatInput').value='前 后';
   })()`);
   await waitFor('Boolean(document.querySelector("[data-file-row]"))');
+  await run(`(()=>{const s=fixture.surface.model.current();fixture.gitState={project_id:'p',workspace:s.workspace,version:1,value:{kind:'repository',files:[{path:'src/app.js',index:'M',working_dir:'M'},{path:'.env',index:'?',working_dir:'?'},{path:'src/deleted.js',index:' ',working_dir:'D'}],conflicted:[]}};fixture.surface.sync()})()`);await pause();
+  assert.equal(await run('document.querySelector("[data-file-row=\\".env\\"] .chat-file-git").textContent'),'?');
+  assert.equal(await run('document.querySelector("[data-file-row=\\"src\\"] .chat-file-git").textContent'),'M');
+  assert.match(await run('document.querySelector("[data-file-row=\\"src\\"] .chat-file-name").getAttribute("aria-label")'),/已跟踪变更 2/);
+  assert.equal(await run('document.querySelector(".chat-file-tree-tools .chat-file-git").textContent'),'M');
+  assert.equal(await run('Boolean(document.querySelector("[data-file-row=\\"src/deleted.js\\"]"))'),false);
+  await shot('file-tree-git-status');
+  await run(`fixture.originalGitState=fixture.gitState;fixture.gitState={...fixture.gitState,workspace:'other-workspace'};fixture.surface.sync()`);await pause();
+  assert.equal(await run('document.querySelectorAll(".chat-file-git").length'),0,'a previous workspace cannot decorate the current tree');
+  await run(`fixture.gitState={...fixture.originalGitState,value:{kind:'not_repository'}};fixture.surface.sync()`);await pause();
+  assert.match(await run('document.querySelector(".chat-file-stale").textContent'),/不是 Git 仓库/);
+  await run(`fixture.gitState=fixture.originalGitState;fixture.surface.sync()`);await pause();
+  await run(`fixture.gitState={...fixture.gitState,stale:true,error:'temporary Git failure'};fixture.surface.sync()`);await pause();
+  assert.equal(await run('document.querySelector("[data-file-row=\\".env\\"] .chat-file-git").textContent'),'?');
+  assert.match(await run('document.querySelector(".chat-file-stale").textContent'),/temporary Git failure/);
+  await action('git-refresh');assert.equal(await run('fixture.gitRefreshes'),1);
+  checks.push('file and ancestor Git markers reuse the matching workspace snapshot, retain trusted markers while stale, expose accessible counts and never create deleted ghost rows');
+  await run('fixture.visible=false;fixture.surface.sync()');await writeFile(join(root,'created-while-away.txt'),'away');await pause();
+  assert.equal(await run('fixture.surface.model.current().directories.get("").entries.some(entry=>entry.path==="created-while-away.txt")'),false);
+  await run('fixture.visible=true;fixture.surface.sync()');await waitFor('Boolean(document.querySelector("[data-file-row=\\"created-while-away.txt\\"]"))');
+  await rm(join(root,'created-while-away.txt'));await waitFor('!document.querySelector("[data-file-row=\\"created-while-away.txt\\"]")');
+  checks.push('leaving Chat releases file observation while same-owner re-entry reconciles changes made away and resumes live events');
   assert.equal(await run('document.querySelectorAll(".chat-file-tree-tools [data-chat-file]").length'),1);
   await rootMenu();assert.deepEqual(await run('[...document.querySelectorAll(".chat-file-menu button")].map(b=>b.textContent)'),['刷新','新建文件','新建文件夹','在系统中显示']);await shot('root-menu');
   win.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});await pause();assert.equal(await run('document.activeElement.dataset.rootMenu'),'true');
@@ -65,6 +89,26 @@ app.whenReady().then(async()=>{
   await action('open','.git');const expandedTree=await run('(()=>{const row=document.querySelector("[data-file-row=\\\".git\\\"]"),icon=row.querySelector(".chat-file-disclosure svg");return {expanded:row.getAttribute("aria-expanded"),transform:getComputedStyle(icon).transform}})()');assert.equal(expandedTree.expanded,'true');assert.notEqual(expandedTree.transform,compactTree.collapsed);await shot('file-tree-density');await action('open','.git');checks.push('28px file rows and distinct collapsed/expanded 16px disclosure icons');
   await action('open','many');assert.equal(await run('document.querySelectorAll("[data-file-row^=\\\"many/\\\"]").length'),100);
   await action('more','many');assert.equal(await run('document.querySelectorAll("[data-file-row^=\\\"many/\\\"]").length'),105);await action('open','many');checks.push('hidden files and explicit directory pagination');
+  await run('document.querySelector("[data-chat-file=\\\"open\\\"][data-path=\\\"src\\\"]").click()');assert.equal(await run('document.body.textContent.includes("正在读取…")'),false);
+  await waitFor('Boolean(document.querySelector("[data-file-row=\\\"src/app.js\\\"]"))');await action('open','src');
+  await run('document.querySelector("[data-chat-file=\\\"open\\\"][data-path=\\\"src\\\"]").click()');assert.equal(await run('document.body.textContent.includes("正在读取…")'),false);
+  await waitFor('Boolean(document.querySelector("[data-file-row=\\\"src/app.js\\\"]"))');
+  await writeFile(join(root,'src','external.js'),'external');await waitFor('Boolean(document.querySelector("[data-file-row=\\\"src/external.js\\\"]"))');
+  await rename(join(root,'src','external.js'),join(root,'src','renamed-external.js'));await waitFor('Boolean(document.querySelector("[data-file-row=\\\"src/renamed-external.js\\\"]"))&&!document.querySelector("[data-file-row=\\\"src/external.js\\\"]")');
+  await rm(join(root,'src','renamed-external.js'));await waitFor('!document.querySelector("[data-file-row=\\\"src/renamed-external.js\\\"]")');
+  await writeFile(join(root,'src','selected-delete.js'),'selected');await waitFor('Boolean(document.querySelector("[data-file-row=\\\"src/selected-delete.js\\\"]"))');
+  await run('(()=>{const s=fixture.surface.model.current();s.selected="src/selected-delete.js";fixture.surface.sync();document.querySelector("[data-file-row=\\\"src/selected-delete.js\\\"]").focus()})()');
+  await rm(join(root,'src','selected-delete.js'));await waitFor('!document.querySelector("[data-file-row=\\\"src/selected-delete.js\\\"]")&&document.activeElement?.dataset.fileRow==="src"');
+  assert.equal(await run('fixture.surface.model.current().selected'),'');assert.equal(await run('document.activeElement.getAttribute("tabindex")'),'0');assert.equal(await run('document.querySelectorAll("[data-file-row][tabindex=\\"0\\"]").length'),1);
+  await writeFile(join(root,'src','focused-delete.js'),'focused');await waitFor('Boolean(document.querySelector("[data-file-row=\\\"src/focused-delete.js\\\"]"))');
+  await run('(()=>{const s=fixture.surface.model.current();s.selected="";fixture.surface.sync();document.querySelector("[data-file-row=\\\"src/focused-delete.js\\\"]").focus()})()');
+  await rm(join(root,'src','focused-delete.js'));await waitFor('!document.querySelector("[data-file-row=\\\"src/focused-delete.js\\\"]")&&document.activeElement?.dataset.fileRow==="src"');
+  assert.equal(await run('fixture.surface.model.current().selected'),'');
+  checks.push('external deletion clears invalid selection and restores selected or unselected row focus to the closest visible parent');
+  await run('fixture.setPanel("sessions")');await writeFile(join(root,'src','while-hidden.js'),'hidden');
+  await waitFor('fixture.surface.model.current().directories.get("src").entries.some(entry=>entry.path==="src/while-hidden.js")');
+  await run('fixture.setPanel("files")');assert(await run('Boolean(document.querySelector("[data-file-row=\\\"src/while-hidden.js\\\"]"))'));await shot('file-tree-live-production');await action('open','src');
+  checks.push('expand and re-expand avoid text loading while external create, rename and delete stay live across sidebar modes');
   await run('document.getElementById("chatInput").setSelectionRange(1,1);document.getElementById("chatInput").dispatchEvent(new Event("select"))');await menu('.env');await action('reference','.env','.chat-file-menu');assert.equal(await run('fixture.coordinator.getState().draft'),'前 .env 后');assert.equal(drafts.at(-1).text,'前 .env 后');checks.push('relative path inserted at cursor through production draft persistence');
   await run(`fixture.surface.model.openFile(fixture.surface.model.current(),'a.js').then(()=>undefined)`);
   for(let i=0;i<100&&!releaseVendor;i++)await pause();assert(releaseVendor,'cold vendor request intercepted');
@@ -142,5 +186,5 @@ app.whenReady().then(async()=>{
   assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);
   result={ok:true,checks,errors,requests,scope:'Production file surface, state coordinator, conversation renderer, Monaco vendor, sandbox preload, real filesystem service and leave guard in an isolated Electron fixture. Outer app navigation/account orchestration not fully exercised.'};
  }catch(e){result={ok:false,error:e.stack,checks,errors,requests};if(win)await writeFile(join(output,'failure.png'),(await win.webContents.capturePage()).toPNG());}
- finally{await writeFile(join(output,'result.json'),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));win?.destroy();await rm(base,{recursive:true,force:true,maxRetries:5,retryDelay:100}).catch(e=>console.error("fixture cleanup: "+e.message));app.exit(result.ok?0:1);}
+ finally{files?.close();await writeFile(join(output,'result.json'),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));win?.destroy();await rm(base,{recursive:true,force:true,maxRetries:5,retryDelay:100}).catch(e=>console.error("fixture cleanup: "+e.message));app.exit(result.ok?0:1);}
 });

@@ -428,7 +428,9 @@ globalThis.arcorbitChatFiles=createChatFilesSurface({api,coordinator:chatStateCo
   setChatSuspended:value=>chatConversationSurface.setSuspended(value),
   getOwner:()=>({session_id:selectedChatSession()?.id||'',project_id:selectedChatProject()?.id||''}),
   isVisible:()=>state.page==='chat',getPanel:()=>chatTaskPanelMode,setPanel:setChatTaskPanel,
-  closeList:()=>setChatSessionsOpen(false),openList:()=>setChatSessionsOpen(true),notify:showToast});
+  closeList:()=>setChatSessionsOpen(false),openList:()=>setChatSessionsOpen(true),notify:showToast,
+  getGitState:projectId=>globalThis.arcorbitChatGit?.get(projectId),
+  refreshGit:projectId=>globalThis.arcorbitChatGit?.get(projectId)?.workspace?globalThis.arcorbitChatGit.refresh(projectId):globalThis.arcorbitChatGit?.retry()});
 globalThis.arcorbitChatGit = createChatGitState({ api,
   getContext: () => ({ active: state.page === 'chat', scope: globalScope().key,
     project_ids: chatProjectsInScope().map(p => p.id), selected_project_id: chatState().owner.project_id }),

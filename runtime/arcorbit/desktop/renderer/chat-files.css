@@ -14,9 +14,15 @@
 .chat-file-disclosure svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition:transform var(--animation-fast-duration-ms); }
 .chat-file-row[aria-expanded] .chat-file-disclosure { color:var(--semantic-text); }
 .chat-file-row[aria-expanded="true"] .chat-file-disclosure svg { transform:rotate(90deg); }
-.chat-file-name span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chat-file-name > span:not(.chat-file-git) { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chat-file-git { display:inline-flex; flex:none; align-items:center; gap:2px; color:var(--semantic-muted); font-size:11px; font-weight:650; font-variant-numeric:tabular-nums; }
+.chat-file-git span { display:inline; min-width:10px; overflow:visible; text-align:center; }
+.chat-file-git-conflict { color:var(--colors-danger-base); }
+.chat-file-git-tracked { color:var(--colors-accent-base); }
+.chat-file-git-untracked { color:var(--semantic-muted); }
 .chat-file-row[aria-selected="true"] { background:var(--semantic-nav-selected); }
 .chat-file-empty { color:var(--semantic-muted); padding:8px; }
+.chat-file-stale { color:var(--semantic-muted); margin:0 0 6px; font-size:11px; }
 .chat-file-tabs { display:flex; flex:none; min-width:0; max-width:100%; overflow-x:auto; background:var(--semantic-chrome); border-bottom:1px solid var(--semantic-divider); }
 .chat-file-tab { display:flex; flex:none; border-right:1px solid var(--semantic-divider); }
 #chatView .chat-file-tabs [data-chat-file] { border:0; border-radius:0; background:transparent; white-space:nowrap; }

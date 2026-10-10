@@ -128,6 +128,6 @@ Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保�
 
 ## Chat 项目文件工作区
 
-`arckit/interaction/chat-workspace/interaction.md` 定义文件树、项目根目录单一更多菜单、普通条目操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。根目录菜单与普通条目共用容器、键盘和焦点恢复语义，只保留适用于根的刷新、新建和系统显示。文件树消费 visual FileTree 的 28px 专用紧凑行与独立 16px disclosure，沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能通过 files-model.js / files-ui.js / files.css 接入完整原型；当前根菜单原型与生产验证见 `arckit/cases/evidence/CASE-20261009-001/root-menu-prototype-v3/` 和 `root-menu-production-v3/`。
+`arckit/interaction/chat-workspace/interaction.md` 定义文件树、项目根目录单一更多菜单、普通条目操作、相对路径引用与中央文件 Tab；并定义展开／收起不闪现文字 loading、外部文件变化主动同步、文件 Git 标记与全部现存祖先目录聚合。`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护，以及 watcher、缓存失效、合并、释放与降级策略。根目录菜单与普通条目共用容器、键盘和焦点恢复语义，只保留适用于根的刷新、新建和系统显示。文件树消费 visual FileTree 的 28px 专用紧凑行与独立 16px disclosure，路径状态复用既有 Chat Git 符号语义、视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能通过 files-model.js / files-ui.js / files.css 接入完整原型；实时目录与 Git 标记样本证据见 `arckit/cases/evidence/CASE-20261010-002/file-tree-live-expectations/`，生产目录观察、缓存对账与外部变化验收见 `arckit/cases/evidence/CASE-20261010-002/file-tree-live-production/`，文件与祖先 Git 状态投影仍待生产实现；当前根菜单原型与生产验证见 `arckit/cases/evidence/CASE-20261009-001/root-menu-prototype-v3/` 和 `root-menu-production-v3/`。
 
 Chat Git：项目名称与紧凑 Git 符号计数组保持单行，空间不足时优先省略项目名称；摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表。正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。

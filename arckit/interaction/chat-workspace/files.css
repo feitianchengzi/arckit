@@ -18,6 +18,8 @@
 .file-row[aria-expanded="true"] .file-disclosure svg { transform:rotate(90deg); }
 .file-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .file-name small { color:var(--semantic-muted); }
+.file-git-status { flex:none; min-width:16px; padding:0 2px; color:var(--semantic-text); font-size:var(--typography-caption-size); font-weight:650; line-height:1; text-align:center; }
+.file-tree-git-state { margin:0; padding:var(--spacing-2) var(--spacing-3); color:var(--semantic-muted); font-size:var(--typography-caption-size); }
 .file-more { flex:none; width:var(--layout-file-tree-row-height); min-height:var(--layout-file-tree-row-height) !important; height:var(--layout-file-tree-row-height); padding:0; border:0; background:transparent; }
 .file-empty { padding:var(--spacing-3); color:var(--semantic-muted); }
 .file-tabs { display:flex; min-width:0; max-width:100%; flex:none; overflow-x:auto; border-bottom:1px solid var(--semantic-divider); background:var(--semantic-chrome); }

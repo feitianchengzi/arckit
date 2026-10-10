@@ -23,6 +23,9 @@ export async function chatRoot(root) {
   if (!stat.isDirectory()) throw Error('工作区目录不可用。');
   return { path, identity: `${stat.dev}:${stat.ino}` };
 }
+export const chatWorkspaceToken = ({ account, projectId, projectPath, root }) => hash(JSON.stringify([
+  account || 'local', projectId, projectPath, root.path, root.identity
+]));
 // Every existing segment is checked. This is not an OS sandbox against a hostile
 // process replacing parent directories between syscalls.
 async function locate(root, name, { leafLink = false, rootAllowed = false } = {}) {
@@ -37,6 +40,11 @@ async function locate(root, name, { leafLink = false, rootAllowed = false } = {}
   }
   const rel = relative(root, path);
   if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) throw Error('路径超出工作区。');
+  return path;
+}
+export async function chatDirectory(root, name = '') {
+  const path = await locate(root, name, { rootAllowed: true });
+  if (!(await lstat(path)).isDirectory()) throw Error('观察目标不是目录。');
   return path;
 }
 async function readText(root, name) {

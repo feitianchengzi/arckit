@@ -5,6 +5,11 @@
   const treeIcon = kind => kind === 'directory'
     ? '<span class="file-disclosure" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m5.5 3.5 4.5 4.5-4.5 4.5"/></svg></span>'
     : `<span class="file-entry-icon" aria-hidden="true">${kind === 'link' ? '↗' : '·'}</span>`;
+  const gitBadge = (s, path) => {
+    if (s.gitFreshness === 'unknown') return '';
+    const status = F.gitStatus(s, path);
+    return status ? `<span class="file-git-status" aria-label="Git：${esc(status.meaning)}" title="Git：${esc(status.meaning)}">${esc(status.marker)}</span>` : '';
+  };
   const notice = text => { document.getElementById('chat-notice').textContent = text; };
   const dialog = document.createElement('dialog'); dialog.id = 'file-dialog'; dialog.setAttribute('aria-label', '文件操作'); document.body.append(dialog);
   const menu = document.createElement('div'); menu.id = 'file-menu'; menu.role = 'menu'; menu.hidden = true; document.body.append(menu);
@@ -55,15 +60,17 @@
     const limit = s.limits.get(dir) || 50;
     return entries.slice(0, limit).map(e => {
       const directory = e.kind === 'directory', expanded = s.expanded.has(e.path);
-      return `<div role="treeitem" tabindex="${s.selected === e.path ? 0 : -1}" aria-level="${depth}" ${directory ? `aria-expanded="${expanded}"` : ''} aria-selected="${s.selected === e.path}" data-file-row="${esc(e.path)}" class="file-row" style="--depth:${depth}" title="${esc(e.path)}">
+      const status = s.gitFreshness === 'unknown' ? null : F.gitStatus(s, e.path), statusText = status ? `；Git：${status.meaning}` : '';
+      return `<div role="treeitem" tabindex="${s.selected === e.path ? 0 : -1}" aria-level="${depth}" ${directory ? `aria-expanded="${expanded}"` : ''} aria-selected="${s.selected === e.path}" aria-label="${esc(F.name(e.path) + statusText)}" data-file-row="${esc(e.path)}" class="file-row" style="--depth:${depth}" title="${esc(e.path + statusText)}">
         ${button('open', `${treeIcon(e.kind)}<span>${esc(F.name(e.path))}</span>${e.kind === 'link' ? '<small>链接</small>' : ''}`,e.path,'tabindex="-1" class="file-name"')}
-        ${button('menu','⋯',e.path,`aria-label="${esc(F.name(e.path))} 更多操作" class="file-more" tabindex="-1"`)}</div>${directory && expanded ? `<div role="group">${renderTree(s,e.path,depth+1)}</div>` : ''}`;
+        ${gitBadge(s, e.path)}${button('menu','⋯',e.path,`aria-label="${esc(F.name(e.path))} 更多操作" class="file-more" tabindex="-1"`)}</div>${directory && expanded ? `<div role="group">${renderTree(s,e.path,depth+1)}</div>` : ''}`;
     }).join('') + (entries.length > limit ? button('more', `加载更多（剩余 ${entries.length-limit} 项）`, dir) : entries.length ? '' : '<p class="file-empty">空文件夹</p>');
   }
   function tree(s) {
     if (!s) return '<p role="status">请选择可用工作区；文件草稿不会写入其他项目。</p>';
-    return `<div class="file-tools"><strong title="${esc(M.project(M.owner().project)?.path)}">${esc(M.project(M.owner().project)?.name)}</strong>${button('menu','⋯','',`class="file-root-menu" data-root-menu="true" aria-label="${esc(M.project(M.owner().project)?.name)} 项目根目录更多操作"`)}</div>
-      ${s.error ? `<p role="alert">${esc(s.error)}</p>` : ''}<div class="file-tree" role="tree" aria-label="项目文件">${renderTree(s)}</div>`;
+    const freshness = s.gitFreshness === 'stale' ? 'Git 状态可能已过期；保留上次可信标记。' : s.gitFreshness === 'error' ? 'Git 状态刷新失败；保留上次可信标记，可使用刷新重试。' : s.gitFreshness === 'unknown' ? 'Git 状态尚无可信结果；目录仍可浏览。' : '';
+    return `<div class="file-tools"><strong title="${esc(M.project(M.owner().project)?.path)}">${esc(M.project(M.owner().project)?.name)}</strong>${gitBadge(s, '')}${button('menu','⋯','',`class="file-root-menu" data-root-menu="true" aria-label="${esc(M.project(M.owner().project)?.name)} 项目根目录更多操作"`)}</div>
+      ${freshness ? `<p class="file-tree-git-state" role="status">${esc(freshness)}</p>` : ''}${s.error ? `<p role="alert">${esc(s.error)}</p>` : ''}<div class="file-tree" role="tree" aria-label="项目文件">${renderTree(s)}</div>`;
   }
   function pane(s, t) {
     const host = document.createElement('section'); host.className = 'file-editor-pane'; host.setAttribute('aria-label', '文件内容');
@@ -115,6 +122,7 @@
   V.render = function() {
     capturePane();
     const activeElement = document.activeElement, editorFocused = activeElement?.classList.contains('file-text');
+    const focusedTreePath = activeElement?.closest?.('[data-file-row]')?.dataset.fileRow || '';
     const treeScroll = document.querySelector('.file-tree')?.scrollTop || 0;
     if (retainedPane?.isConnected) retainedPane.remove();
     base();
@@ -128,6 +136,10 @@
       const first = sidebar.querySelector('[data-file-row]');
       if (!sidebar.querySelector('[data-file-row][tabindex="0"]') && first) first.tabIndex=0;
       const treeNode = sidebar.querySelector('.file-tree'); if (treeNode) treeNode.scrollTop=treeScroll;
+      if (focusedTreePath) {
+        const next = sidebar.querySelector(`[data-file-row="${CSS.escape(focusedTreePath)}"]`) || sidebar.querySelector(`[data-file-row="${CSS.escape(F.parent(focusedTreePath))}"]`);
+        next?.focus({preventScroll:true});
+      }
     }
     const center=document.querySelector('.chat-center'), t=F.tab(s);
     if(s?.tabs.length) {
@@ -252,6 +264,13 @@
     if(name==='files-deleted'){const t=F.tab(s);if(t){s.disk.delete(t.path);F.check(s,t);}}
     if(name==='files-recover'){s.slow=false;s.fail='';s.error='';s.disk.get('restricted').denied=false;}
     if(name==='files-slow')s.slow=true;
+    if(name==='files-external-create')F.externalChange(s,'create');
+    if(name==='files-external-rename')F.externalChange(s,'rename');
+    if(name==='files-external-delete')F.externalChange(s,'delete');
+    if(name==='files-git-stale')s.gitFreshness='stale';
+    if(name==='files-git-error')s.gitFreshness='error';
+    if(name==='files-git-unknown')s.gitFreshness='unknown';
+    if(name==='files-git-fresh')s.gitFreshness='fresh';
     render();
   }
   window.addEventListener('message',e=>{if(new URLSearchParams(location.search).get('scenarioTools')==='on'&&e.source===parent&&e.data?.type==='chat-files-scenario')scenario(e.data.name);});
