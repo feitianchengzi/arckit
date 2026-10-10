@@ -1490,8 +1490,7 @@ async function refreshSnapshot({ quiet = false, surface = "all", afterMutation =
     }
     state.authentication = authentication;
     taskCreationSourceReadFailed = false;
-    if (!workSurface) taskCreationSetupChecks.clear();
-    updateTaskCreationAutomation();
+    updateTaskCreationAutomation({ refreshSetup: !workSurface });
     const visibleTasks = state.snapshot.tasks.filter(scopedTaskFilter);
     if (state.selectedTaskId && !visibleTasks.some((task) => String(task.id) === state.selectedTaskId)) {
       state.selectedTaskId = visibleTasks[0]?.id || "";
@@ -5195,22 +5194,33 @@ function platformCheckboxGroup(name, label, options) {
 
 let taskCreationSourceReadFailed = false;
 const taskCreationSetupChecks = new Map();
-function updateTaskCreationAutomation() {
+function updateTaskCreationAutomation({ refreshSetup = false } = {}) {
   const host = els.platformActionFields?.querySelector('[data-task-create-automation]');
   if (!host || els.platformActionOverlay.classList.contains('hidden')) return;
   const field = name => els.platformActionForm.elements.namedItem(name)?.value || '';
   const projectId = field('project_id');
   const project = (state.snapshot.projects || []).find(p => String(p.id) === projectId);
   const setupKey = JSON.stringify([currentTaskCreationSettingsKey(), projectId, project?.local_project_id, project?.local_project_path]);
+  for (const cachedKey of taskCreationSetupChecks.keys()) {
+    if (cachedKey !== setupKey) taskCreationSetupChecks.delete(cachedKey);
+  }
   let check = taskCreationSetupChecks.get(setupKey);
-  if (!check && project?.local_project_id && project?.local_project_path) {
-    check = { result: {} };
-    taskCreationSetupChecks.set(setupKey, check);
+  if (project?.local_project_id && project?.local_project_path && (!check || refreshSetup)) {
+    if (!check) {
+      check = { result: {}, inFlight: false };
+      taskCreationSetupChecks.set(setupKey, check);
+    }
     const entry = check;
-    Promise.resolve().then(() => api.checkSetupReadiness({ projectId: project.local_project_id }))
-      .then(readiness => { entry.result = readiness || {}; })
-      .catch(() => { entry.result = {}; })
-      .finally(() => { if (taskCreationSetupChecks.get(setupKey) === entry) updateTaskCreationAutomation(); });
+    if (!entry.inFlight) {
+      entry.inFlight = true;
+      Promise.resolve().then(() => api.checkSetupReadiness({ projectId: project.local_project_id }))
+        .then(readiness => { entry.result = readiness || {}; })
+        .catch(() => { entry.result = {}; })
+        .finally(() => {
+          entry.inFlight = false;
+          if (taskCreationSetupChecks.get(setupKey) === entry) updateTaskCreationAutomation();
+        });
+    }
   }
   const hint = taskCreationAutomation({ projectId, taskState: field('state'), executorId: field('executor_id'),
     platform: state.platform, automation: state.snapshot, authentication: state.authentication,
