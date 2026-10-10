@@ -59,8 +59,11 @@ export function createChatGit({ runManager, getAccountScope, authorizeSession,
         if (!binding) {
           binding = { ...context }; bindings.set(id, binding);
           binding.handle = observer.observe(context, state => { void publish(binding, state); });
+          await binding.handle.ready;
+        } else {
+          await binding.handle.refresh();
         }
-        await binding.handle.ready; await binding.handle.refresh(); await assertCurrent(binding);
+        await assertCurrent(binding);
         if (currentEpoch !== epoch) throw Error('观察范围已变化。');
         return publicResult(binding, binding.handle.read());
       } catch (error) {

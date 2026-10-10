@@ -144,6 +144,33 @@ test('Chat owner guard rejects old tokens and late replies after rebinding or ac
   const [missing] = await service.command('observe', { project_ids: ['missing'] }); assert.equal(missing.unavailable, true);
 });
 
+test('Chat entry performs one initial summary and re-entry reads fresh state after release', async t => {
+  const { root } = await fixture(t);
+  let reads = 0, dirty = false;
+  const observer = createChatGitObserver({ watchFs: () => { throw Error('no-watch'); }, pollMs: 50000,
+    repository: { summary: async () => { reads++; return { kind: 'repository', dirty }; } } });
+  const service = createChatGit({ observer,
+    runManager: { readDesktopChatMetadata: async () => ({ projects: [{ id: 'p', path: root }], sessions: {} }) },
+    getAccountScope: async () => 'account', authorizeSession: async () => true });
+  t.after(() => service.close());
+  const api = { chatGit: (action, input) => service.command(action, input), onChatGitEvent: listener => service.onEvent(listener) };
+  const context = { active: true, project_ids: ['p'], scope: 'chat', selected_project_id: 'p' };
+  const state = createChatGitState({ api, getContext: () => context, document: null });
+  t.after(() => state.destroy());
+
+  await state.sync();
+  assert.equal(reads, 1, 'a new observation uses its ready summary without a duplicate refresh');
+  assert.equal(state.get('p').value.dirty, false);
+
+  context.active = false; await state.sync();
+  dirty = true; context.active = true; await state.sync();
+  assert.equal(reads, 2, 're-entry creates one fresh observation after release');
+  assert.equal(state.get('p').value.dirty, true);
+
+  context.selected_project_id = ''; await state.sync();
+  assert.equal(reads, 3, 'an existing observation still refreshes when its visible scope changes');
+});
+
 test('overlapping refreshes finish instead of starving under frequent invalidation', async t => {
   let reads = 0;
   const observer = createChatGitObserver({ watchFs: () => { throw Error('no-watch'); }, pollMs: 10, debounceMs: 5,
