@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,9 +12,11 @@ import (
 
 // AgentConversation Agent 对话
 type AgentConversation struct {
-	ID           string         `json:"id" gorm:"primaryKey;type:varchar(128)"`
+	ID   string `json:"id" gorm:"primaryKey;type:varchar(128)"`
+	// FeedbackID = 0 表示独立智能客服会话（尚未产生/未关联反馈）
 	FeedbackID   uint           `json:"feedback_id" gorm:"not null;index"`
 	ProjectID    uint           `json:"project_id" gorm:"not null;index"`
+	CustomUserID string         `json:"custom_user_id" gorm:"type:varchar(128);index"` // 独立会话按客户维度隔离
 	CreatedAt    time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt    gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`
@@ -101,6 +106,85 @@ func GetConversationHistory(db *gorm.DB, conversationID string, limit int) ([]Ag
 func GetFeedbackConversations(db *gorm.DB, feedbackID uint) ([]AgentConversation, error) {
 	var convs []AgentConversation
 	err := db.Where("feedback_id = ?", feedbackID).
+		Order("created_at DESC").
+		Find(&convs).Error
+	return convs, err
+}
+
+// linkStandaloneConversationToFeedback 把一条独立智能客服会话（feedback_id=0）关联到新建的反馈，
+// 使客户提交反馈前与 Agent 的咨询上下文延续到反馈跟进阶段，不再断裂。
+// 仅当会话存在、属于同一 (projectID, customUserID)、且当前 feedback_id=0（确为独立会话）时才关联；
+// 任何校验不通过都静默跳过（返回 nil），反馈创建不受影响——会话衔接是增强项，不是必需项。
+func linkStandaloneConversationToFeedback(db *gorm.DB, conversationID string, feedbackID, projectID uint, customUserID string) error {
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" || feedbackID == 0 {
+		return nil
+	}
+	res := db.Model(&AgentConversation{}).
+		Where("id = ? AND project_id = ? AND custom_user_id = ? AND feedback_id = ?",
+			conversationID, projectID, customUserID, standaloneConversationFeedbackID).
+		Update("feedback_id", feedbackID)
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
+}
+
+// standaloneConversationFeedbackID 独立会话不绑定反馈，统一用 0 占位
+const standaloneConversationFeedbackID uint = 0
+
+// GetOrCreateStandaloneConversation 获取或创建独立智能客服会话。
+// 独立会话按 (project_id, custom_user_id) 维度隔离，feedback_id 固定为 0。
+// conversationID 非空时优先按 ID 取，但仍校验其归属，避免跨客户越权。
+func GetOrCreateStandaloneConversation(db *gorm.DB, conversationID string, projectID uint, customUserID string) (*AgentConversation, error) {
+	customUserID = strings.TrimSpace(customUserID)
+	if customUserID == "" {
+		return nil, fmt.Errorf("custom_user_id 不能为空")
+	}
+
+	if conversationID != "" {
+		var conv AgentConversation
+		err := db.Where("id = ? AND project_id = ? AND custom_user_id = ? AND feedback_id = ?",
+			conversationID, projectID, customUserID, standaloneConversationFeedbackID).
+			First(&conv).Error
+		if err == nil {
+			return &conv, nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+
+	// 复用该客户名下最新的一条独立会话，避免每次问答都新建
+	var existing AgentConversation
+	err := db.Where("project_id = ? AND custom_user_id = ? AND feedback_id = ?",
+		projectID, customUserID, standaloneConversationFeedbackID).
+		Order("created_at DESC").
+		First(&existing).Error
+	if err == nil {
+		return &existing, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	conv := &AgentConversation{
+		ID:           uuid.New().String(),
+		FeedbackID:   standaloneConversationFeedbackID,
+		ProjectID:    projectID,
+		CustomUserID: customUserID,
+	}
+	if err := db.Create(conv).Error; err != nil {
+		return nil, err
+	}
+	return conv, nil
+}
+
+// GetStandaloneConversations 获取某客户的独立智能客服会话
+func GetStandaloneConversations(db *gorm.DB, projectID uint, customUserID string) ([]AgentConversation, error) {
+	var convs []AgentConversation
+	err := db.Where("project_id = ? AND custom_user_id = ? AND feedback_id = ?",
+		projectID, strings.TrimSpace(customUserID), standaloneConversationFeedbackID).
 		Order("created_at DESC").
 		Find(&convs).Error
 	return convs, err

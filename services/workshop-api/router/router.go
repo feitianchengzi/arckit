@@ -78,6 +78,11 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 			apikeyGroup.POST("/feedbacks/upload-policies", handler.CreateFeedbackUploadPolicyByAPIKey)
 			apikeyGroup.GET("/feedbacks/oss/credentials", handler.GetFeedbackAPIKeyOSSTempCredentials)
 
+			// 独立智能客服会话（不绑定反馈），供「反馈建议」页客服入口使用
+			apikeyGroup.POST("/agent-chats/messages", handler.StandaloneAgentMessageByAPIKey)
+			apikeyGroup.GET("/agent-chats/conversations", handler.GetStandaloneConversationsByAPIKey)
+			apikeyGroup.GET("/agent-chats/conversations/:conversationId/messages", handler.GetStandaloneMessagesByAPIKey)
+
 			// feedback 是仅供 SDK 使用的窄权限认证级别。范围由网关校验
 			// 的短期 token 注入，不能复用 API Key 的项目成员权限。
 			feedbackGroup := versionGroup.Group("/feedback")
@@ -196,6 +201,7 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
 	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessages)    // 查询反馈消息
 	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessage) // 创建反馈消息
+	group.GET("/feedbacks/:id/conversation-messages", handler.GetFeedbackConversationMessages) // 统一会话视图（聚合智能客服+反馈消息）
 	group.GET("/feedbacks/:id/attachments/:attachment_id/oss/credentials", handler.GetFeedbackAttachmentOSSCredentials)
 	group.POST("/feedbacks/:id/convert-to-task", handler.ConvertFeedbackToTask) // 将反馈流转为待办
 	group.POST("/feedbacks/:id/ignore", handler.IgnoreFeedback)                 // 标记反馈为暂不处理
@@ -256,11 +262,16 @@ func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
 	group.GET("/feedbacks", handler.GetFeedbacksFromSession)
 	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessagesFromSession)
 	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessageFromSession)
+	group.GET("/feedbacks/:id/conversation-messages", handler.GetConversationMessagesFromSession)
 	group.GET("/feedbacks/:id/attachments/:attachment_id/oss/credentials", handler.GetFeedbackAttachmentOSSCredentialsFromSession)
 	// 智能客服（session 模式）：嵌入 SDK 客户与 Agent 对话。鉴权由 feedback session scope 完成。
 	group.POST("/feedbacks/:id/agent-message", handler.AgentMessageFromSession)
 	group.GET("/feedbacks/:id/agent-conversations", handler.GetAgentConversationsFromSession)
 	group.GET("/agent-conversations/:conversationId/messages", handler.GetAgentConversationMessagesFromSession)
+	// 独立智能客服会话（不绑定反馈），供「反馈建议」页客服入口使用
+	group.POST("/agent-chats/messages", handler.StandaloneAgentMessageFromSession)
+	group.GET("/agent-chats/conversations", handler.GetStandaloneConversationsFromSession)
+	group.GET("/agent-chats/conversations/:conversationId/messages", handler.GetStandaloneMessagesFromSession)
 	// V2 实时通道：嵌入 SDK（session 模式）通过 subprotocol 携带 fbs_ token 连接，
 	// 加入项目房间以接收 feedback.message.created 广播。path 中的 id 仅占位，
 	// 实际 project scope 由 token 决定。

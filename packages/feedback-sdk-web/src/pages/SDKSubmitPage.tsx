@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { FeedbackShell } from '@/components/sdk/FeedbackShell'
 import { FeedbackSubmitStep, type FeedbackSubmitImage } from '@/components/sdk/FeedbackSubmitStep'
+import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 import { getOrPersistApiKey, getOrPersistCustomUserId, resolveProjectId, submitFeedbackByApiKey } from '@/lib/feedback/api'
-import { submitFeedbackV2, type FeedbackV2Attachment } from '@/lib/feedback/v2'
+import { submitFeedbackV2, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
+import { formatStructuredFeedback } from '@/lib/feedback/structured'
 import { uploadFeedbackImageByApiKey, uploadFeedbackImageV2 } from '@/lib/feedback/upload'
-import { FEEDBACK_SDK_NATIVE_IMAGE_EVENT, getFeedbackSDKConfig, type FeedbackSDKNativeImagePayload } from '@/lib/sdk'
+import { FEEDBACK_SDK_CONFIGURED_EVENT, FEEDBACK_SDK_NATIVE_IMAGE_EVENT, getFeedbackSDKConfig, type FeedbackSDKNativeImagePayload } from '@/lib/sdk'
 import { t } from '@/i18n'
 
 declare global {
@@ -65,6 +67,24 @@ export function SDKSubmitPage() {
   const [submitting, setSubmitting] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [pickerWarning, setPickerWarning] = useState('')
+  const [agentChatOpen, setAgentChatOpen] = useState(false)
+  // 智能客服低置信兜底时的预填提示（区别于 submitError 的错误语义）
+  const [prefillNotice, setPrefillNotice] = useState('')
+  // 预填进表单的原文；客户改写后提示不再成立，需一并撤销
+  const [prefilledContent, setPrefilledContent] = useState('')
+  // 提交反馈前与智能客服的独立会话 ID，提交时带上以关联到新建反馈（会话总线衔接）
+  const [agentConversationId, setAgentConversationId] = useState('')
+
+  const handleContentChange = (value: string) => {
+    setContent(value)
+    if (prefilledContent && value !== prefilledContent) {
+      setPrefilledContent('')
+      setPrefillNotice('')
+    }
+  }
+  // 宿主通过 postMessage 异步注入配置（晚于首次渲染），配置到达后需重渲染，
+  // 否则 feedbackV2Enabled 相关分支（智能客服入口、图片数量上限）停在默认值。
+  const [, setConfigVersion] = useState(0)
   const pickerAttemptRef = useRef(0)
   const imagesRef = useRef<SelectedFeedbackImage[]>([])
   const previewURLsRef = useRef(new Set<string>())
@@ -205,6 +225,12 @@ export function SDKSubmitPage() {
   }, [])
 
   useEffect(() => {
+    const handleConfigured = () => setConfigVersion((version) => version + 1)
+    window.addEventListener(FEEDBACK_SDK_CONFIGURED_EVENT, handleConfigured)
+    return () => window.removeEventListener(FEEDBACK_SDK_CONFIGURED_EVENT, handleConfigured)
+  }, [])
+
+  useEffect(() => {
     const handleNativeImage = (event: Event) => {
       pickerAttemptRef.current += 1
       setPickerWarning('')
@@ -220,6 +246,18 @@ export function SDKSubmitPage() {
     window.addEventListener(FEEDBACK_SDK_NATIVE_IMAGE_EVENT, handleNativeImage)
     return () => window.removeEventListener(FEEDBACK_SDK_NATIVE_IMAGE_EVENT, handleNativeImage)
   }, [handleUploadFiles])
+
+  // 智能客服本轮低置信：沿用现有反馈提交链路——把总结好的问题结构填入表单，由客户确认后提交。
+  // 模型未给出有效总结时退回提问原文，保证表单永远有内容。
+  const handleAssistantNeedCollect = (payload: { question: string; structured?: AgentStructuredSummary }) => {
+    const filled = formatStructuredFeedback(payload.structured, payload.question)
+    if (filled) {
+      setContent(filled)
+      setPrefilledContent(filled)
+    }
+    setAgentChatOpen(false)
+    setPrefillNotice(t('submit.prefill_from_assistant'))
+  }
 
   const submitFeedback = async () => {
     const uploading = images.some((image) => image.status === 'uploading')
@@ -242,6 +280,7 @@ export function SDKSubmitPage() {
         const submitted = await submitFeedbackV2({
           content: trimmedContent,
           attachments: images.map((image) => image.uploadedAttachment).filter(Boolean) as FeedbackV2Attachment[],
+          conversationId: agentConversationId || undefined,
         })
         // 提交后进入智能客服会话：反馈内容自动发给 Agent（基于代码库推理），
         // 客户可在对话窗口继续追问，并在“我的反馈”查看进展。
@@ -328,6 +367,7 @@ export function SDKSubmitPage() {
   const formWrapClass = 'mx-auto w-full max-w-[760px]'
   const uploading = images.some((image) => image.status === 'uploading')
   const maxImages = getFeedbackSDKConfig().feedbackV2Enabled === true ? MAX_FEEDBACK_IMAGES : 1
+  const v2Enabled = getFeedbackSDKConfig().feedbackV2Enabled === true
 
   return (
     <div className="min-h-[100dvh] bg-surface px-4 py-6 md:px-6">
@@ -335,6 +375,38 @@ export function SDKSubmitPage() {
         <FeedbackShell mode="embed">
           <div className={innerWrapClass}>
             <div className={formWrapClass}>
+              {v2Enabled ? (
+                <div className="mb-4 space-y-3 rounded-lg border border-divider bg-surface-elevated p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{t('submit.agent_entry_title')}</p>
+                      <p className="mt-1 text-xs leading-5 text-foreground-secondary">{t('submit.agent_entry_desc')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAgentChatOpen((open) => !open)}
+                      aria-expanded={agentChatOpen}
+                      className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover"
+                    >
+                      {agentChatOpen ? t('submit.agent_entry_close') : t('submit.agent_entry_open')}
+                    </button>
+                  </div>
+                  {agentChatOpen ? (
+                    <div className="border-t border-divider pt-4">
+                      <AgentChatPanel
+                        standalone
+                        onNeedCollect={handleAssistantNeedCollect}
+                        onConversationReady={setAgentConversationId}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {prefillNotice ? (
+                <p className="mb-3 rounded-lg border border-primary/25 bg-primary-light/40 px-3 py-2 text-xs leading-5 text-foreground-secondary">
+                  {prefillNotice}
+                </p>
+              ) : null}
               <FeedbackSubmitStep
                 value={content}
                 images={images}
@@ -344,7 +416,7 @@ export function SDKSubmitPage() {
                 uploadError={uploadError}
                 uploading={uploading}
                 pickerWarning={pickerWarning}
-                onChange={setContent}
+                onChange={handleContentChange}
                 onUpload={handleUploadFiles}
                 onRemoveImage={removeImage}
                 onRetryImage={retryImage}

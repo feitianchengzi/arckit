@@ -16,7 +16,9 @@
           const params = new URLSearchParams(window.location.search)
           const root = document.documentElement
           if (params.get('embed') === 'web') {
-            root.dataset.feedbackEmbed = 'web'
+            // 顶层窗口（如 Electron 产品反馈）用 window 态，允许整页滚动；
+            // iframe 浮层（console）保持 web 态，卡片居中且不滚动。
+            root.dataset.feedbackEmbed = window.parent === window ? 'window' : 'web'
           } else {
             delete root.dataset.feedbackEmbed
           }
@@ -50,25 +52,41 @@
     </script>
     <style>
       html[data-feedback-embed='web'],
+      html[data-feedback-embed='window'],
+      html[data-feedback-embed='web'] body,
+      html[data-feedback-embed='window'] body {
+        background: transparent !important;
+      }
+
+      html[data-feedback-embed='web'],
       html[data-feedback-embed='web'] body,
       html[data-feedback-embed='web'] #root {
-        background: transparent !important;
         overflow: hidden;
       }
 
-      html[data-feedback-embed='web'] body {
-        overflow: hidden;
+      html[data-feedback-embed='window'],
+      html[data-feedback-embed='window'] body,
+      html[data-feedback-embed='window'] #root {
+        overflow: auto;
+      }
+
+      html[data-feedback-embed='web'] #root > div,
+      html[data-feedback-embed='window'] #root > div {
+        display: flex;
+        min-height: 100dvh;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(15, 23, 42, 0.38) !important;
+        backdrop-filter: blur(2px);
       }
 
       html[data-feedback-embed='web'] #root > div {
-        display: flex;
-        min-height: 100dvh;
         align-items: center;
-        justify-content: center;
-        padding: 24px;
         overflow: hidden;
-        background: rgba(15, 23, 42, 0.38) !important;
-        backdrop-filter: blur(2px);
+      }
+
+      html[data-feedback-embed='window'] #root > div {
+        align-items: flex-start;
       }
 
       html[data-feedback-embed='web'] #root > div > div {

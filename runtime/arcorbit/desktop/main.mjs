@@ -1,3 +1,4 @@
+import "../src/desktop-env.mjs";
 import { createTaskConversation } from '../src/task-conversation.mjs';
 import { createChatNative } from '../src/chat-native.mjs';
 import { createChatFiles } from '../src/chat-files.mjs';
@@ -12,6 +13,7 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, powerMonitor, session
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createReleaseCoordinator } from "../src/release/release-coordinator.mjs";
 import { createProductCoordinator } from "../src/product-coordinator.mjs";

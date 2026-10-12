@@ -159,6 +159,11 @@ function directScopePayload(): Pick<DirectAPIKeyContext, 'projectId' | 'customUs
 export async function submitFeedbackV2(params: {
   content: string
   attachments?: FeedbackV2Attachment[]
+  /**
+   * 提交反馈前与智能客服的独立会话 ID（feedback_id=0）。
+   * 传给后端把该会话关联到新建反馈，使咨询上下文延续到跟进阶段；后端校验不通过则跳过。
+   */
+  conversationId?: string
 }): Promise<{ id: number; shortId: string }> {
   const content = params.content.trim()
   if (!content) throw new Error('反馈内容不能为空')
@@ -166,18 +171,22 @@ export async function submitFeedbackV2(params: {
   const authMode = currentV2AuthMode()
   const directScope = authMode === 'apiKey' ? directScopePayload() : null
   const metadata = { source: 'feedback-sdk-web', channel: 'webview', feedback_state: 'pending' }
+  const body: Record<string, unknown> = {
+    ...(directScope
+      ? { project_id: directScope.projectId, custom_user_id: directScope.customUserId }
+      : {}),
+    title: buildSubmitTitle(content),
+    content,
+    data: directScope ? JSON.stringify(metadata) : metadata,
+    attachments: params.attachments || [],
+  }
+  if (params.conversationId) {
+    body.conversation_id = params.conversationId
+  }
   const envelope = await requestJson<FeedbackRecord>('/feedbacks', '/feedbacks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...(directScope
-        ? { project_id: directScope.projectId, custom_user_id: directScope.customUserId }
-        : {}),
-      title: buildSubmitTitle(content),
-      content,
-      data: directScope ? JSON.stringify(metadata) : metadata,
-      attachments: params.attachments || [],
-    }),
+    body: JSON.stringify(body),
   })
   if (!envelope.data?.id || !envelope.data.short_id) {
     throw new Error('反馈提交成功，但返回数据不完整')
@@ -219,6 +228,36 @@ export async function getFeedbackMessagesV2(feedbackId: number, params?: { page?
   }
   const path = `/feedbacks/${feedbackId}/messages?${query.toString()}`
   const envelope = await requestJson<FeedbackV2Message[]>(path, path, { method: 'GET' })
+  return Array.isArray(envelope.data) ? envelope.data : []
+}
+
+/**
+ * 统一会话视图条目：聚合智能客服会话消息（agent 来源）与反馈消息流（feedback 来源）。
+ * source 标注来源表，id 在两表独立编号，前端按 source+id 区分。
+ */
+export interface ConversationMessage {
+  id: number
+  source: 'agent' | 'feedback'
+  sender_type: 'customer' | 'agent' | 'developer' | 'system'
+  content: string
+  confidence?: number
+  attachments?: FeedbackV2Attachment[]
+  created_at: string
+}
+
+/**
+ * 获取某反馈的统一会话视图：聚合智能客服咨询 + 反馈消息流，按时间升序。
+ * 客户在反馈详情会话看到完整对话流（提问/Agent 回答/客服跟进），无需在两个面板间切换。
+ */
+export async function getConversationMessagesV2(feedbackId: number): Promise<ConversationMessage[]> {
+  const authMode = currentV2AuthMode()
+  const sessionPath = `/feedbacks/${feedbackId}/conversation-messages`
+  let directPath = sessionPath
+  // apiKey 模式需带 custom_user_id 做客户归属校验（与 getFeedbackMessagesV2 一致）
+  if (authMode === 'apiKey') {
+    directPath = `${sessionPath}?${new URLSearchParams({ custom_user_id: directScopePayload().customUserId }).toString()}`
+  }
+  const envelope = await requestJson<ConversationMessage[]>(sessionPath, directPath, { method: 'GET' })
   return Array.isArray(envelope.data) ? envelope.data : []
 }
 
@@ -373,25 +412,12 @@ export interface AgentMessage {
   conversation_id: string
   feedback_id: number
   project_id: number
-  sender_type: 'customer' | 'agent' | 'system'
+  // developer：客服回复经 syncDeveloperReplyToAgentMessages 同步进会话，供智能客服面板展示
+  sender_type: 'customer' | 'agent' | 'developer' | 'system'
   content: string
-  tool_calls?: ToolCall[]
-  tool_results?: ToolResult[]
   confidence?: number
   metadata?: unknown
   created_at: string
-}
-
-export interface ToolCall {
-  tool: string
-  params: Record<string, unknown>
-  results_count?: number
-}
-
-export interface ToolResult {
-  tool: string
-  content: string
-  success: boolean
 }
 
 export interface AgentConversation {
@@ -402,14 +428,21 @@ export interface AgentConversation {
   updated_at: string
 }
 
+/** 低置信时由智能客服总结的问题结构（PRD F-01 三字段），用于预填反馈表单。字段可为空。 */
+export interface AgentStructuredSummary {
+  position: string
+  phenomenon: string
+  expect: string
+}
+
 export interface AgentMessageResponse {
   message_id: number
   conversation_id: string
   content: string
   sender_type: 'agent'
-  tool_calls?: ToolCall[]
   confidence: number
   need_collect?: boolean
+  structured?: AgentStructuredSummary
 }
 
 /**
@@ -489,5 +522,62 @@ export async function getAgentConversationMessages(conversationId: string): Prom
     },
   )
 
+  return envelope.data || []
+}
+
+/**
+ * 独立智能客服会话（不绑定反馈）的作用域 query。
+ * session 模式由 token 决定作用域；apikey 模式需显式传 project_id + custom_user_id。
+ */
+function standaloneScopeQuery(): string {
+  if (currentV2AuthMode() !== 'apiKey') return ''
+  const { projectId, customUserId } = directScopePayload()
+  return `?${new URLSearchParams({ project_id: String(projectId), custom_user_id: customUserId }).toString()}`
+}
+
+/**
+ * 向独立智能客服发送消息（「反馈建议」页客服入口）
+ */
+export async function sendStandaloneAgentMessage(params: {
+  content: string
+  conversationId?: string
+  attachments?: FeedbackV2Attachment[]
+}): Promise<AgentMessageResponse> {
+  const path = `/agent-chats/messages${standaloneScopeQuery()}`
+  const body: Record<string, unknown> = { content: params.content }
+  if (params.conversationId) body.conversation_id = params.conversationId
+  if (params.attachments && params.attachments.length > 0) {
+    body.attachments = params.attachments.map((att) => ({
+      type: att.type,
+      object_key: att.object_key,
+      url: att.url,
+      file_name: att.file_name,
+      mime_type: att.mime_type,
+    }))
+  }
+  const envelope = await requestJson<AgentMessageResponse>(path, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!envelope.data) throw new Error('Agent 响应失败')
+  return envelope.data
+}
+
+/**
+ * 获取独立智能客服会话列表
+ */
+export async function getStandaloneAgentConversations(): Promise<AgentConversation[]> {
+  const path = `/agent-chats/conversations${standaloneScopeQuery()}`
+  const envelope = await requestJson<AgentConversation[]>(path, path, { method: 'GET' })
+  return envelope.data || []
+}
+
+/**
+ * 获取独立智能客服会话消息列表
+ */
+export async function getStandaloneAgentMessages(conversationId: string): Promise<AgentMessage[]> {
+  const path = `/agent-chats/conversations/${conversationId}/messages${standaloneScopeQuery()}`
+  const envelope = await requestJson<AgentMessage[]>(path, path, { method: 'GET' })
   return envelope.data || []
 }

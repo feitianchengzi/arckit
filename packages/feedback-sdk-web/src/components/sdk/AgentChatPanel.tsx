@@ -3,8 +3,12 @@ import clsx from 'clsx'
 import {
   sendAgentMessage,
   getAgentConversationMessages,
+  sendStandaloneAgentMessage,
+  getStandaloneAgentConversations,
+  getStandaloneAgentMessages,
   type AgentMessage,
   type AgentConversation,
+  type AgentStructuredSummary,
   type FeedbackV2Attachment,
   getAgentConversations,
 } from '@/lib/feedback/v2'
@@ -19,18 +23,33 @@ function formatMessageTime(value: string) {
 
 function senderLabel(senderType: AgentMessage['sender_type']) {
   if (senderType === 'agent') return t('agent.title')
+  if (senderType === 'developer') return t('conversation.sender.developer')
   if (senderType === 'system') return t('conversation.sender.system')
   return t('conversation.sender.customer')
 }
 
 interface AgentChatPanelProps {
-  feedbackId: string
+  /** 绑定反馈的会话；standalone 模式下可省略 */
+  feedbackId?: string
+  /** 独立智能客服会话：不绑定反馈，按 project + 客户维度隔离（「反馈建议」页入口） */
+  standalone?: boolean
   /** 提交反馈后自动发送的首条消息（反馈内容本身），发送一次后消费 */
   initialMessage?: string
+  /**
+   * 本轮回答低置信（need_collect）时上报。
+   * question 为客户本轮提问原文；structured 为客服总结的问题结构（模型生成，可能为 undefined）。
+   * 宿主决定后续动作：提交页据此预填表单，会话页追加到当前反馈。
+   */
+  onNeedCollect?: (payload: { question: string; structured?: AgentStructuredSummary }) => void
+  /**
+   * 会话 ID 确定时上报（standalone 模式下宿主据此在提交反馈时关联该会话，使咨询上下文延续）。
+   * 加载已有会话或首次发送后服务端分配 ID 时各触发一次。
+   */
+  onConversationReady?: (conversationId: string) => void
 }
 
-export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelProps) {
-  const numericFeedbackId = useMemo(() => Number(feedbackId), [feedbackId])
+export function AgentChatPanel({ feedbackId, standalone = false, initialMessage, onNeedCollect, onConversationReady }: AgentChatPanelProps) {
+  const numericFeedbackId = useMemo(() => Number(feedbackId ?? 0), [feedbackId])
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,16 +61,29 @@ export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelPro
   const [uploading, setUploading] = useState(false)
   const [uploadedAttachment, setUploadedAttachment] = useState<FeedbackV2Attachment | null>(null)
   const loadRequestRef = useRef(0)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const conversationIdRef = useRef('')
   const initialMessageRef = useRef(initialMessage?.trim() || '')
+  const onNeedCollectRef = useRef(onNeedCollect)
+  const onConversationReadyRef = useRef(onConversationReady)
+
+  useEffect(() => {
+    onNeedCollectRef.current = onNeedCollect
+  }, [onNeedCollect])
+
+  useEffect(() => {
+    onConversationReadyRef.current = onConversationReady
+  }, [onConversationReady])
 
   useEffect(() => {
     conversationIdRef.current = conversationId
   }, [conversationId])
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // 只滚消息容器自身，避免 scrollIntoView 连带滚动外层页面
+    const container = messagesContainerRef.current
+    if (!container) return
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
   }, [])
 
   const clearImage = useCallback(() => {
@@ -88,7 +120,7 @@ export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelPro
       setError(t('agent.error_empty'))
       return
     }
-    if (!Number.isFinite(numericFeedbackId) || numericFeedbackId <= 0) {
+    if (!standalone && (!Number.isFinite(numericFeedbackId) || numericFeedbackId <= 0)) {
       setError(t('agent.error_invalid_id'))
       return
     }
@@ -99,7 +131,7 @@ export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelPro
       const userMessage: AgentMessage = {
         id: Date.now(),
         conversation_id: conversationIdRef.current,
-        feedback_id: numericFeedbackId,
+        feedback_id: standalone ? 0 : numericFeedbackId,
         project_id: 0,
         sender_type: 'customer',
         content,
@@ -107,55 +139,68 @@ export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelPro
       }
       setMessages((current) => [...current, userMessage])
 
-      const response = await sendAgentMessage({
-        feedbackId: numericFeedbackId,
-        content,
-        conversationId: conversationIdRef.current || undefined,
-        attachments: uploadedAttachment ? [uploadedAttachment] : undefined,
-      })
+      const response = standalone
+        ? await sendStandaloneAgentMessage({
+            content,
+            conversationId: conversationIdRef.current || undefined,
+            attachments: uploadedAttachment ? [uploadedAttachment] : undefined,
+          })
+        : await sendAgentMessage({
+            feedbackId: numericFeedbackId,
+            content,
+            conversationId: conversationIdRef.current || undefined,
+            attachments: uploadedAttachment ? [uploadedAttachment] : undefined,
+          })
 
       if (!conversationIdRef.current && response.conversation_id) {
         conversationIdRef.current = response.conversation_id
         setConversationId(response.conversation_id)
+        onConversationReadyRef.current?.(response.conversation_id)
       }
 
       const agentMessage: AgentMessage = {
         id: response.message_id,
         conversation_id: response.conversation_id,
-        feedback_id: numericFeedbackId,
+        feedback_id: standalone ? 0 : numericFeedbackId,
         project_id: 0,
         sender_type: 'agent',
         content: response.content,
-        tool_calls: response.tool_calls,
         confidence: response.confidence,
         created_at: new Date().toISOString(),
       }
       setMessages((current) => [...current, agentMessage])
       // 发送成功后清空已上传图片
       clearImage()
+      // 低置信兜底：交给宿主走现有反馈提交链路（预填 / 追加）
+      if (response.need_collect) {
+        onNeedCollectRef.current?.({ question: content, structured: response.structured })
+      }
     } catch (err: any) {
       setError(err?.message || t('agent.error_send'))
     } finally {
       setSending(false)
     }
-  }, [numericFeedbackId, uploadedAttachment])
+  }, [standalone, numericFeedbackId, uploadedAttachment])
 
   const loadConversation = useCallback(async () => {
-    if (!Number.isFinite(numericFeedbackId) || numericFeedbackId <= 0) return
+    if (!standalone && (!Number.isFinite(numericFeedbackId) || numericFeedbackId <= 0)) return
     const requestId = loadRequestRef.current + 1
     loadRequestRef.current = requestId
     setLoading(true)
     setError('')
     try {
-      const convs = await getAgentConversations(numericFeedbackId)
+      const convs = standalone ? await getStandaloneAgentConversations() : await getAgentConversations(numericFeedbackId)
       if (requestId !== loadRequestRef.current) return
 
       if (convs.length > 0) {
         const conv: AgentConversation = convs[0]
         conversationIdRef.current = conv.id
         setConversationId(conv.id)
+        onConversationReadyRef.current?.(conv.id)
 
-        const history = await getAgentConversationMessages(conv.id)
+        const history = standalone
+          ? await getStandaloneAgentMessages(conv.id)
+          : await getAgentConversationMessages(conv.id)
         if (requestId !== loadRequestRef.current) return
         setMessages(history)
         // 历史中已有会话则不再自动发送初始消息
@@ -176,7 +221,7 @@ export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelPro
         }
       }
     }
-  }, [numericFeedbackId, sendMessage])
+  }, [standalone, numericFeedbackId, sendMessage])
 
   useEffect(() => {
     setDraft('')
@@ -222,7 +267,7 @@ export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelPro
         </div>
       ) : null}
 
-      <div className="scrollbar-slim max-h-[40dvh] space-y-3 overflow-y-auto pr-1">
+      <div ref={messagesContainerRef} className="scrollbar-slim max-h-[40dvh] space-y-3 overflow-y-auto pr-1">
         {messages.map((message) => (
           <article
             key={message.id}
@@ -242,18 +287,6 @@ export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelPro
             {message.content ? (
               <p className="mt-1.5 whitespace-pre-wrap leading-5 text-foreground">{message.content}</p>
             ) : null}
-            {message.tool_calls && message.tool_calls.length > 0 ? (
-              <div className="mt-2 space-y-1">
-                <p className="text-[11px] text-foreground-tertiary">{t('agent.retrieved')}</p>
-                {message.tool_calls.map((tc, idx) => (
-                  <span key={idx} className="inline-block rounded bg-surface-elevated px-2 py-0.5 text-[11px] text-foreground-secondary">
-                    {tc.tool === 'search_customer_code' && t('agent.tool.code_repo')}
-                    {tc.tool === 'search_customer_docs' && t('agent.tool.docs')}
-                    {tc.tool === 'search_product_knowledge' && t('agent.tool.knowledge')}
-                  </span>
-                ))}
-              </div>
-            ) : null}
             {message.confidence !== undefined && message.confidence > 0 ? (
               <div className="mt-2 text-[11px] text-foreground-tertiary">
                 {t('agent.confidence')}: {Math.round(message.confidence * 100)}%
@@ -261,7 +294,6 @@ export function AgentChatPanel({ feedbackId, initialMessage }: AgentChatPanelPro
             ) : null}
           </article>
         ))}
-        <div ref={messagesEndRef} />
       </div>
 
       <div className="space-y-2 rounded-lg border border-divider bg-surface-elevated p-3">

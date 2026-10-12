@@ -323,7 +323,7 @@ func KnowledgeRetrieveTestHandler(c *gin.Context) {
 	}
 
 	// 调用 OpenHands Agent 进行检索
-	resp, err := callOpenHandsAgent(agent, req.Query, "")
+	resp, err := callOpenHandsAgent(agent, req.Query, "", resolveProjectWorkspaceDir(db, projectID))
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"code": 0,

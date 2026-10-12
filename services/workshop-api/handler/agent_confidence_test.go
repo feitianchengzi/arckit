@@ -68,3 +68,108 @@ func TestBuildAgentQueryWithConfidenceInstruction(t *testing.T) {
 		t.Fatalf("wrapped query missing confidence instruction: %q", wrapped)
 	}
 }
+
+func TestParseAgentStructuredSummary(t *testing.T) {
+	cases := []struct {
+		name         string
+		content      string
+		wantParsed   bool
+		wantPosition string
+		wantPhenom   string
+		wantExpect   string
+		wantStripped string
+	}{
+		{
+			name:         "无摘要块时保持原文",
+			content:      "未找到可靠依据，请补充复现步骤。",
+			wantParsed:   false,
+			wantStripped: "未找到可靠依据，请补充复现步骤。",
+		},
+		{
+			name:         "解析成功并剥离协议块",
+			content:      "未找到可靠依据。\n[summary]\n{\"position\":\"导出页\",\"phenomenon\":\"CSV 中文乱码\",\"expect\":\"Excel 正常显示中文\"}\n[/summary]",
+			wantParsed:   true,
+			wantPosition: "导出页",
+			wantPhenom:   "CSV 中文乱码",
+			wantExpect:   "Excel 正常显示中文",
+			wantStripped: "未找到可靠依据。",
+		},
+		{
+			name:         "字段允许为空由客户补填",
+			content:      "[summary]\n{\"position\":\"\",\"phenomenon\":\"点击导出无反应\",\"expect\":\"\"}\n[/summary]",
+			wantParsed:   true,
+			wantPhenom:   "点击导出无反应",
+			wantStripped: "",
+		},
+		{
+			name:         "JSON 非法时剥离但不给结构化数据",
+			content:      "我还不确定。\n[summary]\n{position: 导出页}\n[/summary]",
+			wantParsed:   false,
+			wantStripped: "我还不确定。",
+		},
+		{
+			name:         "三字段全空视为无效",
+			content:      "我还不确定。\n[summary]\n{\"position\":\"\",\"phenomenon\":\"  \",\"expect\":\"\"}\n[/summary]",
+			wantParsed:   false,
+			wantStripped: "我还不确定。",
+		},
+		{
+			name:         "未闭合的残块按协议垃圾截断",
+			content:      "我还不确定。\n[summary]\n{\"position\":\"导出页\"}",
+			wantParsed:   false,
+			wantStripped: "我还不确定。",
+		},
+		{
+			name:         "与 confidence 标注共存",
+			content:      "未找到可靠依据。\n[summary]\n{\"position\":\"登录页\",\"phenomenon\":\"点击无响应\",\"expect\":\"正常登录\"}\n[/summary]",
+			wantParsed:   true,
+			wantPosition: "登录页",
+			wantPhenom:   "点击无响应",
+			wantExpect:   "正常登录",
+			wantStripped: "未找到可靠依据。",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			summary, stripped := parseAgentStructuredSummary(tc.content)
+
+			if tc.wantParsed {
+				if summary == nil {
+					t.Fatalf("summary = nil, want parsed")
+				}
+				if summary.Position != tc.wantPosition {
+					t.Fatalf("Position = %q, want %q", summary.Position, tc.wantPosition)
+				}
+				if summary.Phenomenon != tc.wantPhenom {
+					t.Fatalf("Phenomenon = %q, want %q", summary.Phenomenon, tc.wantPhenom)
+				}
+				if summary.Expect != tc.wantExpect {
+					t.Fatalf("Expect = %q, want %q", summary.Expect, tc.wantExpect)
+				}
+			} else if summary != nil {
+				t.Fatalf("summary = %+v, want nil", summary)
+			}
+
+			if stripped != tc.wantStripped {
+				t.Fatalf("stripped = %q, want %q", stripped, tc.wantStripped)
+			}
+			if strings.Contains(stripped, "[summary]") || strings.Contains(stripped, "[/summary]") {
+				t.Fatalf("stripped 仍含协议残留: %q", stripped)
+			}
+		})
+	}
+}
+
+func TestBuildAgentQueryRequiresSummaryOnlyWhenLowConfidence(t *testing.T) {
+	wrapped := buildAgentQueryWithConfidenceInstruction("导出乱码")
+	if !strings.Contains(wrapped, "[summary]") {
+		t.Fatalf("prompt 缺少结构化摘要指令: %q", wrapped)
+	}
+	if !strings.Contains(wrapped, "phenomenon") || !strings.Contains(wrapped, "position") || !strings.Contains(wrapped, "expect") {
+		t.Fatalf("prompt 缺少三字段说明: %q", wrapped)
+	}
+	if !strings.Contains(wrapped, "低于 0.75") {
+		t.Fatalf("prompt 未限定仅低置信输出摘要块: %q", wrapped)
+	}
+}

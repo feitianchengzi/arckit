@@ -165,7 +165,7 @@ func RetrieveHandler(c *gin.Context) {
 	var agentResp *RetrieveResponse
 	if agent != nil {
 		var err error
-		agentResp, err = callOpenHandsAgent(agent, req.Query, req.ConversationID)
+		agentResp, err = callOpenHandsAgent(agent, req.Query, req.ConversationID, resolveProjectWorkspaceDir(db, projectID))
 		if err != nil {
 			// 降级与"真未命中"必须可区分：日志 + degraded 字段
 			log.Printf("[retrieve] project=%d agent_failed local_hits=%d query_len=%d err=%v",
@@ -246,8 +246,8 @@ func getAgentServerByProject(db *gorm.DB, projectID uint) *OpenHandsAgent {
 }
 
 // callOpenHandsAgent 调用 OpenHands Agent Server（真实契约：建会话→run→轮询→取回复）
-func callOpenHandsAgent(agent *OpenHandsAgent, query, conversationID string) (*RetrieveResponse, error) {
-	result, err := callOpenHandsAgentSync(agent, query, conversationID, nil)
+func callOpenHandsAgent(agent *OpenHandsAgent, query, conversationID, workingDir string) (*RetrieveResponse, error) {
+	result, err := callOpenHandsAgentSync(agent, query, conversationID, nil, workingDir)
 	if err != nil {
 		return nil, err
 	}

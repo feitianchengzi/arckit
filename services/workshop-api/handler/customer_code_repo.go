@@ -10,6 +10,7 @@ import (
 	"todo/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // CustomerCodeRepoRequest 客户代码仓库请求
@@ -209,58 +210,81 @@ func SyncCustomerCodeRepoHandler(c *gin.Context) {
 		return
 	}
 
-	// 执行 git pull 或 git clone
-	go func() {
-		var cmd *exec.Cmd
-		if repo.RepoURL != "" && repo.RepoPath == "" {
-			// 使用repo_url，需要先clone
-			cmd = exec.Command("git", "clone", "-b", repo.Branch, repo.RepoURL, fmt.Sprintf("/workspace/customer-repos/%d/%s", repo.ProjectID, repo.CustomerID))
-		} else if repo.RepoPath != "" {
-			if err := exec.Command("git", "-C", repo.RepoPath, "rev-parse", "--is-inside-work-tree").Run(); err != nil {
-				// 普通目录快照：没有可拉取的远端，磁盘内容即最新，直接就绪并索引。
-				db.Model(&repo).Updates(map[string]interface{}{
-					"status":         "ready",
-					"last_synced_at": time.Now(),
-				})
-				runCodeIndexPipeline(db, projectID, repo)
-				return
-			}
-			// 使用本地路径，直接pull
-			cmd = exec.Command("git", "-C", repo.RepoPath, "pull", "origin", repo.Branch)
-		} else {
-			db.Model(&repo).Updates(map[string]interface{}{
-				"status": "error",
-			})
-			return
-		}
-
-		if err := cmd.Run(); err != nil {
-			// 本地脏工作区 pull 失败很常见（开发仓有未提交修改）：
-			// 磁盘内容仍可索引，不得直接 error 导致检索永远未命中。
-			log.Printf("[code-repo] git pull failed project=%d repo=%d path=%s: %v (fallback: index local snapshot)",
-				repo.ProjectID, repo.ID, repo.RepoPath, err)
-			db.Model(&repo).Updates(map[string]interface{}{
-				"status":         "ready",
-				"last_synced_at": time.Now(),
-			})
-			runCodeIndexPipeline(db, projectID, repo)
-			return
-		}
-
-		// 更新状态为已完成
-		db.Model(&repo).Updates(map[string]interface{}{
-			"status":        "ready",
-			"last_synced_at": time.Now(),
-		})
-
-		// 自动触发代码索引
-		runCodeIndexPipeline(db, projectID, repo)
-	}()
+	// 异步执行 git clone/pull：落点统一为 per-project 工作区，成功后回写 repo_path。
+	go syncCodeRepo(db, repo)
 
 	c.JSON(http.StatusOK, response.NewSuccessResponse(gin.H{
 		"repo_id": repoID,
 		"status":  "syncing",
 	}))
+}
+
+// errCodeRepoNoSource 仓库既无 RepoURL 也无 RepoPath，无可同步内容。
+var errCodeRepoNoSource = fmt.Errorf("repo_url 和 repo_path 均为空，无可同步内容")
+
+// cloneOrPullRepo 执行客户代码仓库的 git clone/pull，返回索引落点目录。
+// 纯 git 操作，不碰 DB 与索引，便于单测落点：
+//   - RepoURL 配置且 RepoPath 为空：clone 到 ohClonedRepoDir(projectID)（per-project 工作区），
+//     落点即该目录。替换原先硬编码的 /workspace/customer-repos/{pid}/{cid}。
+//   - RepoPath 是 git 工作树：pull origin branch，落点为 RepoPath。
+//   - RepoPath 是普通目录（非 git）：无远端可拉，落点为 RepoPath（快照即最新）。
+//   - 两者皆空：返回 errCodeRepoNoSource，由调用方置 error。
+func cloneOrPullRepo(repo CustomerCodeRepo) (string, error) {
+	if repo.RepoURL != "" && repo.RepoPath == "" {
+		cloneDir := ohClonedRepoDir(repo.ProjectID)
+		return cloneDir, exec.Command("git", "clone", "-b", repo.Branch, repo.RepoURL, cloneDir).Run()
+	}
+	if repo.RepoPath == "" {
+		return "", errCodeRepoNoSource
+	}
+	if err := exec.Command("git", "-C", repo.RepoPath, "rev-parse", "--is-inside-work-tree").Run(); err != nil {
+		// 普通目录快照：没有可拉取的远端，磁盘内容即最新。
+		return repo.RepoPath, nil
+	}
+	return repo.RepoPath, exec.Command("git", "-C", repo.RepoPath, "pull", "origin", repo.Branch).Run()
+}
+
+// persistCodeRepoSyncResult 回写同步结果：cloneDir 非空时一并写 repo_path（fresh clone 落点回写），
+// 否则只更新 status + last_synced_at。调用方通过传空 cloneDir 控制 是否回写 repo_path。
+func persistCodeRepoSyncResult(db *gorm.DB, repo CustomerCodeRepo, cloneDir string, status string) {
+	updates := map[string]interface{}{
+		"status":         status,
+		"last_synced_at": time.Now(),
+	}
+	if cloneDir != "" {
+		updates["repo_path"] = cloneDir
+	}
+	db.Model(&repo).Updates(updates)
+}
+
+// syncCodeRepo 编排一次代码仓库同步：clone/pull → 回写结果 → 触发索引。
+// 保留既有兜底语义：脏工作区 pull 失败仍按 ready+索引处理，避免检索永远未命中。
+func syncCodeRepo(db *gorm.DB, repo CustomerCodeRepo) {
+	cloneDir, err := cloneOrPullRepo(repo)
+
+	if err == errCodeRepoNoSource {
+		db.Model(&repo).Updates(map[string]interface{}{"status": "error"})
+		return
+	}
+
+	if err != nil {
+		// 本地脏工作区 pull 失败很常见（开发仓有未提交修改）：
+		// 磁盘内容仍可索引，不得直接 error 导致检索永远未命中。
+		log.Printf("[code-repo] git sync failed project=%d repo=%d path=%s clone_dir=%s: %v (fallback: index local snapshot)",
+			repo.ProjectID, repo.ID, repo.RepoPath, cloneDir, err)
+		// fresh clone 失败时落点目录可能不存在，不回写 repo_path（传空跳过），保留既有兜底。
+		writeDir := cloneDir
+		if repo.RepoURL != "" && repo.RepoPath == "" {
+			writeDir = ""
+		}
+		persistCodeRepoSyncResult(db, repo, writeDir, "ready")
+		runCodeIndexPipeline(db, repo.ProjectID, repo)
+		return
+	}
+
+	// 成功：fresh clone 回写 repo_path=per-project 工作区；pull/快照 cloneDir==RepoPath，回写幂等。
+	persistCodeRepoSyncResult(db, repo, cloneDir, "ready")
+	runCodeIndexPipeline(db, repo.ProjectID, repo)
 }
 
 // DeleteCustomerCodeRepoHandler 删除客户代码仓库

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { FeedbackListStep } from '@/components/sdk/FeedbackListStep'
 import { FeedbackConversationPanel } from '@/components/sdk/FeedbackConversationPanel'
-import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 import { FeedbackShell } from '@/components/sdk/FeedbackShell'
 import type { FeedbackItem } from '@/lib/feedback/types'
 import { fetchFeedbackItemsByApiKey, getOrPersistApiKey, getOrPersistCustomUserId, resolveProjectId } from '@/lib/feedback/api'
@@ -183,29 +182,28 @@ export function SDKStatusPage() {
                 </button>
               </div>
             ) : null}
+            {/* 「我的反馈」只承担进展追踪：与处理方的沟通记录。
+                智能客服是咨询动作，入口收敛在「反馈建议」页，此处不重复出现。 */}
             <FeedbackListStep
               items={items}
               unreadItemIds={unreadFeedbackIds}
               renderConversation={isFeedbackSDKV2Enabled() ? (item) => (
-                <div className="space-y-5">
-                  <AgentChatPanel feedbackId={item.id} />
-                  <FeedbackConversationPanel
-                    feedbackId={item.id}
-                    refreshKey={conversationRefreshKeys[item.id] || 0}
-                    onNotificationsRead={(feedbackId, markedCount) => {
-                      setUnreadFeedbackIds((current) => {
-                        const next = new Set(current)
-                        next.delete(feedbackId)
-                        return next
-                      })
-                      setUnreadCount((current) => {
-                        const next = Math.max(0, current - markedCount)
-                        notifyFeedbackSDKUnreadCount(next)
-                        return next
-                      })
-                    }}
-                  />
-                </div>
+                <FeedbackConversationPanel
+                  feedbackId={item.id}
+                  refreshKey={conversationRefreshKeys[item.id] || 0}
+                  onNotificationsRead={(feedbackId, markedCount) => {
+                    setUnreadFeedbackIds((current) => {
+                      const next = new Set(current)
+                      next.delete(feedbackId)
+                      return next
+                    })
+                    setUnreadCount((current) => {
+                      const next = Math.max(0, current - markedCount)
+                      notifyFeedbackSDKUnreadCount(next)
+                      return next
+                    })
+                  }}
+                />
               ) : undefined}
             />
           </div>

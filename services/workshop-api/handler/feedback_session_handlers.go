@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -19,6 +20,9 @@ type CreateFeedbackFromSessionRequest struct {
 	Content     string                           `json:"content" binding:"required"`
 	Data        json.RawMessage                  `json:"data,omitempty"`
 	Attachments []FeedbackMessageAttachmentInput `json:"attachments,omitempty"`
+	// ConversationID 提交反馈前客户与智能客服的独立会话 ID（feedback_id=0）。
+	// 传入后把该会话关联到新建反馈，使咨询上下文延续到反馈跟进阶段；校验不通过则静默跳过。
+	ConversationID string `json:"conversation_id,omitempty"`
 }
 
 func requireScopedFeedback(c *gin.Context, db *gorm.DB, feedbackID uint) (models.Feedback, middleware.FeedbackSessionScope, bool) {
@@ -123,6 +127,10 @@ func CreateFeedbackFromSession(c *gin.Context) {
 	feedbackResponse := buildFeedbackResponse(feedback)
 	notifyProjectEvent(c, db, feedback.ProjectID, 0, "feedback.created", feedbackResponse)
 	notifyProjectEvent(c, db, feedback.ProjectID, 0, "feedback.message.created", buildFeedbackMessageResponse(initialMessage))
+	// 关联提交前的独立智能客服会话到该反馈，咨询上下文延续到跟进阶段；校验不通过静默跳过。
+	if err := linkStandaloneConversationToFeedback(db, req.ConversationID, feedback.ID, scope.ProjectID, scope.CustomUserID); err != nil {
+		log.Printf("[feedback-session] link standalone conversation failed feedback=%d conv=%s: %v", feedback.ID, req.ConversationID, err)
+	}
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(feedbackResponse))
 }
 
@@ -217,6 +225,29 @@ func GetFeedbackMessagesFromSession(c *gin.Context) {
 		PageSize: pagination.PageSize,
 		Total:    int(total),
 	}))
+}
+
+// GetConversationMessagesFromSession 返回某反馈的统一会话视图：
+// 聚合 agent_message_records（客户与智能客服的咨询/Agent 回答/P3 同步的客服回复）
+// 与 feedback_messages（客户首条反馈/客服 developer 回复/system 消息），按时间升序。
+// 客户在反馈详情会话看到完整对话流，不必在智能客服面板与反馈消息间来回切换。
+// GET /workshop/v2/feedback/feedbacks/:id/conversation-messages
+func GetConversationMessagesFromSession(c *gin.Context) {
+	feedbackID, ok := parseFeedbackIDParam(c)
+	if !ok {
+		return
+	}
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+	feedback, _, ok := requireScopedFeedback(c, db, feedbackID)
+	if !ok {
+		return
+	}
+	views := aggregateConversationMessages(db, feedback.ID)
+	c.JSON(http.StatusOK, response.NewSuccessResponse(views))
 }
 
 func CreateFeedbackMessageFromSession(c *gin.Context) {

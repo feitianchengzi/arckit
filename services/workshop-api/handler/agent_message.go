@@ -31,6 +31,9 @@ type AgentMessageResponse struct {
 	Confidence     float64    `json:"confidence"`
 	// NeedCollect 置信度低于阈值（PRD F-03 低置信），提示客户端可升级人工流转。
 	NeedCollect bool `json:"need_collect,omitempty"`
+	// Structured 低置信时由 Agent 总结的问题结构（PRD F-01 三字段），供客户端预填反馈表单。
+	// 解析失败或 Agent 不可用时为 nil，客户端应退回提问原文。
+	Structured *AgentStructuredSummary `json:"structured,omitempty"`
 }
 
 // AgentMessageHandler 处理客户消息，触发 Agent 响应
@@ -157,6 +160,7 @@ func AgentMessageHandler(c *gin.Context) {
 		ToolCalls:      agentResponse.ToolCalls,
 		Confidence:     agentResponse.Confidence,
 		NeedCollect:    agentResponse.NeedCollect,
+		Structured:     agentResponse.Structured,
 	}))
 }
 
@@ -166,6 +170,8 @@ type AgentResponse struct {
 	ToolCalls   []ToolCall `json:"tool_calls,omitempty"`
 	Confidence  float64    `json:"confidence"`
 	NeedCollect bool       `json:"need_collect"`
+	// Structured 低置信时由 Agent 总结的问题结构，供反馈表单预填。
+	Structured *AgentStructuredSummary `json:"structured,omitempty"`
 	// OHConversationID OpenHands 侧会话 ID，用于持久化映射
 	OHConversationID string `json:"openhands_conversation_id,omitempty"`
 }
@@ -239,30 +245,41 @@ func processWithAgent(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, q
 	if agent == nil {
 		return processWithLocalLLM(db, projectID, query, history)
 	}
-	return callOpenHandsAgentForChat(c, agent, query, conversationID, history, imageUrls)
+	// 按项目解析 OpenHands 工作区（RepoPath > clone 落点 > OH_WORKSPACE_DIR），
+	// 避免不同项目共用同一份代码副本。
+	workingDir := resolveProjectWorkspaceDir(db, projectID)
+	return callOpenHandsAgentForChat(c, agent, query, conversationID, history, imageUrls, workingDir)
 }
 
 // callOpenHandsAgentForChat 调用 OpenHands Agent 进行对话（真实契约）。
 // OpenHands 会话 ID 持久化在本地对话最近一条 agent 消息的 metadata 中，
 // 用于跨请求复用同一 OpenHands 会话。会话过期时将历史上下文注入 query，
 // 确保 Agent 在新会话中仍能记住之前的对话内容。
-func callOpenHandsAgentForChat(c *gin.Context, agent *OpenHandsAgent, query, conversationID string, history []AgentMessageRecord, imageUrls []string) (*AgentResponse, error) {
+func callOpenHandsAgentForChat(c *gin.Context, agent *OpenHandsAgent, query, conversationID string, history []AgentMessageRecord, imageUrls []string, workingDir string) (*AgentResponse, error) {
 	ohConvID := getOpenHandsConversationID(history)
 
 	// 将历史对话注入到 query 中，确保即使 OpenHands 会话过期重建，Agent 仍拥有完整上下文
 	queryWithContext := buildQueryWithHistory(query, history, 20)
 	// 最外层注入 ArcOrbit 人设（身份/体验/严谨性），内层注入置信度自评要求（PRD F-03）。
-	result, err := callOpenHandsAgentSync(agent, buildArcOrbitAgentPrompt(buildAgentQueryWithConfidenceInstruction(queryWithContext)), ohConvID, imageUrls)
+	result, err := callOpenHandsAgentSync(agent, buildArcOrbitAgentPrompt(buildAgentQueryWithConfidenceInstruction(queryWithContext)), ohConvID, imageUrls, workingDir)
 	if err != nil {
 		return nil, err
 	}
 
 	content, confidence := parseAgentConfidence(result.Content)
+	// 低置信时模型会附带 [summary] 结构化问题总结；无论解析与否都要剥离协议残留。
+	structured, content := parseAgentStructuredSummary(content)
+	needCollect := confidence < agentConfidenceLowThreshold
+	if !needCollect {
+		// 置信度达标则摘要块属于协议违规，不外发
+		structured = nil
+	}
 	return &AgentResponse{
-		Content:           content,
-		Confidence:        confidence,
-		NeedCollect:       confidence < agentConfidenceLowThreshold,
-		OHConversationID:  result.ConversationID,
+		Content:          content,
+		Confidence:       confidence,
+		NeedCollect:      needCollect,
+		Structured:       structured,
+		OHConversationID: result.ConversationID,
 	}, nil
 }
 
@@ -299,9 +316,14 @@ func processWithLocalLLM(db *gorm.DB, projectID uint, query string, history []Ag
 		}, nil
 	}
 
+	// 本地检索有结果：confidence 0.7 低于低置信阈值 0.75，NeedCollect 与 OpenHands 路径
+	// 用同一阈值判定，保持与 shouldMarkAgentMessageUnresolved 的 unresolved 标记一致
+	//（0.7 < 0.75 时后端标 unresolved，前端也应触发 need_collect 引导客户补充）。
+	const localSearchConfidence = 0.7
 	return &AgentResponse{
-		Content:    buildLocalSearchReply(results),
-		Confidence: 0.7,
+		Content:     buildLocalSearchReply(results),
+		Confidence:  localSearchConfidence,
+		NeedCollect: localSearchConfidence < agentConfidenceLowThreshold,
 	}, nil
 }
 
@@ -443,22 +465,20 @@ func GetFeedbackAgentMessagesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(views))
 }
 
-// syncDeveloperReplyToAgentMessages 将开发者回复同步到 agent_message_records，
-// 使 chat-widget 客户端能看到内部人员的回复。
+// syncDeveloperReplyToAgentMessages 将开发者回复写入反馈关联的智能客服会话，
+// 使客户在会话面板能看到客服跟进。会话按 feedback_id 显式查询（P3：替代反查最近消息），
+// 取最新一条；无关联会话时静默跳过——客服回复仍落 feedback_messages，只是不进会话视图。
 func syncDeveloperReplyToAgentMessages(db *gorm.DB, feedback models.Feedback, content string) {
-	// 查找该反馈最近的 conversation_id，复用同一个对话
-	var lastRecord AgentMessageRecord
-	conversationID := ""
-	if err := db.Where("feedback_id = ?", feedback.ID).
-		Order("id DESC").First(&lastRecord).Error; err == nil {
-		conversationID = lastRecord.ConversationID
+	convs, err := GetFeedbackConversations(db, feedback.ID)
+	if err != nil || len(convs) == 0 {
+		// 无关联会话：不编造 conversation_id，客服回复保留在 feedback_messages 即可。
+		return
 	}
-	if conversationID == "" {
-		conversationID = fmt.Sprintf("fb-%d", feedback.ID)
-	}
+	// GetFeedbackConversations 按 created_at DESC 返回，取最新会话。
+	convID := convs[0].ID
 
 	agentMsg := &AgentMessageRecord{
-		ConversationID: conversationID,
+		ConversationID: convID,
 		FeedbackID:     feedback.ID,
 		ProjectID:      feedback.ProjectID,
 		SenderType:     "developer",

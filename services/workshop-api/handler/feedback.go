@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -32,6 +33,9 @@ type CreateFeedbackRequest struct {
 	CallbackURL  *string                          `json:"callback_url,omitempty"`   // 回调地址（可选）
 	File         *string                          `json:"file,omitempty"`           // 附件文件地址（可选）
 	Data         *string                          `json:"data,omitempty"`           // JSON字符串（可选）
+	// ConversationID 提交反馈前与智能客服的独立会话 ID（feedback_id=0）。
+	// 传入后关联该会话到新建反馈，使咨询上下文延续到跟进阶段；校验不通过静默跳过。
+	ConversationID string `json:"conversation_id,omitempty"`
 }
 
 // UpdateFeedbackRequest 更新反馈请求结构
@@ -331,6 +335,16 @@ func CreateFeedback(c *gin.Context) {
 			db.Model(&feedback).Update("data", &text)
 		}
 	}()
+
+	// 关联提交前的独立智能客服会话到该反馈（P1 会话衔接），咨询上下文延续到跟进阶段。
+	// apiKey 模式 custom_user_id 来自请求；user 模式无 custom_user_id，关联校验按项目+空客户走（仅匹配同项目独立会话）。
+	customUserIDForLink := ""
+	if req.CustomUserID != nil {
+		customUserIDForLink = *req.CustomUserID
+	}
+	if err := linkStandaloneConversationToFeedback(db, req.ConversationID, feedback.ID, req.ProjectID, customUserIDForLink); err != nil {
+		log.Printf("[feedback] link standalone conversation failed feedback=%d conv=%s: %v", feedback.ID, req.ConversationID, err)
+	}
 
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }

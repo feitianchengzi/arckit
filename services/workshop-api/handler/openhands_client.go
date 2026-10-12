@@ -8,8 +8,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // OpenHandsSyncResult OpenHands Agent Server 同步调用结果
@@ -71,6 +75,50 @@ func ohWorkspaceDir() string {
 	return "/projects"
 }
 
+// ohRepoRoot 每项目代码副本的存放根目录（部署方案 A：每项目一份 clone）。
+// 容器需把该目录挂进 OpenHands 容器并保证可写，Agent 才能在其下工作。
+func ohRepoRoot() string {
+	if dir := strings.TrimSpace(os.Getenv("OH_REPO_ROOT")); dir != "" {
+		return dir
+	}
+	return "/workspace/customer-repos"
+}
+
+// ohClonedRepoDir 某项目 clone 代码副本的落点：{ohRepoRoot}/{projectID}
+func ohClonedRepoDir(projectID uint) string {
+	return filepath.Join(ohRepoRoot(), strconv.FormatUint(uint64(projectID), 10))
+}
+
+// resolveProjectWorkspaceDir 解析某项目供 OpenHands 使用的工作区目录。
+// 工作区必须按 project 隔离：全局共用目录会让不同项目的 Agent 看到同一份代码。
+//
+// 优先级：
+//  1. CustomerCodeRepo.RepoPath 指向已存在的目录 —— 显式配置的本地路径
+//  2. ohClonedRepoDir(projectID) —— sync clone 的落点
+//  3. ohWorkspaceDir() —— OH_WORKSPACE_DIR 或默认 /projects，兼容既有部署
+func resolveProjectWorkspaceDir(db *gorm.DB, projectID uint) string {
+	if db != nil && projectID > 0 {
+		var repos []CustomerCodeRepo
+		if err := db.Where("project_id = ?", projectID).
+			Order("CASE WHEN status = 'ready' THEN 0 ELSE 1 END, id DESC").
+			Limit(1).Find(&repos).Error; err == nil && len(repos) > 0 {
+			if path := strings.TrimSpace(repos[0].RepoPath); path != "" && dirExists(path) {
+				return path
+			}
+		}
+		if cloned := ohClonedRepoDir(projectID); dirExists(cloned) {
+			return cloned
+		}
+	}
+	return ohWorkspaceDir()
+}
+
+// dirExists 判断路径是否存在且为目录。
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 // ohMaxIterations agent 循环上限
 func ohMaxIterations(agent *OpenHandsAgent) int {
 	if agent != nil && agent.MaxIterations > 0 {
@@ -130,16 +178,24 @@ func ohRequest(method, url, apiKey string, payload interface{}, timeout time.Dur
 }
 
 // ohCreateConversation 创建 OpenHands 会话（真实契约必填 workspace/initial_message/agent）
-func ohCreateConversation(agent *OpenHandsAgent, query string) (string, error) {
+// ohCreateConversation 创建 OpenHands 会话。
+// workingDir 必须是按项目隔离的工作区（见 resolveProjectWorkspaceDir），
+// 传空时回退到全局 ohWorkspaceDir()，仅用于兼容未传入上下文的旧调用。
+func ohCreateConversation(agent *OpenHandsAgent, query, workingDir string) (string, error) {
 	llm, err := ohLLMConfig(agent)
 	if err != nil {
 		return "", err
 	}
 
+	dir := strings.TrimSpace(workingDir)
+	if dir == "" {
+		dir = ohWorkspaceDir()
+	}
+
 	payload := map[string]interface{}{
 		"workspace": map[string]interface{}{
 			"kind":        "LocalWorkspace",
-			"working_dir": ohWorkspaceDir(),
+			"working_dir": dir,
 		},
 		"initial_message": map[string]interface{}{
 			"role":    "user",
@@ -319,7 +375,7 @@ func ohFetchAgentReply(agent *OpenHandsAgent, conversationID string) (string, er
 // callOpenHandsAgentSync 同步调用 OpenHands Agent Server（真实契约）。
 // ohConversationID 为空时新建会话；非空时续发消息，会话失效则自动重建。
 // 返回 OpenHands 侧会话 ID 与 agent 最终回复。
-func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID string, imageUrls []string) (*OpenHandsSyncResult, error) {
+func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID string, imageUrls []string, workingDir string) (*OpenHandsSyncResult, error) {
 	timeout := ohAgentTimeout(agent)
 
 	convID := ""
@@ -336,7 +392,7 @@ func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID strin
 		// 续发失败（会话已清理）时降级为新建
 	}
 	if convID == "" {
-		id, err := ohCreateConversation(agent, query)
+		id, err := ohCreateConversation(agent, query, workingDir)
 		if err != nil {
 			return nil, err
 		}

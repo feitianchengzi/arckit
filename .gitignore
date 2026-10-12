@@ -41,4 +41,9 @@ services/workshop-api/workshop-api*
 /arckit/debug/
 /arckit/project/
 /arckit/cases/
+/arckit/debug/
+
 # END Arckit local state and evidence
+
+# kscc 工具临时目录
+.sisyphus/

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -451,5 +453,146 @@ func TestDeleteCustomerCodeRepo(t *testing.T) {
 	}
 	if resp.Data.Status != "deleted" {
 		t.Fatalf("status = %s, want deleted", resp.Data.Status)
+	}
+}
+
+// mustRunGit 在 dir 下执行 git 命令，失败即终止测试。
+func mustRunGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
+	}
+}
+
+func mustWriteFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// TestCloneOrPullRepoClonesToProjectWorkspace 验证 repo_url 仓库 clone 落点统一到
+// per-project 工作区 {OH_REPO_ROOT}/{projectID}（替换原硬编码 /workspace/customer-repos/{pid}/{cid}）。
+// 真实 git，无 DB，默认即跑。
+func TestCloneOrPullRepoClonesToProjectWorkspace(t *testing.T) {
+	// 准备一个带 1 个 commit 的源仓库。
+	srcDir := t.TempDir()
+	mustRunGit(t, srcDir, "init", "-b", "main")
+	mustRunGit(t, srcDir, "config", "user.email", "t@t")
+	mustRunGit(t, srcDir, "config", "user.name", "t")
+	mustWriteFile(t, filepath.Join(srcDir, "README.md"), "hello")
+	mustRunGit(t, srcDir, "add", "README.md")
+	mustRunGit(t, srcDir, "commit", "-m", "init")
+	// 裸仓作为 RepoURL 来源。
+	bareDir := filepath.Join(t.TempDir(), "src.git")
+	mustRunGit(t, srcDir, "clone", "--bare", srcDir, bareDir)
+
+	reposRoot := filepath.Join(t.TempDir(), "repos")
+	if err := os.MkdirAll(reposRoot, 0o755); err != nil {
+		t.Fatalf("mkdir repos root: %v", err)
+	}
+	t.Setenv("OH_REPO_ROOT", reposRoot)
+
+	repo := CustomerCodeRepo{ProjectID: 11, RepoURL: bareDir, Branch: "main"}
+	cloneDir, err := cloneOrPullRepo(repo)
+	if err != nil {
+		t.Fatalf("cloneOrPullRepo: %v", err)
+	}
+
+	want := ohClonedRepoDir(11)
+	if cloneDir != want {
+		t.Fatalf("cloneDir = %q, want %q", cloneDir, want)
+	}
+	if !dirExists(cloneDir) {
+		t.Fatalf("clone dir not exists: %s", cloneDir)
+	}
+	if _, err := os.Stat(filepath.Join(cloneDir, ".git")); err != nil {
+		t.Fatalf("clone dir has no .git: %v", err)
+	}
+}
+
+// TestCloneOrPullRepoPullsExistingRepoPath 验证 RepoPath 是 git 工作树时走 pull，落点为 RepoPath（不 clone）。
+func TestCloneOrPullRepoPullsExistingRepoPath(t *testing.T) {
+	remoteDir := t.TempDir()
+	mustRunGit(t, remoteDir, "init", "-b", "main")
+	mustRunGit(t, remoteDir, "config", "user.email", "t@t")
+	mustRunGit(t, remoteDir, "config", "user.name", "t")
+	mustWriteFile(t, filepath.Join(remoteDir, "README.md"), "hello")
+	mustRunGit(t, remoteDir, "add", "README.md")
+	mustRunGit(t, remoteDir, "commit", "-m", "init")
+
+	workDir := filepath.Join(t.TempDir(), "work")
+	mustRunGit(t, filepath.Dir(workDir), "clone", remoteDir, workDir)
+
+	repo := CustomerCodeRepo{ProjectID: 11, RepoPath: workDir, Branch: "main"}
+	cloneDir, err := cloneOrPullRepo(repo)
+	if err != nil {
+		t.Fatalf("cloneOrPullRepo: %v", err)
+	}
+	if cloneDir != workDir {
+		t.Fatalf("cloneDir = %q, want %q", cloneDir, workDir)
+	}
+}
+
+// TestCloneOrPullRepoNoSource 验证既无 RepoURL 也无 RepoPath 时返回 errCodeRepoNoSource。
+func TestCloneOrPullRepoNoSource(t *testing.T) {
+	repo := CustomerCodeRepo{ProjectID: 11, Branch: "main"}
+	_, err := cloneOrPullRepo(repo)
+	if err != errCodeRepoNoSource {
+		t.Fatalf("err = %v, want errCodeRepoNoSource", err)
+	}
+}
+
+// TestPersistCodeRepoSyncResultWritesBackRepoPath 验证 fresh clone 成功后回写
+// repo_path=per-project 工作区，并置 status=ready。DB-gated，无 DSN 跳过。
+func TestPersistCodeRepoSyncResultWritesBackRepoPath(t *testing.T) {
+	db := setupCustomerCodeRepoTestDB(t)
+	defer teardownCustomerCodeRepoTestDB(t, db)
+	t.Setenv("OH_REPO_ROOT", filepath.Join(t.TempDir(), "repos"))
+
+	repo := CustomerCodeRepo{ProjectID: 11, CustomerID: "c1", Branch: "main", Status: "syncing", RepoPath: ""}
+	if err := db.Create(&repo).Error; err != nil {
+		t.Fatalf("create repo: %v", err)
+	}
+
+	want := ohClonedRepoDir(11)
+	persistCodeRepoSyncResult(db, repo, want, "ready")
+
+	var got CustomerCodeRepo
+	if err := db.First(&got, repo.ID).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got.RepoPath != want {
+		t.Fatalf("repo_path = %q, want %q", got.RepoPath, want)
+	}
+	if got.Status != "ready" {
+		t.Fatalf("status = %q, want ready", got.Status)
+	}
+}
+
+// TestPersistCodeRepoSyncResultSkipsRepoPathWhenEmpty 验证 cloneDir 传空时不回写
+// repo_path（fresh clone 失败兜底：不把不存在的落点写进 repo_path）。
+func TestPersistCodeRepoSyncResultSkipsRepoPathWhenEmpty(t *testing.T) {
+	db := setupCustomerCodeRepoTestDB(t)
+	defer teardownCustomerCodeRepoTestDB(t, db)
+
+	repo := CustomerCodeRepo{ProjectID: 11, CustomerID: "c1", Branch: "main", Status: "syncing", RepoPath: ""}
+	if err := db.Create(&repo).Error; err != nil {
+		t.Fatalf("create repo: %v", err)
+	}
+
+	persistCodeRepoSyncResult(db, repo, "", "ready")
+
+	var got CustomerCodeRepo
+	if err := db.First(&got, repo.ID).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got.RepoPath != "" {
+		t.Fatalf("repo_path = %q, want empty", got.RepoPath)
+	}
+	if got.Status != "ready" {
+		t.Fatalf("status = %q, want ready", got.Status)
 	}
 }

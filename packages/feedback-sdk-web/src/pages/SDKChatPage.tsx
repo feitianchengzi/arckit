@@ -1,8 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FeedbackShell } from '@/components/sdk/FeedbackShell'
 import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
+import { createFeedbackMessageV2, type AgentStructuredSummary } from '@/lib/feedback/v2'
+import { formatStructuredFeedback } from '@/lib/feedback/structured'
 import { t } from '@/i18n'
+
+function buildClientMessageId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `sdk_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`
+}
 
 /**
  * 提交反馈后的智能客服会话页。
@@ -14,6 +21,33 @@ export function SDKChatPage() {
   const [searchParams] = useSearchParams()
   const feedbackId = useMemo(() => (searchParams.get('feedback') || '').trim(), [searchParams])
   const initialMessage = useMemo(() => (searchParams.get('q') || '').trim(), [searchParams])
+  const [recording, setRecording] = useState(false)
+  const [recorded, setRecorded] = useState(false)
+  const [recordError, setRecordError] = useState('')
+
+  // 智能客服本轮低置信：反馈已存在，沿用现有链路把问题结构追加到该反馈，不重复新建。
+  const handleNeedCollect = async (payload: { question: string; structured?: AgentStructuredSummary }) => {
+    const id = Number(feedbackId)
+    if (!Number.isFinite(id) || id <= 0 || recording) return
+    const trimmed = formatStructuredFeedback(payload.structured, payload.question)
+    if (!trimmed) return
+
+    setRecording(true)
+    setRecordError('')
+    try {
+      await createFeedbackMessageV2({
+        feedbackId: id,
+        content: trimmed,
+        clientMessageId: buildClientMessageId(),
+        metadata: { source: 'feedback-sdk-web', channel: 'chat', need_collect: true },
+      })
+      setRecorded(true)
+    } catch (err: any) {
+      setRecordError(t('chat.record_failed', { message: err?.message || String(err) }))
+    } finally {
+      setRecording(false)
+    }
+  }
 
   return (
     <div className="min-h-[100dvh] bg-surface px-4 py-6 md:px-6">
@@ -30,10 +64,19 @@ export function SDKChatPage() {
               </header>
 
               {feedbackId && Number.isFinite(Number(feedbackId)) && Number(feedbackId) > 0 ? (
-                <AgentChatPanel
-                  feedbackId={feedbackId}
-                  initialMessage={initialMessage || undefined}
-                />
+                <>
+                  <AgentChatPanel
+                    feedbackId={feedbackId}
+                    initialMessage={initialMessage || undefined}
+                    onNeedCollect={handleNeedCollect}
+                  />
+                  {recorded ? (
+                    <p className="rounded-lg border border-primary/25 bg-primary-light/40 px-3 py-2 text-xs leading-5 text-foreground-secondary">
+                      {t('chat.recorded_to_feedback')}
+                    </p>
+                  ) : null}
+                  {recordError ? <p className="text-xs text-error">{recordError}</p> : null}
+                </>
               ) : (
                 <div className="rounded-lg border border-divider bg-surface p-4 text-sm text-foreground-secondary">
                   {t('chat.invalid')}

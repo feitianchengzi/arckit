@@ -149,7 +149,8 @@ func AgentMessageFromSession(c *gin.Context) {
 		SenderType:     "agent",
 		ToolCalls:      agentResponse.ToolCalls,
 		Confidence:     agentResponse.Confidence,
-		NeedCollect:     agentResponse.NeedCollect,
+		NeedCollect:    agentResponse.NeedCollect,
+		Structured:     agentResponse.Structured,
 	}))
 }
 
