@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ErrorView, LoadingView } from '@/components/ui'
 import { showGlobalToast } from '@/components/ui/Toast'
-import { useProject } from '@/hooks/useProjects'
+import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
+import { feedbackV2Client, type OpenHandsProjectConfig } from '@/lib/api/feedbackV2Client'
 import { getFeedbackProjectSetupStatus, markFeedbackProjectApiKeySetup } from '@/lib/utils/feedbackProjectSetup'
 import { buildFeedbackProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
 import { getAccessToken } from '@/lib/utils/tokenManager'
+import { useAuthStore } from '@/store/authStore'
 import type { ApiKeyInfo } from '@/types/auth'
 
 type V2AuthMode = 'direct' | 'session'
@@ -215,6 +217,8 @@ export default function FeedbackProjectSettingsPage() {
   const decodedProjectId = decodeProjectId(id)
   const projectId = decodedProjectId ?? ''
   const { data: project, isLoading, error, refetch } = useProject(projectId)
+  const { data: projectMembers = [] } = useProjectMembers(projectId)
+  const currentUser = useAuthStore((state) => state.user)
 
   const [apiKeyName, setApiKeyName] = useState('')
   const [apiKeyLoading, setApiKeyLoading] = useState(false)
@@ -227,6 +231,25 @@ export default function FeedbackProjectSettingsPage() {
   const [apiKeysError, setApiKeysError] = useState('')
   const [v2AuthMode, setV2AuthMode] = useState<V2AuthMode>('direct')
   const [platform, setPlatform] = useState<Platform>('web')
+  const [openHandsConfig, setOpenHandsConfig] = useState<OpenHandsProjectConfig | null>(null)
+  const [openHandsLoading, setOpenHandsLoading] = useState(false)
+  const [openHandsSaving, setOpenHandsSaving] = useState(false)
+  const [openHandsError, setOpenHandsError] = useState('')
+  const [llmApiKey, setLLMApiKey] = useState('')
+  const [llmModel, setLLMModel] = useState('deepseek/deepseek-chat')
+  const [llmBaseUrl, setLLMBaseUrl] = useState('https://api.deepseek.com')
+
+  const currentProjectMember = projectMembers.find((member) => (
+    member.is_me || member.user_id === currentUser?.id || member.user?.username === currentUser?.username
+  ))
+  const canManageOpenHands = Boolean(
+    project && currentUser && (
+      project.creator_id === currentUser.id ||
+      project.creator?.username === currentUser.username ||
+      currentProjectMember?.role === 'owner' ||
+      currentProjectMember?.role === 'admin'
+    )
+  )
 
   useEffect(() => {
     if (!projectId) return
@@ -263,6 +286,79 @@ export default function FeedbackProjectSettingsPage() {
   useEffect(() => {
     void loadApiKeys()
   }, [loadApiKeys])
+
+  const loadOpenHandsConfig = useCallback(async () => {
+    if (!projectId || !getAccessToken()) return
+    setOpenHandsLoading(true)
+    setOpenHandsError('')
+    try {
+      const config = await feedbackV2Client.getOpenHandsConfig(projectId)
+      setOpenHandsConfig(config)
+      setLLMModel(config.llm_model || 'deepseek/deepseek-chat')
+      setLLMBaseUrl(config.llm_base_url || 'https://api.deepseek.com')
+    } catch (loadError: any) {
+      setOpenHandsError(
+        loadError?.response?.data?.error?.message || loadError?.message || '加载智能客服配置失败',
+      )
+    } finally {
+      setOpenHandsLoading(false)
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    void loadOpenHandsConfig()
+  }, [loadOpenHandsConfig])
+
+  const saveOpenHandsConfig = async () => {
+    if (!canManageOpenHands) return
+    setOpenHandsSaving(true)
+    setOpenHandsError('')
+    try {
+      const key = llmApiKey.trim()
+      const saved = await feedbackV2Client.updateOpenHandsConfig(projectId, {
+        url: openHandsConfig?.url || 'http://openhands-agent:8000',
+        llm_model: llmModel.trim() || 'deepseek/deepseek-chat',
+        llm_base_url: llmBaseUrl.trim(),
+        ...(key ? { llm_api_key: key } : {}),
+      })
+      setOpenHandsConfig(saved)
+      setLLMApiKey('')
+      showGlobalToast(key ? '模型 Key 已加密保存并立即生效' : '智能客服配置已保存', 'success', 2400)
+    } catch (saveError: any) {
+      const message = saveError?.response?.data?.error?.message || saveError?.message || '保存智能客服配置失败'
+      setOpenHandsError(message)
+      showGlobalToast(message, 'error', 2800)
+    } finally {
+      setOpenHandsSaving(false)
+    }
+  }
+
+  const useServerLLMKey = async () => {
+    if (!canManageOpenHands || !openHandsConfig?.project_llm_api_key_configured) return
+    setOpenHandsSaving(true)
+    setOpenHandsError('')
+    try {
+      const saved = await feedbackV2Client.updateOpenHandsConfig(projectId, {
+        url: openHandsConfig.url || 'http://openhands-agent:8000',
+        llm_model: llmModel.trim() || 'deepseek/deepseek-chat',
+        llm_base_url: llmBaseUrl.trim(),
+        clear_llm_api_key: true,
+      })
+      setOpenHandsConfig(saved)
+      setLLMApiKey('')
+      showGlobalToast(
+        saved.llm_api_key_source === 'server' ? '已改用服务器模型 Key' : '项目 Key 已清除，当前等待服务器配置',
+        saved.llm_api_key_source === 'server' ? 'success' : 'warning',
+        2600,
+      )
+    } catch (saveError: any) {
+      const message = saveError?.response?.data?.error?.message || saveError?.message || '切换服务器 Key 失败'
+      setOpenHandsError(message)
+      showGlobalToast(message, 'error', 2800)
+    } finally {
+      setOpenHandsSaving(false)
+    }
+  }
 
   const handleCreateApiKey = async () => {
     if (!getAccessToken()) {
@@ -522,6 +618,109 @@ window.FeedbackSDK.openSubmit()
           </div>
         </details>
       </details>
+
+      <section className="border border-divider bg-surface-elevated p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-bold text-foreground">V3 智能客服（验证版）</h2>
+              <span
+                className={
+                  openHandsConfig?.llm_api_key_configured
+                    ? 'rounded-full bg-success-light px-2.5 py-1 text-xs font-semibold text-success'
+                    : 'rounded-full bg-warning-light px-2.5 py-1 text-xs font-semibold text-warning'
+                }
+              >
+                {openHandsLoading
+                  ? '检查中'
+                  : openHandsConfig?.llm_api_key_source === 'project'
+                    ? '项目 Key 已配置'
+                    : openHandsConfig?.llm_api_key_source === 'server'
+                      ? '使用服务器 Key'
+                      : '等待配置 Key'}
+              </span>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-foreground-secondary">
+              部署时可以不提供模型 Key。项目所有者或管理员可在演示前于此处保存自己的 Key；保存后下一次智能客服请求立即生效，不需要重新部署 SDK 或服务。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadOpenHandsConfig()}
+            disabled={openHandsLoading || openHandsSaving}
+            className="rounded-lg border border-divider bg-surface px-3 py-2 text-xs font-semibold text-foreground hover:bg-surface-hover disabled:opacity-60"
+          >
+            {openHandsLoading ? '刷新中...' : '刷新状态'}
+          </button>
+        </div>
+
+        <div className="mt-4 border-l-2 border-primary px-3 text-xs leading-5 text-foreground-secondary">
+          这里配置的是服务端模型凭据，不是下发给接入应用的 SDK Key。明文仅在本次保存请求中传输，后端加密保存且不会再次回显。
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="space-y-1.5 text-xs font-semibold text-foreground">
+            模型
+            <input
+              value={llmModel}
+              onChange={(event) => setLLMModel(event.target.value)}
+              disabled={!canManageOpenHands || openHandsSaving}
+              placeholder="deepseek/deepseek-chat"
+              className="w-full rounded-lg border border-divider bg-surface px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+            />
+          </label>
+          <label className="space-y-1.5 text-xs font-semibold text-foreground">
+            API Base URL
+            <input
+              value={llmBaseUrl}
+              onChange={(event) => setLLMBaseUrl(event.target.value)}
+              disabled={!canManageOpenHands || openHandsSaving}
+              placeholder="https://api.deepseek.com"
+              className="w-full rounded-lg border border-divider bg-surface px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+            />
+          </label>
+        </div>
+
+        <label className="mt-4 block space-y-1.5 text-xs font-semibold text-foreground">
+          模型 API Key
+          <input
+            type="password"
+            value={llmApiKey}
+            onChange={(event) => setLLMApiKey(event.target.value)}
+            disabled={!canManageOpenHands || openHandsSaving}
+            autoComplete="new-password"
+            spellCheck={false}
+            placeholder={openHandsConfig?.project_llm_api_key_configured ? '已保存项目 Key；留空表示不更换' : '输入演示账号的模型 Key'}
+            className="w-full rounded-lg border border-divider bg-surface px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+          />
+        </label>
+
+        {openHandsError ? <div className="mt-3 bg-error-lighter px-3 py-2 text-xs text-error">{openHandsError}</div> : null}
+        {!canManageOpenHands ? (
+          <p className="mt-3 text-xs text-foreground-tertiary">只有项目 owner/admin 可以更新模型配置。</p>
+        ) : null}
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void saveOpenHandsConfig()}
+            disabled={!canManageOpenHands || openHandsSaving || !llmModel.trim()}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {openHandsSaving ? '保存中...' : llmApiKey.trim() ? '保存并启用项目 Key' : '保存配置'}
+          </button>
+          {openHandsConfig?.project_llm_api_key_configured ? (
+            <button
+              type="button"
+              onClick={() => void useServerLLMKey()}
+              disabled={!canManageOpenHands || openHandsSaving}
+              className="rounded-lg border border-divider bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-surface-hover disabled:opacity-60"
+            >
+              清除项目 Key，改用服务器兜底
+            </button>
+          ) : null}
+        </div>
+      </section>
 
       <details className="border border-divider bg-surface-elevated p-4">
         <summary className="cursor-pointer text-sm font-semibold text-foreground">V1 历史兼容接入</summary>

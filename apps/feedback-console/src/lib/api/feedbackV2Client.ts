@@ -222,6 +222,37 @@ export interface ConvertFeedbackToTaskResult {
   }
 }
 
+export interface OpenHandsProjectConfig {
+  enabled: boolean
+  id?: number
+  project_id: number
+  url: string
+  status: string
+  session_api_key_configured: boolean
+  llm_model: string
+  llm_base_url: string
+  llm_api_key_configured: boolean
+  project_llm_api_key_configured: boolean
+  llm_api_key_source: 'project' | 'server' | 'none'
+  llm_temperature: number
+  max_iterations: number
+  confidence_threshold: number
+  timeout_ms: number
+  updated_at?: string
+}
+
+export interface UpdateOpenHandsProjectConfigInput {
+  url?: string
+  llm_model?: string
+  llm_base_url?: string
+  llm_api_key?: string
+  clear_llm_api_key?: boolean
+  llm_temperature?: number
+  max_iterations?: number
+  confidence_threshold?: number
+  timeout_ms?: number
+}
+
 function toSTSCredentials(credentials: FeedbackV2OSSCredentials): STSCredentials {
   return {
     AccessKeyId: credentials.access_key_id,
@@ -408,6 +439,24 @@ async function getTaskAttachmentCredentials(taskAttachmentId: number, objectKey:
   return toSTSCredentials(handleResponse<FeedbackV2OSSCredentials>(response))
 }
 
+async function getOpenHandsConfig(projectId: string | number): Promise<OpenHandsProjectConfig> {
+  const response = await apiClient.get(
+    `${resolveWorkshopV2BaseUrl()}/user/projects/${projectId}/openhands-config`,
+  )
+  return handleResponse<OpenHandsProjectConfig>(response)
+}
+
+async function updateOpenHandsConfig(
+  projectId: string | number,
+  input: UpdateOpenHandsProjectConfigInput,
+): Promise<OpenHandsProjectConfig> {
+  const response = await apiClient.put(
+    `${resolveWorkshopV2BaseUrl()}/user/projects/${projectId}/openhands-config`,
+    input,
+  )
+  return handleResponse<OpenHandsProjectConfig>(response)
+}
+
 export const feedbackV2Client = {
   listByProject,
 	getById,
@@ -427,4 +476,6 @@ export const feedbackV2Client = {
 	convertToTask,
 	ignoreFeedback,
 	getTaskAttachmentCredentials,
+	getOpenHandsConfig,
+	updateOpenHandsConfig,
 }
