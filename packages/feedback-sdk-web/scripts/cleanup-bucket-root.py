@@ -14,7 +14,7 @@ warnings.filterwarnings(
 import oss2
 from dotenv import dotenv_values
 
-DEFAULT_KEEP_PREFIXES = ["console", "sdk"]
+DEFAULT_KEEP_PREFIXES = ["console", "sdk", "sdk-channels", "sdk-releases"]
 
 
 def fail(msg):
@@ -38,6 +38,12 @@ def parse_keep_prefixes(raw):
 
 
 def is_protected_key(key, keep_prefixes):
+    # Managed release/channel/alias objects always live in an sdk* top-level
+    # namespace. Never let the legacy root cleanup remove them, even when a
+    # caller supplies a narrower custom keep list.
+    top_level = key.split("/", 1)[0]
+    if top_level == "sdk" or top_level.startswith("sdk-"):
+        return True
     for prefix in keep_prefixes:
         if key == prefix or key.startswith(f"{prefix}/"):
             return True
@@ -100,7 +106,7 @@ def main():
     parser.add_argument(
         "--keep-prefixes",
         default=None,
-        help="Comma-separated prefixes to keep. Default: console,sdk",
+        help="Comma-separated prefixes to keep. SDK namespaces are always protected.",
     )
     parser.add_argument(
         "--execute",

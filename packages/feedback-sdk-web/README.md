@@ -72,6 +72,55 @@ VITE_FEEDBACK_SDK_URL=https://feedback.feitianchengzi.com/sdk-v2/index.html?embe
 
 然后单独发布反馈控制台。留空此变量会继续使用稳定的 V1 `/sdk`。
 
+## Managed Releases and Forced Upgrades
+
+正式环境应使用不可变 release + channel，而不是反复覆盖同一份 SDK 资源：
+
+```bash
+# 低内存串行构建；Node 堆上限默认 1 GiB。
+npm run build:release -- 2.0.0-canary.20261014
+
+# 将同一份产物分别发布到需要承载 SDK 的 bucket。发布过的版本不可覆盖。
+python3 scripts/sdk_release.py publish \
+  --version 2.0.0-canary.20261014 \
+  --dist-dir dist \
+  --env-file .env \
+  --compatible-contracts v1,v2 \
+  --source-commit "$(git rev-parse HEAD)"
+
+# 灰度入口；只影响显式使用 /sdk-v2-canary 的测试宿主。
+python3 scripts/sdk_release.py promote \
+  --version 2.0.0-canary.20261014 \
+  --channel canary \
+  --env-file .env \
+  --alias sdk-v2-canary:v2 \
+  --confirm-promote canary:2.0.0-canary.20261014
+```
+
+发布结构：
+
+- `sdk-releases/<version>/`：不可变构建；同一版本内容不同会拒绝上传。
+- `sdk-channels/canary.json`：灰度通道的唯一切换点。
+- `sdk-channels/stable.json`：正式通道的唯一切换点。
+- `/sdk`、`/sdk-v2`：无缓存的轻量 loader；保留现有接入 URL。
+
+V3 验收通过后，可让旧 V1/V2 宿主在下次打开时集中升级，同时继续使用原接入协议：
+
+```bash
+python3 scripts/sdk_release.py promote \
+  --version 3.0.0 \
+  --channel stable \
+  --env-file .env \
+  --alias sdk:v1 \
+  --alias sdk-v2:v2 \
+  --alias sdk-v3:v3 \
+  --minimum-version 3.0.0 \
+  --force-upgrade-after 2026-11-01T00:00:00+08:00 \
+  --confirm-promote stable:3.0.0
+```
+
+回滚使用相同的 `promote` 命令把 `stable` 指回已经发布的旧版本；不需要重新构建或删除 OSS 对象。Todo Web 的 `/sdk` 位于另一个 OSS bucket，需用 `apps/todo-web/.env` 对同一 release 再执行一次 `publish/promote`，从而保留同源 iframe 访问。
+
 ## Cleanup Legacy Root Objects
 
 用于清理历史上部署在 bucket 根目录的旧 SDK 文件，默认仅预览，不会删除：
@@ -87,7 +136,7 @@ npm run cleanup:root
 npm run cleanup:root -- --execute --confirm-root-cleanup
 ```
 
-默认会保留前缀：`console/`、`sdk/`。  
+默认会保留前缀：`console/`、`sdk/`、`sdk-releases/`、`sdk-channels/`；所有以 `sdk-` 开头的托管 release、channel 和 alias 命名空间也始终受保护。
 如需自定义：
 
 ```bash

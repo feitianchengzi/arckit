@@ -33,6 +33,18 @@ iframe.contentWindow?.postMessage({
 
 SDK 在生产环境只接受来自同源父页面的消息，以及本机开发来源（`localhost` / `127.0.0.1`，任意端口）；如需明确限制来源，可设置 `VITE_SDK_PARENT_ORIGINS`（逗号分隔）或兼容旧配置的 `VITE_SDK_PARENT_ORIGIN`。
 
+`feedback-sdk:ready` 会附带只增不减的发布信息，旧宿主可以忽略新增字段：
+
+```json
+{
+  "source": "feedback-sdk-web",
+  "type": "feedback-sdk:ready",
+  "sdk_version": "3.0.0",
+  "build_id": "20261014153000",
+  "supported_contracts": ["v1", "v2", "v3"]
+}
+```
+
 `feedback-console-web` 是兼容保留的旧 `source` 值；新的接入应使用 `feedback-sdk-host`。
 
 V2 的嵌入页会自行渲染全屏遮罩、反馈卡片和关闭按钮。接入方只需承载一个全屏透明 iframe、发送配置及打开命令；不应提供容器、尺寸、关闭按钮、遮罩样式或跨 iframe 读取 SDK DOM。SDK 通过 `feedback-sdk:close` 通知接入方隐藏 iframe。
@@ -49,6 +61,7 @@ V2 的嵌入页会自行渲染全屏遮罩、反馈卡片和关闭按钮。接�
 - `setTheme(theme)`
 - `getTheme()`
 - `useSystemTheme()`
+- `getReleaseInfo()`：返回 SDK 版本、构建 ID 和支持的接入协议
 
 配置结构：
 

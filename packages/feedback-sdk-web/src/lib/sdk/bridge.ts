@@ -9,6 +9,12 @@ export const FEEDBACK_SDK_CONFIGURED_EVENT = 'feedback-sdk:configured'
 export const FEEDBACK_SDK_NATIVE_IMAGE_EVENT = 'feedback-sdk:native-image-selected'
 export const FEEDBACK_SDK_UNREAD_CHANGED_EVENT = 'feedback-sdk:unread-changed'
 
+export interface FeedbackSDKReleaseInfo {
+  sdkVersion: string
+  buildId: string
+  supportedContracts: string[]
+}
+
 const FEEDBACK_SDK_HOST_SOURCES = new Set(['feedback-console-web', 'feedback-sdk-host'])
 const FEEDBACK_SDK_HOST_CONFIGURE_MESSAGE = 'feedback-sdk:configure'
 const FEEDBACK_SDK_HOST_OPEN_MESSAGE = 'feedback-sdk:open'
@@ -38,6 +44,7 @@ export interface FeedbackSDKBridge {
   setLocale: (locale: FeedbackSDKLocale) => void
   getLocale: () => FeedbackSDKLocale
   setImageFromNative: (payload: FeedbackSDKNativeImagePayload) => void
+  getReleaseInfo: () => FeedbackSDKReleaseInfo
 }
 
 declare global {
@@ -55,6 +62,18 @@ interface FeedbackSDKHostConfigMessage {
 }
 
 let hostMessageListenerInstalled = false
+
+function getReleaseInfo(): FeedbackSDKReleaseInfo {
+  const supportedContracts = (import.meta.env.VITE_SDK_SUPPORTED_CONTRACTS || 'v1,v2')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  return {
+    sdkVersion: (import.meta.env.VITE_SDK_VERSION || '0.0.0-dev').trim(),
+    buildId: (import.meta.env.VITE_BUILD_ID || 'development').trim(),
+    supportedContracts,
+  }
+}
 
 function parseOrigins(value: string): string[] {
   return value
@@ -210,8 +229,15 @@ function installHostMessageListener() {
 
 function notifyHostReady() {
   if (window.parent === window) return
+  const release = getReleaseInfo()
   window.parent.postMessage(
-    { source: 'feedback-sdk-web', type: FEEDBACK_SDK_READY_MESSAGE },
+    {
+      source: 'feedback-sdk-web',
+      type: FEEDBACK_SDK_READY_MESSAGE,
+      sdk_version: release.sdkVersion,
+      build_id: release.buildId,
+      supported_contracts: release.supportedContracts,
+    },
     '*'
   )
 }
@@ -279,6 +305,9 @@ function createBridge(): FeedbackSDKBridge {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(FEEDBACK_SDK_NATIVE_IMAGE_EVENT, { detail: payload }))
       }
+    },
+    getReleaseInfo() {
+      return getReleaseInfo()
     },
   }
 }

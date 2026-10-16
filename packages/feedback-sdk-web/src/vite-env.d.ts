@@ -3,6 +3,9 @@
 interface ImportMetaEnv {
   readonly VITE_GATEWAY_URL?: string
   readonly VITE_PUBLIC_BASE?: string
+  readonly VITE_SDK_VERSION?: string
+  readonly VITE_BUILD_ID?: string
+  readonly VITE_SDK_SUPPORTED_CONTRACTS?: string
   readonly VITE_SDK_FEEDBACK_API_KEY?: string
   readonly VITE_SDK_FEEDBACK_PROJECT_ID?: string
   readonly VITE_SDK_PARENT_ORIGIN?: string
