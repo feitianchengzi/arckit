@@ -241,6 +241,23 @@ export interface OpenHandsProjectConfig {
   updated_at?: string
 }
 
+export interface ProjectCodeRepo {
+  id: number
+  project_id: number
+  customer_id: string
+  repo_path?: string
+  repo_url?: string
+  branch: string
+  auto_sync: boolean
+  status: 'ready' | 'syncing' | 'error' | string
+  last_synced_at?: string
+}
+
+export interface SaveProjectGitHubRepoInput {
+  repo_url: string
+  branch?: string
+}
+
 export interface UpdateOpenHandsProjectConfigInput {
   url?: string
   llm_model?: string
@@ -446,6 +463,25 @@ async function getOpenHandsConfig(projectId: string | number): Promise<OpenHands
   return handleResponse<OpenHandsProjectConfig>(response)
 }
 
+async function listProjectCodeRepos(projectId: string | number): Promise<ProjectCodeRepo[]> {
+  const response = await apiClient.get(
+    `${resolveWorkshopV2BaseUrl()}/user/projects/${projectId}/code-repos`,
+  )
+  const repos = handleResponse<ProjectCodeRepo[]>(response)
+  return Array.isArray(repos) ? repos : []
+}
+
+async function saveProjectGitHubRepo(
+  projectId: string | number,
+  input: SaveProjectGitHubRepoInput,
+): Promise<ProjectCodeRepo> {
+  const response = await apiClient.put(
+    `${resolveWorkshopV2BaseUrl()}/user/projects/${projectId}/code-repo`,
+    input,
+  )
+  return handleResponse<ProjectCodeRepo>(response)
+}
+
 async function updateOpenHandsConfig(
   projectId: string | number,
   input: UpdateOpenHandsProjectConfigInput,
@@ -476,6 +512,8 @@ export const feedbackV2Client = {
 	convertToTask,
 	ignoreFeedback,
 	getTaskAttachmentCredentials,
+	listProjectCodeRepos,
+	saveProjectGitHubRepo,
 	getOpenHandsConfig,
 	updateOpenHandsConfig,
 }

@@ -23,20 +23,32 @@ type OpenHandsSyncResult struct {
 }
 
 // ohLLMConfig 构建每请求必填的 LLM 配置。
-// 真实契约：agent.llm 为必填字段，容器环境变量不会作为默认值，
-// 因此 api_key 从服务环境变量 LLM_API_KEY 读取，不落库。
+// 真实契约：agent.llm 为必填字段，容器环境变量不会作为默认值。
+// 项目密钥优先；没有项目密钥时才使用服务环境变量 LLM_API_KEY。
 // temperature 必须下传（取 DB agent.LLMTemperature，默认 0.0）：
 // 否则模型按默认随机采样运行，同一 query 每次回复不同，
 // 检索抽取的文件路径/命中集合随之抖动（反馈详情"一会有内容一会没内容"）。
 func ohLLMConfig(agent *OpenHandsAgent) (map[string]interface{}, error) {
-	apiKey := strings.TrimSpace(os.Getenv("LLM_API_KEY"))
+	apiKey := ""
+	if agent != nil && strings.TrimSpace(agent.LLMAPIKeyEncrypted) != "" {
+		decrypted, err := decryptOpenHandsLLMAPIKey(agent.ProjectID, agent.LLMAPIKeyEncrypted)
+		if err != nil {
+			return nil, fmt.Errorf("读取项目模型 Key 失败: %w", err)
+		}
+		apiKey = strings.TrimSpace(decrypted)
+	} else {
+		apiKey = configuredServerLLMAPIKey()
+	}
 	if apiKey == "" {
-		return nil, fmt.Errorf("环境变量 LLM_API_KEY 未配置，无法调用 OpenHands Agent")
+		return nil, fmt.Errorf("项目和服务器均未配置模型 API Key，无法调用 OpenHands Agent")
 	}
 
-	model := strings.TrimSpace(os.Getenv("LLM_MODEL"))
-	if model == "" && agent != nil && agent.LLMModel != "" {
+	model := ""
+	if agent != nil && agent.LLMModel != "" {
 		model = agent.LLMModel
+	}
+	if model == "" {
+		model = strings.TrimSpace(os.Getenv("LLM_MODEL"))
 	}
 	if model == "" {
 		model = "deepseek/deepseek-chat"
@@ -52,7 +64,14 @@ func ohLLMConfig(agent *OpenHandsAgent) (map[string]interface{}, error) {
 		"api_key":     apiKey,
 		"temperature": temperature,
 	}
-	if baseURL := strings.TrimSpace(os.Getenv("LLM_BASE_URL")); baseURL != "" {
+	baseURL := ""
+	if agent != nil {
+		baseURL = strings.TrimSpace(agent.LLMBaseURL)
+	}
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(os.Getenv("LLM_BASE_URL"))
+	}
+	if baseURL != "" {
 		llm["base_url"] = baseURL
 	}
 	return llm, nil
@@ -212,7 +231,7 @@ func ohCreateConversation(agent *OpenHandsAgent, query, workingDir string) (stri
 		"max_iterations": ohMaxIterations(agent),
 	}
 
-	status, data, err := ohRequest("POST", agent.URL+"/api/conversations", agent.APIKey, payload, ohAgentTimeout(agent))
+	status, data, err := ohRequest("POST", agent.URL+"/api/conversations", resolveOpenHandsSessionAPIKey(agent), payload, ohAgentTimeout(agent))
 	if err != nil {
 		return "", err
 	}
@@ -237,7 +256,7 @@ func ohSendMessage(agent *OpenHandsAgent, conversationID, query string) error {
 		"run":     true,
 	}
 
-	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/events", agent.APIKey, payload, ohAgentTimeout(agent))
+	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/events", resolveOpenHandsSessionAPIKey(agent), payload, ohAgentTimeout(agent))
 	if err != nil {
 		return err
 	}
@@ -278,7 +297,7 @@ func ohSendMessageWithImages(agent *OpenHandsAgent, conversationID, query string
 		"run":     true,
 	}
 
-	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/events", agent.APIKey, payload, ohAgentTimeout(agent))
+	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/events", resolveOpenHandsSessionAPIKey(agent), payload, ohAgentTimeout(agent))
 	if err != nil {
 		return err
 	}
@@ -293,7 +312,7 @@ func ohSendMessageWithImages(agent *OpenHandsAgent, conversationID, query string
 
 // ohEnsureRunning 新建会话未自动执行时显式触发 run
 func ohEnsureRunning(agent *OpenHandsAgent, conversationID string) {
-	status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, agent.APIKey, nil, 0)
+	status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, resolveOpenHandsSessionAPIKey(agent), nil, 0)
 	if err != nil || status != http.StatusOK {
 		return
 	}
@@ -304,7 +323,7 @@ func ohEnsureRunning(agent *OpenHandsAgent, conversationID string) {
 		return
 	}
 	if resp.ExecutionStatus == "idle" {
-		_, _, _ = ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/run", agent.APIKey, map[string]interface{}{}, 0)
+		_, _, _ = ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/run", resolveOpenHandsSessionAPIKey(agent), map[string]interface{}{}, 0)
 	}
 }
 
@@ -312,7 +331,7 @@ func ohEnsureRunning(agent *OpenHandsAgent, conversationID string) {
 func ohWaitFinished(agent *OpenHandsAgent, conversationID string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, agent.APIKey, nil, 0)
+		status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, resolveOpenHandsSessionAPIKey(agent), nil, 0)
 		if err == nil && status == http.StatusOK {
 			var resp struct {
 				ExecutionStatus string `json:"execution_status"`
@@ -334,7 +353,7 @@ func ohWaitFinished(agent *OpenHandsAgent, conversationID string, timeout time.D
 // ohFetchAgentReply 从 MessageEvent 中提取最后一条 agent 回复文本
 func ohFetchAgentReply(agent *OpenHandsAgent, conversationID string) (string, error) {
 	url := agent.URL + "/api/conversations/" + conversationID + "/events/search?query=" + url.QueryEscape("MessageEvent")
-	status, data, err := ohRequest("GET", url, agent.APIKey, nil, 0)
+	status, data, err := ohRequest("GET", url, resolveOpenHandsSessionAPIKey(agent), nil, 0)
 	if err != nil {
 		return "", err
 	}
@@ -344,8 +363,8 @@ func ohFetchAgentReply(agent *OpenHandsAgent, conversationID string) (string, er
 
 	var resp struct {
 		Items []struct {
-			ID     string `json:"id"`
-			Source string `json:"source"`
+			ID         string `json:"id"`
+			Source     string `json:"source"`
 			LLMMessage *struct {
 				Content []struct {
 					Text string `json:"text"`

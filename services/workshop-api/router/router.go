@@ -224,6 +224,7 @@ func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
 	// 客户代码仓库管理
 	group.POST("/projects/:id/code-repos", handler.CreateCustomerCodeRepoHandler)           // 创建客户代码仓库
 	group.GET("/projects/:id/code-repos", handler.GetCustomerCodeReposHandler)              // 查询客户代码仓库列表
+	group.PUT("/projects/:id/code-repo", handler.UpsertProjectGitHubRepoHandler)             // 保存并同步项目 GitHub 仓库
 	group.POST("/projects/:id/code-repos/:repoId/sync", handler.SyncCustomerCodeRepoHandler) // 同步客户代码仓库
 	group.DELETE("/projects/:id/code-repos/:repoId", handler.DeleteCustomerCodeRepoHandler) // 删除客户代码仓库
 	

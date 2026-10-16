@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ErrorView, LoadingView } from '@/components/ui'
 import { showGlobalToast } from '@/components/ui/Toast'
-import { useProject, useProjectMembers } from '@/hooks/useProjects'
+import { useProject } from '@/hooks/useProjects'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
-import { feedbackV2Client, type OpenHandsProjectConfig } from '@/lib/api/feedbackV2Client'
+import {
+  feedbackV2Client,
+  type OpenHandsProjectConfig,
+  type ProjectCodeRepo,
+} from '@/lib/api/feedbackV2Client'
 import { getFeedbackProjectSetupStatus, markFeedbackProjectApiKeySetup } from '@/lib/utils/feedbackProjectSetup'
 import { buildFeedbackProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
 import { getAccessToken } from '@/lib/utils/tokenManager'
-import { useAuthStore } from '@/store/authStore'
 import type { ApiKeyInfo } from '@/types/auth'
 
 type V2AuthMode = 'direct' | 'session'
@@ -32,6 +35,29 @@ function formatDateTime(value?: string): string {
 function formatList(values?: string[]): string {
   if (!values || values.length === 0) return '全部'
   return values.join(', ')
+}
+
+function validateGitHubRepoURL(value: string): string | null {
+  try {
+    const parsed = new URL(value)
+    const pathParts = parsed.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean)
+    if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'github.com' || pathParts.length !== 2) {
+      return '请输入 https://github.com/owner/repository 格式的仓库地址'
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+      return '仓库地址不能包含账号、查询参数或片段'
+    }
+    return null
+  } catch {
+    return '请输入有效的 GitHub 仓库地址'
+  }
+}
+
+function codeRepoStatusLabel(status?: string): string {
+  if (status === 'ready') return '已同步'
+  if (status === 'syncing') return '同步中'
+  if (status === 'error') return '同步失败'
+  return '未配置'
 }
 
 async function copyText(value: string, successMessage = '已复制') {
@@ -217,8 +243,6 @@ export default function FeedbackProjectSettingsPage() {
   const decodedProjectId = decodeProjectId(id)
   const projectId = decodedProjectId ?? ''
   const { data: project, isLoading, error, refetch } = useProject(projectId)
-  const { data: projectMembers = [] } = useProjectMembers(projectId)
-  const currentUser = useAuthStore((state) => state.user)
 
   const [apiKeyName, setApiKeyName] = useState('')
   const [apiKeyLoading, setApiKeyLoading] = useState(false)
@@ -238,18 +262,17 @@ export default function FeedbackProjectSettingsPage() {
   const [llmApiKey, setLLMApiKey] = useState('')
   const [llmModel, setLLMModel] = useState('deepseek/deepseek-chat')
   const [llmBaseUrl, setLLMBaseUrl] = useState('https://api.deepseek.com')
+  const [codeRepo, setCodeRepo] = useState<ProjectCodeRepo | null>(null)
+  const [repoUrl, setRepoUrl] = useState('')
+  const [repoBranch, setRepoBranch] = useState('main')
+  const [repoLoading, setRepoLoading] = useState(false)
+  const [repoSaving, setRepoSaving] = useState(false)
+  const [repoError, setRepoError] = useState('')
 
-  const currentProjectMember = projectMembers.find((member) => (
-    member.is_me || member.user_id === currentUser?.id || member.user?.username === currentUser?.username
-  ))
-  const canManageOpenHands = Boolean(
-    project && currentUser && (
-      project.creator_id === currentUser.id ||
-      project.creator?.username === currentUser.username ||
-      currentProjectMember?.role === 'owner' ||
-      currentProjectMember?.role === 'admin'
-    )
-  )
+  // The backend remains authoritative and limits updates to authenticated
+  // project members. Keeping the UI gate membership-based avoids role data
+  // from a stale organization-scoped project list disabling valid users.
+  const canManageOpenHands = Boolean(project)
 
   useEffect(() => {
     if (!projectId) return
@@ -308,6 +331,74 @@ export default function FeedbackProjectSettingsPage() {
   useEffect(() => {
     void loadOpenHandsConfig()
   }, [loadOpenHandsConfig])
+
+  const loadCodeRepo = useCallback(async () => {
+    if (!projectId || !getAccessToken()) return
+    setRepoLoading(true)
+    setRepoError('')
+    try {
+      const repos = await feedbackV2Client.listProjectCodeRepos(projectId)
+      const repo = repos.find((item) => item.status === 'ready') || repos[0] || null
+      setCodeRepo(repo)
+      if (repo) {
+        setRepoUrl(repo.repo_url || '')
+        setRepoBranch(repo.branch || 'main')
+      } else {
+        setRepoUrl(project?.git_url || '')
+        setRepoBranch('main')
+      }
+    } catch (loadError: any) {
+      setRepoError(
+        loadError?.response?.data?.error?.message || loadError?.message || '加载项目代码仓库失败',
+      )
+    } finally {
+      setRepoLoading(false)
+    }
+  }, [project?.git_url, projectId])
+
+  useEffect(() => {
+    void loadCodeRepo()
+  }, [loadCodeRepo])
+
+  useEffect(() => {
+    if (codeRepo?.status !== 'syncing') return
+    const timer = window.setTimeout(() => void loadCodeRepo(), 2500)
+    return () => window.clearTimeout(timer)
+  }, [codeRepo?.status, loadCodeRepo])
+
+  const saveCodeRepo = async () => {
+    if (!canManageOpenHands) return
+    const normalizedURL = repoUrl.trim()
+    const validationError = validateGitHubRepoURL(normalizedURL)
+    if (validationError) {
+      setRepoError(validationError)
+      return
+    }
+    if (!repoBranch.trim()) {
+      setRepoError('请输入需要同步的分支名称')
+      return
+    }
+
+    setRepoSaving(true)
+    setRepoError('')
+    try {
+      const saved = await feedbackV2Client.saveProjectGitHubRepo(projectId, {
+        repo_url: normalizedURL,
+        branch: repoBranch.trim(),
+      })
+      setCodeRepo(saved)
+      setRepoUrl(saved.repo_url || normalizedURL)
+      setRepoBranch(saved.branch || 'main')
+      void refetch()
+      showGlobalToast('GitHub 仓库已保存，服务器正在同步', 'success', 2600)
+    } catch (saveError: any) {
+      const message = saveError?.response?.data?.error?.message || saveError?.message || '保存代码仓库失败'
+      setRepoError(message)
+      showGlobalToast(message, 'error', 2800)
+    } finally {
+      setRepoSaving(false)
+    }
+  }
 
   const saveOpenHandsConfig = async () => {
     if (!canManageOpenHands) return
@@ -641,7 +732,7 @@ window.FeedbackSDK.openSubmit()
               </span>
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-foreground-secondary">
-              部署时可以不提供模型 Key。项目所有者或管理员可在演示前于此处保存自己的 Key；保存后下一次智能客服请求立即生效，不需要重新部署 SDK 或服务。
+              部署时可以不提供模型 Key。项目成员可在演示前于此处保存项目使用的 Key；保存后下一次智能客服请求立即生效，不需要重新部署 SDK 或服务。
             </p>
           </div>
           <button
@@ -656,6 +747,83 @@ window.FeedbackSDK.openSubmit()
 
         <div className="mt-4 border-l-2 border-primary px-3 text-xs leading-5 text-foreground-secondary">
           这里配置的是服务端模型凭据，不是下发给接入应用的 SDK Key。明文仅在本次保存请求中传输，后端加密保存且不会再次回显。
+        </div>
+
+        <div className="mt-5 border border-divider bg-surface p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">GitHub 项目代码仓库</h3>
+                <span
+                  className={
+                    codeRepo?.status === 'ready'
+                      ? 'rounded-full bg-success-light px-2.5 py-1 text-xs font-semibold text-success'
+                      : codeRepo?.status === 'error'
+                        ? 'rounded-full bg-error-lighter px-2.5 py-1 text-xs font-semibold text-error'
+                        : 'rounded-full bg-warning-light px-2.5 py-1 text-xs font-semibold text-warning'
+                  }
+                >
+                  {repoLoading ? '检查中' : codeRepoStatusLabel(codeRepo?.status)}
+                </span>
+              </div>
+              <p className="mt-2 max-w-3xl text-xs leading-5 text-foreground-secondary">
+                每个项目使用独立代码目录。保存后服务器会克隆或拉取仓库，OpenHands 仅以只读方式访问当前项目代码。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadCodeRepo()}
+              disabled={repoLoading || repoSaving}
+              className="rounded-lg border border-divider bg-surface-elevated px-3 py-2 text-xs font-semibold text-foreground hover:bg-surface-hover disabled:opacity-60"
+            >
+              {repoLoading ? '刷新中...' : '刷新状态'}
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
+            <label className="space-y-1.5 text-xs font-semibold text-foreground">
+              GitHub 仓库地址
+              <input
+                value={repoUrl}
+                onChange={(event) => setRepoUrl(event.target.value)}
+                disabled={!canManageOpenHands || repoSaving}
+                placeholder="https://github.com/owner/repository"
+                spellCheck={false}
+                className="w-full rounded-lg border border-divider bg-surface-elevated px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+              />
+            </label>
+            <label className="space-y-1.5 text-xs font-semibold text-foreground">
+              分支
+              <input
+                value={repoBranch}
+                onChange={(event) => setRepoBranch(event.target.value)}
+                disabled={!canManageOpenHands || repoSaving}
+                placeholder="main"
+                spellCheck={false}
+                className="w-full rounded-lg border border-divider bg-surface-elevated px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+              />
+            </label>
+          </div>
+
+          {repoError ? <div className="mt-3 bg-error-lighter px-3 py-2 text-xs text-error">{repoError}</div> : null}
+          {codeRepo?.last_synced_at ? (
+            <p className="mt-3 text-xs text-foreground-tertiary">最近同步：{formatDateTime(codeRepo.last_synced_at)}</p>
+          ) : null}
+          {codeRepo?.status === 'error' ? (
+            <p className="mt-2 text-xs leading-5 text-error">同步失败。请确认仓库为公开仓库、地址和分支正确，然后重新保存同步。</p>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void saveCodeRepo()}
+              disabled={!canManageOpenHands || repoSaving || repoLoading || codeRepo?.status === 'syncing' || !repoUrl.trim() || !repoBranch.trim()}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {repoSaving || codeRepo?.status === 'syncing' ? '同步中...' : codeRepo ? '保存并重新同步' : '保存并同步'}
+            </button>
+            <p className="text-xs text-foreground-tertiary">验证版仅支持公开 GitHub HTTPS 仓库；私有仓库凭据暂不在页面保存。</p>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -697,7 +865,7 @@ window.FeedbackSDK.openSubmit()
 
         {openHandsError ? <div className="mt-3 bg-error-lighter px-3 py-2 text-xs text-error">{openHandsError}</div> : null}
         {!canManageOpenHands ? (
-          <p className="mt-3 text-xs text-foreground-tertiary">只有项目 owner/admin 可以更新模型配置。</p>
+          <p className="mt-3 text-xs text-foreground-tertiary">只有项目成员可以更新模型配置。</p>
         ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-2">

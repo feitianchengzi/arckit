@@ -12,8 +12,10 @@ deploy/
 │   └── env.development.example      # 配置示例
 ├── prod/                             # 生产环境
 │   ├── docker-compose.prod.yml      # Docker Compose 配置
+│   ├── docker-compose.openhands.yml # 可选、内部网络 OpenHands 服务
 │   ├── deploy.sh                    # 生产环境部署脚本
 │   ├── remote-deploy.sh             # 远端迁移、健康切换与失败回滚
+│   ├── openhands-control.sh          # OpenHands 资源预检与独立启停
 │   ├── .env.workshop.production     # 生产环境配置（不提交 Git）
 │   └── env.workshop.production.example # 配置示例
 └── Dockerfile                        # Docker 镜像构建文件
@@ -56,17 +58,39 @@ deploy/
    ```
 
 **部署流程**：
-- 本地编译 Go 二进制（通过 Docker build）
-- 本地构建 Docker 镜像
+- 默认在 Mac 宿主机用 2 并发、768 MiB 限额交叉编译 Go 二进制，再用轻量 Dockerfile 封装运行镜像；可显式设置 `LOCAL_BUILD_MODE=container` 改回容器内构建
 - 保存镜像为 tar 文件
 - 上传镜像和配置文件到服务器
-- 在不停止旧实例的前提下加载镜像并执行幂等数据库迁移
+- 在不停止旧实例的前提下加载镜像，先生成并校验 PostgreSQL custom-format 备份，再执行幂等数据库迁移
 - 切换服务容器并等待 Docker readiness 健康检查；回滚到尚无 Docker `HEALTHCHECK` 的旧镜像时，兼容使用容器内公开 HTTP health
 - 新实例失败时自动把镜像标签和容器恢复到上一版本
+- 只重建 `todo-service`，不会停止同一 Compose 项目里的 OpenHands
+- 创建受控的 per-project 代码目录；Workshop 可写，OpenHands 只读
 
 生产环境只维护一个配置文件：`deploy/prod/.env.workshop.production`。部署脚本会从这个文件读取服务器 SSH、部署目录、镜像信息等部署参数；上传到服务器的应用环境文件会自动过滤这些部署专用变量，只保留服务运行所需环境变量。
 
-生产环境示例默认 `DB_AUTO_MIGRATE=false`。`remote-deploy.sh` 会在停止旧容器之前以候选镜像执行 `./todo migrate`；迁移是 additive 且幂等，旧镜像可继续使用迁移后的 schema。普通服务启动仍会验证实时事件必需的表、列和索引，schema 不完整时不会接收流量。
+生产环境示例默认 `DB_AUTO_MIGRATE=false`。`remote-deploy.sh` 会先把数据库备份到 `DEPLOY_BACKUP_DIR`（默认 `/opt/todo/backups`），用 `pg_restore --list` 校验备份，再在停止旧容器之前以候选镜像执行 `./todo migrate`；统一入口包含业务 AutoMigrate、知识库 DDL以及 OpenHands/Agent 会话的四份幂等 SQL。迁移是 additive 且幂等，旧镜像可继续使用迁移后的 schema。普通服务启动仍会验证实时事件；启用 OpenHands 后还会验证 Agent 所需表和关键列，schema 不完整时不会接收流量。
+
+### OpenHands 分阶段启用
+
+OpenHands 不随普通 Workshop 发布自动启动。首次部署保持 `OPENHANDS_ENABLED=false`，先验证 V1/V2 原链路。生产配置要求固定镜像 digest、两把不同的稳定 OpenHands 密钥、一把自动生成的项目配置加密密钥和共享目录；`LLM_API_KEY` 在分阶段展示部署中可以暂时留空。
+
+本地可先运行 `./prepare-openhands-env.sh`。它只补缺失项、生成并静默保存两把 OpenHands 密钥与一把项目配置加密密钥，不覆盖已有配置，也不会打印密钥。没有 LLM Key 时仍可部署 V3、运行本地索引降级链路或单独启动 OpenHands 做健康检查。部署配置可在之后补 `LLM_API_KEY` 并只重建 `todo-service`；项目 owner/admin 也可在 Feedback Console 保存项目自己的 Key，保存后即时生效。两种方式都不需要重建或重新发布 SDK。
+
+当前 2 核 / 3.5 GiB 主机使用保守默认值：OpenHands 1 CPU、1536 MiB，Workshop 384 MiB。`openhands-control.sh` 在可用内存不足 1536 MiB 或 Swap 少于 2048 MiB 时拒绝启动，避免挤掉现有认证与 Workshop 服务。
+
+```bash
+cd /opt/todo/deploy/prod
+
+# 只检查配置、目录权限和内存，不拉镜像、不启动容器
+./openhands-control.sh preflight
+
+# 预检通过后才拉取固定 digest 并启动；8000 只在 workshop Docker 网络暴露
+./openhands-control.sh start
+./openhands-control.sh status
+```
+
+项目级 OpenHands URL 使用 `http://openhands-agent:8000`。`OH_SESSION_API_KEYS_0` 是 Workshop 与 OpenHands 之间的内部会话密钥，由部署配置注入，不显示给项目用户。只有项目 `owner/admin` 可以在 Feedback Console 维护项目模型 Key、OpenHands、代码仓库和知识源；普通 `member` 不新增部署权限。
 
 **部署脚本选项**：
 - `--skip-build`：跳过本地构建，使用现有镜像

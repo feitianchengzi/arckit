@@ -1,6 +1,7 @@
 package database
 
 import (
+	"embed"
 	"fmt"
 	"log"
 	"os"
@@ -16,6 +17,17 @@ import (
 
 var DB *gorm.DB
 var connectionString string
+
+//go:embed migrations/20260917_openhands_config_up.sql migrations/20260918_customer_code_repo_url_up.sql migrations/20260918_agent_conversation_up.sql migrations/20261012_agent_conversation_standalone_up.sql migrations/20261014_openhands_llm_credentials_up.sql
+var openHandsMigrationFS embed.FS
+
+var openHandsMigrationPaths = []string{
+	"migrations/20260917_openhands_config_up.sql",
+	"migrations/20260918_customer_code_repo_url_up.sql",
+	"migrations/20260918_agent_conversation_up.sql",
+	"migrations/20261012_agent_conversation_standalone_up.sql",
+	"migrations/20261014_openhands_llm_credentials_up.sql",
+}
 
 func getEnvInt(key string, def int) int {
 	raw := os.Getenv(key)
@@ -159,6 +171,9 @@ func Migrate(db *gorm.DB) error {
 	}); err != nil {
 		return err
 	}
+	if err := ensureOpenHandsSchema(db); err != nil {
+		return err
+	}
 	return db.AutoMigrate(
 		&models.User{},
 		&models.Organization{},
@@ -181,6 +196,33 @@ func Migrate(db *gorm.DB) error {
 		&models.ProjectEvent{},
 		&models.TaskNotificationPreference{},
 	)
+}
+
+// ensureOpenHandsSchema applies the idempotent OpenHands and Agent conversation
+// migrations from the same binary used by remote-deploy.sh. Keeping them inside
+// `./todo migrate` removes the unsafe manual-SQL gap before service cutover.
+func ensureOpenHandsSchema(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`SELECT pg_advisory_xact_lock(1789427142)`).Error; err != nil {
+			return fmt.Errorf("lock OpenHands migration: %w", err)
+		}
+		for _, path := range openHandsMigrationPaths {
+			sql, err := openHandsMigrationFS.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("read OpenHands migration %s: %w", path, err)
+			}
+			for _, raw := range strings.Split(string(sql), ";") {
+				statement := strings.TrimSpace(raw)
+				if statement == "" || strings.EqualFold(statement, "BEGIN") || strings.EqualFold(statement, "COMMIT") {
+					continue
+				}
+				if err := tx.Exec(statement).Error; err != nil {
+					return fmt.Errorf("apply OpenHands migration %s: %w", path, err)
+				}
+			}
+		}
+		return nil
+	})
 }
 
 // ensureKnowledgeSchema 幂等创建知识库表/索引，并修复历史约束冲突。
@@ -282,6 +324,25 @@ func ValidateRuntimeSchema(db *gorm.DB) error {
 		if !migrator.HasIndex(&models.FeedbackSubscription{}, "uniq_feedback_subscription_project_user") ||
 			!migrator.HasIndex(&models.FeedbackEmailDelivery{}, "uniq_feedback_email_delivery_message_user") {
 			return fmt.Errorf("feedback email notification indexes are missing; run the migrate command before enabling FEEDBACK_EMAIL_NOTIFICATIONS_ENABLED")
+		}
+	}
+	openHandsEnabled, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("OPENHANDS_ENABLED")))
+	if openHandsEnabled {
+		for _, table := range []string{"openhands_agents", "customer_code_repos", "agent_conversations", "agent_message_records"} {
+			if !migrator.HasTable(table) {
+				return fmt.Errorf("OpenHands schema table %s is missing; run the migrate command before enabling OPENHANDS_ENABLED", table)
+			}
+		}
+		for table, columns := range map[string][]string{
+			"openhands_agents":    {"llm_api_key_encrypted", "llm_base_url"},
+			"customer_code_repos": {"repo_url", "repo_path", "auto_sync"},
+			"agent_conversations": {"custom_user_id", "feedback_id", "project_id"},
+		} {
+			for _, column := range columns {
+				if !migrator.HasColumn(table, column) {
+					return fmt.Errorf("OpenHands schema column %s.%s is missing; run the migrate command before enabling OPENHANDS_ENABLED", table, column)
+				}
+			}
 		}
 	}
 	return nil

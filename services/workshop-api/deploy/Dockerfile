@@ -1,5 +1,15 @@
-# 构建阶段
-FROM golang:1.24-alpine AS builder
+# syntax=docker/dockerfile:1
+
+# 在 Mac 上使用本机 builder 架构交叉编译目标二进制，避免为整个 Go 构建阶段启用 QEMU。
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG GO_BUILD_GOMAXPROCS=2
+ARG GO_BUILD_PARALLELISM=2
+ARG GO_BUILD_MEMORY_LIMIT=768MiB
+ARG SOURCE_COMMIT=unknown
+ARG SOURCE_DIRTY=true
 
 WORKDIR /app
 
@@ -11,12 +21,22 @@ RUN go mod download
 COPY . .
 
 # 构建应用
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o todo .
+RUN CGO_ENABLED=0 \
+    GOOS=$TARGETOS \
+    GOARCH=$TARGETARCH \
+    GOMAXPROCS=$GO_BUILD_GOMAXPROCS \
+    GOMEMLIMIT=$GO_BUILD_MEMORY_LIMIT \
+    go build -p "$GO_BUILD_PARALLELISM" -a -installsuffix cgo -o todo .
 
 # 运行阶段
-FROM alpine:3.20
+FROM alpine:3.22
 
-RUN apk --no-cache add ca-certificates tzdata \
+ARG SOURCE_COMMIT=unknown
+ARG SOURCE_DIRTY=true
+LABEL org.opencontainers.image.revision=$SOURCE_COMMIT \
+      org.opencontainers.image.source-dirty=$SOURCE_DIRTY
+
+RUN apk --no-cache add ca-certificates git openssh-client postgresql17-client tzdata \
     && addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /home/appuser/
 

@@ -104,8 +104,8 @@ func AgentMessageHandler(c *gin.Context) {
 		// Agent 失败时降级为带平台身份的兜底（保留跟进承诺）
 		log.Printf("[agent-message] processWithAgent 失败 project=%d feedback=%d: %v", projectID, feedbackID, err)
 		agentResponse = &AgentResponse{
-			Content:    arcOrbitAgentUnavailableReply(),
-			Confidence: 0,
+			Content:     arcOrbitAgentUnavailableReply(),
+			Confidence:  0,
 			NeedCollect: true,
 		}
 	}
@@ -245,6 +245,12 @@ func processWithAgent(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, q
 	if agent == nil {
 		return processWithLocalLLM(db, projectID, query, history)
 	}
+	// V3 may be deployed before a model key is available. Stay on the local
+	// retrieval path until a project owner saves a key or the server fallback
+	// is configured; saving a project key takes effect on the next request.
+	if !openHandsLLMConfigured(agent) {
+		return processWithLocalLLM(db, projectID, query, history)
+	}
 	// 按项目解析 OpenHands 工作区（RepoPath > clone 落点 > OH_WORKSPACE_DIR），
 	// 避免不同项目共用同一份代码副本。
 	workingDir := resolveProjectWorkspaceDir(db, projectID)
@@ -310,8 +316,8 @@ func processWithLocalLLM(db *gorm.DB, projectID uint, query string, history []Ag
 
 	if len(results) == 0 {
 		return &AgentResponse{
-			Content:    arcOrbitAgentNoResultReply(),
-			Confidence: 0,
+			Content:     arcOrbitAgentNoResultReply(),
+			Confidence:  0,
 			NeedCollect: true,
 		}, nil
 	}
@@ -435,10 +441,10 @@ func GetFeedbackAgentMessagesHandler(c *gin.Context) {
 	}
 
 	type MessageView struct {
-		ID        uint    `json:"id"`
-		Sender    string  `json:"sender"`
-		Content   string  `json:"content"`
-		CreatedAt string  `json:"created_at"`
+		ID         uint     `json:"id"`
+		Sender     string   `json:"sender"`
+		Content    string   `json:"content"`
+		CreatedAt  string   `json:"created_at"`
 		Confidence *float64 `json:"confidence,omitempty"`
 	}
 
@@ -454,10 +460,10 @@ func GetFeedbackAgentMessagesHandler(c *gin.Context) {
 			sender = m.SenderType
 		}
 		views = append(views, MessageView{
-			ID:        m.ID,
-			Sender:    sender,
-			Content:   m.Content,
-			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ID:         m.ID,
+			Sender:     sender,
+			Content:    m.Content,
+			CreatedAt:  m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			Confidence: m.Confidence,
 		})
 	}

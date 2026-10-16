@@ -2,10 +2,13 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -60,25 +63,88 @@ type RetrievalHit struct {
 
 // OpenHandsAgent OpenHands Agent Server 配置
 type OpenHandsAgent struct {
-	ID                   uint      `json:"id" gorm:"primaryKey;autoIncrement"`
-	ProjectID            uint      `json:"project_id" gorm:"not null;index"`
-	URL                  string    `json:"url" gorm:"type:varchar(500);not null"`
-	APIKey               string    `json:"api_key" gorm:"type:varchar(500);not null"`
-	Status               string    `json:"status" gorm:"type:varchar(32);not null;default:'active'"`
-	LLMModel             string    `json:"llm_model" gorm:"type:varchar(200);default:'anthropic/claude-sonnet-4-5-20250929'"`
-	LLMTemperature       float64   `json:"llm_temperature" gorm:"default:0.0"`
-	MaxIterations        int       `json:"max_iterations" gorm:"default:50"`
-	ConfidenceThreshold  float64   `json:"confidence_threshold" gorm:"default:0.75"`
-	TimeoutMs            int       `json:"timeout_ms" gorm:"default:10000"`
-	PersonaFile          string    `json:"persona_file" gorm:"type:varchar(500)"`
-	SandboxRuntime       string    `json:"sandbox_runtime" gorm:"type:varchar(32);default:'docker'"`
-	SandboxBaseImage     string    `json:"sandbox_base_image" gorm:"type:varchar(500);default:'ghcr.io/openhands/agent-server:latest-python'"`
-	CreatedAt            time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt            time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID                  uint      `json:"id" gorm:"primaryKey;autoIncrement"`
+	ProjectID           uint      `json:"project_id" gorm:"not null;index"`
+	URL                 string    `json:"url" gorm:"type:varchar(500);not null"`
+	APIKey              string    `json:"-" gorm:"type:varchar(500);not null"`
+	Status              string    `json:"status" gorm:"type:varchar(32);not null;default:'active'"`
+	LLMModel            string    `json:"llm_model" gorm:"type:varchar(200);default:'anthropic/claude-sonnet-4-5-20250929'"`
+	LLMAPIKeyEncrypted  string    `json:"-" gorm:"type:text;not null;default:''"`
+	LLMBaseURL          string    `json:"llm_base_url" gorm:"type:varchar(500);not null;default:''"`
+	LLMTemperature      float64   `json:"llm_temperature" gorm:"default:0.0"`
+	MaxIterations       int       `json:"max_iterations" gorm:"default:50"`
+	ConfidenceThreshold float64   `json:"confidence_threshold" gorm:"default:0.75"`
+	TimeoutMs           int       `json:"timeout_ms" gorm:"default:10000"`
+	PersonaFile         string    `json:"persona_file" gorm:"type:varchar(500)"`
+	SandboxRuntime      string    `json:"sandbox_runtime" gorm:"type:varchar(32);default:'docker'"`
+	SandboxBaseImage    string    `json:"sandbox_base_image" gorm:"type:varchar(500);default:'ghcr.io/openhands/agent-server:latest-python'"`
+	CreatedAt           time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt           time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 func (OpenHandsAgent) TableName() string {
 	return "openhands_agents"
+}
+
+type OpenHandsConfigResponse struct {
+	Enabled                    bool      `json:"enabled"`
+	ID                         uint      `json:"id,omitempty"`
+	ProjectID                  uint      `json:"project_id"`
+	URL                        string    `json:"url"`
+	Status                     string    `json:"status"`
+	SessionAPIKeyConfigured    bool      `json:"session_api_key_configured"`
+	LLMModel                   string    `json:"llm_model"`
+	LLMBaseURL                 string    `json:"llm_base_url"`
+	LLMAPIKeyConfigured        bool      `json:"llm_api_key_configured"`
+	ProjectLLMAPIKeyConfigured bool      `json:"project_llm_api_key_configured"`
+	LLMAPIKeySource            string    `json:"llm_api_key_source"`
+	LLMTemperature             float64   `json:"llm_temperature"`
+	MaxIterations              int       `json:"max_iterations"`
+	ConfidenceThreshold        float64   `json:"confidence_threshold"`
+	TimeoutMs                  int       `json:"timeout_ms"`
+	UpdatedAt                  time.Time `json:"updated_at,omitempty"`
+}
+
+func openHandsConfigResponse(agent *OpenHandsAgent, projectID uint) OpenHandsConfigResponse {
+	if agent == nil {
+		return OpenHandsConfigResponse{
+			Enabled:                 false,
+			ProjectID:               projectID,
+			URL:                     "http://openhands-agent:8000",
+			Status:                  "unconfigured",
+			LLMModel:                "deepseek/deepseek-chat",
+			LLMBaseURL:              strings.TrimSpace(os.Getenv("LLM_BASE_URL")),
+			LLMAPIKeySource:         openHandsLLMKeySource(nil),
+			LLMAPIKeyConfigured:     configuredServerLLMAPIKey() != "",
+			SessionAPIKeyConfigured: strings.TrimSpace(os.Getenv("OH_SESSION_API_KEYS_0")) != "",
+			LLMTemperature:          0,
+			MaxIterations:           50,
+			TimeoutMs:               120000,
+		}
+	}
+	source := openHandsLLMKeySource(agent)
+	baseURL := strings.TrimSpace(agent.LLMBaseURL)
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(os.Getenv("LLM_BASE_URL"))
+	}
+	return OpenHandsConfigResponse{
+		Enabled:                    agent.Status == "active",
+		ID:                         agent.ID,
+		ProjectID:                  agent.ProjectID,
+		URL:                        agent.URL,
+		Status:                     agent.Status,
+		SessionAPIKeyConfigured:    resolveOpenHandsSessionAPIKey(agent) != "",
+		LLMModel:                   agent.LLMModel,
+		LLMBaseURL:                 baseURL,
+		LLMAPIKeyConfigured:        source != "none",
+		ProjectLLMAPIKeyConfigured: strings.TrimSpace(agent.LLMAPIKeyEncrypted) != "",
+		LLMAPIKeySource:            source,
+		LLMTemperature:             agent.LLMTemperature,
+		MaxIterations:              agent.MaxIterations,
+		ConfidenceThreshold:        agent.ConfidenceThreshold,
+		TimeoutMs:                  agent.TimeoutMs,
+		UpdatedAt:                  agent.UpdatedAt,
+	}
 }
 
 // CustomerCodeRepo 客户代码仓库配置
@@ -163,7 +229,7 @@ func RetrieveHandler(c *gin.Context) {
 
 	// 调用 OpenHands Agent Server（未配置时跳过）
 	var agentResp *RetrieveResponse
-	if agent != nil {
+	if agent != nil && openHandsEnabled() && openHandsLLMConfigured(agent) {
 		var err error
 		agentResp, err = callOpenHandsAgent(agent, req.Query, req.ConversationID, resolveProjectWorkspaceDir(db, projectID))
 		if err != nil {
@@ -374,7 +440,7 @@ func ConfirmDraftHandler(c *gin.Context) {
 
 	// 创建通知
 	notifyProjectEvent(c, db, projectID, userID, "feedback.message.confirmed", map[string]interface{}{
-		"message_id": messageID,
+		"message_id":  messageID,
 		"feedback_id": feedbackID,
 	})
 
@@ -451,7 +517,7 @@ func RejectDraftHandler(c *gin.Context) {
 
 	// 创建通知
 	notifyProjectEvent(c, db, projectID, userID, "feedback.message.rejected", map[string]interface{}{
-		"message_id": messageID,
+		"message_id":  messageID,
 		"feedback_id": feedbackID,
 	})
 
@@ -558,17 +624,15 @@ func GetOpenHandsConfigHandler(c *gin.Context) {
 
 	agent := getAgentServerByProject(db, projectID)
 	if agent == nil {
-		c.JSON(http.StatusOK, response.NewSuccessResponse(gin.H{
-			"enabled": false,
-			"message": "该项目未配置 OpenHands Agent",
-		}))
+		c.JSON(http.StatusOK, response.NewSuccessResponse(openHandsConfigResponse(nil, projectID)))
 		return
 	}
 
-	c.JSON(http.StatusOK, response.NewSuccessResponse(agent))
+	c.JSON(http.StatusOK, response.NewSuccessResponse(openHandsConfigResponse(agent, projectID)))
 }
 
-// UpdateOpenHandsConfigHandler 更新项目的 OpenHands 配置
+// UpdateOpenHandsConfigHandler 更新项目的 OpenHands 配置。
+// V3 验证阶段允许项目成员自行配置项目模型凭据；非项目成员仍拒绝。
 // PUT /api/v1/projects/{projectId}/openhands-config
 func UpdateOpenHandsConfigHandler(c *gin.Context) {
 	projectID, ok := parseProjectIDParam(c)
@@ -582,24 +646,27 @@ func UpdateOpenHandsConfigHandler(c *gin.Context) {
 		return
 	}
 
-	// 鉴权 + 角色检查
-	userID, ok := requireFeedbackTriagePermission(c, db, projectID, "更新 OpenHands 配置")
+	// 鉴权：配置按项目隔离，验证阶段允许任意项目成员更新。
+	userID, ok := requireFeedbackProjectMember(c, db, projectID, "更新 OpenHands 配置")
 	if !ok {
 		return
 	}
 	_ = userID
 
 	var req struct {
-		URL                  string  `json:"url" binding:"required"`
-		APIKey               string  `json:"api_key" binding:"required"`
-		LLMModel             string  `json:"llm_model"`
-		LLMTemperature       float64 `json:"llm_temperature"`
-		MaxIterations        int     `json:"max_iterations"`
-		ConfidenceThreshold  float64 `json:"confidence_threshold"`
-		TimeoutMs            int     `json:"timeout_ms"`
-		PersonaFile          string  `json:"persona_file"`
-		SandboxRuntime       string  `json:"sandbox_runtime"`
-		SandboxBaseImage     string  `json:"sandbox_base_image"`
+		URL                 string   `json:"url"`
+		APIKey              string   `json:"api_key"`
+		LLMModel            string   `json:"llm_model"`
+		LLMAPIKey           string   `json:"llm_api_key"`
+		ClearLLMAPIKey      bool     `json:"clear_llm_api_key"`
+		LLMBaseURL          string   `json:"llm_base_url"`
+		LLMTemperature      *float64 `json:"llm_temperature"`
+		MaxIterations       *int     `json:"max_iterations"`
+		ConfidenceThreshold *float64 `json:"confidence_threshold"`
+		TimeoutMs           *int     `json:"timeout_ms"`
+		PersonaFile         string   `json:"persona_file"`
+		SandboxRuntime      string   `json:"sandbox_runtime"`
+		SandboxBaseImage    string   `json:"sandbox_base_image"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -607,73 +674,144 @@ func UpdateOpenHandsConfigHandler(c *gin.Context) {
 		return
 	}
 
-	// 查找现有配置或创建新配置
+	if req.ClearLLMAPIKey && strings.TrimSpace(req.LLMAPIKey) != "" {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "不能同时设置并清除项目模型 Key", nil))
+		return
+	}
+	if len(req.LLMAPIKey) > 4096 {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "模型 Key 长度不能超过 4096", nil))
+		return
+	}
+	if len(req.LLMModel) > 200 || len(req.LLMBaseURL) > 500 || len(req.URL) > 500 {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "OpenHands 或模型配置长度超限", nil))
+		return
+	}
+
+	// 查找现有配置或创建新配置。
 	var agent OpenHandsAgent
-	if err := db.Where("project_id = ?", projectID).First(&agent).Error; err != nil {
-		// 创建新配置
+	dbErr := db.Where("project_id = ?", projectID).First(&agent).Error
+	if dbErr != nil && !errors.Is(dbErr, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询 OpenHands 配置失败: "+dbErr.Error(), nil))
+		return
+	}
+
+	configURL := strings.TrimSpace(req.URL)
+	if configURL == "" {
+		if dbErr == nil {
+			configURL = strings.TrimSpace(agent.URL)
+		} else {
+			configURL = "http://openhands-agent:8000"
+		}
+	}
+	parsedURL, parseErr := url.Parse(configURL)
+	if parseErr != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.User != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "OpenHands URL 必须是有效的 http/https 地址且不能包含用户信息", nil))
+		return
+	}
+
+	if errors.Is(dbErr, gorm.ErrRecordNotFound) {
 		agent = OpenHandsAgent{
 			ProjectID:           projectID,
-			URL:                 req.URL,
-			APIKey:              req.APIKey,
+			URL:                 configURL,
+			APIKey:              strings.TrimSpace(req.APIKey),
 			Status:              "active",
-			LLMModel:            req.LLMModel,
-			LLMTemperature:      req.LLMTemperature,
-			MaxIterations:       req.MaxIterations,
-			ConfidenceThreshold: req.ConfidenceThreshold,
-			TimeoutMs:           req.TimeoutMs,
+			LLMModel:            "deepseek/deepseek-chat",
+			LLMBaseURL:          strings.TrimSpace(req.LLMBaseURL),
+			LLMTemperature:      0,
+			MaxIterations:       50,
+			ConfidenceThreshold: 0.75,
+			TimeoutMs:           120000,
 			PersonaFile:         req.PersonaFile,
-			SandboxRuntime:      req.SandboxRuntime,
-			SandboxBaseImage:    req.SandboxBaseImage,
+			SandboxRuntime:      "docker",
+			SandboxBaseImage:    "ghcr.io/openhands/agent-server:1.54.0-python",
 		}
+	} else {
+		agent.URL = configURL
+		if strings.TrimSpace(req.APIKey) != "" {
+			agent.APIKey = strings.TrimSpace(req.APIKey)
+		}
+	}
+
+	if strings.TrimSpace(req.LLMModel) != "" {
+		agent.LLMModel = strings.TrimSpace(req.LLMModel)
+	}
+	agent.LLMBaseURL = strings.TrimSpace(req.LLMBaseURL)
+	if req.LLMTemperature != nil {
+		if *req.LLMTemperature < 0 || *req.LLMTemperature > 2 {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "temperature 必须在 0 到 2 之间", nil))
+			return
+		}
+		agent.LLMTemperature = *req.LLMTemperature
+	}
+	if req.MaxIterations != nil {
+		if *req.MaxIterations < 1 || *req.MaxIterations > 200 {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "max_iterations 必须在 1 到 200 之间", nil))
+			return
+		}
+		agent.MaxIterations = *req.MaxIterations
+	}
+	if req.ConfidenceThreshold != nil {
+		if *req.ConfidenceThreshold < 0 || *req.ConfidenceThreshold > 1 {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "confidence_threshold 必须在 0 到 1 之间", nil))
+			return
+		}
+		agent.ConfidenceThreshold = *req.ConfidenceThreshold
+	}
+	if req.TimeoutMs != nil {
+		if *req.TimeoutMs < 1000 || *req.TimeoutMs > 600000 {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "timeout_ms 必须在 1000 到 600000 之间", nil))
+			return
+		}
+		agent.TimeoutMs = *req.TimeoutMs
+	}
+	if strings.TrimSpace(req.PersonaFile) != "" {
+		agent.PersonaFile = strings.TrimSpace(req.PersonaFile)
+	}
+	if strings.TrimSpace(req.SandboxRuntime) != "" {
+		agent.SandboxRuntime = strings.TrimSpace(req.SandboxRuntime)
+	}
+	if strings.TrimSpace(req.SandboxBaseImage) != "" {
+		agent.SandboxBaseImage = strings.TrimSpace(req.SandboxBaseImage)
+	}
+	if req.ClearLLMAPIKey {
+		agent.LLMAPIKeyEncrypted = ""
+	} else if key := strings.TrimSpace(req.LLMAPIKey); key != "" {
+		encrypted, err := encryptOpenHandsLLMAPIKey(projectID, key)
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, response.NewErrorResponse(response.CodeInternalError, "服务器尚未准备好安全保存模型 Key，请联系部署人员", nil))
+			return
+		}
+		agent.LLMAPIKeyEncrypted = encrypted
+	}
+
+	if errors.Is(dbErr, gorm.ErrRecordNotFound) {
 		if err := db.Create(&agent).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建 OpenHands 配置失败: "+err.Error(), nil))
 			return
 		}
-	} else {
-		// 更新现有配置
-		agent.URL = req.URL
-		agent.APIKey = req.APIKey
-		if req.LLMModel != "" {
-			agent.LLMModel = req.LLMModel
-		}
-		if req.LLMTemperature > 0 {
-			agent.LLMTemperature = req.LLMTemperature
-		}
-		if req.MaxIterations > 0 {
-			agent.MaxIterations = req.MaxIterations
-		}
-		if req.ConfidenceThreshold > 0 {
-			agent.ConfidenceThreshold = req.ConfidenceThreshold
-		}
-		if req.TimeoutMs > 0 {
-			agent.TimeoutMs = req.TimeoutMs
-		}
-		if req.PersonaFile != "" {
-			agent.PersonaFile = req.PersonaFile
-		}
-		if req.SandboxRuntime != "" {
-			agent.SandboxRuntime = req.SandboxRuntime
-		}
-		if req.SandboxBaseImage != "" {
-			agent.SandboxBaseImage = req.SandboxBaseImage
-		}
-		if err := db.Save(&agent).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackUpdateFailed, "更新 OpenHands 配置失败: "+err.Error(), nil))
-			return
-		}
+	} else if err := db.Save(&agent).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackUpdateFailed, "更新 OpenHands 配置失败: "+err.Error(), nil))
+		return
 	}
+	credentialAction := "unchanged"
+	if req.ClearLLMAPIKey {
+		credentialAction = "cleared"
+	} else if strings.TrimSpace(req.LLMAPIKey) != "" {
+		credentialAction = "rotated"
+	}
+	log.Printf("[openhands-config] project=%d user=%d credential=%s source=%s", projectID, userID, credentialAction, openHandsLLMKeySource(&agent))
 
-	c.JSON(http.StatusOK, response.NewSuccessResponse(agent))
+	c.JSON(http.StatusOK, response.NewSuccessResponse(openHandsConfigResponse(&agent, projectID)))
 }
 
 // --- 置信度合并算法 ---
 
 // 来源权重：FAQ 精确匹配 > 产品 facts > 客户文档 > 客户代码
 const (
-	sourceWeightProductFAQ     = 1.2
-	sourceWeightProductFacts   = 1.0
-	sourceWeightCustomerDoc    = 0.9
-	sourceWeightCustomerCode   = 0.8
+	sourceWeightProductFAQ   = 1.2
+	sourceWeightProductFacts = 1.0
+	sourceWeightCustomerDoc  = 0.9
+	sourceWeightCustomerCode = 0.8
 )
 
 // sourceWeight 返回来源对应的权重
