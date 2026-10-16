@@ -57,7 +57,7 @@
 - `.DS_Store`
 - 真实 `.env*`、缓存和构建输出
 
-`.cursor/skills/todo-api-skill` 是缺少 `.gitmodules` mapping 的失效 gitlink，不导入。`frontend/public/sdk/` 是 Feedback SDK 的已构建副本，包含第三方 React/Remix/Tailwind 代码与 notice；monorepo 使用 `packages/feedback-sdk-web` 的源码构建，不保留该副本。
+`.cursor/skills/todo-api-skill` 是缺少 `.gitmodules` mapping 的失效 gitlink，不导入。`frontend/public/sdk/` 是 Feedback SDK 的已构建副本，包含第三方 React/Remix/Tailwind 代码与 notice；monorepo 使用 `apps/feedback-sdk-web` 的源码构建，不保留该副本。
 
 ### Workshop Feedbacks
 
@@ -74,7 +74,7 @@
 | `apps/todo-web/` | `frontend/` | 保留源码历史；删除 `feedbackSdk.ts`、env template 与 generated SDK 历史并以脱敏 HEAD 重建 |
 | `apps/todo-web/docs/specs/` | `specs/` | 保留历史，排除 `.DS_Store` |
 | `apps/feedback-console/` | `webapps/feedback-console-web/` | 保留历史；重新扫描模板和文档 |
-| `packages/feedback-sdk-web/` | `webapps/feedback-sdk-web/` | 保留历史；排除 deploy account inputs 和 build output |
+| `apps/feedback-sdk-web/` | `webapps/feedback-sdk-web/` | 保留历史；排除 deploy account inputs 和 build output |
 | `examples/feedback-ios/` | `Test/ios/TestFeedBack/` | 保留历史；排除签名和用户 Xcode 状态 |
 | `docs/workshop/feedback-design/` | `design/` | 保留历史；公开内容复核后发布 |
 

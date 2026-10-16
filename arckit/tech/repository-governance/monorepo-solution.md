@@ -20,7 +20,7 @@ arckit/                           public source monorepo
   apps/todo-web/                  Workshop Todo browser application
   apps/feedback-console/          Workshop Feedback developer console
   services/workshop-api/          shared Todo and Feedback Go service
-  packages/feedback-sdk-web/      embeddable Feedback Web SDK
+  apps/feedback-sdk-web/          embeddable Feedback Web SDK
   examples/feedback-ios/          iOS integration example
   docs/workshop/                  cross-surface public documentation
 
@@ -42,7 +42,7 @@ Arckit 已有的 skill 与 ArcOrbit 路径保持不变。仓库合并不把 Arck
 | `hoewo/workshop-todo-website/frontend` | `apps/todo-web/` | 当前 Vite/React 应用、测试、公共资源、构建脚本和应用文档 | `dist`、缓存、本地环境文件 |
 | `hoewo/workshop-todo-website/specs` 与仍有效的根文档 | `apps/todo-web/docs/` | 可恢复的产品、设计、契约和架构资料 | `.arckit` 旧投影、`.tools`、`.cursor`、`frontend-nextjs-backup`、临时诊断与本地交接材料 |
 | `hoewo/Workshop-Feedbacks/webapps/feedback-console-web` | `apps/feedback-console/` | 当前 Feedback 管理控制台 | 构建产物、本地环境文件、复制的 server 参考 |
-| `hoewo/Workshop-Feedbacks/webapps/feedback-sdk-web` | `packages/feedback-sdk-web/` | SDK 源码、构建脚本、公开接入文档 | 构建产物、本地环境文件、部署账户配置 |
+| `hoewo/Workshop-Feedbacks/webapps/feedback-sdk-web` | `apps/feedback-sdk-web/` | SDK 源码、构建脚本、公开接入文档 | 构建产物、本地环境文件、部署账户配置 |
 | `hoewo/Workshop-Feedbacks/Test/ios/TestFeedBack` | `examples/feedback-ios/` | iOS SDK 接入示例与测试客户端 | DerivedData、用户 Xcode 状态、签名文件、provisioning profiles |
 | `hoewo/Workshop-Feedbacks/design` | `docs/workshop/feedback-design/` | 可公开且仍能解释 Feedback 产品的设计资料 | 客户素材、个人数据和本地导出产物 |
 
@@ -69,7 +69,7 @@ Arckit 已有的 skill 与 ArcOrbit 路径保持不变。仓库合并不把 Arck
 | 范围 | 许可证 | 定位 |
 |---|---|---|
 | Arckit skills、协议、schemas、trusted entrypoints、公共文档 | Apache License 2.0 | 可自由使用、修改和分发的协作协议层 |
-| `packages/feedback-sdk-web/` | Apache License 2.0 | 面向第三方产品的低摩擦接入面 |
+| `apps/feedback-sdk-web/` | Apache License 2.0 | 面向第三方产品的低摩擦接入面 |
 | `examples/feedback-ios/` | Apache License 2.0 | 可复制修改的公开接入示例 |
 | `runtime/arcorbit/` | PolyForm Perimeter 1.0.1 | 源码可见的 ArcOrbit 产品与 Runtime |
 | `apps/todo-web/` | PolyForm Perimeter 1.0.1 | 源码可见的 Todo 产品客户端 |

@@ -23,5 +23,5 @@
 ## 不在本次梳理范围
 
 - `apps/todo-web`、`apps/feedback-console` 浏览器客户端的渲染实现(后续单独梳理)
-- `packages/feedback-sdk-web`、`examples/feedback-ios` 的对外集成面
+- `apps/feedback-sdk-web`、`examples/feedback-ios` 的对外集成面
 - 规划预览层四页的具体产品规划意图(它们当前为静态示意数据,无后端绑定)

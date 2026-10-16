@@ -6,7 +6,7 @@
   "workspaces": [
     "apps/todo-web",
     "apps/feedback-console",
-    "packages/feedback-sdk-web",
+    "apps/feedback-sdk-web",
     "runtime/arcorbit"
   ],
   "scripts": {

@@ -141,7 +141,7 @@ for (const file of trackedFiles(args["todo-web"])) {
 
 const feedbackMappings = [
   ["webapps/feedback-console-web/", "apps/feedback-console/"],
-  ["webapps/feedback-sdk-web/", "packages/feedback-sdk-web/"],
+  ["webapps/feedback-sdk-web/", "apps/feedback-sdk-web/"],
   ["Test/ios/TestFeedBack/", "examples/feedback-ios/"],
   ["design/", "docs/workshop/feedback-design/"]
 ];

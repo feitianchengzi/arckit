@@ -31,7 +31,7 @@
       "source_head": "3ae724ef763edaa1ad811655968c029854e0803a",
       "mappings": [
         {"source": "webapps/feedback-console-web", "target": "apps/feedback-console"},
-        {"source": "webapps/feedback-sdk-web", "target": "packages/feedback-sdk-web"},
+        {"source": "webapps/feedback-sdk-web", "target": "apps/feedback-sdk-web"},
         {"source": "Test/ios/TestFeedBack", "target": "examples/feedback-ios"},
         {"source": "design", "target": "docs/workshop/feedback-design"}
       ],
@@ -44,7 +44,7 @@
     "plaintext_secret_policy": "never_tracked"
   },
   "license_plan": {
-    "apache_2_0": ["packages/feedback-sdk-web", "examples/feedback-ios", "docs/workshop"],
+    "apache_2_0": ["apps/feedback-sdk-web", "examples/feedback-ios", "docs/workshop"],
     "polyform_perimeter_1_0_1": ["apps/todo-web", "apps/feedback-console", "services/workshop-api", "runtime/arcorbit"],
     "private_all_rights_reserved": ["../arckit-ops"]
   }
