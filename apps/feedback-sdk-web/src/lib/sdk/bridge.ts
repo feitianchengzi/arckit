@@ -116,6 +116,12 @@ function isFeedbackSDKConfig(value: unknown): value is FeedbackSDKConfig {
   const config = value as Record<string, unknown>
   const isStringArray = (v: unknown) =>
     v === undefined || (Array.isArray(v) && v.every((item) => typeof item === 'string'))
+  const isHostContext = (v: unknown) => {
+    if (v === undefined) return true
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return false
+    const allowed = new Set(['release', 'build', 'module', 'route', 'browser', 'os', 'locale', 'clientTimestamp', 'requestId'])
+    return Object.entries(v as Record<string, unknown>).every(([key, item]) => allowed.has(key) && typeof item === 'string')
+  }
   return (
     (config.apiKey === undefined || typeof config.apiKey === 'string') &&
     (config.projectId === undefined || typeof config.projectId === 'number') &&
@@ -127,6 +133,7 @@ function isFeedbackSDKConfig(value: unknown): value is FeedbackSDKConfig {
     (config.feedbackSessionToken === undefined || typeof config.feedbackSessionToken === 'string') &&
     (config.locale === undefined || config.locale === 'zh-CN' || config.locale === 'en-US') &&
     isStringArray(config.parentOrigins) &&
+    isHostContext(config.hostContext) &&
     (config.theme === undefined || typeof config.theme === 'string')
   )
 }

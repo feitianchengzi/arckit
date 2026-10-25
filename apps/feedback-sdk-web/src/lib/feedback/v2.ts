@@ -170,7 +170,13 @@ export async function submitFeedbackV2(params: {
 
   const authMode = currentV2AuthMode()
   const directScope = authMode === 'apiKey' ? directScopePayload() : null
-  const metadata = { source: 'feedback-sdk-web', channel: 'webview', feedback_state: 'pending' }
+  const hostContext = getFeedbackSDKConfig().hostContext
+  const metadata = {
+    source: 'feedback-sdk-web',
+    channel: 'webview',
+    feedback_state: 'pending',
+    ...(hostContext ? { host_context: hostContext } : {}),
+  }
   const body: Record<string, unknown> = {
     ...(directScope
       ? { project_id: directScope.projectId, custom_user_id: directScope.customUserId }

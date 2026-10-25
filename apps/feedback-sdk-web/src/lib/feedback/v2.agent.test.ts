@@ -16,7 +16,7 @@ vi.mock('@/lib/sdk/bridge', () => ({
   requestFeedbackSessionRefresh: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { sendAgentMessage, getAgentConversations, getAgentConversationMessages } from '@/lib/feedback/v2'
+import { sendAgentMessage, getAgentConversations, getAgentConversationMessages, submitFeedbackV2 } from '@/lib/feedback/v2'
 
 function mockResponse(data: unknown) {
   fetchMock.mockResolvedValueOnce({
@@ -68,6 +68,27 @@ describe('Agent API 鉴权模式', () => {
     const { url, init } = lastCall()
     expect(url).toBe('https://gw.example/workshop/v2/apikey/feedbacks/123/agent-message')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ak_test_key')
+  })
+
+  it('提交时只把已经收敛的宿主诊断上下文放入 metadata', async () => {
+    mockAuthMode = 'apiKey'
+    mockConfig = {
+      gatewayUrl: 'https://gw.example',
+      apiKey: 'ak_test_key',
+      projectId: 115,
+      customUserId: 'oms1_v1_example',
+      hostContext: { release: 'oms1', module: 'workbench', route: 'overview', requestId: 'request-1' },
+    }
+    mockResponse({ id: 42, short_id: 'FB-42' })
+
+    await submitFeedbackV2({ content: '页面无法加载' })
+
+    const { init } = lastCall()
+    const body = JSON.parse(init.body as string)
+    const metadata = JSON.parse(body.data)
+    expect(metadata.host_context).toEqual(mockConfig.hostContext)
+    expect(metadata).not.toHaveProperty('tenant_id')
+    expect(metadata).not.toHaveProperty('subject_id')
   })
 
   it('session 模式：getAgentConversations 不再因缺少 apiKey 抛错', async () => {

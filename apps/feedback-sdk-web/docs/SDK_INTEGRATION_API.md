@@ -75,9 +75,22 @@ type FeedbackSDKConfig = {
   feedbackV2NotificationsEnabled?: boolean
   feedbackV2AuthMode?: 'session' | 'apiKey'
   feedbackSessionToken?: string
+  hostContext?: {
+    release?: string
+    build?: string
+    module?: string
+    route?: string
+    browser?: string
+    os?: string
+    locale?: string
+    clientTimestamp?: string
+    requestId?: string
+  }
   theme?: 'light' | 'dark' | 'system'
 }
 ```
+
+`hostContext` 是可选的非标识诊断上下文，只随新反馈的 `data.host_context` 保存。SDK 会再次按白名单和长度清洗；`route` 只能是无 ID 的语义页面键，不能传 URL 或资源路径。禁止传入租户、账号、人员、业务对象、表单、金额、文件、完整 User-Agent、认证 Header、Cookie、堆栈或截图。未知字段会被丢弃。
 
 ## 3. 推荐接入流程（移动端）
 
