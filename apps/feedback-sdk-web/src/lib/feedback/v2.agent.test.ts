@@ -16,7 +16,7 @@ vi.mock('@/lib/sdk/bridge', () => ({
   requestFeedbackSessionRefresh: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { sendAgentMessage, getAgentConversations, getAgentConversationMessages } from '@/lib/feedback/v2'
+import { sendAgentMessage, getAgentConversations, getAgentConversationMessages, submitFeedbackV2 } from '@/lib/feedback/v2'
 
 function mockResponse(data: unknown) {
   fetchMock.mockResolvedValueOnce({
@@ -94,5 +94,20 @@ describe('Agent API 鉴权模式', () => {
     const { url, init } = lastCall()
     expect(url).toBe('https://gw.example/workshop/v2/feedback/agent-conversations/c1/messages')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fbs_session_token')
+  })
+})
+
+
+describe('confirmed structured feedback submission', () => {
+  it('persists customer-reviewed structure and conversation association in session mode', async () => {
+    mockAuthMode = 'session'
+    mockConfig = { gatewayUrl: 'https://gw.example', feedbackSessionToken: 'fbs_session_token' }
+    mockResponse({ id: 42, short_id: 'E2E42' })
+    const structured = { position: '订单列表', phenomenon: '点击导出无响应', expect: '成功下载', impact: '财务不能对账', unknown_fields: ['environment'] }
+    await submitFeedbackV2({ content: '已确认的导出问题', conversationId: 'conv-before-submit', structured })
+    const body = JSON.parse(lastCall().init.body as string)
+    expect(body.data.structured).toEqual(structured)
+    expect(body.data.clarification.confirmed).toBe(true)
+    expect(body.conversation_id).toBe('conv-before-submit')
   })
 })

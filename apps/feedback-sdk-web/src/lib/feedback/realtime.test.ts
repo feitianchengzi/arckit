@@ -13,7 +13,7 @@ vi.mock('@/lib/sdk/bridge', () => ({
 
 // buildRealtimeAuth 未导出，通过 useFeedbackRealtime 间接验证连接参数不易；
 // 这里直接 import 内部实现需导出。为可测，将 buildRealtimeAuth 命名导出。
-import { buildRealtimeAuth } from '@/lib/feedback/realtime'
+import { buildRealtimeAuth, normalizeFeedbackRealtimeEvent } from '@/lib/feedback/realtime'
 
 describe('buildRealtimeAuth V2 realtime 连接参数', () => {
   beforeEach(() => {
@@ -28,7 +28,7 @@ describe('buildRealtimeAuth V2 realtime 连接参数', () => {
     const auth = buildRealtimeAuth(undefined)
     expect(auth).not.toBeNull()
     expect(auth!.url).toBe('wss://gw.example/workshop/v2/feedback/projects/0/ws')
-    expect(auth!.subprotocols).toEqual(['nebula-auth.fbs_token'])
+    expect(auth!.subprotocols).toEqual(['feedback-v2', 'nebula-auth.fbs_token'])
   })
 
   it('session 模式：http 网关地址转为 ws', () => {
@@ -68,5 +68,16 @@ describe('buildRealtimeAuth V2 realtime 连接参数', () => {
     mockAuthMode = 'apiKey'
     mockConfig = { gatewayUrl: 'https://gw.example', apiKey: 'ak_key' }
     expect(buildRealtimeAuth(undefined)).toBeNull()
+  })
+})
+
+
+describe('realtime event envelopes', () => {
+  it('maps backend message envelopes to the feedback refresh contract', () => {
+    expect(normalizeFeedbackRealtimeEvent({ event: 'feedback.message.created', project_id: 7, subject_id: '13', data: { id: 22, feedback_id: 13 } })).toMatchObject({ type: 'feedback.message.created', project_id: '7', feedback_id: 13, message_id: 22 })
+  })
+  it('maps updated card ids and ignores unrelated events', () => {
+    expect(normalizeFeedbackRealtimeEvent({ event: 'feedback.updated', data: { id: 19 } })?.feedback_id).toBe(19)
+    expect(normalizeFeedbackRealtimeEvent({ event: 'system.connected' })).toBeNull()
   })
 })

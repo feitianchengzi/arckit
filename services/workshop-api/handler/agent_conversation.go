@@ -12,7 +12,7 @@ import (
 
 // AgentConversation Agent 对话
 type AgentConversation struct {
-	ID   string `json:"id" gorm:"primaryKey;type:varchar(128)"`
+	ID string `json:"id" gorm:"primaryKey;type:varchar(128)"`
 	// FeedbackID = 0 表示独立智能客服会话（尚未产生/未关联反馈）
 	FeedbackID   uint           `json:"feedback_id" gorm:"not null;index"`
 	ProjectID    uint           `json:"project_id" gorm:"not null;index"`
@@ -34,7 +34,7 @@ type AgentMessageRecord struct {
 	ProjectID      uint           `json:"project_id" gorm:"not null;index"`
 	SenderType     string         `json:"sender_type" gorm:"type:varchar(32);not null"` // customer, agent, system
 	Content        string         `json:"content" gorm:"type:text;not null"`
-	ToolCalls      *string        `json:"tool_calls,omitempty" gorm:"type:jsonb"` // JSON array of tool calls
+	ToolCalls      *string        `json:"tool_calls,omitempty" gorm:"type:jsonb"`   // JSON array of tool calls
 	ToolResults    *string        `json:"tool_results,omitempty" gorm:"type:jsonb"` // JSON array of tool results
 	Confidence     *float64       `json:"confidence,omitempty" gorm:"type:decimal(3,2)"`
 	Metadata       *string        `json:"metadata,omitempty" gorm:"type:jsonb"`
@@ -95,9 +95,14 @@ func GetConversationHistory(db *gorm.DB, conversationID string, limit int) ([]Ag
 
 	var messages []AgentMessageRecord
 	err := db.Where("conversation_id = ?", conversationID).
-		Order("created_at ASC").
+		Order("created_at DESC").Order("id DESC").
 		Limit(limit).
 		Find(&messages).Error
+	// Prompt history must contain the latest customer turn and persisted draft,
+	// even after more than limit messages. Return that window chronologically.
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
 
 	return messages, err
 }
@@ -120,14 +125,20 @@ func linkStandaloneConversationToFeedback(db *gorm.DB, conversationID string, fe
 	if conversationID == "" || feedbackID == 0 {
 		return nil
 	}
-	res := db.Model(&AgentConversation{}).
-		Where("id = ? AND project_id = ? AND custom_user_id = ? AND feedback_id = ?",
-			conversationID, projectID, customUserID, standaloneConversationFeedbackID).
-		Update("feedback_id", feedbackID)
-	if res.Error != nil {
-		return res.Error
-	}
-	return nil
+	return db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&AgentConversation{}).
+			Where("id = ? AND project_id = ? AND custom_user_id = ? AND feedback_id = ?", conversationID, projectID, customUserID, standaloneConversationFeedbackID).
+			Update("feedback_id", feedbackID)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return nil
+		}
+		return tx.Model(&AgentMessageRecord{}).
+			Where("conversation_id = ? AND project_id = ? AND feedback_id = ?", conversationID, projectID, standaloneConversationFeedbackID).
+			Update("feedback_id", feedbackID).Error
+	})
 }
 
 // standaloneConversationFeedbackID 独立会话不绑定反馈，统一用 0 占位

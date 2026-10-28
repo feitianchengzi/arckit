@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FeedbackShell } from '@/components/sdk/FeedbackShell'
 import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 import { createFeedbackMessageV2, type AgentStructuredSummary } from '@/lib/feedback/v2'
-import { formatStructuredFeedback } from '@/lib/feedback/structured'
+import { ClarificationReview } from '@/components/sdk/ClarificationReview'
+import { clarificationFields, formatStructuredFeedback, mergeStructuredSummary } from '@/lib/feedback/structured'
 import { t } from '@/i18n'
 
 function buildClientMessageId() {
@@ -24,12 +25,21 @@ export function SDKChatPage() {
   const [recording, setRecording] = useState(false)
   const [recorded, setRecorded] = useState(false)
   const [recordError, setRecordError] = useState('')
+  const [structured, setStructured] = useState<AgentStructuredSummary>()
+  const [question, setQuestion] = useState('')
+  const customerDraftRef = useRef<Partial<AgentStructuredSummary>>({})
 
   // 智能客服本轮低置信：反馈已存在，沿用现有链路把问题结构追加到该反馈，不重复新建。
-  const handleNeedCollect = async (payload: { question: string; structured?: AgentStructuredSummary }) => {
+  const handleNeedCollect = (payload: { question: string; structured?: AgentStructuredSummary }) => {
+    setStructured((previous) => ({ ...mergeStructuredSummary(previous, payload.structured), ...customerDraftRef.current }))
+    setQuestion(payload.question)
+    setRecorded(false)
+  }
+
+  const confirmClarification = async () => {
     const id = Number(feedbackId)
-    if (!Number.isFinite(id) || id <= 0 || recording) return
-    const trimmed = formatStructuredFeedback(payload.structured, payload.question)
+    if (!Number.isFinite(id) || id <= 0 || recording || recorded) return
+    const trimmed = formatStructuredFeedback(structured, question)
     if (!trimmed) return
 
     setRecording(true)
@@ -39,7 +49,7 @@ export function SDKChatPage() {
         feedbackId: id,
         content: trimmed,
         clientMessageId: buildClientMessageId(),
-        metadata: { source: 'feedback-sdk-web', channel: 'chat', need_collect: true },
+        metadata: { source: 'feedback-sdk-web', channel: 'chat', need_collect: true, structured, clarification: { confirmed: true, confirmed_at: new Date().toISOString() } },
       })
       setRecorded(true)
     } catch (err: any) {
@@ -70,6 +80,13 @@ export function SDKChatPage() {
                     initialMessage={initialMessage || undefined}
                     onNeedCollect={handleNeedCollect}
                   />
+                  {structured && <ClarificationReview mode="append" value={structured} confirmed={recorded} pending={recording} onChange={(next) => {
+                    const changed = { ...customerDraftRef.current }
+                    for (const [key] of clarificationFields) if (next[key] !== structured[key]) changed[key] = next[key]
+                    if (JSON.stringify(next.unknown_fields) !== JSON.stringify(structured.unknown_fields)) changed.unknown_fields = next.unknown_fields
+                    customerDraftRef.current = changed
+                    setStructured(next); setRecorded(false)
+                  }} onConfirm={() => { if (!recording) void confirmClarification() }} />}
                   {recorded ? (
                     <p className="rounded-lg border border-primary/25 bg-primary-light/40 px-3 py-2 text-xs leading-5 text-foreground-secondary">
                       {t('chat.recorded_to_feedback')}

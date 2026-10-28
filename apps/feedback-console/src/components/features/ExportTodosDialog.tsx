@@ -23,20 +23,6 @@ export interface ExportTodosDialogProps {
 }
 
 // 判断内容是否是markdown格式（简单判断）
-function isMarkdownContent(content: string): boolean {
-  // 检查是否包含markdown语法
-  const markdownPatterns = [
-    /^#{1,6}\s/, // 标题
-    /\*\*.*\*\*/, // 粗体
-    /\*.*\*/, // 斜体
-    /\[.*\]\(.*\)/, // 链接
-    /```[\s\S]*```/, // 代码块
-    /^\s*[-*+]\s/, // 列表
-    /^\s*\d+\.\s/, // 有序列表
-    />\s/, // 引用
-  ]
-  return markdownPatterns.some(pattern => pattern.test(content))
-}
 
 // 截断文本到指定长度，保留A4宽度（约80字符）
 function truncateText(text: string, maxLength: number = 80): string {
@@ -52,7 +38,7 @@ function getTaskDetailUrl(projectId: number, taskId: number): string {
 // 筛选待办列表
 function filterTodos(
   todos: Todo[],
-  members: ProjectMember[],
+  _members: ProjectMember[],
   currentUserId: number | null,
   filters: {
     statusFilter: TodoStatus | 'ALL'
@@ -62,7 +48,7 @@ function filterTodos(
     priorityFilter: number | null | 'ALL' | 'NONE'
     dateRange: DateRange
   },
-  projectTags: Array<{ id: number; displayName: string }>
+  _projectTags: Array<{ id: number; displayName: string }>
 ): Todo[] {
   if (!todos || todos.length === 0) return []
 

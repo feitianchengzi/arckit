@@ -247,6 +247,11 @@ func CreateFeedback(c *gin.Context) {
 		return
 	}
 
+	if err := validateFeedbackClarification(req.Data); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+
 	shortID, err := ensureFeedbackShortID(db, "")
 	if err != nil {
 		if errors.Is(err, errFeedbackShortIDExists) {

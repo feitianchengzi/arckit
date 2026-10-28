@@ -5,7 +5,8 @@ import { FeedbackSubmitStep, type FeedbackSubmitImage } from '@/components/sdk/F
 import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 import { getOrPersistApiKey, getOrPersistCustomUserId, resolveProjectId, submitFeedbackByApiKey } from '@/lib/feedback/api'
 import { submitFeedbackV2, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
-import { formatStructuredFeedback } from '@/lib/feedback/structured'
+import { ClarificationReview } from '@/components/sdk/ClarificationReview'
+import { formatStructuredFeedback, mergeStructuredSummary, missingClarificationFields, clarificationFields } from '@/lib/feedback/structured'
 import { uploadFeedbackImageByApiKey, uploadFeedbackImageV2 } from '@/lib/feedback/upload'
 import { FEEDBACK_SDK_CONFIGURED_EVENT, FEEDBACK_SDK_NATIVE_IMAGE_EVENT, getFeedbackSDKConfig, type FeedbackSDKNativeImagePayload } from '@/lib/sdk'
 import { t } from '@/i18n'
@@ -74,9 +75,13 @@ export function SDKSubmitPage() {
   const [prefilledContent, setPrefilledContent] = useState('')
   // 提交反馈前与智能客服的独立会话 ID，提交时带上以关联到新建反馈（会话总线衔接）
   const [agentConversationId, setAgentConversationId] = useState('')
+  const [structured, setStructured] = useState<AgentStructuredSummary>()
+  const [structureConfirmed, setStructureConfirmed] = useState(false)
+  const customerDraftRef = useRef<Partial<AgentStructuredSummary>>({})
 
   const handleContentChange = (value: string) => {
     setContent(value)
+    if (structured) setStructureConfirmed(false)
     if (prefilledContent && value !== prefilledContent) {
       setPrefilledContent('')
       setPrefillNotice('')
@@ -247,16 +252,15 @@ export function SDKSubmitPage() {
     return () => window.removeEventListener(FEEDBACK_SDK_NATIVE_IMAGE_EVENT, handleNativeImage)
   }, [handleUploadFiles])
 
-  // 智能客服本轮低置信：沿用现有反馈提交链路——把总结好的问题结构填入表单，由客户确认后提交。
-  // 模型未给出有效总结时退回提问原文，保证表单永远有内容。
+  // Keep the multi-turn conversation open; review and customer confirmation precede creation.
   const handleAssistantNeedCollect = (payload: { question: string; structured?: AgentStructuredSummary }) => {
-    const filled = formatStructuredFeedback(payload.structured, payload.question)
-    if (filled) {
-      setContent(filled)
-      setPrefilledContent(filled)
-    }
-    setAgentChatOpen(false)
-    setPrefillNotice(t('submit.prefill_from_assistant'))
+    setStructured((previous) => {
+      const merged = mergeStructuredSummary(previous, payload.structured)
+      const edited = customerDraftRef.current
+      return edited ? { ...merged, ...edited } : merged
+    })
+    setStructureConfirmed(false)
+    setPrefillNotice('请继续回答客服的追问，或在下方补充并确认问题信息。确认提交前不会创建反馈卡片。')
   }
 
   const submitFeedback = async () => {
@@ -264,6 +268,10 @@ export function SDKSubmitPage() {
     if (submitting || uploading) return
 
     setSubmitError('')
+    if (structured && (!structureConfirmed || missingClarificationFields(structured).length > 0)) {
+      setSubmitError('请先补充并确认结构化问题信息')
+      return
+    }
     const trimmedContent = content.trim()
     if (!trimmedContent) {
       setSubmitError(t('submit.error_empty'))
@@ -281,6 +289,7 @@ export function SDKSubmitPage() {
           content: trimmedContent,
           attachments: images.map((image) => image.uploadedAttachment).filter(Boolean) as FeedbackV2Attachment[],
           conversationId: agentConversationId || undefined,
+          structured,
         })
         // 提交后进入智能客服会话：反馈内容自动发给 Agent（基于代码库推理），
         // 客户可在对话窗口继续追问，并在“我的反馈”查看进展。
@@ -407,6 +416,15 @@ export function SDKSubmitPage() {
                   {prefillNotice}
                 </p>
               ) : null}
+              {structured && <ClarificationReview value={structured} confirmed={structureConfirmed}
+                onChange={(next) => {
+                  const changed = { ...customerDraftRef.current }
+                  for (const [key] of clarificationFields) if (next[key] !== structured[key]) changed[key] = next[key]
+                  if (JSON.stringify(next.unknown_fields) !== JSON.stringify(structured.unknown_fields)) changed.unknown_fields = next.unknown_fields
+                  customerDraftRef.current = changed
+                  setStructured(next); setStructureConfirmed(false)
+                }}
+                onConfirm={() => { setContent(formatStructuredFeedback(structured, content)); setStructureConfirmed(true); setSubmitError('') }} />}
               <FeedbackSubmitStep
                 value={content}
                 images={images}

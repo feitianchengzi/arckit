@@ -17,9 +17,9 @@ import (
 // AgentMessageRequestSession 是 session 模式（嵌入 SDK）下的客户发消息请求。
 // 与 AgentMessageRequest 一致，attachments 为图片附件引用（本期落库 + 多模态预留）。
 type AgentMessageRequestSession struct {
-	Content        string                  `json:"content" binding:"required"`
-	ConversationID string                  `json:"conversation_id,omitempty"`
-	Attachments    []AgentAttachmentInput  `json:"attachments,omitempty"`
+	Content        string                 `json:"content" binding:"required"`
+	ConversationID string                 `json:"conversation_id,omitempty"`
+	Attachments    []AgentAttachmentInput `json:"attachments,omitempty"`
 }
 
 // AgentAttachmentInput 智能客服消息的图片附件输入（已上传到 OSS 后的引用）。
@@ -107,12 +107,13 @@ func AgentMessageFromSession(c *gin.Context) {
 	if err != nil {
 		log.Printf("[agent-message-session] processWithAgent 失败 project=%d feedback=%d: %v", projectID, feedbackID, err)
 		agentResponse = &AgentResponse{
-			Content:    arcOrbitAgentUnavailableReply(),
-			Confidence: 0,
+			Content:     arcOrbitAgentUnavailableReply(),
+			Confidence:  0,
 			NeedCollect: true,
 		}
 	}
 
+	applyClarification(agentResponse, history)
 	agentMsg := &AgentMessageRecord{
 		ConversationID: conv.ID,
 		FeedbackID:     feedbackID,
@@ -134,6 +135,7 @@ func AgentMessageFromSession(c *gin.Context) {
 		agentMsg.Metadata = &metaStr
 	}
 	applyAgentMessageUnresolvedMetadata(agentMsg, agentResponse.Confidence, agentResponse.Content)
+	persistClarificationMetadata(agentMsg, agentResponse.Clarification)
 
 	if err := SaveMessage(db, agentMsg); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
@@ -151,6 +153,7 @@ func AgentMessageFromSession(c *gin.Context) {
 		Confidence:     agentResponse.Confidence,
 		NeedCollect:    agentResponse.NeedCollect,
 		Structured:     agentResponse.Structured,
+		Clarification:  agentResponse.Clarification,
 	}))
 }
 

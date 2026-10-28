@@ -172,8 +172,8 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
       // 发送成功后清空已上传图片
       clearImage()
       // 低置信兜底：交给宿主走现有反馈提交链路（预填 / 追加）
-      if (response.need_collect) {
-        onNeedCollectRef.current?.({ question: content, structured: response.structured })
+      if (response.need_collect || response.clarification) {
+        onNeedCollectRef.current?.({ question: content, structured: response.clarification?.summary || response.structured })
       }
     } catch (err: any) {
       setError(err?.message || t('agent.error_send'))
@@ -203,6 +203,13 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
           : await getAgentConversationMessages(conv.id)
         if (requestId !== loadRequestRef.current) return
         setMessages(history)
+        // Restore the latest server-persisted draft when the panel is reopened.
+        for (const message of [...history].reverse()) {
+          let metadata = message.metadata
+          if (typeof metadata === 'string') { try { metadata = JSON.parse(metadata) } catch { continue } }
+          const state = (metadata as { clarification?: { summary?: AgentStructuredSummary } } | undefined)?.clarification
+          if (state?.summary) { onNeedCollectRef.current?.({ question: '', structured: state.summary }); break }
+        }
         // 历史中已有会话则不再自动发送初始消息
         if (history.length > 0) initialMessageRef.current = ''
       }
@@ -239,6 +246,7 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
   }, [messages, scrollToBottom])
 
   const handleSend = () => {
+    if (sending || uploading) return
     const content = draft
     setDraft('')
     void sendMessage(content)

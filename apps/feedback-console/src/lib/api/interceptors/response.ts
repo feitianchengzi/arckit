@@ -16,7 +16,6 @@ import type {
   ApiErrorResponse,
   ApiMeta,
   LegacyApiResponse,
-  LegacyPaginatedResponse,
 } from '@/types/api'
 
 // ==================== 响应处理函数 ====================

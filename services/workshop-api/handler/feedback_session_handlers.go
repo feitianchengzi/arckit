@@ -63,6 +63,11 @@ func CreateFeedbackFromSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "data 必须是合法 JSON", nil))
 		return
 	}
+	if err := validateFeedbackClarification(data); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+
 	attachments, err := buildFeedbackMessageAttachments(req.Attachments, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
@@ -284,6 +289,11 @@ func CreateFeedbackMessageFromSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "metadata 必须是合法 JSON", nil))
 		return
 	}
+	if err := validateFeedbackClarification(metadata); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+
 	attachments, err := buildFeedbackMessageAttachments(req.Attachments, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))

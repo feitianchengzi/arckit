@@ -39,9 +39,9 @@ export default function MyTasksPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [taskHistory, setTaskHistory] = useState<Array<{ taskId: string; projectId: string; parentTaskId?: number | null }>>([]) // 任务导航历史
-  const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false)
-  const [createTaskProjectId, setCreateTaskProjectId] = useState<string | null>(null)
-  const [createTaskParentId, setCreateTaskParentId] = useState<number | undefined>(undefined)
+  const [, setCreateTaskDialogOpen] = useState(false)
+  const [, setCreateTaskProjectId] = useState<string | null>(null)
+  const [, setCreateTaskParentId] = useState<number | undefined>(undefined)
   
   // 回到顶部
   const scrollToTop = () => {
@@ -69,7 +69,7 @@ export default function MyTasksPage() {
     return () => window.clearTimeout(timer)
   }, [drawerOpen])
 
-  const { data: projects, isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjectList(currentOrganizationId)
+  const { data: projects, isLoading: projectsLoading, error: projectsError } = useProjectList(currentOrganizationId)
   
   const [myTasks, setMyTasks] = useState<Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }>>([])
   const [tasksLoading, setTasksLoading] = useState(false)
@@ -179,7 +179,7 @@ export default function MyTasksPage() {
   const moreFiltersRef = useRef<HTMLDivElement>(null)
   const moreFiltersMenuRef = useRef<HTMLDivElement>(null)
   const filterContainerRef = useRef<HTMLDivElement>(null)
-  const [visibleFilters, setVisibleFilters] = useState<string[]>(['status', 'creator', 'executor', 'tag', 'priority', 'dateRange'])
+  const [, setVisibleFilters] = useState<string[]>(['status', 'creator', 'executor', 'tag', 'priority', 'dateRange'])
   const [hiddenFilters, setHiddenFilters] = useState<string[]>([])
   const [moreFiltersPosition, setMoreFiltersPosition] = useState<{ top: number; left: number } | null>(null)
   const searchBarRef = useRef<HTMLDivElement>(null)
@@ -212,7 +212,6 @@ export default function MyTasksPage() {
       setTasksError(null)
       
       try {
-        const allTasks: Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }> = []
         const membersMap = new Map<string, Array<{ user_id: number; username: string }>>()
         const fullMembersMap = new Map<string, ProjectMember[]>()
         
@@ -847,14 +846,6 @@ export default function MyTasksPage() {
     setCreateTaskDialogOpen(true)
   }
   
-  const handleCreateTaskSuccess = (taskId: number) => {
-    // 创建成功后刷新待办列表
-    queryClient.invalidateQueries({ queryKey: ['projects'] })
-    // 可以选择打开新创建的待办详情
-    // setSelectedTaskId(String(taskId))
-    // setSelectedProjectId(createTaskProjectId)
-    // setDrawerOpen(true)
-  }
   
   // 获取用户在项目中的角色
   const getUserRoleInProject = useCallback((projectId: string): 'owner' | 'admin' | 'member' | null => {
@@ -944,19 +935,6 @@ export default function MyTasksPage() {
   // 判断是否可以编辑任务
   // 当状态为"进行中"时，只有执行人、管理员、owner可以编辑
   // 非"进行中"的任何项目角色都可以编辑
-  const canEditTask = useCallback((todo: any, projectId: string) => {
-    if (!currentUserId) return false
-    const taskInfo: TaskInfo = todoToTaskInfo(todo)
-    const userRole = getUserRoleInProject(projectId)
-    const members = projectMembersMap.get(projectId) || []
-    const isProjectMember = members.some((m: ProjectMember) => m.user_id === currentUserId)
-    return permissionManager.task.hasEditPermission(
-      taskInfo,
-      userRole,
-      currentUserId,
-      isProjectMember
-    )
-  }, [currentUserId, getUserRoleInProject, projectMembersMap])
   
   // 判断是否可以修改状态
   // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
@@ -1022,8 +1000,11 @@ export default function MyTasksPage() {
           ...task,
           assigneeId: assigneeId || undefined,
           assignee: newAssignee ? {
+            id: newAssignee.user_id,
             username: newAssignee.username || newAssignee.user?.username || '未知用户',
-            avatar: newAssignee.avatar || newAssignee.user?.avatar
+            avatar: newAssignee.avatar || newAssignee.user?.avatar,
+            created_at: newAssignee.user?.created_at || '',
+            updated_at: newAssignee.user?.updated_at || '',
           } : undefined
         }
       }

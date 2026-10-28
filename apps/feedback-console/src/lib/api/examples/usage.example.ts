@@ -171,7 +171,7 @@ function useUserProfile() {
       if (err instanceof ApiError) {
         // 认证错误 - 跳转登录
         if (err.isAuthError()) {
-          router.push('/login')
+          navigate('/login')
           return
         }
         

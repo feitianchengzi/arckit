@@ -4,7 +4,6 @@
  * ConfirmDialog - 确认对话框组件
  */
 
-import { Fragment } from 'react'
 import { Button } from './Button'
 
 export interface ConfirmDialogProps {

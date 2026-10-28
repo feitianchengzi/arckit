@@ -20,7 +20,7 @@ import { TagCreator } from './TagCreator'
 import { TagEditor } from './TagEditor'
 import { useTagStore } from '@/store/tagStore'
 import { tagsApi } from '@/lib/api/endpoints/tags'
-import { parseTaskTags, buildTaskTags, buildTagName, type ProjectTag } from '@/lib/utils/tagUtils'
+import { parseTaskTags, buildTaskTags, buildTagName } from '@/lib/utils/tagUtils'
 import { PlusIcon, ChevronDownIcon, PencilIcon, TrashIcon } from '@/components/ui'
 import clsx from 'clsx'
 

@@ -175,7 +175,7 @@ export async function getFeedbackSDKUnreadCount(): Promise<number> {
 
 function isAllowedParentOrigin(origin: string): boolean {
   if (getAllowedParentOrigins().includes(origin)) return true
-  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+  return import.meta.env.DEV && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
 }
 
 function installHostMessageListener() {

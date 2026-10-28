@@ -267,3 +267,23 @@ describe('AgentChatPanel standalone 独立会话', () => {
     await waitFor(() => expect(onConversationReady).toHaveBeenCalledWith('conv-r1'))
   })
 })
+
+
+describe('multi-turn clarification continuity', () => {
+  it('keeps the same conversation for multiple clarification rounds and prefers server state', async () => {
+    const v2 = await import('@/lib/feedback/v2')
+    vi.mocked(v2.getStandaloneAgentConversations).mockResolvedValue([])
+    vi.mocked(v2.sendStandaloneAgentMessage).mockResolvedValueOnce({ message_id: 1, conversation_id: 'persistent-draft', content: '请补充期望结果', sender_type: 'agent', confidence: 0.3, need_collect: true, clarification: { status: 'collecting', summary: { position: '订单页', phenomenon: '导出无响应', expect: '' }, missing_fields: ['expect'], questions: ['期望结果？'], ready_to_confirm: false } }).mockResolvedValueOnce({ message_id: 2, conversation_id: 'persistent-draft', content: '请核对', sender_type: 'agent', confidence: 0.4, need_collect: true, structured: { position: '订单页', phenomenon: '导出无响应', expect: '下载 CSV' } })
+    const collect = vi.fn()
+    render(<AgentChatPanel standalone onNeedCollect={collect} />)
+    await waitFor(() => expect(screen.queryByText('正在加载会话...')).toBeNull())
+    const input = screen.getByPlaceholderText('输入你的问题...')
+    fireEvent.change(input, { target: { value: '订单页导出无响应' } }); fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(collect).toHaveBeenCalledTimes(1))
+    expect(collect.mock.calls[0][0].structured.position).toBe('订单页')
+    fireEvent.change(input, { target: { value: '期望下载 CSV' } }); fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(collect).toHaveBeenCalledTimes(2))
+    expect(v2.sendStandaloneAgentMessage).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'persistent-draft', content: '期望下载 CSV' }))
+    expect(screen.getByText('请补充期望结果')).toBeInTheDocument()
+  })
+})

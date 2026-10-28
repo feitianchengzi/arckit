@@ -480,6 +480,12 @@ func createCustomerMessageWithIdempotency(tx *gorm.DB, feedback models.Feedback,
 		} else if found {
 			return existing, false, nil
 		}
+		// A concurrent retry may win after the lookup. PostgreSQL aborts a
+		// transaction on unique violations, so recover to a savepoint before
+		// reading the winning row instead of querying an aborted transaction.
+		if err := tx.SavePoint("feedback_customer_message_insert").Error; err != nil {
+			return models.FeedbackMessage{}, false, err
+		}
 	}
 
 	message, err := createFeedbackMessageRecord(tx, feedback, models.FeedbackMessageSenderCustomer, nil, customUserID, clientMessageID, models.FeedbackMessageTypeText, content, metadata, attachments)
@@ -487,6 +493,9 @@ func createCustomerMessageWithIdempotency(tx *gorm.DB, feedback models.Feedback,
 		return message, true, nil
 	}
 	if clientMessageID != nil && isUniqueViolation(err, "uniq_feedback_messages_customer_client_active") {
+		if rollbackErr := tx.RollbackTo("feedback_customer_message_insert").Error; rollbackErr != nil {
+			return message, false, rollbackErr
+		}
 		existing, found, findErr := findCustomerMessageByClientID(tx, feedback.ID, *customUserID, *clientMessageID)
 		if findErr != nil {
 			return existing, false, findErr
@@ -640,6 +649,11 @@ func CreateFeedbackMessage(c *gin.Context) {
 	metadata, ok := normalizeMetadata(req.Metadata)
 	if !ok {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "metadata 必须是合法 JSON", nil))
+		return
+	}
+
+	if err := validateFeedbackClarification(metadata); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
 		return
 	}
 
@@ -1519,15 +1533,15 @@ func ConvertFeedbackToTask(c *gin.Context) {
 		}
 
 		task = models.Task{
-			ProjectID:         feedback.ProjectID,
-			FatherID:          req.FatherID,
-			Content:           content,
-			State:             state,
-			CreatorID:         userID,
-			ExecutorID:        req.ExecutorID,
-			Priority:          req.Priority,
-			Tags:              req.Tags,
-			SourceFeedbackID:  &feedbackID,
+			ProjectID:        feedback.ProjectID,
+			FatherID:         req.FatherID,
+			Content:          content,
+			State:            state,
+			CreatorID:        userID,
+			ExecutorID:       req.ExecutorID,
+			Priority:         req.Priority,
+			Tags:             req.Tags,
+			SourceFeedbackID: &feedbackID,
 		}
 		if models.IsDoneState(state) {
 			now := time.Now()

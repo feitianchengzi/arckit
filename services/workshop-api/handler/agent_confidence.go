@@ -12,8 +12,8 @@ import (
 const (
 	agentConfidenceHighThreshold = 0.9
 	agentConfidenceLowThreshold  = 0.75
-	// OpenHands 路径未返回自评标注时的保守默认值（中置信区间，走草稿确认）。
-	defaultAgentConfidence = 0.85
+	// 缺少自评协议时保守进入澄清，避免把无法判断误判为已解决。
+	defaultAgentConfidence = 0.5
 )
 
 // agentConfidenceMarkerRe 匹配回复末尾的自评标注，如 "[confidence:0.87]"。
@@ -27,16 +27,36 @@ var agentConfidenceLooseMarkerRe = regexp.MustCompile(`\[confidence:[^\]]*\]`)
 // 用于在客户提交反馈前预填表单。字段允许为空——模型不确定时留空由客户补填，
 // 不允许用编造内容占位。
 type AgentStructuredSummary struct {
-	Position   string `json:"position"`
-	Phenomenon string `json:"phenomenon"`
-	Expect     string `json:"expect"`
+	Position          string            `json:"position"`
+	Phenomenon        string            `json:"phenomenon"`
+	Expect            string            `json:"expect"`
+	ReproductionSteps string            `json:"reproduction_steps,omitempty"`
+	Environment       string            `json:"environment,omitempty"`
+	Impact            string            `json:"impact,omitempty"`
+	Frequency         string            `json:"frequency,omitempty"`
+	BusinessGoal      string            `json:"business_goal,omitempty"`
+	Workaround        string            `json:"workaround,omitempty"`
+	RequestType       string            `json:"request_type,omitempty"`
+	TargetUsers       string            `json:"target_users,omitempty"`
+	CurrentWorkflow   string            `json:"current_workflow,omitempty"`
+	PainPoints        string            `json:"pain_points,omitempty"`
+	ExpectedBenefit   string            `json:"expected_benefit,omitempty"`
+	Constraints       string            `json:"constraints,omitempty"`
+	Evidence          map[string]string `json:"evidence,omitempty"`
+	UnknownFields     []string          `json:"unknown_fields,omitempty"`
 }
 
 // IsEmpty 三个字段全空视为无效总结，交由前端退回提问原文。
 func (s *AgentStructuredSummary) IsEmpty() bool {
-	return s != nil && strings.TrimSpace(s.Position) == "" &&
-		strings.TrimSpace(s.Phenomenon) == "" &&
-		strings.TrimSpace(s.Expect) == ""
+	if s == nil {
+		return true
+	}
+	for _, field := range clarificationFields {
+		if strings.TrimSpace(*field.value(s)) != "" {
+			return false
+		}
+	}
+	return len(s.UnknownFields) == 0
 }
 
 // agentSummaryBlockRe 匹配回复中的结构化总结块，如 "[summary]\n{...}\n[/summary]"。
@@ -46,16 +66,31 @@ var agentSummaryBlockRe = regexp.MustCompile(`(?s)\[summary\]\s*(.*?)\s*\[/summa
 // 使 OpenHands 回复末尾携带可解析的 [confidence:x] 标注。
 // 低置信时额外要求输出结构化问题总结，供反馈表单预填（复用同一注入+剥离协议）。
 func buildAgentQueryWithConfidenceInstruction(query string) string {
-	return query + `
+	return query + featureClarificationInstruction() + `
 
 回答要求：
 1. 基于代码仓库与项目文档回答；若信息不足以可靠回答，请如实说明未找到依据。
 2. 在回答的最末尾单独一行输出自评置信度标注，格式必须严格为 [confidence:0.00]（0~1 的小数，例如 [confidence:0.92]）。
-3. 若自评置信度低于 0.75（信息不足或无法可靠回答），在置信度标注之后额外输出一个结构化问题总结块，格式必须严格为：
+3. 若自评置信度低于 0.75，或者无法解决用户问题、用户报告故障/提出需求，或已有澄清草稿，继续多轮收集信息，不要声称已经创建反馈或承诺实现。即使本轮是补充信息也必须输出更新后的摘要。只总结客户实际说过的信息，不能从仓库、常识或你此前的回答推测客户情况。每轮正文仅追问一到两个缺失字段，避免反复询问已知事实。
+4. 用如下协议输出摘要，字段不确定时留空。evidence 的每个键对应字段名，值必须是客户消息中支持该字段的逐字原文片段。unknown_fields 只能列客户明确表示不知道的字段，并在 evidence 中给出该原话。不得用“未提供/待确认/未知”填充事实字段，不得生成 ready 标志。request_type 仅可为 bug/feature/question/other。建议不等于已确认需求，优先级和实现决定留给团队判断。
 [summary]
-{"position":"问题出现的位置或模块，无法判断填空字符串","phenomenon":"问题现象，用客户能理解的话概括","expect":"客户期望的正确结果，无法判断填空字符串"}
+{"position":"","phenomenon":"","expect":"","reproduction_steps":"","environment":"","impact":"","frequency":"","request_type":"","business_goal":"","workaround":"","target_users":"","current_workflow":"","pain_points":"","expected_benefit":"","constraints":"","evidence":{},"unknown_fields":[]}
 [/summary]
-该块只在置信度低于 0.75 时输出；高于或等于 0.75 时绝不要输出。JSON 必须合法，不要在 JSON 外补充任何解释。`
+5. 信息齐备时请客户检查摘要并通过界面确认提交，不能代替用户确认。信息缺失时继续问具体问题；客户明确不知道的辅助信息保留为待核实，不编造。JSON 必须合法。
+6. 在置信度标注前另起一行输出 [resolution:answered]、[resolution:unresolved] 或 [resolution:feedback_requested]。已依据资料完整回答的普通使用咨询用 answered，且不要输出 summary；尚无法解决的客户问题用 unresolved；用户明确要求整理故障或新需求反馈用 feedback_requested。已在澄清中的补充继续用 feedback_requested，不能因为你确信文档未覆盖而标为 answered。`
+}
+
+var agentResolutionMarkerRe = regexp.MustCompile(`\[resolution:([^\]]*)\]`)
+
+func parseAgentResolution(content string) (string, string) {
+	resolution := ""
+	for _, match := range agentResolutionMarkerRe.FindAllStringSubmatch(content, -1) {
+		value := strings.TrimSpace(match[1])
+		if value == "answered" || value == "unresolved" || value == "feedback_requested" {
+			resolution = value
+		}
+	}
+	return strings.TrimSpace(agentResolutionMarkerRe.ReplaceAllString(content, "")), resolution
 }
 
 // parseAgentStructuredSummary 解析并剥离回复中的 [summary] 块。

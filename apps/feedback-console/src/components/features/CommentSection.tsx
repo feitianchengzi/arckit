@@ -6,7 +6,6 @@ import { useState, useRef, useEffect } from 'react'
 import { CommentList } from './CommentList'
 import { CommentEditor } from './CommentEditor'
 import { useTaskComments, useCreateComment, useUpdateComment, useDeleteComment } from '@/hooks/useTaskComments'
-import { buildTextCommentContent } from '@/lib/api/endpoints/comments'
 import { permissionManager } from '@/lib/permissions'
 import type { TaskInfo, ProjectRole } from '@/lib/permissions'
 

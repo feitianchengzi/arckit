@@ -154,6 +154,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		}
 	}
 
+	applyClarification(agentResponse, history)
 	agentMsg := &AgentMessageRecord{
 		ConversationID: conv.ID,
 		FeedbackID:     standaloneConversationFeedbackID,
@@ -175,6 +176,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		agentMsg.Metadata = &metaStr
 	}
 	applyAgentMessageUnresolvedMetadata(agentMsg, agentResponse.Confidence, agentResponse.Content)
+	persistClarificationMetadata(agentMsg, agentResponse.Clarification)
 
 	if err := SaveMessage(db, agentMsg); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
@@ -190,6 +192,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		Confidence:     agentResponse.Confidence,
 		NeedCollect:    agentResponse.NeedCollect,
 		Structured:     agentResponse.Structured,
+		Clarification:  agentResponse.Clarification,
 	}))
 }
 

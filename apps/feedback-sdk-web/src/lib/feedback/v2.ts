@@ -164,13 +164,14 @@ export async function submitFeedbackV2(params: {
    * 传给后端把该会话关联到新建反馈，使咨询上下文延续到跟进阶段；后端校验不通过则跳过。
    */
   conversationId?: string
+  structured?: AgentStructuredSummary
 }): Promise<{ id: number; shortId: string }> {
   const content = params.content.trim()
   if (!content) throw new Error('反馈内容不能为空')
 
   const authMode = currentV2AuthMode()
   const directScope = authMode === 'apiKey' ? directScopePayload() : null
-  const metadata = { source: 'feedback-sdk-web', channel: 'webview', feedback_state: 'pending' }
+  const metadata = { source: 'feedback-sdk-web', channel: 'webview', feedback_state: 'pending', ...(params.structured ? { structured: params.structured, clarification: { confirmed: true, confirmed_by_customer: true, confirmed_at: new Date().toISOString(), version: 1 } } : {}) }
   const body: Record<string, unknown> = {
     ...(directScope
       ? { project_id: directScope.projectId, custom_user_id: directScope.customUserId }
@@ -433,6 +434,22 @@ export interface AgentStructuredSummary {
   position: string
   phenomenon: string
   expect: string
+  reproduction_steps?: string
+  environment?: string
+  impact?: string
+  frequency?: string
+  request_type?: string
+  evidence?: Record<string, string>
+  target_users?: string
+  current_workflow?: string
+  pain_points?: string
+  expected_benefit?: string
+  constraints?: string
+  business_goal?: string
+  workaround?: string
+  unknown_fields?: string[]
+  missing_fields?: string[]
+  ready_for_confirmation?: boolean
 }
 
 export interface AgentMessageResponse {
@@ -443,6 +460,7 @@ export interface AgentMessageResponse {
   confidence: number
   need_collect?: boolean
   structured?: AgentStructuredSummary
+  clarification?: { status: 'collecting' | 'ready'; summary: AgentStructuredSummary; missing_fields: string[]; questions: string[]; ready_to_confirm: boolean }
 }
 
 /**

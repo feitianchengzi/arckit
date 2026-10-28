@@ -11,8 +11,6 @@ import { useOrganizationStore } from '@/store/organizationStore'
 import { useOrganizationMembers } from '@/hooks/useOrganizations'
 import { useAuthStore } from '@/store/authStore'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
-import { gatewayApi } from '@/lib/api/endpoints/gateway'
-import { getAuthInfo } from '@/lib/utils/tokenManager'
 import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
 import type { ProjectMember, ProjectRole } from '@/types'
 
