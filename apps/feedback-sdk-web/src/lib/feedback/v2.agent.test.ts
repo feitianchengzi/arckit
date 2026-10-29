@@ -111,3 +111,39 @@ describe('confirmed structured feedback submission', () => {
     expect(body.conversation_id).toBe('conv-before-submit')
   })
 })
+
+describe('feedback lifecycle transport contracts', () => {
+  beforeEach(() => { fetchMock.mockReset(); mockAuthMode = 'session'; mockConfig = { gatewayUrl: 'https://gw.example', feedbackSessionToken: 'fbs_test' } })
+  it('sends search, date and status to the server rather than filtering one client page', async () => {
+    const { fetchFeedbackItemsV2 } = await import('./v2')
+    mockResponse([])
+    await fetchFeedbackItemsV2({ page: 2, pageSize: 20, query: 'Chrome', status: 'processing', dateFrom: '2026-10-01T00:00:00Z', dateTo: '2026-10-30T00:00:00Z', dateField: 'updated' })
+    const url = new URL(lastCall().url)
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ q: 'Chrome', status: 'processing', date_from: '2026-10-01T00:00:00Z', date_to: '2026-10-30T00:00:00Z', date_field: 'updated', page: '2' })
+  })
+  it('loads unified conversation pages including pre-submission Agent records', async () => {
+    const { getConversationMessagesPageV2 } = await import('./v2')
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ code: 'OK', data: [{ id: 1, source: 'agent', content: '原咨询' }], meta: { total: 101 } }) })
+    const page = await getConversationMessagesPageV2(9, { page: 2, pageSize: 50 })
+    expect(lastCall().url).toContain('/feedbacks/9/conversation-messages?page=2&page_size=50')
+    expect(page.total).toBe(101)
+    expect(page.messages[0].source).toBe('agent')
+  })
+  it('keeps acceptance bound to a published conclusion and stable request id', async () => {
+    const { respondFeedbackConclusionV2 } = await import('./v2')
+    mockResponse({})
+    await respondFeedbackConclusionV2(9, 3, 'accepted')
+    expect(JSON.parse(lastCall().init.body as string)).toMatchObject({ response: 'accepted' })
+  })
+})
+
+it('propagates explicit new consultation without forcing ordinary initial messages into a new conversation', async () => {
+  const { sendStandaloneAgentMessage } = await import('./v2')
+  mockAuthMode = 'session'; mockConfig = { gatewayUrl: 'https://gw.example', feedbackSessionToken: 'token' }
+  mockResponse({ conversation_id: 'new', content: 'ok' })
+  await sendStandaloneAgentMessage({ content: '新问题', newConversation: true } as Parameters<typeof sendStandaloneAgentMessage>[0])
+  expect(JSON.parse(lastCall().init.body as string).new_conversation).toBe(true)
+  mockResponse({ conversation_id: 'existing', content: 'ok' })
+  await sendStandaloneAgentMessage({ content: '继续' })
+  expect(JSON.parse(lastCall().init.body as string).new_conversation).toBeUndefined()
+})

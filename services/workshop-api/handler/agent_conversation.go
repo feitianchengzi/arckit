@@ -6,8 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"todo/models"
 )
 
 // AgentConversation Agent 对话
@@ -28,18 +31,19 @@ func (AgentConversation) TableName() string {
 
 // AgentMessageRecord Agent 消息记录
 type AgentMessageRecord struct {
-	ID             uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	ConversationID string         `json:"conversation_id" gorm:"type:varchar(128);not null;index"`
-	FeedbackID     uint           `json:"feedback_id" gorm:"not null;index"`
-	ProjectID      uint           `json:"project_id" gorm:"not null;index"`
-	SenderType     string         `json:"sender_type" gorm:"type:varchar(32);not null"` // customer, agent, system
-	Content        string         `json:"content" gorm:"type:text;not null"`
-	ToolCalls      *string        `json:"tool_calls,omitempty" gorm:"type:jsonb"`   // JSON array of tool calls
-	ToolResults    *string        `json:"tool_results,omitempty" gorm:"type:jsonb"` // JSON array of tool results
-	Confidence     *float64       `json:"confidence,omitempty" gorm:"type:decimal(3,2)"`
-	Metadata       *string        `json:"metadata,omitempty" gorm:"type:jsonb"`
-	CreatedAt      time.Time      `json:"created_at" gorm:"autoCreateTime"`
-	DeletedAt      gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`
+	ID             uint                                `json:"id" gorm:"primaryKey;autoIncrement"`
+	ConversationID string                              `json:"conversation_id" gorm:"type:varchar(128);not null;index"`
+	FeedbackID     uint                                `json:"feedback_id" gorm:"not null;index"`
+	ProjectID      uint                                `json:"project_id" gorm:"not null;index"`
+	SenderType     string                              `json:"sender_type" gorm:"type:varchar(32);not null"` // customer, agent, system
+	Content        string                              `json:"content" gorm:"type:text;not null"`
+	ToolCalls      *string                             `json:"tool_calls,omitempty" gorm:"type:jsonb"`   // JSON array of tool calls
+	ToolResults    *string                             `json:"tool_results,omitempty" gorm:"type:jsonb"` // JSON array of tool results
+	Confidence     *float64                            `json:"confidence,omitempty" gorm:"type:decimal(3,2)"`
+	Metadata       *string                             `json:"metadata,omitempty" gorm:"type:jsonb"`
+	CreatedAt      time.Time                           `json:"created_at" gorm:"autoCreateTime"`
+	DeletedAt      gorm.DeletedAt                      `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`
+	Attachments    []FeedbackMessageAttachmentResponse `json:"attachments,omitempty" gorm:"-"`
 }
 
 func (AgentMessageRecord) TableName() string {
@@ -74,9 +78,13 @@ func GetConversation(db *gorm.DB, conversationID string) (*AgentConversation, er
 func GetOrCreateConversation(db *gorm.DB, conversationID string, feedbackID, projectID uint) (*AgentConversation, error) {
 	if conversationID != "" {
 		conv, err := GetConversation(db, conversationID)
-		if err == nil {
-			return conv, nil
+		if err != nil {
+			return nil, err
 		}
+		if conv.FeedbackID != feedbackID || conv.ProjectID != projectID {
+			return nil, fmt.Errorf("会话不属于当前反馈")
+		}
+		return conv, nil
 	}
 
 	return CreateConversation(db, feedbackID, projectID)
@@ -207,6 +215,9 @@ func GetConversationMessages(db *gorm.DB, conversationID string) ([]AgentMessage
 	err := db.Where("conversation_id = ?", conversationID).
 		Order("created_at ASC").
 		Find(&messages).Error
+	for i := range messages {
+		messages[i].Attachments = agentRecordAttachments(messages[i])
+	}
 	return messages, err
 }
 
@@ -283,4 +294,47 @@ func GetSystemPrompt(projectID uint) string {
 - search_customer_code: 搜索客户代码仓库
 - search_customer_docs: 搜索项目文档
 - search_product_knowledge: 搜索产品知识库`
+}
+
+func CreateStandaloneConversation(db *gorm.DB, projectID uint, customUserID string) (*AgentConversation, error) {
+	conv := &AgentConversation{ID: uuid.NewString(), ProjectID: projectID, CustomUserID: customUserID}
+	return conv, db.Create(conv).Error
+}
+
+var errConversationCreationScope = errors.New("无权将此会话转为反馈")
+
+// lockConversationForFeedback serializes conversion; the caller owns the transaction.
+func lockConversationForFeedback(tx *gorm.DB, id string, projectID uint, customer string) (*models.Feedback, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, nil
+	}
+	if strings.TrimSpace(customer) == "" {
+		return nil, errConversationCreationScope
+	}
+	var conv AgentConversation
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND project_id = ? AND custom_user_id = ?", strings.TrimSpace(id), projectID, customer).First(&conv).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errConversationCreationScope
+		}
+		return nil, err
+	}
+	if conv.FeedbackID == 0 {
+		return nil, nil
+	}
+	var feedback models.Feedback
+	if err := tx.Where("id = ? AND project_id = ? AND custom_user_id = ?", conv.FeedbackID, projectID, customer).First(&feedback).Error; err != nil {
+		return nil, err
+	}
+	return &feedback, nil
+}
+
+func validateConversationFeedbackConfirmation(id string, data *string) error {
+	if strings.TrimSpace(id) == "" {
+		return nil
+	}
+	var envelope map[string]json.RawMessage
+	if data == nil || json.Unmarshal([]byte(*data), &envelope) != nil || len(envelope["structured"]) == 0 || string(envelope["structured"]) == "null" {
+		return fmt.Errorf("请先检查结构化信息并明确确认提交")
+	}
+	return validateFeedbackClarification(data)
 }

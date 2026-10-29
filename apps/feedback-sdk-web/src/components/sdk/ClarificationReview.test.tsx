@@ -46,8 +46,8 @@ describe('feature review form', () => {
   it('switches the form to product discovery fields and preserves explicit manual edits', () => {
     const change = vi.fn()
     const { rerender } = render(<ClarificationReview value={core} confirmed={false} onChange={change} onConfirm={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText('问题类型（故障 / 新需求 / 咨询）'), { target: { value: 'feature' } })
-    expect(change).toHaveBeenCalledWith(expect.objectContaining({ request_type: 'feature' }))
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.getByText(/Agent/)).toBeInTheDocument()
     rerender(<ClarificationReview value={{ ...core, request_type: 'feature' }} confirmed={false} onChange={change} onConfirm={vi.fn()} />)
     expect(screen.queryByLabelText('环境 / 版本')).toBeNull()
     expect(screen.getByLabelText('使用场景 / 何时需要')).toBeInTheDocument()

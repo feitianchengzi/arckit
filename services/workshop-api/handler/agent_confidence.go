@@ -72,7 +72,7 @@ func buildAgentQueryWithConfidenceInstruction(query string) string {
 1. 基于代码仓库与项目文档回答；若信息不足以可靠回答，请如实说明未找到依据。
 2. 在回答的最末尾单独一行输出自评置信度标注，格式必须严格为 [confidence:0.00]（0~1 的小数，例如 [confidence:0.92]）。
 3. 若自评置信度低于 0.75，或者无法解决用户问题、用户报告故障/提出需求，或已有澄清草稿，继续多轮收集信息，不要声称已经创建反馈或承诺实现。即使本轮是补充信息也必须输出更新后的摘要。只总结客户实际说过的信息，不能从仓库、常识或你此前的回答推测客户情况。每轮正文仅追问一到两个缺失字段，避免反复询问已知事实。
-4. 用如下协议输出摘要，字段不确定时留空。evidence 的每个键对应字段名，值必须是客户消息中支持该字段的逐字原文片段。unknown_fields 只能列客户明确表示不知道的字段，并在 evidence 中给出该原话。不得用“未提供/待确认/未知”填充事实字段，不得生成 ready 标志。request_type 仅可为 bug/feature/question/other。建议不等于已确认需求，优先级和实现决定留给团队判断。
+4. 用如下协议输出摘要，字段不确定时留空。evidence 的每个键对应字段名，值必须是客户消息中支持该字段的逐字原文片段。request_type 是你基于仓库与事实自主分析的分类，引用支持判断的现象或期望原话，不要求用户自己说出类型名称。unknown_fields 只能列客户明确表示不知道的字段，并在 evidence 中给出该原话。不得用“未提供/待确认/未知”填充事实字段，不得生成 ready 标志。request_type 仅可为 bug/feature/question/other。建议不等于已确认需求，优先级和实现决定留给团队判断。
 [summary]
 {"position":"","phenomenon":"","expect":"","reproduction_steps":"","environment":"","impact":"","frequency":"","request_type":"","business_goal":"","workaround":"","target_users":"","current_workflow":"","pain_points":"","expected_benefit":"","constraints":"","evidence":{},"unknown_fields":[]}
 [/summary]

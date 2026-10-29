@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { FeedbackV2Attachment } from '@/lib/feedback/v2'
+import { getAgentAttachmentAccessV2, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { getFeedbackAttachmentURLV2 } from '@/lib/feedback/upload'
 import { t } from '@/i18n'
 
-type PreviewKind = 'image' | 'pdf' | null
+type PreviewKind = 'image' | 'pdf' | 'audio' | null
 
 function attachmentLabel(attachment: FeedbackV2Attachment) {
   return attachment.file_name || attachment.url || attachment.object_key?.split('/').pop() || t('attachment.default_label')
@@ -15,6 +15,7 @@ function getPreviewKind(attachment: FeedbackV2Attachment): PreviewKind {
   if (attachment.type === 'image' || mimeType.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg)$/.test(name)) {
     return 'image'
   }
+  if (attachment.type === 'audio' || mimeType.startsWith('audio/')) return 'audio'
   if (mimeType === 'application/pdf' || name.endsWith('.pdf')) {
     return 'pdf'
   }
@@ -58,7 +59,7 @@ function AttachmentPreviewDialog({
         <div className="min-h-0 flex-1 bg-surface p-2">
           {kind === 'image' ? (
             <img src={previewUrl} alt={name} className="h-full w-full object-contain" />
-          ) : (
+          ) : kind === 'audio' ? <audio controls autoPlay={false} src={previewUrl} aria-label={name} className="w-full" /> : (
             <iframe src={previewUrl} title={name} className="h-full w-full rounded border border-divider bg-white" />
           )}
         </div>
@@ -67,7 +68,7 @@ function AttachmentPreviewDialog({
   )
 }
 
-export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedbackId: number; attachment: FeedbackV2Attachment }) {
+export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedbackId: number; conversationId?: string; attachment: FeedbackV2Attachment }) {
   const [sourceUrl, setSourceUrl] = useState(attachment.url || '')
   const [previewUrl, setPreviewUrl] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -95,6 +96,7 @@ export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedback
     setError('')
     try {
       let nextUrl = sourceUrl || attachment.url || ''
+      if (attachment.access_path) nextUrl = await getAgentAttachmentAccessV2(attachment.access_path)
       if (!nextUrl && attachment.object_key) {
         if (!attachment.id) throw new Error(t('attachment.missing_id'))
         nextUrl = await getFeedbackAttachmentURLV2({
@@ -109,7 +111,7 @@ export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedback
         window.open(nextUrl, '_blank', 'noopener,noreferrer')
         return
       }
-      const nextPreviewUrl = await createInlinePreviewUrl(nextUrl, kind === 'pdf' ? 'application/pdf' : attachment.mime_type || 'image/*')
+      const nextPreviewUrl = await createInlinePreviewUrl(nextUrl, kind === 'pdf' ? 'application/pdf' : attachment.mime_type || (kind === 'audio' ? 'audio/webm' : 'image/*'))
       setPreviewUrl(nextPreviewUrl)
       setPreviewOpen(true)
     } catch (err: any) {

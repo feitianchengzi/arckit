@@ -20,7 +20,7 @@ type clarificationField struct {
 }
 
 var clarificationFields = []clarificationField{
-	{"request_type", "这是已有功能故障、新功能建议，还是使用咨询？", func(s *AgentStructuredSummary) *string { return &s.RequestType }, true},
+	{"request_type", "请描述具体操作、实际发生的情况和期望结果。", func(s *AgentStructuredSummary) *string { return &s.RequestType }, true},
 	{"position", "问题发生在哪个页面或模块？", func(s *AgentStructuredSummary) *string { return &s.Position }, true},
 	{"phenomenon", "实际发生了什么？请描述具体表现或报错。", func(s *AgentStructuredSummary) *string { return &s.Phenomenon }, true},
 	{"expect", "你期望得到什么结果？", func(s *AgentStructuredSummary) *string { return &s.Expect }, true},
@@ -145,7 +145,7 @@ func mergeClarification(previous *AgentClarification, candidate *AgentStructured
 	}
 	if !validClarificationRequestType(state.Summary.RequestType) {
 		state.MissingFields = []string{"request_type"}
-		state.Questions = []string{"这是已有功能故障、新功能建议，还是使用咨询？"}
+		state.Questions = []string{"你在哪个页面进行了什么操作，实际发生了什么？", "原来如何完成这项工作，你期望得到什么结果？"}
 		return state
 	}
 	for _, f := range clarificationFields {

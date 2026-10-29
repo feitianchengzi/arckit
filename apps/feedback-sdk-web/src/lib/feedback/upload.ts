@@ -184,7 +184,7 @@ export async function uploadFeedbackFileV2(params: {
   if (!mimeType) {
     throw new Error('附件缺少 MIME 类型，无法安全上传')
   }
-  const type = mimeType.startsWith('image/') ? 'image' : 'file'
+  const type = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('audio/') ? 'audio' : 'file'
 
   const policy = await createFeedbackUploadPolicyV2({
     type,

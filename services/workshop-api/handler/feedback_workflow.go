@@ -39,16 +39,18 @@ type CreateFeedbackMessageRequest struct {
 }
 
 type FeedbackMessageAttachmentResponse struct {
-	ID        uint    `json:"id"`
-	MessageID uint    `json:"message_id"`
-	Type      string  `json:"type"`
-	ObjectKey *string `json:"object_key,omitempty"`
-	URL       *string `json:"url,omitempty"`
-	FileName  *string `json:"file_name,omitempty"`
-	MimeType  *string `json:"mime_type,omitempty"`
-	Size      *int64  `json:"size,omitempty"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	ID         uint    `json:"id"`
+	MessageID  uint    `json:"message_id"`
+	Type       string  `json:"type"`
+	ObjectKey  *string `json:"object_key,omitempty"`
+	URL        *string `json:"url,omitempty"`
+	FileName   *string `json:"file_name,omitempty"`
+	MimeType   *string `json:"mime_type,omitempty"`
+	Size       *int64  `json:"size,omitempty"`
+	CreatedAt  string  `json:"created_at"`
+	UpdatedAt  string  `json:"updated_at"`
+	AccessPath string  `json:"access_path,omitempty"`
+	DurationMS int64   `json:"duration_ms,omitempty"`
 }
 
 type FeedbackMessageResponse struct {
@@ -280,7 +282,7 @@ func buildFeedbackMessageAttachment(input FeedbackMessageAttachmentInput, object
 
 func validateFeedbackAttachmentMetadata(attachmentType, mimeType string, size int64) (string, error) {
 	attachmentType = strings.ToLower(strings.TrimSpace(attachmentType))
-	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
+	mimeType = strings.ToLower(strings.TrimSpace(strings.Split(mimeType, ";")[0]))
 	if size <= 0 {
 		return "", fmt.Errorf("附件大小必须大于 0")
 	}
@@ -296,6 +298,12 @@ func validateFeedbackAttachmentMetadata(attachmentType, mimeType string, size in
 		}
 		if !allowed[mimeType] {
 			return "", fmt.Errorf("不支持的图片 MIME 类型")
+		}
+		maxSize = feedbackImageMaxSize
+	case models.FeedbackAttachmentTypeAudio:
+		allowed := map[string]bool{"audio/webm": true, "audio/ogg": true, "audio/mp4": true, "audio/wav": true, "audio/x-wav": true, "audio/mpeg": true}
+		if !allowed[mimeType] {
+			return "", fmt.Errorf("不支持的音频MIME类型")
 		}
 		maxSize = feedbackImageMaxSize
 	case models.FeedbackAttachmentTypeFile:
@@ -564,6 +572,9 @@ func GetFeedbackMessages(c *gin.Context) {
 		Order("created_at ASC").
 		Order("id ASC")
 
+	if isAPIKeyRequest(c) {
+		query = query.Where("state = ?", models.FeedbackMessageStateSent)
+	}
 	var total int64
 	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈消息总数失败: "+err.Error(), nil))
@@ -715,7 +726,7 @@ func CreateFeedbackMessage(c *gin.Context) {
 		notifyFeedbackTaskAttachmentCreated(c, db, feedback.ProjectID, userID, taskComments)
 		// 开发者回复同步到 agent_message_records，供 chat-widget 加载
 		if senderType == models.FeedbackMessageSenderDeveloper && content != "" {
-			syncDeveloperReplyToAgentMessages(db, feedback, content)
+			syncDeveloperReplyToAgentMessages(db, feedback, content, message.ID)
 		}
 		c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 		return

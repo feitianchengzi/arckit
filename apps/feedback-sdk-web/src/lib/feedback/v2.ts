@@ -8,17 +8,19 @@ interface ApiEnvelope<T> {
   message?: string
   data?: T
   error?: { message?: string }
-  meta?: { total?: number }
+  meta?: { total?: number; page?: number; page_size?: number }
 }
 
 export interface FeedbackV2Attachment {
   id?: number
-  type: 'image' | 'file' | 'url'
+  type: 'image' | 'audio' | 'file' | 'url'
   object_key?: string
   url?: string
   file_name?: string
   mime_type?: string
   size?: number
+  duration_ms?: number
+  access_path?: string
 }
 
 export interface FeedbackV2Message {
@@ -198,12 +200,27 @@ export async function submitFeedbackV2(params: {
   }
 }
 
-export async function fetchFeedbackItemsV2(params?: { page?: number; pageSize?: number }): Promise<{ items: FeedbackItem[]; total: number }> {
+export interface FeedbackListQuery {
+  page?: number
+  pageSize?: number
+  query?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  dateField?: 'created' | 'updated'
+}
+
+export async function fetchFeedbackItemsV2(params?: FeedbackListQuery): Promise<{ items: FeedbackItem[]; total: number }> {
   const authMode = currentV2AuthMode()
   const query = new URLSearchParams({
     page: String(params?.page || 1),
     page_size: String(params?.pageSize || 50),
   })
+  if (params?.query?.trim()) query.set('q', params.query.trim())
+  if (params?.status) query.set('status', params.status)
+  if (params?.dateFrom) query.set('date_from', params.dateFrom)
+  if (params?.dateTo) query.set('date_to', params.dateTo)
+  if (params?.dateField) query.set('date_field', params.dateField)
   if (authMode === 'apiKey') {
     const { projectId, customUserId } = directScopePayload()
     query.set('project_id', String(projectId))
@@ -288,7 +305,7 @@ export async function createFeedbackMessageV2(params: {
 }
 
 export async function createFeedbackUploadPolicyV2(params: {
-  type: 'image' | 'file'
+  type: 'image' | 'audio' | 'file'
   fileName: string
   mimeType: string
   size: number
@@ -418,6 +435,7 @@ export interface AgentMessage {
   content: string
   confidence?: number
   metadata?: unknown
+  attachments?: FeedbackV2Attachment[]
   created_at: string
 }
 
@@ -471,12 +489,14 @@ export async function sendAgentMessage(params: {
   content: string
   conversationId?: string
   attachments?: FeedbackV2Attachment[]
+  clientMessageId?: string
 }): Promise<AgentMessageResponse> {
   const authMode = currentV2AuthMode()
   const directScope = authMode === 'apiKey' ? directScopePayload() : null
 
   const body: Record<string, unknown> = {
     content: params.content,
+    client_message_id: params.clientMessageId,
   }
   if (params.conversationId) {
     body.conversation_id = params.conversationId
@@ -493,6 +513,8 @@ export async function sendAgentMessage(params: {
       url: att.url,
       file_name: att.file_name,
       mime_type: att.mime_type,
+      size: att.size,
+      duration_ms: att.duration_ms,
     }))
   }
 
@@ -558,11 +580,14 @@ function standaloneScopeQuery(): string {
  */
 export async function sendStandaloneAgentMessage(params: {
   content: string
+  newConversation?: boolean
   conversationId?: string
   attachments?: FeedbackV2Attachment[]
+  clientMessageId?: string
 }): Promise<AgentMessageResponse> {
   const path = `/agent-chats/messages${standaloneScopeQuery()}`
-  const body: Record<string, unknown> = { content: params.content }
+  const body: Record<string, unknown> = { content: params.content, client_message_id: params.clientMessageId }
+  if (params.newConversation) body.new_conversation = true
   if (params.conversationId) body.conversation_id = params.conversationId
   if (params.attachments && params.attachments.length > 0) {
     body.attachments = params.attachments.map((att) => ({
@@ -571,6 +596,8 @@ export async function sendStandaloneAgentMessage(params: {
       url: att.url,
       file_name: att.file_name,
       mime_type: att.mime_type,
+      size: att.size,
+      duration_ms: att.duration_ms,
     }))
   }
   const envelope = await requestJson<AgentMessageResponse>(path, path, {
@@ -598,4 +625,68 @@ export async function getStandaloneAgentMessages(conversationId: string): Promis
   const path = `/agent-chats/conversations/${conversationId}/messages${standaloneScopeQuery()}`
   const envelope = await requestJson<AgentMessage[]>(path, path, { method: 'GET' })
   return envelope.data || []
+}
+
+
+export interface FeedbackLifecycleEvent {
+  id: string
+  type: string
+  title: string
+  status?: string
+  created_at: string
+}
+export interface FeedbackConclusion {
+  id: number
+  feedback_id: number
+  version: number
+  kind: 'delivery' | 'answer' | 'not_planned'
+  title: string
+  body: string
+  version_label?: string
+  artifact_url?: string
+  published_by: number
+  created_at: string
+}
+export interface FeedbackConclusionResponse {
+  id: number
+  feedback_id: number
+  conclusion_id: number
+  response: 'accepted' | 'needs_review'
+  content: string
+  client_message_id: string
+  created_at: string
+}
+export interface FeedbackLifecycle {
+  feedback: FeedbackRecord
+  events: FeedbackLifecycleEvent[]
+  conclusions: FeedbackConclusion[]
+  responses: FeedbackConclusionResponse[]
+}
+function customerScopedPath(path: string): string {
+  if (currentV2AuthMode() !== 'apiKey') return path
+  return `${path}${path.includes('?') ? '&' : '?'}${new URLSearchParams({ custom_user_id: directScopePayload().customUserId })}`
+}
+export async function getConversationMessagesPageV2(feedbackId: number, params: { page?: number; pageSize?: number } = {}): Promise<{ messages: ConversationMessage[]; total: number }> {
+  const path = `/feedbacks/${feedbackId}/conversation-messages?${new URLSearchParams({ page: String(params.page || 1), page_size: String(params.pageSize || 50) })}`
+  const envelope = await requestJson<ConversationMessage[]>(path, customerScopedPath(path), { method: 'GET' })
+  const messages = Array.isArray(envelope.data) ? envelope.data : []
+  return { messages, total: envelope.meta?.total ?? messages.length }
+}
+export async function getFeedbackLifecycleV2(feedbackId: number): Promise<FeedbackLifecycle> {
+  const path = `/feedbacks/${feedbackId}/detail`
+  const envelope = await requestJson<FeedbackLifecycle>(path, customerScopedPath(path), { method: 'GET' })
+  if (!envelope.data) throw new Error('反馈生命周期返回不完整')
+  return envelope.data
+}
+export async function respondFeedbackConclusionV2(feedbackId: number, conclusionId: number, response: 'accepted' | 'needs_review', content?: string, clientMessageId?: string): Promise<void> {
+  const path = `/feedbacks/${feedbackId}/conclusions/${conclusionId}/response`
+  await requestJson(path, customerScopedPath(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response, content: content || '', client_message_id: clientMessageId || crypto.randomUUID() }) })
+}
+export async function getAgentAttachmentAccessV2(accessPath: string): Promise<string> {
+  if (!/^\/(agent-chats\/conversations|agent-conversations)\/[a-zA-Z0-9_-]+\/messages\/\d+\/attachments\/\d+\/access$/.test(accessPath)) throw new Error('媒体读取路径无效')
+  const scope = standaloneScopeQuery()
+  const path = `${accessPath}${scope}`
+  const envelope = await requestJson<{ url: string; expires_at: string }>(path, path, { method: 'GET' })
+  if (!envelope.data?.url || !/^https?:\/\//i.test(envelope.data.url)) throw new Error('媒体读取地址无效')
+  return envelope.data.url
 }

@@ -13,7 +13,8 @@
     "publish:root-index": "bash ./script/publish-root-index.sh",
     "publish:root-index:execute": "bash ./script/publish-root-index.sh --execute",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test": "vitest run"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",

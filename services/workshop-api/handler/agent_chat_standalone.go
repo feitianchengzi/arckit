@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -106,7 +107,35 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		return
 	}
 
-	conv, err := GetOrCreateStandaloneConversation(db, req.ConversationID, scope.ProjectID, scope.CustomUserID)
+	turn, err := beginSupportTurn(db, fmt.Sprintf("%d/%s/standalone", scope.ProjectID, scope.CustomUserID), req)
+	if err != nil {
+		c.JSON(409, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+	defer turn.Rollback()
+	if turn.Replay != nil {
+		c.JSON(200, response.NewSuccessResponse(turn.Replay))
+		return
+	}
+	db = turn.DB
+	if err := validateAgentMedia(req.Content, req.Attachments, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID)); err != nil {
+		c.JSON(400, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+	for index := range req.Attachments {
+		req.Attachments[index].MimeType = strings.Split(req.Attachments[index].MimeType, ";")[0]
+	}
+	imageUrls, audioUnderstanding, err := prepareAgentMedia(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(503, response.NewErrorResponse(response.CodeInternalError, err.Error(), nil))
+		return
+	}
+	var conv *AgentConversation
+	if req.NewConversation && req.ConversationID == "" {
+		conv, err = CreateStandaloneConversation(db, scope.ProjectID, scope.CustomUserID)
+	} else {
+		conv, err = GetOrCreateStandaloneConversation(db, req.ConversationID, scope.ProjectID, scope.CustomUserID)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "创建对话失败: "+err.Error(), nil))
 		return
@@ -120,7 +149,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		Content:        req.Content,
 	}
 	if len(req.Attachments) > 0 {
-		attJSON, _ := json.Marshal(map[string]interface{}{"attachments": req.Attachments})
+		attJSON, _ := json.Marshal(map[string]interface{}{"attachments": req.Attachments, "audio_understanding": audioUnderstanding})
 		attStr := string(attJSON)
 		customerMsg.Metadata = &attStr
 	}
@@ -135,15 +164,9 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		return
 	}
 
-	imageUrls := make([]string, 0, len(req.Attachments))
-	for _, att := range req.Attachments {
-		if strings.EqualFold(strings.TrimSpace(att.Type), "image") {
-			if u := strings.TrimSpace(att.URL); u != "" {
-				imageUrls = append(imageUrls, u)
-			}
-		}
+	if len(imageUrls) == 0 {
+		imageUrls = historicalAgentImages(history, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID))
 	}
-
 	agentResponse, err := processWithAgent(c, db, scope.ProjectID, standaloneConversationFeedbackID, req.Content, history, conv.ID, imageUrls)
 	if err != nil {
 		log.Printf("[agent-chat-standalone] processWithAgent 失败 project=%d user=%s: %v", scope.ProjectID, scope.CustomUserID, err)
@@ -183,7 +206,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response.NewSuccessResponse(AgentMessageResponse{
+	result := AgentMessageResponse{
 		MessageID:      agentMsg.ID,
 		ConversationID: conv.ID,
 		Content:        agentResponse.Content,
@@ -193,7 +216,12 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		NeedCollect:    agentResponse.NeedCollect,
 		Structured:     agentResponse.Structured,
 		Clarification:  agentResponse.Clarification,
-	}))
+	}
+	if err := turn.Complete(result); err != nil {
+		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "保存完整会话失败，请重试", nil))
+		return
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(result))
 }
 
 // listStandaloneConversations 列出该客户的独立会话。

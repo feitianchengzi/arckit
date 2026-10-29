@@ -56,6 +56,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		userGroup.PUT("/task-notification-preference", handler.UpdateTaskNotificationPreference)
 		if enableFeedbackWorkflow {
 			userGroup.GET("/feedbacks/:id", handler.GetFeedback)
+			userGroup.POST("/feedbacks/:id/conclusions", handler.PublishFeedbackConclusion)
 			registerFeedbackWorkflowRoutes(userGroup)
 			registerFeedbackNotificationRoutes(userGroup)
 			userGroup.POST("/feedback-sessions", handler.CreateUserFeedbackSession)
@@ -82,6 +83,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 			apikeyGroup.POST("/agent-chats/messages", handler.StandaloneAgentMessageByAPIKey)
 			apikeyGroup.GET("/agent-chats/conversations", handler.GetStandaloneConversationsByAPIKey)
 			apikeyGroup.GET("/agent-chats/conversations/:conversationId/messages", handler.GetStandaloneMessagesByAPIKey)
+			apikeyGroup.GET("/agent-chats/conversations/:conversationId/messages/:messageId/attachments/:attachmentIndex/access", handler.GetAgentMediaAccess)
 
 			// feedback 是仅供 SDK 使用的窄权限认证级别。范围由网关校验
 			// 的短期 token 注入，不能复用 API Key 的项目成员权限。
@@ -199,62 +201,69 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 }
 
 func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
-	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessages)    // 查询反馈消息
-	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessage) // 创建反馈消息
+	group.GET("/feedbacks/:id/detail", handler.GetFeedbackDetail)
+	group.GET("/feedbacks/:id/conclusions", handler.GetFeedbackConclusions)
+	group.POST("/feedbacks/:id/conclusions/:conclusionId/response", handler.RespondFeedbackConclusion)
+	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessages)                          // 查询反馈消息
+	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessage)                       // 创建反馈消息
 	group.GET("/feedbacks/:id/conversation-messages", handler.GetFeedbackConversationMessages) // 统一会话视图（聚合智能客服+反馈消息）
 	group.GET("/feedbacks/:id/attachments/:attachment_id/oss/credentials", handler.GetFeedbackAttachmentOSSCredentials)
-	group.POST("/feedbacks/:id/convert-to-task", handler.ConvertFeedbackToTask) // 将反馈流转为待办
-	group.POST("/feedbacks/:id/ignore", handler.IgnoreFeedback)                 // 标记反馈为暂不处理
-	group.POST("/feedbacks/:id/restore", handler.RestoreFeedback)               // 将已忽略反馈恢复为待处理
-	group.POST("/feedbacks/:id/delivery-notify", handler.NotifyDeliveryHandler) // 通知客户交付完成
+	group.POST("/feedbacks/:id/convert-to-task", handler.ConvertFeedbackToTask)   // 将反馈流转为待办
+	group.POST("/feedbacks/:id/ignore", handler.IgnoreFeedback)                   // 标记反馈为暂不处理
+	group.POST("/feedbacks/:id/restore", handler.RestoreFeedback)                 // 将已忽略反馈恢复为待处理
+	group.POST("/feedbacks/:id/delivery-notify", handler.NotifyDeliveryHandler)   // 通知客户交付完成
 	group.GET("/feedbacks/:id/delivery-status", handler.GetDeliveryStatusHandler) // 查询交付状态
-	group.POST("/feedbacks/:id/triage", handler.TriageHandler)                 // AI 分诊分析
+	group.POST("/feedbacks/:id/triage", handler.TriageHandler)                    // AI 分诊分析
 	group.GET("/tasks/attachments/:id/oss/credentials", handler.GetFeedbackTaskAttachmentOSSCredentials)
-	
+
 	// 智能客服相关路由
-	group.POST("/feedbacks/retrieve", handler.RetrieveHandler)                    // 智能客服检索
-	group.POST("/feedbacks/:id/drafts", handler.CreateDraftHandler)               // 创建草稿（runtime 回写）
+	group.POST("/feedbacks/retrieve", handler.RetrieveHandler)                            // 智能客服检索
+	group.POST("/feedbacks/:id/drafts", handler.CreateDraftHandler)                       // 创建草稿（runtime 回写）
 	group.POST("/feedbacks/:id/messages/:messageId/confirm", handler.ConfirmDraftHandler) // 确认草稿发送
 	group.POST("/feedbacks/:id/messages/:messageId/reject", handler.RejectDraftHandler)   // 驳回草稿
-	
+
 	// 反馈-待办关联查询（桥1）
-	group.GET("/feedbacks/:id/task-links", handler.GetFeedbackTaskLinks)           // 查询反馈关联的待办
-	group.GET("/tasks/:id/feedback-links", handler.GetTaskFeedbackLinks)          // 查询待办关联的反馈
-	
+	group.GET("/feedbacks/:id/task-links", handler.GetFeedbackTaskLinks) // 查询反馈关联的待办
+	group.GET("/tasks/:id/feedback-links", handler.GetTaskFeedbackLinks) // 查询待办关联的反馈
+
 	// 客户代码仓库管理
-	group.POST("/projects/:id/code-repos", handler.CreateCustomerCodeRepoHandler)           // 创建客户代码仓库
-	group.GET("/projects/:id/code-repos", handler.GetCustomerCodeReposHandler)              // 查询客户代码仓库列表
+	group.POST("/projects/:id/code-repos", handler.CreateCustomerCodeRepoHandler)            // 创建客户代码仓库
+	group.GET("/projects/:id/code-repos", handler.GetCustomerCodeReposHandler)               // 查询客户代码仓库列表
 	group.PUT("/projects/:id/code-repo", handler.UpsertProjectGitHubRepoHandler)             // 保存并同步项目 GitHub 仓库
 	group.POST("/projects/:id/code-repos/:repoId/sync", handler.SyncCustomerCodeRepoHandler) // 同步客户代码仓库
-	group.DELETE("/projects/:id/code-repos/:repoId", handler.DeleteCustomerCodeRepoHandler) // 删除客户代码仓库
-	
+	group.DELETE("/projects/:id/code-repos/:repoId", handler.DeleteCustomerCodeRepoHandler)  // 删除客户代码仓库
+
 	// OpenHands 配置管理
-	group.GET("/projects/:id/openhands-config", handler.GetOpenHandsConfigHandler)          // 查询 OpenHands 配置
-	group.PUT("/projects/:id/openhands-config", handler.UpdateOpenHandsConfigHandler)       // 更新 OpenHands 配置
-	group.GET("/projects/:id/openhands-health", handler.CheckOpenHandsHealthHandler)        // 检查 OpenHands 健康状态
-	
+	group.GET("/projects/:id/openhands-config", handler.GetOpenHandsConfigHandler)    // 查询 OpenHands 配置
+	group.PUT("/projects/:id/openhands-config", handler.UpdateOpenHandsConfigHandler) // 更新 OpenHands 配置
+	group.GET("/projects/:id/openhands-health", handler.CheckOpenHandsHealthHandler)  // 检查 OpenHands 健康状态
+
 	// 知识库管理
-	group.GET("/projects/:id/knowledge/sources", handler.ListKnowledgeSourcesHandler)                    // 查询知识源列表
-	group.POST("/projects/:id/knowledge/sources", handler.CreateKnowledgeSourceHandler)                  // 创建知识源
-	group.DELETE("/projects/:id/knowledge/sources/:sourceId", handler.DeleteKnowledgeSourceHandler)      // 删除知识源
+	group.GET("/projects/:id/knowledge/sources", handler.ListKnowledgeSourcesHandler)                      // 查询知识源列表
+	group.POST("/projects/:id/knowledge/sources", handler.CreateKnowledgeSourceHandler)                    // 创建知识源
+	group.DELETE("/projects/:id/knowledge/sources/:sourceId", handler.DeleteKnowledgeSourceHandler)        // 删除知识源
 	group.POST("/projects/:id/knowledge/sources/:sourceId/reindex", handler.ReindexKnowledgeSourceHandler) // 触发重建索引
-	group.POST("/projects/:id/knowledge/retrieve-test", handler.KnowledgeRetrieveTestHandler)            // 检索测试
-	group.GET("/projects/:id/knowledge/workspace", handler.GetKnowledgeWorkspaceHandler)                 // 查看 workspace 绑定状态
-	group.POST("/projects/:id/knowledge/search-code", handler.SearchCodeChunksHandler)                   // 代码片段搜索
-	group.GET("/projects/:id/knowledge/code-stats", handler.GetCodeIndexStatsHandler)                    // 代码索引统计
-	group.POST("/projects/:id/code-repos/:repoId/index", handler.IndexCodeRepoHandler)                   // 触发代码仓库索引
-	
+	group.POST("/projects/:id/knowledge/retrieve-test", handler.KnowledgeRetrieveTestHandler)              // 检索测试
+	group.GET("/projects/:id/knowledge/workspace", handler.GetKnowledgeWorkspaceHandler)                   // 查看 workspace 绑定状态
+	group.POST("/projects/:id/knowledge/search-code", handler.SearchCodeChunksHandler)                     // 代码片段搜索
+	group.GET("/projects/:id/knowledge/code-stats", handler.GetCodeIndexStatsHandler)                      // 代码索引统计
+	group.POST("/projects/:id/code-repos/:repoId/index", handler.IndexCodeRepoHandler)                     // 触发代码仓库索引
+
 	// Agent 智能客服路由
-	group.POST("/feedbacks/:id/agent-message", handler.AgentMessageHandler)                               // 发送消息给 Agent
-	group.GET("/feedbacks/:id/agent-conversations", handler.GetAgentConversationsHandler)                 // 获取反馈关联的对话列表
-	group.GET("/feedbacks/:id/agent-messages", handler.GetFeedbackAgentMessagesHandler)                   // 获取反馈的所有 Agent 消息（chat-widget 历史）
-	group.GET("/agent-conversations/:conversationId/messages", handler.GetAgentConversationMessagesHandler) // 获取对话消息列表
+	group.POST("/feedbacks/:id/agent-message", handler.AgentMessageHandler)               // 发送消息给 Agent
+	group.GET("/feedbacks/:id/agent-conversations", handler.GetAgentConversationsHandler) // 获取反馈关联的对话列表
+	group.GET("/feedbacks/:id/agent-messages", handler.GetFeedbackAgentMessagesHandler)   // 获取反馈的所有 Agent 消息（chat-widget 历史）
+	group.GET("/agent-conversations/:conversationId/messages", handler.GetAgentConversationMessagesHandler)
+	group.GET("/agent-conversations/:conversationId/messages/:messageId/attachments/:attachmentIndex/access", handler.GetAgentMediaAccess) // 获取对话消息列表
 
 	// 反馈升级人工流转（客户转人工 / Agent 低置信升级，分诊→待办→回写一站式）
 	group.POST("/feedbacks/:id/escalate", handler.EscalateFeedbackHandler)
 }
 
 func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
+	group.GET("/feedbacks/:id/detail", handler.GetFeedbackDetailFromSession)
+	group.GET("/feedbacks/:id/conclusions", handler.GetFeedbackConclusionsFromSession)
+	group.POST("/feedbacks/:id/conclusions/:conclusionId/response", handler.RespondFeedbackConclusionFromSession)
 	group.POST("/upload-policies", handler.CreateFeedbackUploadPolicy)
 	group.GET("/oss/credentials", handler.GetFeedbackSessionOSSTempCredentials)
 	group.GET("/notifications", handler.GetFeedbackNotificationsFromSession)
@@ -269,6 +278,8 @@ func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
 	group.POST("/feedbacks/:id/agent-message", handler.AgentMessageFromSession)
 	group.GET("/feedbacks/:id/agent-conversations", handler.GetAgentConversationsFromSession)
 	group.GET("/agent-conversations/:conversationId/messages", handler.GetAgentConversationMessagesFromSession)
+	group.GET("/agent-conversations/:conversationId/messages/:messageId/attachments/:attachmentIndex/access", handler.GetAgentMediaAccess)
+	group.GET("/agent-chats/conversations/:conversationId/messages/:messageId/attachments/:attachmentIndex/access", handler.GetAgentMediaAccess)
 	// 独立智能客服会话（不绑定反馈），供「反馈建议」页客服入口使用
 	group.POST("/agent-chats/messages", handler.StandaloneAgentMessageFromSession)
 	group.GET("/agent-chats/conversations", handler.GetStandaloneConversationsFromSession)

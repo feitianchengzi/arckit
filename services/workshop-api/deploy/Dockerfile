@@ -36,7 +36,7 @@ ARG SOURCE_DIRTY=true
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT \
       org.opencontainers.image.source-dirty=$SOURCE_DIRTY
 
-RUN apk --no-cache add ca-certificates git openssh-client postgresql17-client tzdata \
+RUN apk --no-cache add ca-certificates ffmpeg git openssh-client postgresql17-client tzdata \
     && addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /home/appuser/
 

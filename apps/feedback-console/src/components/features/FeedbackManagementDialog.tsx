@@ -1,3 +1,4 @@
+import { feedbackSearchOptions } from '@/domain/feedbackSearch'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import clsx from 'clsx'
 import { Dialog, EmptyStateView, ErrorView, ImagePreview, LoadingView } from '@/components/ui'
@@ -462,6 +463,9 @@ export function FeedbackManagementDialog({
   const [page, setPage] = useState(1)
   const [stateFilter, setStateFilter] = useState<'all' | FeedbackState>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [dateField, setDateField] = useState<'created' | 'updated'>('created')
 	const [searchOpen, setSearchOpen] = useState(false)
 	const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'priority'>('newest')
 	const [selectedFeedbackId, setSelectedFeedbackId] = useState<number | null>(null)
@@ -491,6 +495,7 @@ export function FeedbackManagementDialog({
   const { data: feedbackData, isLoading, error, refetch } = useFeedbackList(projectId, {
     page,
     pageSize: PAGE_SIZE,
+    ...(v2Workflow ? feedbackSearchOptions(searchQuery, stateFilter, dateFrom, dateTo, dateField) : {}),
     enabled: embedded ? true : open,
     refetchInterval: realtimeEnabled ? 30000 : false,
     refetchOnWindowFocus: realtimeEnabled,
@@ -573,7 +578,7 @@ export function FeedbackManagementDialog({
 	}, [embedded, loadUnreadNotifications, open, realtimeRevision])
 
   const listedFeedbacks = feedbackData?.feedbacks ?? []
-	const feedbacks = deepLinkedFeedback && !listedFeedbacks.some((feedback) => feedback.id === deepLinkedFeedback.id)
+	const feedbacks = !searchQuery.trim() && !dateFrom && !dateTo && stateFilter === 'all' && deepLinkedFeedback && !listedFeedbacks.some((feedback) => feedback.id === deepLinkedFeedback.id)
 		? [deepLinkedFeedback, ...listedFeedbacks]
 		: listedFeedbacks
   const total = feedbackData?.meta?.total ?? feedbackData?.total ?? feedbacks.length
@@ -590,6 +595,7 @@ export function FeedbackManagementDialog({
     const keyword = searchQuery.trim().toLowerCase()
 
 		const byFilter = entries.filter((entry) => {
+      if (v2Workflow) return true
 			if (stateFilter !== 'all' && getConsoleState(entry.insight, v2Workflow) !== stateFilter) {
         return false
       }
@@ -659,7 +665,7 @@ export function FeedbackManagementDialog({
 
   useEffect(() => {
     setPage(1)
-    setSearchQuery('')
+    setSearchQuery(''); setDateFrom(''); setDateTo('')
 		setSearchOpen(false)
     setStateFilter('all')
     setSortBy('newest')
@@ -951,19 +957,24 @@ export function FeedbackManagementDialog({
 				  setSearchQuery(event.target.value)
 				  setPage(1)
 				}}
-				placeholder="搜索正文、编号或用户"
+				placeholder={v2Workflow ? '搜索问题、沟通记录或结论' : '搜索正文、编号或用户'}
 				className="min-w-0 flex-1 appearance-none border-0 bg-transparent py-1.5 text-sm text-foreground outline-none placeholder:text-foreground-tertiary focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
 			  />
 			</div>
 		  ) : null}
 		  <div className="scrollbar-hide order-last flex w-full shrink-0 items-center gap-2 overflow-x-auto sm:order-none sm:w-auto sm:gap-1.5 sm:overflow-visible">
 			{v2Workflow ? <FeedbackSubscriptionMenu projectId={Number(projectId)} /> : null}
+            {v2Workflow ? <div className="flex shrink-0 items-center gap-1 text-xs">
+              <select aria-label="时间筛选依据" value={dateField} onChange={event => { setDateField(event.target.value as 'created' | 'updated'); setPage(1) }} className="rounded border border-divider bg-surface p-1.5"><option value="created">提交时间</option><option value="updated">最近沟通时间</option></select>
+              <input aria-label="开始日期" type="date" value={dateFrom} max={dateTo || undefined} onChange={event => { setDateFrom(event.target.value); setPage(1) }} className="rounded border border-divider bg-surface p-1.5" />
+              <span>至</span><input aria-label="结束日期" type="date" value={dateTo} min={dateFrom || undefined} onChange={event => { setDateTo(event.target.value); setPage(1) }} className="rounded border border-divider bg-surface p-1.5" />
+            </div> : null}
 			<button
 			  type="button"
 			  onMouseDown={preventButtonFocus}
 			  onClick={() => {
 				if (searchOpen) {
-				  setSearchQuery('')
+				  setSearchQuery(''); setDateFrom(''); setDateTo('')
 				  setPage(1)
 				}
 				setSearchOpen((current) => !current)

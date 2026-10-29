@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,7 +33,7 @@ type CreateFeedbackRequest struct {
 	File         *string                          `json:"file,omitempty"`           // 附件文件地址（可选）
 	Data         *string                          `json:"data,omitempty"`           // JSON字符串（可选）
 	// ConversationID 提交反馈前与智能客服的独立会话 ID（feedback_id=0）。
-	// 传入后关联该会话到新建反馈，使咨询上下文延续到跟进阶段；校验不通过静默跳过。
+	// 传入后关联该会话到新建反馈，使咨询上下文延续到跟进阶段；校验客户归属并原子关联，同一已确认会话只创建一张反馈。
 	ConversationID string `json:"conversation_id,omitempty"`
 }
 
@@ -247,6 +246,10 @@ func CreateFeedback(c *gin.Context) {
 		return
 	}
 
+	if err := validateConversationFeedbackConfirmation(req.ConversationID, req.Data); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
 	if err := validateFeedbackClarification(req.Data); err != nil {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
 		return
@@ -288,9 +291,24 @@ func CreateFeedback(c *gin.Context) {
 		initialMessageAttachments = attachments
 	}
 
+	customer := ""
+	if req.CustomUserID != nil {
+		customer = *req.CustomUserID
+	}
+	replay := false
 	var resp FeedbackResponse
 	var initialMessage models.FeedbackMessage
 	if err := db.Transaction(func(tx *gorm.DB) error {
+		existing, err := lockConversationForFeedback(tx, req.ConversationID, req.ProjectID, customer)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			feedback = *existing
+			resp = buildFeedbackResponse(feedback)
+			replay = true
+			return nil
+		}
 		if err := tx.Create(&feedback).Error; err != nil {
 			if isUniqueViolation(err, "uniq_feedback_short_id") {
 				return errFeedbackShortIDExists
@@ -319,9 +337,16 @@ func CreateFeedback(c *gin.Context) {
 				return err
 			}
 		}
+		if err := linkStandaloneConversationToFeedback(tx, req.ConversationID, feedback.ID, req.ProjectID, customer); err != nil {
+			return err
+		}
 		resp = buildFeedbackResponse(feedback)
 		return recordProjectEvent(c, tx, feedback.ProjectID, userID, "feedback.created", resp)
 	}); err != nil {
+		if errors.Is(err, errConversationCreationScope) {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, err.Error(), nil))
+			return
+		}
 		if errors.Is(err, errFeedbackShortIDExists) {
 			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "短ID已存在", nil))
 			return
@@ -330,6 +355,10 @@ func CreateFeedback(c *gin.Context) {
 		return
 	}
 
+	if replay {
+		c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+		return
+	}
 	// 自动触发 AI 分诊（异步，不阻塞响应）
 	go func() {
 		triage := analyzeFeedback(feedback.Title, feedback.Content)
@@ -340,16 +369,6 @@ func CreateFeedback(c *gin.Context) {
 			db.Model(&feedback).Update("data", &text)
 		}
 	}()
-
-	// 关联提交前的独立智能客服会话到该反馈（P1 会话衔接），咨询上下文延续到跟进阶段。
-	// apiKey 模式 custom_user_id 来自请求；user 模式无 custom_user_id，关联校验按项目+空客户走（仅匹配同项目独立会话）。
-	customUserIDForLink := ""
-	if req.CustomUserID != nil {
-		customUserIDForLink = *req.CustomUserID
-	}
-	if err := linkStandaloneConversationToFeedback(db, req.ConversationID, feedback.ID, req.ProjectID, customUserIDForLink); err != nil {
-		log.Printf("[feedback] link standalone conversation failed feedback=%d conv=%s: %v", feedback.ID, req.ConversationID, err)
-	}
 
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
@@ -712,6 +731,10 @@ func GetFeedbacks(c *gin.Context) {
 		)`)
 	}
 
+	query, ok = applyFeedbackSearch(c, query)
+	if !ok {
+		return
+	}
 	pagination, _ := ParsePagination(c)
 
 	var total int64

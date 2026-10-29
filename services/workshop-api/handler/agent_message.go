@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -65,6 +67,23 @@ func AgentMessageHandler(c *gin.Context) {
 		return
 	}
 	_ = userID
+
+	if isAPIKeyRequest(c) {
+		raw, err := io.ReadAll(io.LimitReader(c.Request.Body, 128*1024))
+		var identity struct {
+			CustomUserID string `json:"custom_user_id"`
+		}
+		if err != nil || json.Unmarshal(raw, &identity) != nil {
+			c.JSON(400, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误", nil))
+			return
+		}
+		if _, ok := requireCustomerFeedbackAccess(c, feedback, identity.CustomUserID); !ok {
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewReader(raw))
+		runBoundAgentMessage(c, middleware.FeedbackSessionScope{ProjectID: projectID, CustomUserID: identity.CustomUserID})
+		return
+	}
 
 	var req AgentMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -238,10 +257,13 @@ func applyAgentMessageUnresolvedMetadata(msg *AgentMessageRecord, confidence flo
 func processWithAgent(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, query string, history []AgentMessageRecord, conversationID string, imageUrls []string) (*AgentResponse, error) {
 	// 本地白名单：命中才直接回复（毫秒级），返回 nil 表示放行 Agent
 	// 已进入澄清后必须处理本轮补充；不能把保存的草稿当作新请求匹配固定回复。
-	if latestClarification(history) == nil {
+	if len(imageUrls) == 0 && latestClarification(history) == nil {
 		if localResp, _ := classifyAndRespond(query); localResp != nil {
 			return localResp, nil
 		}
+	}
+	if len(imageUrls) > 0 && (!openHandsEnabled() || getAgentServerByProject(db, projectID) == nil || !openHandsLLMConfigured(getAgentServerByProject(db, projectID))) {
+		return nil, fmt.Errorf("图片尚未被模型读取：请配置支持视觉的客服模型")
 	}
 	query = buildClarificationContext(query, history)
 
@@ -485,7 +507,7 @@ func GetFeedbackAgentMessagesHandler(c *gin.Context) {
 // syncDeveloperReplyToAgentMessages 将开发者回复写入反馈关联的智能客服会话，
 // 使客户在会话面板能看到客服跟进。会话按 feedback_id 显式查询（P3：替代反查最近消息），
 // 取最新一条；无关联会话时静默跳过——客服回复仍落 feedback_messages，只是不进会话视图。
-func syncDeveloperReplyToAgentMessages(db *gorm.DB, feedback models.Feedback, content string) {
+func syncDeveloperReplyToAgentMessages(db *gorm.DB, feedback models.Feedback, content string, sourceMessageID ...uint) {
 	convs, err := GetFeedbackConversations(db, feedback.ID)
 	if err != nil || len(convs) == 0 {
 		// 无关联会话：不编造 conversation_id，客服回复保留在 feedback_messages 即可。
@@ -499,6 +521,11 @@ func syncDeveloperReplyToAgentMessages(db *gorm.DB, feedback models.Feedback, co
 		ProjectID:      feedback.ProjectID,
 		SenderType:     "developer",
 		Content:        content,
+	}
+	if len(sourceMessageID) > 0 {
+		raw, _ := json.Marshal(map[string]uint{"feedback_message_id": sourceMessageID[0]})
+		text := string(raw)
+		agentMsg.Metadata = &text
 	}
 	db.Create(agentMsg)
 }

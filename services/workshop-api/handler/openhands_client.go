@@ -201,6 +201,10 @@ func ohRequest(method, url, apiKey string, payload interface{}, timeout time.Dur
 // workingDir 必须是按项目隔离的工作区（见 resolveProjectWorkspaceDir），
 // 传空时回退到全局 ohWorkspaceDir()，仅用于兼容未传入上下文的旧调用。
 func ohCreateConversation(agent *OpenHandsAgent, query, workingDir string) (string, error) {
+	return ohCreateConversationWithImages(agent, query, workingDir, nil)
+}
+
+func ohCreateConversationWithImages(agent *OpenHandsAgent, query, workingDir string, imageURLs []string) (string, error) {
 	llm, err := ohLLMConfig(agent)
 	if err != nil {
 		return "", err
@@ -218,7 +222,7 @@ func ohCreateConversation(agent *OpenHandsAgent, query, workingDir string) (stri
 		},
 		"initial_message": map[string]interface{}{
 			"role":    "user",
-			"content": []map[string]string{{"text": query}},
+			"content": ohMessageContent(query, imageURLs),
 		},
 		"agent": map[string]interface{}{
 			"kind": "Agent",
@@ -395,23 +399,27 @@ func ohFetchAgentReply(agent *OpenHandsAgent, conversationID string) (string, er
 // ohConversationID 为空时新建会话；非空时续发消息，会话失效则自动重建。
 // 返回 OpenHands 侧会话 ID 与 agent 最终回复。
 func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID string, imageUrls []string, workingDir string) (*OpenHandsSyncResult, error) {
+	if len(imageUrls) > 0 && !agentVisionEnabled() {
+		return nil, fmt.Errorf("当前服务未启用图片理解，图片尚未被模型读取")
+	}
 	timeout := ohAgentTimeout(agent)
 
 	convID := ""
 	if strings.TrimSpace(ohConversationID) != "" {
-		sendErr := ohSendMessage(agent, ohConversationID, query)
+		var sendErr error
+		if len(imageUrls) > 0 {
+			sendErr = ohSendMessageWithImages(agent, ohConversationID, query, imageUrls)
+		} else {
+			sendErr = ohSendMessage(agent, ohConversationID, query)
+		}
 		if sendErr == nil {
 			convID = ohConversationID
-		} else if agentVisionEnabled() && len(imageUrls) > 0 {
-			// 纯文本续发失败时，若启用多模态且有图片，尝试带图续发
-			if imgErr := ohSendMessageWithImages(agent, ohConversationID, query, imageUrls); imgErr == nil {
-				convID = ohConversationID
-			}
 		}
+
 		// 续发失败（会话已清理）时降级为新建
 	}
 	if convID == "" {
-		id, err := ohCreateConversation(agent, query, workingDir)
+		id, err := ohCreateConversationWithImages(agent, query, workingDir, imageUrls)
 		if err != nil {
 			return nil, err
 		}
@@ -437,4 +445,13 @@ func truncateStr(s string, n int) string {
 		return string(runes)
 	}
 	return string(runes[:n]) + "..."
+}
+
+// ohMessageContent uses one content constructor for initial and resumed turns.
+func ohMessageContent(query string, images []string) []map[string]interface{} {
+	content := []map[string]interface{}{{"type": "text", "text": query}}
+	for _, u := range images {
+		content = append(content, map[string]interface{}{"type": "image_url", "image_url": map[string]string{"url": u}})
+	}
+	return content
 }
