@@ -160,6 +160,7 @@ func runBoundAgentMessage(c *gin.Context, scope middleware.FeedbackSessionScope)
 	}
 	applyAgentMessageUnresolvedMetadata(agentMsg, agentResponse.Confidence, agentResponse.Content)
 	persistClarificationMetadata(agentMsg, agentResponse.Clarification)
+	persistAgentSources(agentMsg, agentResponse.Sources)
 
 	if err := SaveMessage(db, agentMsg); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
@@ -169,15 +170,17 @@ func runBoundAgentMessage(c *gin.Context, scope middleware.FeedbackSessionScope)
 	// session 模式无内部 userID，不触发面向内部用户的 need_collect 事件；
 	// 低置信兜底由前端依据 NeedCollect 字段处理。
 	result := AgentMessageResponse{
-		MessageID:      agentMsg.ID,
-		ConversationID: conv.ID,
-		Content:        agentResponse.Content,
-		SenderType:     "agent",
-		ToolCalls:      agentResponse.ToolCalls,
-		Confidence:     agentResponse.Confidence,
-		NeedCollect:    agentResponse.NeedCollect,
-		Structured:     agentResponse.Structured,
-		Clarification:  agentResponse.Clarification,
+		MessageID:         agentMsg.ID,
+		CustomerMessageID: customerMsg.ID,
+		ConversationID:    conv.ID,
+		Content:           agentResponse.Content,
+		SenderType:        "agent",
+		ToolCalls:         agentResponse.ToolCalls,
+		Confidence:        agentResponse.Confidence,
+		NeedCollect:       agentResponse.NeedCollect,
+		Structured:        agentResponse.Structured,
+		Clarification:     agentResponse.Clarification,
+		Sources:           agentResponse.Sources,
 	}
 	if err := turn.Complete(result); err != nil {
 		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "保存完整会话失败，请重试", nil))

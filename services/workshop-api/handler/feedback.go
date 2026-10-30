@@ -34,7 +34,8 @@ type CreateFeedbackRequest struct {
 	Data         *string                          `json:"data,omitempty"`           // JSON字符串（可选）
 	// ConversationID 提交反馈前与智能客服的独立会话 ID（feedback_id=0）。
 	// 传入后关联该会话到新建反馈，使咨询上下文延续到跟进阶段；校验客户归属并原子关联，同一已确认会话只创建一张反馈。
-	ConversationID string `json:"conversation_id,omitempty"`
+	ConversationID  string `json:"conversation_id,omitempty"`
+	ClientRequestID string `json:"client_request_id,omitempty"`
 }
 
 // UpdateFeedbackRequest 更新反馈请求结构
@@ -299,6 +300,18 @@ func CreateFeedback(c *gin.Context) {
 	var resp FeedbackResponse
 	var initialMessage models.FeedbackMessage
 	if err := db.Transaction(func(tx *gorm.DB) error {
+		receiptID, existingRequest, err := lockFeedbackRequest(tx, req.ProjectID, customer, req.ClientRequestID, req)
+		if err != nil {
+			return err
+		}
+		if existingRequest != nil {
+			existing := existingRequest
+			feedback = *existing
+			resp = buildFeedbackResponse(feedback)
+			replay = true
+			return nil
+		}
+
 		existing, err := lockConversationForFeedback(tx, req.ConversationID, req.ProjectID, customer)
 		if err != nil {
 			return err
@@ -307,7 +320,7 @@ func CreateFeedback(c *gin.Context) {
 			feedback = *existing
 			resp = buildFeedbackResponse(feedback)
 			replay = true
-			return nil
+			return finishFeedbackRequest(tx, receiptID, feedback.ID)
 		}
 		if err := tx.Create(&feedback).Error; err != nil {
 			if isUniqueViolation(err, "uniq_feedback_short_id") {
@@ -341,6 +354,9 @@ func CreateFeedback(c *gin.Context) {
 			return err
 		}
 		resp = buildFeedbackResponse(feedback)
+		if err := finishFeedbackRequest(tx, receiptID, feedback.ID); err != nil {
+			return err
+		}
 		return recordProjectEvent(c, tx, feedback.ProjectID, userID, "feedback.created", resp)
 	}); err != nil {
 		if errors.Is(err, errConversationCreationScope) {

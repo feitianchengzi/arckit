@@ -147,3 +147,35 @@ it('propagates explicit new consultation without forcing ordinary initial messag
   await sendStandaloneAgentMessage({ content: '继续' })
   expect(JSON.parse(lastCall().init.body as string).new_conversation).toBeUndefined()
 })
+
+describe('session refresh and service failures', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    mockAuthMode = 'session'
+    mockConfig = { gatewayUrl: 'https://gw.example', feedbackSessionToken: 'expired-session' }
+  })
+  it('reports a refresh failure without exposing raw diagnostics or retrying the operation', async () => {
+    const { requestFeedbackSessionRefresh } = await import('@/lib/sdk/bridge')
+    vi.mocked(requestFeedbackSessionRefresh).mockRejectedValueOnce(new Error('internal host bridge secret'))
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 401 } as Response)
+    await expect(getAgentConversations(123)).rejects.toThrow('会话已失效，请关闭后重新打开帮助与反馈。')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it('does not turn an invalid successful response into an empty conversation history', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    await expect(getAgentConversations(123)).rejects.toThrow('服务暂时不可用，请稍后重试。')
+  })
+})
+
+
+it('never replays an old customer request with a newly configured customer token', async () => {
+  const { requestFeedbackSessionRefresh } = await import('@/lib/sdk/bridge')
+  fetchMock.mockReset()
+  const token = (customer: string) => 'fbs_' + btoa(JSON.stringify({ project_id: 7, custom_user_id: customer })) + '.signature'
+  mockAuthMode = 'session'
+  mockConfig = { gatewayUrl: 'https://gw.example', feedbackSessionToken: token('old') }
+  fetchMock.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) })
+  vi.mocked(requestFeedbackSessionRefresh).mockImplementationOnce(async () => { mockConfig = { ...mockConfig, feedbackSessionToken: token('new') } })
+  await expect(getAgentConversations(123)).rejects.toThrow('当前账号已变化')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})

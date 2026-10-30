@@ -1,3 +1,4 @@
+import { feedbackFetch, readFeedbackEnvelope, feedbackNotConfigured, feedbackUnavailable, feedbackSessionExpired } from './errors'
 import type { FeedbackItem } from '@/lib/feedback/types'
 import { feedbackToItem, type FeedbackRecord } from './api'
 import { requestFeedbackSessionRefresh } from '@/lib/sdk/bridge'
@@ -92,12 +93,12 @@ function getGatewayBaseUrl(): string {
   // 避免外部客户封装时误连到默认内部域名。
   const envGateway = import.meta.env.VITE_GATEWAY_URL
   if (envGateway) return envGateway
-  throw new Error('未配置反馈网关地址，请通过 window.FeedbackSDK.configure({ gatewayUrl }) 或环境变量 VITE_GATEWAY_URL 注入。')
+  throw new Error(feedbackNotConfigured)
 }
 
 function currentSessionToken(): string {
   const token = getFeedbackSDKConfig().feedbackSessionToken?.trim()
-  if (!token) throw new Error('未检测到反馈会话 token，请由宿主应用注入后重试。')
+  if (!token) throw new Error(feedbackNotConfigured)
   return token
 }
 
@@ -107,7 +108,7 @@ function currentDirectAPIKeyContext(): DirectAPIKeyContext {
   const customUserId = config.customUserId?.trim() || ''
   const projectId = Number(config.projectId)
   if (!apiKey || !customUserId || !Number.isFinite(projectId) || projectId <= 0) {
-    throw new Error('V2 API Key 模式需要 apiKey、projectId 和 customUserId。')
+    throw new Error(feedbackNotConfigured)
   }
   return { apiKey, projectId: Math.floor(projectId), customUserId }
 }
@@ -115,16 +116,32 @@ function currentDirectAPIKeyContext(): DirectAPIKeyContext {
 function currentV2AuthMode() {
   const mode = getFeedbackSDKV2AuthMode()
   if (!mode) {
-    throw new Error('V2 需要反馈会话 token，或完整的 apiKey、projectId、customUserId 配置。')
+    throw new Error(feedbackNotConfigured)
   }
   return mode
 }
 
+/** In-flight requests must never be retried under another customer's identity. */
+function requestIdentity(): string {
+  const config = getFeedbackSDKConfig()
+  let scope = `${config.projectId || ''}:${config.customUserId || ''}`
+  if (getFeedbackSDKV2AuthMode() === 'session') {
+    try {
+      const raw = (config.feedbackSessionToken || '').replace(/^fbs_/, '').split('.')[0].replace(/-/g, '+').replace(/_/g, '/')
+      const claims = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(raw), (character) => character.charCodeAt(0))))
+      if (!claims.project_id || !claims.custom_user_id) throw new Error('scope missing')
+      scope = `${claims.project_id}:${claims.custom_user_id}`
+    } catch { scope += `:${config.feedbackSessionToken || ''}` }
+  }
+  return JSON.stringify([config.gatewayUrl || '', getFeedbackSDKV2AuthMode(), scope])
+}
+
 async function requestJson<T>(sessionPath: string, directAPIKeyPath: string, init: RequestInit, retry = true): Promise<ApiEnvelope<T>> {
+  const identity = requestIdentity()
   const authMode = currentV2AuthMode()
   const isSession = authMode === 'session'
   const directContext = isSession ? null : currentDirectAPIKeyContext()
-  const response = await fetch(
+  const response = await feedbackFetch(
     `${getGatewayBaseUrl()}/workshop/v2/${isSession ? 'feedback' : 'apikey'}${isSession ? sessionPath : directAPIKeyPath}`,
     {
       ...init,
@@ -135,16 +152,22 @@ async function requestJson<T>(sessionPath: string, directAPIKeyPath: string, ini
     },
   )
 
+  if (identity !== requestIdentity()) throw new Error('当前账号已变化，请重新打开帮助与反馈。')
   if (isSession && response.status === 401 && retry) {
-    await requestFeedbackSessionRefresh()
+    try { await requestFeedbackSessionRefresh() }
+    catch { throw new Error(feedbackSessionExpired) }
+    if (identity !== requestIdentity()) throw new Error('当前账号已变化，请重新打开帮助与反馈。')
     return requestJson<T>(sessionPath, directAPIKeyPath, init, false)
   }
 
-  const body = (await response.json().catch(() => ({}))) as ApiEnvelope<T>
-  if (!response.ok || (body.code && body.code !== 'OK')) {
-    throw new Error(body.error?.message || body.message || `Request failed: ${response.status}`)
-  }
-  return body
+  return readFeedbackEnvelope<ApiEnvelope<T>>(response)
+}
+
+function listData<T>(envelope: ApiEnvelope<T[]>): T[] {
+  // Go encodes a legitimate nil slice as null; missing or object data is a
+  // broken contract and must never look like a successful empty history.
+  if (!('data' in envelope) || (envelope.data !== null && !Array.isArray(envelope.data))) throw new Error(feedbackUnavailable)
+  return envelope.data || []
 }
 
 function buildSubmitTitle(content: string): string {
@@ -159,11 +182,12 @@ function directScopePayload(): Pick<DirectAPIKeyContext, 'projectId' | 'customUs
 }
 
 export async function submitFeedbackV2(params: {
+  clientRequestId?: string
   content: string
   attachments?: FeedbackV2Attachment[]
   /**
    * 提交反馈前与智能客服的独立会话 ID（feedback_id=0）。
-   * 传给后端把该会话关联到新建反馈，使咨询上下文延续到跟进阶段；后端校验不通过则跳过。
+   * 传给后端把该会话关联到新建反馈，使咨询上下文延续到跟进阶段；后端校验不通过则明确拒绝，不静默关联其他会话。
    */
   conversationId?: string
   structured?: AgentStructuredSummary
@@ -178,6 +202,7 @@ export async function submitFeedbackV2(params: {
     ...(directScope
       ? { project_id: directScope.projectId, custom_user_id: directScope.customUserId }
       : {}),
+    ...(params.clientRequestId ? { client_request_id: params.clientRequestId } : {}),
     title: buildSubmitTitle(content),
     content,
     data: directScope ? JSON.stringify(metadata) : metadata,
@@ -192,7 +217,7 @@ export async function submitFeedbackV2(params: {
     body: JSON.stringify(body),
   })
   if (!envelope.data?.id || !envelope.data.short_id) {
-    throw new Error('反馈提交成功，但返回数据不完整')
+    throw new Error(feedbackUnavailable)
   }
   return {
     id: envelope.data.id,
@@ -228,7 +253,7 @@ export async function fetchFeedbackItemsV2(params?: FeedbackListQuery): Promise<
   }
   const path = `/feedbacks?${query.toString()}`
   const envelope = await requestJson<FeedbackRecord[]>(path, path, { method: 'GET' })
-  const list = Array.isArray(envelope.data) ? envelope.data : []
+  const list = listData(envelope)
   return {
 	items: list.map((feedback) => feedbackToItem(feedback, { useCustomerWorkflow: true })),
     total: typeof envelope.meta?.total === 'number' ? envelope.meta.total : list.length,
@@ -246,7 +271,7 @@ export async function getFeedbackMessagesV2(feedbackId: number, params?: { page?
   }
   const path = `/feedbacks/${feedbackId}/messages?${query.toString()}`
   const envelope = await requestJson<FeedbackV2Message[]>(path, path, { method: 'GET' })
-  return Array.isArray(envelope.data) ? envelope.data : []
+  return listData(envelope)
 }
 
 /**
@@ -276,7 +301,7 @@ export async function getConversationMessagesV2(feedbackId: number): Promise<Con
     directPath = `${sessionPath}?${new URLSearchParams({ custom_user_id: directScopePayload().customUserId }).toString()}`
   }
   const envelope = await requestJson<ConversationMessage[]>(sessionPath, directPath, { method: 'GET' })
-  return Array.isArray(envelope.data) ? envelope.data : []
+  return listData(envelope)
 }
 
 export async function createFeedbackMessageV2(params: {
@@ -300,7 +325,7 @@ export async function createFeedbackMessageV2(params: {
       attachments: params.attachments || [],
     }),
   })
-  if (!envelope.data) throw new Error('消息发送成功，但返回数据不完整')
+  if (!envelope.data) throw new Error(feedbackUnavailable)
   return envelope.data
 }
 
@@ -326,7 +351,7 @@ export async function createFeedbackUploadPolicyV2(params: {
     }),
   })
   if (!envelope.data?.object_key || !envelope.data.upload_url || !envelope.data.fields) {
-    throw new Error('附件上传策略返回不完整')
+    throw new Error(feedbackUnavailable)
   }
   return envelope.data
 }
@@ -340,7 +365,7 @@ export async function getFeedbackOSSCredentialsV2(): Promise<FeedbackV2OSSCreden
   }
   const envelope = await requestJson<FeedbackV2OSSCredentials>('/oss/credentials', directPath, { method: 'GET' })
   if (!envelope.data?.access_key_id || !envelope.data.bucket_name) {
-    throw new Error('附件访问凭证返回不完整')
+    throw new Error(feedbackUnavailable)
   }
   return envelope.data
 }
@@ -360,7 +385,7 @@ export async function getFeedbackAttachmentOSSCredentialsV2(params: {
   }
   const envelope = await requestJson<FeedbackV2OSSCredentials>(sessionPath, directPath, { method: 'GET' })
   if (!envelope.data?.access_key_id || !envelope.data.bucket_name) {
-    throw new Error('附件访问凭证返回不完整')
+    throw new Error(feedbackUnavailable)
   }
   return envelope.data
 }
@@ -391,6 +416,7 @@ export async function fetchFeedbackNotificationsV2(params?: {
     `/feedback-notifications?${directQuery.toString()}`,
     { method: 'GET' },
   )
+  if (!envelope.data || !Array.isArray(envelope.data.notifications) || typeof envelope.data.unread_count !== 'number') throw new Error(feedbackUnavailable)
   return {
     notifications: Array.isArray(envelope.data?.notifications) ? envelope.data.notifications : [],
     unreadCount: typeof envelope.data?.unread_count === 'number' ? envelope.data.unread_count : 0,
@@ -425,7 +451,10 @@ export async function markFeedbackNotificationsReadV2(params: {
 
 // ==================== Agent 智能客服 ====================
 
+export interface AgentSource { path: string; start_line: number; end_line: number; excerpt: string }
+
 export interface AgentMessage {
+  sources?: AgentSource[]
   id: number
   conversation_id: string
   feedback_id: number
@@ -440,6 +469,8 @@ export interface AgentMessage {
 }
 
 export interface AgentConversation {
+  title?: string
+  message_count?: number
   id: string
   feedback_id: number
   project_id: number
@@ -471,6 +502,8 @@ export interface AgentStructuredSummary {
 }
 
 export interface AgentMessageResponse {
+  customer_message_id?: number
+  sources?: AgentSource[]
   message_id: number
   conversation_id: string
   content: string
@@ -529,7 +562,7 @@ export async function sendAgentMessage(params: {
   )
 
   if (!envelope.data) {
-    throw new Error('Agent 响应失败')
+    throw new Error(feedbackUnavailable)
   }
 
   return envelope.data
@@ -547,7 +580,7 @@ export async function getAgentConversations(feedbackId: number): Promise<AgentCo
     },
   )
 
-  return envelope.data || []
+  return listData(envelope)
 }
 
 /**
@@ -562,7 +595,7 @@ export async function getAgentConversationMessages(conversationId: string): Prom
     },
   )
 
-  return envelope.data || []
+  return listData(envelope)
 }
 
 /**
@@ -605,7 +638,7 @@ export async function sendStandaloneAgentMessage(params: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!envelope.data) throw new Error('Agent 响应失败')
+  if (!envelope.data) throw new Error(feedbackUnavailable)
   return envelope.data
 }
 
@@ -613,18 +646,29 @@ export async function sendStandaloneAgentMessage(params: {
  * 获取独立智能客服会话列表
  */
 export async function getStandaloneAgentConversations(): Promise<AgentConversation[]> {
-  const path = `/agent-chats/conversations${standaloneScopeQuery()}`
+  return (await getStandaloneAgentConversationsPage()).conversations
+}
+
+export async function getStandaloneAgentConversationsPage(page = 1, pageSize = 20): Promise<{ conversations: AgentConversation[]; total: number }> {
+  const scope = standaloneScopeQuery()
+  const path = `/agent-chats/conversations${scope}${scope ? '&' : '?'}page=${page}&page_size=${pageSize}`
   const envelope = await requestJson<AgentConversation[]>(path, path, { method: 'GET' })
-  return envelope.data || []
+  const conversations = listData(envelope)
+  return { conversations, total: envelope.meta?.total ?? conversations.length }
 }
 
 /**
  * 获取独立智能客服会话消息列表
  */
 export async function getStandaloneAgentMessages(conversationId: string): Promise<AgentMessage[]> {
-  const path = `/agent-chats/conversations/${conversationId}/messages${standaloneScopeQuery()}`
+  return (await getStandaloneAgentMessagesPage(conversationId)).messages
+}
+export async function getStandaloneAgentMessagesPage(conversationId: string, page = 1, pageSize = 50): Promise<{ messages: AgentMessage[]; total: number }> {
+  const scope = standaloneScopeQuery()
+  const path = `/agent-chats/conversations/${conversationId}/messages${scope}${scope ? '&' : '?'}page=${page}&page_size=${pageSize}`
   const envelope = await requestJson<AgentMessage[]>(path, path, { method: 'GET' })
-  return envelope.data || []
+  const messages = listData(envelope)
+  return { messages, total: envelope.meta?.total ?? messages.length }
 }
 
 
@@ -669,13 +713,13 @@ function customerScopedPath(path: string): string {
 export async function getConversationMessagesPageV2(feedbackId: number, params: { page?: number; pageSize?: number } = {}): Promise<{ messages: ConversationMessage[]; total: number }> {
   const path = `/feedbacks/${feedbackId}/conversation-messages?${new URLSearchParams({ page: String(params.page || 1), page_size: String(params.pageSize || 50) })}`
   const envelope = await requestJson<ConversationMessage[]>(path, customerScopedPath(path), { method: 'GET' })
-  const messages = Array.isArray(envelope.data) ? envelope.data : []
+  const messages = listData(envelope)
   return { messages, total: envelope.meta?.total ?? messages.length }
 }
 export async function getFeedbackLifecycleV2(feedbackId: number): Promise<FeedbackLifecycle> {
   const path = `/feedbacks/${feedbackId}/detail`
   const envelope = await requestJson<FeedbackLifecycle>(path, customerScopedPath(path), { method: 'GET' })
-  if (!envelope.data) throw new Error('反馈生命周期返回不完整')
+  if (!envelope.data) throw new Error(feedbackUnavailable)
   return envelope.data
 }
 export async function respondFeedbackConclusionV2(feedbackId: number, conclusionId: number, response: 'accepted' | 'needs_review', content?: string, clientMessageId?: string): Promise<void> {

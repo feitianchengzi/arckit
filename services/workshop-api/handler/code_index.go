@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"sync"
 	"strings"
+	"sync"
 	"time"
 	"todo/middleware"
 	"todo/models"
@@ -36,11 +36,11 @@ type EmbeddingServiceEmbedResponse struct {
 
 // CodeIndexConfig 代码索引配置
 type CodeIndexConfig struct {
-	EmbeddingURL   string  `json:"embedding_url"`
-	EmbeddingModel string  `json:"embedding_model"`
-	MaxChunkLines  int     `json:"max_chunk_lines"`
-	MinChunkLines  int     `json:"min_chunk_lines"`
-	BatchSize      int     `json:"batch_size"`
+	EmbeddingURL   string `json:"embedding_url"`
+	EmbeddingModel string `json:"embedding_model"`
+	MaxChunkLines  int    `json:"max_chunk_lines"`
+	MinChunkLines  int    `json:"min_chunk_lines"`
+	BatchSize      int    `json:"batch_size"`
 }
 
 // SymbolRange 代码符号范围
@@ -135,13 +135,23 @@ var indexPipelineMu sync.Mutex
 
 // runCodeIndexPipeline 执行代码索引管道
 func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
+	runCodeIndexPipelineForSource(db, projectID, repo, nil)
+}
+
+// An explicit source keeps a manual reindex scoped to the selected source rather than silently updating a generated sibling.
+func runCodeIndexPipelineForSource(db *gorm.DB, projectID uint, repo CustomerCodeRepo, selected *models.KnowledgeSource) {
 	indexPipelineMu.Lock()
 	defer indexPipelineMu.Unlock()
 
 	// 查找或创建 knowledge_source
 	var src models.KnowledgeSource
 	sourceName := fmt.Sprintf("code-repo-%d", repo.ID)
-	if err := db.Where("project_id = ? AND name = ?", projectID, sourceName).First(&src).Error; err != nil {
+	if selected != nil {
+		src = *selected
+		if src.ProjectID == nil || *src.ProjectID != projectID || repo.ProjectID != projectID {
+			return
+		}
+	} else if err := db.Where("project_id = ? AND name = ?", projectID, sourceName).First(&src).Error; err != nil {
 		src = models.KnowledgeSource{
 			ProjectID:  &projectID,
 			Name:       sourceName,
@@ -179,9 +189,9 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 		return
 	}
 
-	_ = filepath.Walk(repo.RepoPath, func(path string, info os.FileInfo, err error) error {
+	walkErr := filepath.Walk(repo.RepoPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
 		if info.IsDir() {
 			name := info.Name()
@@ -198,6 +208,11 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 		return nil
 	})
 
+	if walkErr != nil {
+		failCodeIndexSource(db, src, "扫描仓库失败，请检查目录读取权限")
+		return
+	}
+
 	if len(files) == 0 {
 		failCodeIndexSource(db, src, fmt.Sprintf("未扫描到可索引文件（路径: %s）", repo.RepoPath))
 		return
@@ -211,13 +226,19 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 	for _, f := range files {
 		content, err := os.ReadFile(f.absPath)
 		if err != nil {
-			continue
+			failCodeIndexSource(db, src, "读取仓库文件失败，请检查目录读取权限")
+			return
 		}
 		chunks := chunkCodeFile(string(content), f.relPath, config)
 		for _, ch := range chunks {
 			allTexts = append(allTexts, ch.text)
 			chunkMeta = append(chunkMeta, ch)
 		}
+	}
+
+	if len(allTexts) == 0 {
+		failCodeIndexSource(db, src, "未提取到可索引内容")
+		return
 	}
 
 	// 批量获取 embeddings
@@ -269,8 +290,9 @@ func runCodeIndexPipeline(db *gorm.DB, projectID uint, repo CustomerCodeRepo) {
 
 	now := time.Now()
 	db.Model(&src).Updates(map[string]interface{}{
-		"status":          models.KnowledgeSourceStatusSynced,
-		"last_indexed_at": &now,
+		"status":           models.KnowledgeSourceStatusSynced,
+		"last_indexed_at":  &now,
+		"last_index_error": nil,
 	})
 	// 索引成功后把 repo 从 syncing 收口为 ready。
 	db.Model(&CustomerCodeRepo{}).Where("id = ?", repo.ID).
@@ -292,7 +314,7 @@ func failCodeIndexSource(db *gorm.DB, src models.KnowledgeSource, reason string)
 		// code-repo-{id} 命名约定：从 source 反推 repo 并收口状态。
 		var repoID uint
 		if _, err := fmt.Sscanf(src.Name, "code-repo-%d", &repoID); err == nil && repoID > 0 {
-			db.Model(&CustomerCodeRepo{}).Where("id = ?", repoID).
+			db.Model(&CustomerCodeRepo{}).Where("id = ? AND project_id = ?", repoID, *src.ProjectID).
 				Update("status", "error")
 		}
 	}
@@ -522,38 +544,37 @@ func batchEmbed(texts []string, config CodeIndexConfig) ([][]float64, error) {
 		client := &http.Client{Timeout: 30 * time.Second}
 		resp, err := client.Post(embedURL, "application/json", bytes.NewReader(jsonPayload))
 		if err != nil {
-			// 降级：生成伪 embedding（基于文本哈希的确定性向量）
-			log.Printf("[code-index] embedding service unreachable, falling back to pseudo embeddings: %v", err)
-			for range batch {
-				allEmbeddings = append(allEmbeddings, generatePseudoEmbedding())
-			}
-			continue
+			return nil, fmt.Errorf("embedding service unavailable: %w", err)
 		}
-		defer resp.Body.Close()
-
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 16*1024*1024))
+		resp.Body.Close()
+		if readErr != nil || resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("embedding service response failed (status %d)", resp.StatusCode)
+		}
 		var embResp EmbeddingServiceEmbedResponse
 		if err := json.Unmarshal(body, &embResp); err != nil {
-			log.Printf("[code-index] embedding response decode failed, falling back to pseudo embeddings: %v", err)
-			for range batch {
-				allEmbeddings = append(allEmbeddings, generatePseudoEmbedding())
-			}
-			continue
+			return nil, fmt.Errorf("invalid embedding response: %w", err)
 		}
-
-		allEmbeddings = append(allEmbeddings, embResp.Embeddings...)
+		if len(embResp.Embeddings) != len(batch) {
+			return nil, fmt.Errorf("embedding response count mismatch")
+		}
+		for _, embedding := range embResp.Embeddings {
+			if len(embedding) == 0 {
+				return nil, fmt.Errorf("empty embedding response")
+			}
+			if len(allEmbeddings) > 0 && len(embedding) != len(allEmbeddings[0]) {
+				return nil, fmt.Errorf("embedding dimensions mismatch")
+			}
+			for _, value := range embedding {
+				if math.IsNaN(value) || math.IsInf(value, 0) {
+					return nil, fmt.Errorf("invalid embedding value")
+				}
+			}
+			allEmbeddings = append(allEmbeddings, embedding)
+		}
 	}
 
 	return allEmbeddings, nil
-}
-
-// generatePseudoEmbedding 生成伪 embedding（当 embedding 服务不可用时）
-func generatePseudoEmbedding() []float64 {
-	emb := make([]float64, 128)
-	for i := range emb {
-		emb[i] = float64(i) / 128.0
-	}
-	return emb
 }
 
 // SearchCodeChunksHandler 搜索代码片段

@@ -1,3 +1,4 @@
+import { feedbackSessionExpired } from '../feedback/errors'
 import { configureFeedbackSDK, getFeedbackSDKConfig, isFeedbackSDKV2NotificationsEnabled, setFeedbackSDKTheme } from './config'
 import type { FeedbackSDKConfig, FeedbackSDKLocale } from './config'
 import { fetchFeedbackNotificationsV2 } from '@/lib/feedback/v2'
@@ -133,13 +134,13 @@ function isFeedbackSDKConfig(value: unknown): value is FeedbackSDKConfig {
 
 export function requestFeedbackSessionRefresh(): Promise<void> {
   if (typeof window === 'undefined' || window.parent === window) {
-    return Promise.reject(new Error('反馈会话已过期，请由宿主应用刷新后重试'))
+    return Promise.reject(new Error(feedbackSessionExpired))
   }
 
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
       window.removeEventListener(FEEDBACK_SDK_CONFIGURED_EVENT, onConfigured)
-      reject(new Error('反馈会话刷新超时，请重试'))
+      reject(new Error(feedbackSessionExpired))
     }, 10000)
     const onConfigured = () => {
       window.clearTimeout(timeout)

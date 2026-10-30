@@ -5,6 +5,7 @@ import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 // 屏蔽 v2 模块的真实网络调用，仅关心渲染产物。
 vi.mock('@/lib/feedback/v2', () => {
   const fakeHistory = (): import('@/lib/feedback/v2').AgentMessage[] => []
+  const standaloneMessages = vi.fn().mockResolvedValue(fakeHistory())
   return {
     sendAgentMessage: vi.fn(),
     getAgentConversations: vi.fn().mockResolvedValue([]),
@@ -12,7 +13,8 @@ vi.mock('@/lib/feedback/v2', () => {
     // 独立客服会话（standalone）API：不绑定 feedback
     sendStandaloneAgentMessage: vi.fn(),
     getStandaloneAgentConversations: vi.fn().mockResolvedValue([]),
-    getStandaloneAgentMessages: vi.fn().mockResolvedValue(fakeHistory()),
+    getStandaloneAgentMessages: standaloneMessages,
+    getStandaloneAgentMessagesPage: vi.fn(async (id: string) => { const messages = await standaloneMessages(id); return { messages, total: messages.length } }),
     // escalateFeedbackV2 不应再被引用；若仍被 import 会因不存在而失败测试。
   }
 })

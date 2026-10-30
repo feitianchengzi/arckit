@@ -21,7 +21,8 @@ type CreateFeedbackFromSessionRequest struct {
 	Attachments []FeedbackMessageAttachmentInput `json:"attachments,omitempty"`
 	// ConversationID 提交反馈前客户与智能客服的独立会话 ID（feedback_id=0）。
 	// 传入后把该会话关联到新建反馈，使咨询上下文延续到反馈跟进阶段；校验客户归属并原子关联，同一已确认会话只创建一张反馈。
-	ConversationID string `json:"conversation_id,omitempty"`
+	ConversationID  string `json:"conversation_id,omitempty"`
+	ClientRequestID string `json:"client_request_id,omitempty"`
 }
 
 func requireScopedFeedback(c *gin.Context, db *gorm.DB, feedbackID uint) (models.Feedback, middleware.FeedbackSessionScope, bool) {
@@ -101,6 +102,17 @@ func CreateFeedbackFromSession(c *gin.Context) {
 	var initialMessage models.FeedbackMessage
 	replay := false
 	if err := db.Transaction(func(tx *gorm.DB) error {
+		receiptID, existingRequest, err := lockFeedbackRequest(tx, scope.ProjectID, scope.CustomUserID, req.ClientRequestID, req)
+		if err != nil {
+			return err
+		}
+		if existingRequest != nil {
+			existing := existingRequest
+			feedback = *existing
+			replay = true
+			return nil
+		}
+
 		existing, err := lockConversationForFeedback(tx, req.ConversationID, scope.ProjectID, scope.CustomUserID)
 		if err != nil {
 			return err
@@ -108,7 +120,7 @@ func CreateFeedbackFromSession(c *gin.Context) {
 		if existing != nil {
 			feedback = *existing
 			replay = true
-			return nil
+			return finishFeedbackRequest(tx, receiptID, feedback.ID)
 		}
 		if err := tx.Create(&feedback).Error; err != nil {
 			if isUniqueViolation(err, "uniq_feedback_short_id") {
@@ -132,6 +144,9 @@ func CreateFeedbackFromSession(c *gin.Context) {
 			return err
 		}
 		if err := linkStandaloneConversationToFeedback(tx, req.ConversationID, feedback.ID, scope.ProjectID, scope.CustomUserID); err != nil {
+			return err
+		}
+		if err := finishFeedbackRequest(tx, receiptID, feedback.ID); err != nil {
 			return err
 		}
 		return createFeedbackNotificationsForMessage(tx, feedback, initialMessage)

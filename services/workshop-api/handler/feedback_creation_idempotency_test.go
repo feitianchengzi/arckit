@@ -99,3 +99,59 @@ func TestConfirmedConversationCreatesOneFeedback(t *testing.T) {
 		})
 	}
 }
+
+func TestManualFeedbackCreatesOnceWithoutConversation(t *testing.T) {
+	for _, mode := range []string{"session", "apikey"} {
+		t.Run(mode, func(t *testing.T) {
+			db := openFeedbackWorkflowPostgres(t)
+			fx := seedFeedbackWorkflowFixture(t, db)
+			db.AutoMigrate(&models.ProjectEvent{})
+			request := func(user, content, timestamp string) *httptest.ResponseRecorder {
+				data := map[string]interface{}{"structured": AgentStructuredSummary{RequestType: "other", Position: "报表", Phenomenon: content, Expect: "获得文件", UnknownFields: []string{"reproduction_steps", "environment", "impact"}}, "clarification": map[string]interface{}{"confirmed": true, "confirmed_at": timestamp}}
+				body := map[string]interface{}{"project_id": fx.project.ID, "custom_user_id": user, "title": "客户直接反馈", "content": content, "client_request_id": "manual-retry"}
+				if mode == "apikey" {
+					raw, _ := json.Marshal(data)
+					body["data"] = string(raw)
+				} else {
+					body["data"] = data
+				}
+				raw, _ := json.Marshal(body)
+				w := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(w)
+				path := "/workshop/v2/feedback/feedbacks"
+				if mode == "apikey" {
+					path = "/workshop/v2/apikey/feedbacks"
+				}
+				c.Request = httptest.NewRequest("POST", path, strings.NewReader(string(raw)))
+				c.Request.Header.Set("Content-Type", "application/json")
+				c.Set("db", db)
+				c.Set("userID", fx.user.ID)
+				if mode == "session" {
+					c.Set("feedbackSessionScope", middleware.FeedbackSessionScope{ProjectID: fx.project.ID, CustomUserID: user, SessionID: "test"})
+					CreateFeedbackFromSession(c)
+				} else {
+					CreateFeedback(c)
+				}
+				return w
+			}
+			first := request("manual-owner", "导出失败", "first")
+			second := request("manual-owner", "导出失败", "retry")
+			var a, b struct{ Data FeedbackResponse }
+			json.Unmarshal(first.Body.Bytes(), &a)
+			json.Unmarshal(second.Body.Bytes(), &b)
+			if first.Code != 201 || second.Code != 200 || a.Data.ID == 0 || a.Data.ID != b.Data.ID {
+				t.Fatalf("retry not idempotent: %d %s / %d %s", first.Code, first.Body, second.Code, second.Body)
+			}
+			changed := request("manual-owner", "另一问题", "third")
+			if changed.Code < 400 {
+				t.Fatalf("changed facts reused receipt: %s", changed.Body)
+			}
+			other := request("other-owner", "导出失败", "first")
+			var o struct{ Data FeedbackResponse }
+			json.Unmarshal(other.Body.Bytes(), &o)
+			if o.Data.ID == 0 || o.Data.ID == a.Data.ID {
+				t.Fatalf("receipt crossed customer scope: %s", other.Body)
+			}
+		})
+	}
+}

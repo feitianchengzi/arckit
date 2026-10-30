@@ -25,12 +25,14 @@ type AgentMessageRequest struct {
 
 // AgentMessageResponse Agent 消息响应
 type AgentMessageResponse struct {
-	MessageID      uint       `json:"message_id"`
-	ConversationID string     `json:"conversation_id"`
-	Content        string     `json:"content"`
-	SenderType     string     `json:"sender_type"`
-	ToolCalls      []ToolCall `json:"tool_calls,omitempty"`
-	Confidence     float64    `json:"confidence"`
+	CustomerMessageID uint          `json:"customer_message_id"`
+	Sources           []AgentSource `json:"sources,omitempty"`
+	MessageID         uint          `json:"message_id"`
+	ConversationID    string        `json:"conversation_id"`
+	Content           string        `json:"content"`
+	SenderType        string        `json:"sender_type"`
+	ToolCalls         []ToolCall    `json:"tool_calls,omitempty"`
+	Confidence        float64       `json:"confidence"`
 	// NeedCollect 置信度低于阈值（PRD F-03 低置信），提示客户端可升级人工流转。
 	NeedCollect bool `json:"need_collect,omitempty"`
 	// Structured 低置信时由 Agent 总结的问题结构（PRD F-01 三字段），供客户端预填反馈表单。
@@ -157,6 +159,7 @@ func AgentMessageHandler(c *gin.Context) {
 	}
 	applyAgentMessageUnresolvedMetadata(agentMsg, agentResponse.Confidence, agentResponse.Content)
 	persistClarificationMetadata(agentMsg, agentResponse.Clarification)
+	persistAgentSources(agentMsg, agentResponse.Sources)
 
 	if err := SaveMessage(db, agentMsg); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
@@ -175,25 +178,28 @@ func AgentMessageHandler(c *gin.Context) {
 
 	// 返回响应
 	c.JSON(http.StatusOK, response.NewSuccessResponse(AgentMessageResponse{
-		MessageID:      agentMsg.ID,
-		ConversationID: conv.ID,
-		Content:        agentResponse.Content,
-		SenderType:     "agent",
-		ToolCalls:      agentResponse.ToolCalls,
-		Confidence:     agentResponse.Confidence,
-		NeedCollect:    agentResponse.NeedCollect,
-		Structured:     agentResponse.Structured,
-		Clarification:  agentResponse.Clarification,
+		MessageID:         agentMsg.ID,
+		CustomerMessageID: customerMsg.ID,
+		ConversationID:    conv.ID,
+		Content:           agentResponse.Content,
+		SenderType:        "agent",
+		ToolCalls:         agentResponse.ToolCalls,
+		Confidence:        agentResponse.Confidence,
+		NeedCollect:       agentResponse.NeedCollect,
+		Structured:        agentResponse.Structured,
+		Clarification:     agentResponse.Clarification,
+		Sources:           agentResponse.Sources,
 	}))
 }
 
 // AgentResponse Agent 响应
 type AgentResponse struct {
-	Content     string     `json:"content"`
-	ToolCalls   []ToolCall `json:"tool_calls,omitempty"`
-	Confidence  float64    `json:"confidence"`
-	NeedCollect bool       `json:"need_collect"`
-	Resolution  string     `json:"-"`
+	Sources     []AgentSource `json:"sources,omitempty"`
+	Content     string        `json:"content"`
+	ToolCalls   []ToolCall    `json:"tool_calls,omitempty"`
+	Confidence  float64       `json:"confidence"`
+	NeedCollect bool          `json:"need_collect"`
+	Resolution  string        `json:"-"`
 	// Structured 低置信时由 Agent 总结的问题结构，供反馈表单预填。
 	Structured    *AgentStructuredSummary `json:"structured,omitempty"`
 	Clarification *AgentClarification     `json:"clarification,omitempty"`
@@ -267,21 +273,19 @@ func processWithAgent(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, q
 	}
 	query = buildClarificationContext(query, history)
 
-	// OPENHANDS_ENABLED 总开关（默认开启）；关闭时降级为本地代码搜索
+	// 推理服务关闭时如实报告不可用，不用检索片段冒充模型答复。
 	if !openHandsEnabled() {
-		return processWithLocalLLM(db, projectID, query, history)
+		return nil, fmt.Errorf("客服推理服务未启用或尚未配置")
 	}
 
 	// 未命中本地白名单 → OpenHands 检索/对话
 	agent := getAgentServerByProject(db, projectID)
 	if agent == nil {
-		return processWithLocalLLM(db, projectID, query, history)
+		return nil, fmt.Errorf("客服推理服务未启用或尚未配置")
 	}
-	// V3 may be deployed before a model key is available. Stay on the local
-	// retrieval path until a project owner saves a key or the server fallback
-	// is configured; saving a project key takes effect on the next request.
+	// 模型密钥缺失时报告不可用，不伪装成知识库未命中。
 	if !openHandsLLMConfigured(agent) {
-		return processWithLocalLLM(db, projectID, query, history)
+		return nil, fmt.Errorf("客服推理服务未启用或尚未配置")
 	}
 	// 按项目解析 OpenHands 工作区（RepoPath > clone 落点 > OH_WORKSPACE_DIR），
 	// 避免不同项目共用同一份代码副本。
@@ -306,6 +310,7 @@ func callOpenHandsAgentForChat(c *gin.Context, agent *OpenHandsAgent, query, con
 
 	content, confidence := parseAgentConfidence(result.Content)
 	content, resolution := parseAgentResolution(content)
+	content, sources := parseVerifiedAgentSources(content, workingDir)
 	// 低置信时模型会附带 [summary] 结构化问题总结；无论解析与否都要剥离协议残留。
 	structured, content := parseAgentStructuredSummary(content)
 	needCollect := confidence < agentConfidenceLowThreshold
@@ -314,6 +319,7 @@ func callOpenHandsAgentForChat(c *gin.Context, agent *OpenHandsAgent, query, con
 	}
 	return &AgentResponse{
 		Content:          content,
+		Sources:          sources,
 		Confidence:       confidence,
 		NeedCollect:      needCollect,
 		Resolution:       resolution,

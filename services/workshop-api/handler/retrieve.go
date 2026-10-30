@@ -241,7 +241,7 @@ func RetrieveHandler(c *gin.Context) {
 				c.JSON(200, gin.H{
 					"code":    0,
 					"data":    degradedRetrieveResponse(),
-					"message": "我先帮你记录下来转团队跟进",
+					"message": "智能客服暂时无法完成回答，请稍后重试，或核对信息后直接提交反馈；本次尚未创建反馈或转交人工。",
 				})
 				return
 			}

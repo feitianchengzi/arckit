@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -155,5 +158,76 @@ func TestStandaloneConversationIsolation(t *testing.T) {
 	// 空 custom_user_id 直接拒绝
 	if _, err := GetOrCreateStandaloneConversation(db, "", 11, "   "); err == nil {
 		t.Fatal("空白 custom_user_id 应返回错误")
+	}
+}
+
+func TestStandaloneHistoryPaginationAndScope(t *testing.T) {
+	db := openFeedbackWorkflowPostgres(t)
+	now := time.Now()
+	for i := 0; i < 3; i++ {
+		conv := AgentConversation{ID: fmt.Sprintf("history-%d", i), ProjectID: 11, CustomUserID: "customer", CreatedAt: now.Add(time.Duration(i) * time.Minute), UpdatedAt: now.Add(time.Duration(i) * time.Minute)}
+		if err := db.Create(&conv).Error; err != nil {
+			t.Fatal(err)
+		}
+		for j := 0; j < 3; j++ {
+			msg := AgentMessageRecord{ConversationID: conv.ID, ProjectID: 11, SenderType: "customer", Content: fmt.Sprintf("问题-%d-%d", i, j), CreatedAt: now.Add(time.Duration(j) * time.Second)}
+			if err := db.Create(&msg).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	foreign := AgentConversation{ID: "foreign", ProjectID: 11, CustomUserID: "other"}
+	db.Create(&foreign)
+	request := func(path string, messages bool) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", path, nil)
+		c.Set("db", db)
+		if messages {
+			c.Params = gin.Params{{Key: "conversationId", Value: "history-2"}}
+			listStandaloneMessages(c, standaloneScope{ProjectID: 11, CustomUserID: "customer"})
+		} else {
+			listStandaloneConversations(c, standaloneScope{ProjectID: 11, CustomUserID: "customer"})
+		}
+		return w
+	}
+	var list struct {
+		Data []struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+			Count int    `json:"message_count"`
+		}
+		Meta struct {
+			Total int `json:"total"`
+		}
+	}
+	w := request("/agent-chats/conversations?page=2&page_size=1", false)
+	if w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if list.Meta.Total != 3 || len(list.Data) != 1 || list.Data[0].ID != "history-1" || list.Data[0].Title != "问题-1-0" || list.Data[0].Count != 3 {
+		t.Fatalf("bad page: %s", w.Body.String())
+	}
+	var records struct {
+		Data []AgentMessageRecord
+		Meta struct {
+			Total int `json:"total"`
+		}
+	}
+	w = request("/agent-chats/conversations/history-2/messages?page=1&page_size=2", true)
+	if w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	json.Unmarshal(w.Body.Bytes(), &records)
+	if records.Meta.Total != 3 || len(records.Data) != 2 || records.Data[0].Content != "问题-2-1" || records.Data[1].Content != "问题-2-2" {
+		t.Fatalf("bad latest page: %s", w.Body.String())
+	}
+	w = request("/agent-chats/conversations/history-2/messages?page=2&page_size=2", true)
+	json.Unmarshal(w.Body.Bytes(), &records)
+	if len(records.Data) != 1 || records.Data[0].Content != "问题-2-0" {
+		t.Fatalf("bad older page: %s", w.Body.String())
 	}
 }

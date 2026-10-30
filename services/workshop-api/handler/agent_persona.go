@@ -37,7 +37,7 @@ func buildArcOrbitAgentPrompt(query string) string {
 
 // arcOrbitAgentUnavailableReply Agent 调用失败时的统一兜底（带身份与跟进承诺）。
 func arcOrbitAgentUnavailableReply() string {
-	return "抱歉，我是" + arcOrbitAgentName + "，当前暂时无法完成本次回答。可以先整理问题信息，由您确认后提交反馈。"
+	return "抱歉，我是" + arcOrbitAgentName + "，智能客服服务暂时不可用，当前暂时无法完成本次回答。请稍后重试；本次尚未创建反馈或转交人工。需要提交反馈时，请核对信息并确认后再提交反馈。"
 }
 
 // arcOrbitAgentNoResultReply 本地检索无结果时的统一兜底（不编造，引导补充信息）。

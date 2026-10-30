@@ -2,6 +2,10 @@
 
 The V2 SDK is embedded in the host product. The host obtains a short-lived feedback Session through its backend; keep long-lived API Keys out of browser deployments. Existing gateway authentication and project membership boundaries remain authoritative.
 
+## Customer voice input
+
+The SDK voice entry captures speech as text. Recognition fills the editable text composer; the customer reviews and sends a normal text message. It does not create an audio attachment or automatically send recognized content. Browsers without speech recognition show an explicit unsupported message and retain typed input. Recognition availability and permissions depend on the browser; the server-side native-audio adapter below remains a legacy attachment API capability, not a dependency of this text-input flow.
+
 ## Runtime configuration
 
 - Repository-based answers continue to use the project's existing knowledge workspace / OpenHands configuration and repository synchronization. This change does not seed a repository or replace the existing retrieval backend.
@@ -48,3 +52,14 @@ npm run build:check --workspace @arckit/feedback-console
 ```
 
 Without `WORKSHOP_TEST_POSTGRES_DSN`, PostgreSQL integration tests skip; that is not full acceptance. Native provider capability, real OSS authorization/network reachability and external gateway integration require environment acceptance with operator-supplied configuration. Automated native-audio and image transport tests use local HTTP adapters rather than real provider credentials.
+
+
+## Consultation history, verified sources and direct feedback
+
+`GET /agent-chats/conversations?page=1&page_size=20` returns scoped summaries (`title`, `message_count`) and pagination metadata. `GET /agent-chats/conversations/:id/messages?page=1&page_size=50` selects the newest page first and returns each page in chronological order; prepend later pages to load older messages. Neither endpoint can read another project/customer's conversation.
+
+Send responses include `customer_message_id` so clients reconcile optimistic messages without dropping earlier messages. Optional `sources` contain server-verified documentation paths, line ranges and excerpts; history preserves the same metadata. The server reads real Markdown content within the authorized workspace and ignores model-provided excerpts. Missing or invalid references are omitted.
+
+Feedback creation supports `client_request_id`, scoped to project/customer and canonical payload. Retry with the same ID and unchanged facts returns the original feedback; changed facts with that ID are rejected. A renewed confirmation timestamp alone does not change the payload identity. Direct feedback uses `request_type:other`, records customer facts and unknown analysis fields, and requires no AI response. Conversation association, when supplied, must pass ownership validation.
+
+Repository indexing supports exact repository sources only. FAQ/document/public knowledge import adapters are not implemented; requests fail explicitly instead of reporting successful synchronization. Project workspaces never fall back to unrelated shared code. Operators must expose the same controlled repository paths to both service and OpenHands.

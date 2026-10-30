@@ -116,7 +116,7 @@ export const enUS: Record<TranslationKey, string> = {
   'form.close_preview': 'Close image preview',
 
   'attachment.default_label': 'Attachment',
-  'attachment.read_failed': 'Failed to read attachment: {status}',
+  'attachment.read_failed': 'The attachment could not be loaded. Please try again later.',
   'attachment.download': 'Download',
   'attachment.close_preview': 'Close preview',
   'attachment.preview_label': '{name} preview',

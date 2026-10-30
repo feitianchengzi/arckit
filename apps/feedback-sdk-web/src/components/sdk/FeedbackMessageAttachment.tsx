@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { getAgentAttachmentAccessV2, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { getFeedbackAttachmentURLV2 } from '@/lib/feedback/upload'
@@ -24,7 +25,7 @@ function getPreviewKind(attachment: FeedbackV2Attachment): PreviewKind {
 
 async function createInlinePreviewUrl(sourceUrl: string, mimeType: string) {
   const response = await fetch(sourceUrl)
-  if (!response.ok) throw new Error(t('attachment.read_failed', { status: response.status }))
+  if (!response.ok) throw new Error(t('attachment.read_failed'))
   const file = await response.blob()
   return URL.createObjectURL(new Blob([file], { type: mimeType }))
 }
@@ -42,8 +43,13 @@ function AttachmentPreviewDialog({
   sourceUrl: string
   onClose: () => void
 }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3" role="dialog" aria-modal="true" aria-label={t('attachment.preview_label', { name })}>
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); onClose() } }
+    document.addEventListener('keydown', close, true)
+    return () => document.removeEventListener('keydown', close, true)
+  }, [onClose])
+  return createPortal(
+    <div data-feedback-sdk-shell className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3" role="dialog" aria-modal="true" aria-label={t('attachment.preview_label', { name })}>
       <section className="flex h-full max-h-[88dvh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-surface shadow-2xl">
         <header className="flex items-center justify-between gap-3 border-b border-divider px-3 py-2.5">
           <p className="min-w-0 truncate text-sm font-semibold text-foreground">{name}</p>
@@ -64,7 +70,7 @@ function AttachmentPreviewDialog({
           )}
         </div>
       </section>
-    </div>
+    </div>, document.body
   )
 }
 
@@ -115,7 +121,7 @@ export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedback
       setPreviewUrl(nextPreviewUrl)
       setPreviewOpen(true)
     } catch (err: any) {
-      setError(err?.message || t('attachment.preview_failed'))
+      setError(t('attachment.preview_failed'))
     } finally {
       setLoading(false)
     }

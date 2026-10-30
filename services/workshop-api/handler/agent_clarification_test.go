@@ -17,11 +17,8 @@ func TestClarificationFollowupDoesNotMatchSavedDraftAsLocalAction(t *testing.T) 
 	prior := AgentMessageRecord{SenderType: "agent"}
 	persistClarificationMetadata(&prior, &AgentClarification{Summary: AgentStructuredSummary{Expect: "我想提个建议：每天发送财务邮件"}})
 	response, err := processWithAgent(nil, db, 987654, 0, "环境版本我不知道", []AgentMessageRecord{prior, {SenderType: "customer", Content: "环境版本我不知道"}}, "", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !response.NeedCollect || response.Confidence != 0 || response.Content != arcOrbitAgentNoResultReply() {
-		t.Fatalf("followup intercepted by canned action instead of retrieval: %+v", response)
+	if err == nil || response != nil {
+		t.Fatalf("disabled inference must fail honestly without a retrieval answer: response=%+v err=%v", response, err)
 	}
 }
 

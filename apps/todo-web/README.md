@@ -26,6 +26,14 @@ npm run build
 npm run preview
 ```
 
+## 帮助与反馈接入
+
+Todo 通过全屏透明 iframe 嵌入新版 Feedback SDK；“反馈建议”打开智能客服，“我的反馈”打开反馈列表。面板布局、宽度和关闭按钮由 SDK 管理，宿主以 `postMessage` 完成 ready/configure/open 通信，不读取 iframe 内部 DOM。
+
+部署需先在同源 `/sdk` 发布新版 SDK，或通过构建变量 `VITE_FEEDBACK_SDK_URL` 指向已发布入口。跨域部署时，SDK 的受信任父页面配置需包含 Todo 的 origin。语音还需 HTTPS、iframe 麦克风授权及服务器 Permissions-Policy 允许 SDK origin。
+
+当前沿用已有 `VITE_FEEDBACK_API_KEY`，显式启用新版 API Key 模式，反馈项目仍为 45，用户 ID 沿用原 Profile/Token 标识以保留历史归属。此模式的 API Key 在客户端可见；短期 Session 的服务端交换与续期尚未接入，不能把当前接入描述为 Session 模式。缺失凭据或服务不可用时显示失败提示，不生成预览身份或伪造成功。
+
 ## 技术栈
 
 - ⚡️ **Vite** - 极速构建工具

@@ -69,6 +69,7 @@ func buildAgentQueryWithConfidenceInstruction(query string) string {
 	return query + featureClarificationInstruction() + `
 
 回答要求：
+如引用产品使用文档，只有实际读取了项目工作区下 docs/、help/ 的 Markdown 或 README.md 才可在正文后输出 [sources] JSON数组 [/sources]，每项 {"path":"相对工作区路径","start_line":1,"end_line":5}，最多4项、每项最多20行。不得引用私密配置、业务数据或源码；没有实际文档依据就不输出。服务器将读取原文件核验，不得虚构文件、行号或来源。
 1. 基于代码仓库与项目文档回答；若信息不足以可靠回答，请如实说明未找到依据。
 2. 在回答的最末尾单独一行输出自评置信度标注，格式必须严格为 [confidence:0.00]（0~1 的小数，例如 [confidence:0.92]）。
 3. 若自评置信度低于 0.75，或者无法解决用户问题、用户报告故障/提出需求，或已有澄清草稿，继续多轮收集信息，不要声称已经创建反馈或承诺实现。即使本轮是补充信息也必须输出更新后的摘要。只总结客户实际说过的信息，不能从仓库、常识或你此前的回答推测客户情况。每轮正文仅追问一到两个缺失字段，避免反复询问已知事实。

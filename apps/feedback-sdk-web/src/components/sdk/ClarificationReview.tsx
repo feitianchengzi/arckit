@@ -13,7 +13,7 @@ interface Props {
 export function ClarificationReview({ value, confirmed, pending = false, onChange, onConfirm, mode = 'create' }: Props) {
   const missing = missingClarificationFields(value)
   const update = (field: ClarificationField, text: string) => onChange({ ...value, [field]: text, unknown_fields: value.unknown_fields?.filter((key) => key !== field) })
-  return <section aria-label="核对结构化反馈" className="my-4 space-y-3 rounded-lg border border-primary/30 bg-surface-elevated p-4">
+  return <section aria-label="核对结构化反馈" className="sdk-collection space-y-3">
     <h3 className="font-semibold">核对问题信息</h3>
     <p className="text-xs text-foreground-secondary">可以继续与客服补充，或直接编辑。请仅确认真实信息；暂时无法提供的内容可标记为待确认，供团队继续澄清。</p>
     {visibleClarificationFields(value).map(([field, label]) => <div key={field} className="space-y-1">

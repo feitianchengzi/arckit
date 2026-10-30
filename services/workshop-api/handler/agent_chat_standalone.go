@@ -200,6 +200,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 	}
 	applyAgentMessageUnresolvedMetadata(agentMsg, agentResponse.Confidence, agentResponse.Content)
 	persistClarificationMetadata(agentMsg, agentResponse.Clarification)
+	persistAgentSources(agentMsg, agentResponse.Sources)
 
 	if err := SaveMessage(db, agentMsg); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
@@ -207,15 +208,17 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 	}
 
 	result := AgentMessageResponse{
-		MessageID:      agentMsg.ID,
-		ConversationID: conv.ID,
-		Content:        agentResponse.Content,
-		SenderType:     "agent",
-		ToolCalls:      agentResponse.ToolCalls,
-		Confidence:     agentResponse.Confidence,
-		NeedCollect:    agentResponse.NeedCollect,
-		Structured:     agentResponse.Structured,
-		Clarification:  agentResponse.Clarification,
+		MessageID:         agentMsg.ID,
+		CustomerMessageID: customerMsg.ID,
+		ConversationID:    conv.ID,
+		Content:           agentResponse.Content,
+		SenderType:        "agent",
+		ToolCalls:         agentResponse.ToolCalls,
+		Confidence:        agentResponse.Confidence,
+		NeedCollect:       agentResponse.NeedCollect,
+		Structured:        agentResponse.Structured,
+		Clarification:     agentResponse.Clarification,
+		Sources:           agentResponse.Sources,
 	}
 	if err := turn.Complete(result); err != nil {
 		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "保存完整会话失败，请重试", nil))
@@ -231,12 +234,31 @@ func listStandaloneConversations(c *gin.Context, scope standaloneScope) {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
-	convs, err := GetStandaloneConversations(db, scope.ProjectID, scope.CustomUserID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "获取对话列表失败: "+err.Error(), nil))
+	pagination, _ := ParsePagination(c)
+	query := db.Model(&AgentConversation{}).Where("project_id = ? AND custom_user_id = ? AND feedback_id = ?", scope.ProjectID, scope.CustomUserID, standaloneConversationFeedbackID)
+	var total int64
+	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "咨询历史暂时无法加载，请重试。", nil))
 		return
 	}
-	c.JSON(http.StatusOK, response.NewSuccessResponse(convs))
+	type historyItem struct {
+		AgentConversation
+		Title        string `json:"title"`
+		MessageCount int64  `json:"message_count"`
+	}
+	items := make([]historyItem, 0)
+	// Return only list summaries, never every conversation's message bodies.
+	selection := "agent_conversations.*, COALESCE((SELECT SUBSTR(m.content, 1, 120) FROM agent_message_records m WHERE m.conversation_id = agent_conversations.id AND m.project_id = agent_conversations.project_id AND m.sender_type = 'customer' AND m.delete_at IS NULL ORDER BY m.created_at ASC, m.id ASC LIMIT 1), '') AS title, (SELECT COUNT(*) FROM agent_message_records m WHERE m.conversation_id = agent_conversations.id AND m.project_id = agent_conversations.project_id AND m.delete_at IS NULL) AS message_count"
+	if err := query.Select(selection).Order("updated_at DESC, id DESC").Offset(pagination.Offset).Limit(pagination.Limit).Scan(&items).Error; err != nil {
+		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "咨询历史暂时无法加载，请重试。", nil))
+		return
+	}
+	for i := range items {
+		if strings.TrimSpace(items[i].Title) == "" {
+			items[i].Title = "图片咨询"
+		}
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(items, response.Meta{Page: pagination.Page, PageSize: pagination.PageSize, Total: int(total)}))
 }
 
 // listStandaloneMessages 列出独立会话的消息，并校验归属。
@@ -265,12 +287,25 @@ func listStandaloneMessages(c *gin.Context, scope standaloneScope) {
 		return
 	}
 
-	messages, err := GetConversationMessages(db, conversationID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "获取消息列表失败: "+err.Error(), nil))
+	pagination, _ := ParsePagination(c)
+	query := db.Model(&AgentMessageRecord{}).Where("conversation_id = ? AND project_id = ?", conversationID, scope.ProjectID)
+	var total int64
+	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "咨询记录暂时无法加载，请重试。", nil))
 		return
 	}
-	c.JSON(http.StatusOK, response.NewSuccessResponse(messages))
+	messages := make([]AgentMessageRecord, 0)
+	if err := query.Order("created_at DESC, id DESC").Offset(pagination.Offset).Limit(pagination.Limit).Find(&messages).Error; err != nil {
+		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "咨询记录暂时无法加载，请重试。", nil))
+		return
+	}
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+	for i := range messages {
+		messages[i].Attachments = agentRecordAttachments(messages[i])
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(messages, response.Meta{Page: pagination.Page, PageSize: pagination.PageSize, Total: int(total)}))
 }
 
 // ---- session 模式入口 ----
