@@ -20,6 +20,7 @@ const FEEDBACK_SDK_HOST_CONFIGURE_MESSAGE = 'feedback-sdk:configure'
 const FEEDBACK_SDK_HOST_OPEN_MESSAGE = 'feedback-sdk:open'
 const FEEDBACK_SDK_HOST_GET_UNREAD_MESSAGE = 'feedback-sdk:get-unread-count'
 const FEEDBACK_SDK_READY_MESSAGE = 'feedback-sdk:ready'
+const FEEDBACK_SDK_CONFIGURED_MESSAGE = 'feedback-sdk:configured'
 const FEEDBACK_SDK_REFRESH_SESSION_MESSAGE = 'feedback-sdk:refresh-session'
 const FEEDBACK_SDK_UNREAD_CHANGED_MESSAGE = 'feedback-sdk:unread-changed'
 const FEEDBACK_SDK_UNREAD_COUNT_MESSAGE = 'feedback-sdk:unread-count'
@@ -197,6 +198,14 @@ function installHostMessageListener() {
       if (!isFeedbackSDKConfig(event.data.config)) return
       configureFeedbackSDK(event.data.config)
       window.dispatchEvent(new CustomEvent(FEEDBACK_SDK_CONFIGURED_EVENT))
+      ;(event.source as WindowProxy).postMessage(
+        {
+          source: 'feedback-sdk-web',
+          type: FEEDBACK_SDK_CONFIGURED_MESSAGE,
+          ...(typeof event.data.request_id === 'string' ? { request_id: event.data.request_id } : {}),
+        },
+        event.origin,
+      )
       return
     }
 

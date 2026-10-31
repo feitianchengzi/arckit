@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { MouseEvent as ReactMouseEvent, ReactNode, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { t } from '@/i18n'
 
@@ -8,17 +8,42 @@ interface Props {
 }
 
 export function FeedbackShell({ mode, children }: Props) {
+  const shellRef = useRef<HTMLDivElement>(null)
   const isFull = mode === 'full'
   const isEmbedded = typeof window !== 'undefined'
     && window.parent !== window
     && document.documentElement.dataset.feedbackEmbed === 'web'
 
-  const closeEmbeddedSdk = () => {
+  useEffect(() => {
+    if (!isEmbedded) return
+
+    // The embedded SDK owns the whole iframe viewport. Pointer events outside
+    // the dialog are deliberately inert: only the explicit close button may
+    // ask the host to dismiss the SDK layer.
+    const consumeOutsideShell = (event: Event) => {
+      const target = event.target
+      if (!(target instanceof Node) || shellRef.current?.contains(target)) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+    }
+
+    document.addEventListener('pointerdown', consumeOutsideShell, true)
+    document.addEventListener('click', consumeOutsideShell, true)
+    return () => {
+      document.removeEventListener('pointerdown', consumeOutsideShell, true)
+      document.removeEventListener('click', consumeOutsideShell, true)
+    }
+  }, [isEmbedded])
+
+  const closeEmbeddedSdk = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
     window.parent.postMessage({ source: 'feedback-sdk-web', type: 'feedback-sdk:close' }, '*')
   }
 
   return (
     <div
+      ref={shellRef}
       data-feedback-sdk-shell
       className={clsx(
         'relative mx-auto w-full transition-all',

@@ -434,6 +434,14 @@ export interface AgentConversation {
   updated_at: string
 }
 
+interface FeedbackAgentMessageView {
+  id: number
+  sender: AgentMessage['sender_type']
+  content: string
+  confidence?: number
+  created_at: string
+}
+
 /** 低置信时由智能客服总结的问题结构（PRD F-01 三字段），用于预填反馈表单。字段可为空。 */
 export interface AgentStructuredSummary {
   position: string
@@ -519,7 +527,28 @@ export async function getAgentConversations(feedbackId: number): Promise<AgentCo
 /**
  * 获取 Agent 对话消息列表
  */
-export async function getAgentConversationMessages(conversationId: string): Promise<AgentMessage[]> {
+export async function getAgentConversationMessages(conversationId: string, feedbackId?: number): Promise<AgentMessage[]> {
+  // 直连 API Key 部署历史上已暴露 chat-widget 专用的反馈消息投影；
+  // 优先使用它避免旧版 conversation handler 错读不存在的 feedback 路由参数。
+  // 调用端已先通过 getAgentConversations(feedbackId) 完成反馈归属与项目成员校验。
+  if (currentV2AuthMode() === 'apiKey' && Number.isFinite(feedbackId) && Number(feedbackId) > 0) {
+    const envelope = await requestJson<FeedbackAgentMessageView[]>(
+      `/feedbacks/${feedbackId}/agent-messages`,
+      `/feedbacks/${feedbackId}/agent-messages`,
+      { method: 'GET' },
+    )
+    return (envelope.data || []).map((message) => ({
+      id: message.id,
+      conversation_id: conversationId,
+      feedback_id: Number(feedbackId),
+      project_id: 0,
+      sender_type: message.sender,
+      content: message.content,
+      confidence: message.confidence,
+      created_at: message.created_at,
+    }))
+  }
+
   const envelope = await requestJson<AgentMessage[]>(
     `/agent-conversations/${conversationId}/messages`,
     `/agent-conversations/${conversationId}/messages`,

@@ -116,4 +116,35 @@ describe('Agent API 鉴权模式', () => {
     expect(url).toBe('https://gw.example/workshop/v2/feedback/agent-conversations/c1/messages')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fbs_session_token')
   })
+
+  it('apiKey 模式：从反馈聊天投影读取历史并转换 sender 字段', async () => {
+    mockAuthMode = 'apiKey'
+    mockConfig = {
+      gatewayUrl: 'https://gw.example',
+      apiKey: 'ak_test_key',
+      projectId: 7,
+      customUserId: 'cust_7',
+    }
+    mockResponse([
+      { id: 3, sender: 'developer', content: '已修复', confidence: 0.9, created_at: '2026-10-31T00:00:00Z' },
+    ])
+
+    const msgs = await getAgentConversationMessages('c1', 132)
+
+    expect(msgs).toEqual([
+      {
+        id: 3,
+        conversation_id: 'c1',
+        feedback_id: 132,
+        project_id: 0,
+        sender_type: 'developer',
+        content: '已修复',
+        confidence: 0.9,
+        created_at: '2026-10-31T00:00:00Z',
+      },
+    ])
+    const { url, init } = lastCall()
+    expect(url).toBe('https://gw.example/workshop/v2/apikey/feedbacks/132/agent-messages')
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ak_test_key')
+  })
 })

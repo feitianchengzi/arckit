@@ -17,8 +17,19 @@
 iframe.contentWindow?.postMessage({
   source: 'feedback-sdk-host',
   type: 'feedback-sdk:configure',
+  request_id: 'configure-001',
   config: { apiKey, projectId, customUserId, theme },
 }, sdkOrigin)
+```
+
+SDK 接受并应用配置后，会使用相同的 `request_id` 回执；宿主应收到回执后再发送打开或读取未读数命令，避免把“iframe 已加载”误判为“鉴权配置已生效”：
+
+```js
+{
+  source: 'feedback-sdk-web',
+  type: 'feedback-sdk:configured',
+  request_id: 'configure-001',
+}
 ```
 
 打开页面时，再发送路由命令：

@@ -200,7 +200,7 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
 
         const history = standalone
           ? await getStandaloneAgentMessages(conv.id)
-          : await getAgentConversationMessages(conv.id)
+          : await getAgentConversationMessages(conv.id, numericFeedbackId)
         if (requestId !== loadRequestRef.current) return
         setMessages(history)
         // 历史中已有会话则不再自动发送初始消息

@@ -374,14 +374,9 @@ func GetAgentConversationsHandler(c *gin.Context) {
 }
 
 // GetAgentConversationMessagesHandler 获取对话消息列表
-// GET /feedbacks/:id/agent-conversations/:conversationId/messages
+// GET /agent-conversations/:conversationId/messages
 func GetAgentConversationMessagesHandler(c *gin.Context) {
-	feedbackID, ok := parseFeedbackIDParam(c)
-	if !ok {
-		return
-	}
-
-	conversationID := c.Param("conversationId")
+	conversationID := strings.TrimSpace(c.Param("conversationId"))
 	if conversationID == "" {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "缺少对话ID", nil))
 		return
@@ -393,9 +388,10 @@ func GetAgentConversationMessagesHandler(c *gin.Context) {
 		return
 	}
 
-	// 对话必须归属当前反馈，项目归属从 feedback 取得后再鉴权。
+	// 该路由只包含 conversationId；反馈归属已固化在对话记录中。
+	// 先根据对话取得 project scope，再以项目成员身份做最终授权。
 	var conversation AgentConversation
-	if err := db.Where("id = ? AND feedback_id = ?", conversationID, feedbackID).First(&conversation).Error; err != nil {
+	if err := db.Where("id = ?", conversationID).First(&conversation).Error; err != nil {
 		if gorm.ErrRecordNotFound == err {
 			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeBadRequest, "对话不存在", nil))
 			return
@@ -404,7 +400,7 @@ func GetAgentConversationMessagesHandler(c *gin.Context) {
 		return
 	}
 
-	_, ok = requireFeedbackProjectMember(c, db, conversation.ProjectID, "查看消息")
+	_, ok := requireFeedbackProjectMember(c, db, conversation.ProjectID, "查看消息")
 	if !ok {
 		return
 	}
