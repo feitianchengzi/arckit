@@ -3,7 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
-	"time"
+	"strings"
 	"todo/middleware"
 	"todo/models"
 	"todo/response"
@@ -37,10 +37,10 @@ type KnowledgeSourceResponse struct {
 
 // KnowledgeWorkspaceResponse 知识库工作空间响应
 type KnowledgeWorkspaceResponse struct {
-	Enabled             bool   `json:"enabled"`
-	ProjectID           *uint  `json:"project_id,omitempty"`
-	WeknoraWorkspaceID  string `json:"weknora_workspace_id,omitempty"`
-	Scope               string `json:"scope,omitempty"`
+	Enabled            bool   `json:"enabled"`
+	ProjectID          *uint  `json:"project_id,omitempty"`
+	WeknoraWorkspaceID string `json:"weknora_workspace_id,omitempty"`
+	Scope              string `json:"scope,omitempty"`
 }
 
 // ListKnowledgeSourcesHandler 查询项目知识源列表
@@ -245,41 +245,56 @@ func ReindexKnowledgeSourceHandler(c *gin.Context) {
 		return
 	}
 
-	// 标记为索引中
-	if err := db.Model(&src).Update("status", models.KnowledgeSourceStatusIndexing).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackUpdateFailed, "更新状态失败: "+err.Error(), nil))
+	var repos []CustomerCodeRepo
+	if err := db.Where("project_id = ?", projectID).Find(&repos).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "读取知识源关联仓库失败，请稍后重试", nil))
 		return
 	}
-
-	// 异步触发索引重建
-	go func() {
-		config := DefaultCodeIndexConfig()
-		now := time.Now()
-
-		// 查找关联的客户代码仓库
-		var repos []CustomerCodeRepo
-		db.Where("project_id = ?", projectID).Find(&repos)
-
-		if len(repos) == 0 {
-			db.Model(&src).Updates(map[string]interface{}{
-				"status":          models.KnowledgeSourceStatusSynced,
-				"last_indexed_at": &now,
-			})
-			return
-		}
-
-		// 对每个代码仓库执行索引
-		for _, repo := range repos {
-			runCodeIndexPipeline(db, projectID, repo)
-		}
-
-		_ = config
-	}()
+	repo, err := knowledgeSourceRepository(src, repos)
+	if err != nil {
+		message := err.Error()
+		db.Model(&src).Updates(map[string]interface{}{"status": models.KnowledgeSourceStatusSyncFailed, "last_index_error": message})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, message, nil))
+		return
+	}
+	if err := db.Model(&src).Updates(map[string]interface{}{"status": models.KnowledgeSourceStatusIndexing, "last_index_error": nil}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackUpdateFailed, "启动索引失败，请稍后重试", nil))
+		return
+	}
+	go runCodeIndexPipelineForSource(db, projectID, repo, &src)
 
 	c.JSON(http.StatusOK, response.NewSuccessResponse(gin.H{
 		"source_id": sourceID,
 		"status":    models.KnowledgeSourceStatusIndexing,
 	}))
+}
+
+// knowledgeSourceRepository requires an unambiguous repository owned by the source's project.
+func knowledgeSourceRepository(src models.KnowledgeSource, repos []CustomerCodeRepo) (CustomerCodeRepo, error) {
+	if src.SourceType != models.KnowledgeSourceTypeCodeRepo {
+		return CustomerCodeRepo{}, fmt.Errorf("该知识源类型尚未接入内容导入，请使用已配置的代码仓库知识源；本次未生成索引")
+	}
+	var matches []CustomerCodeRepo
+	for _, repo := range repos {
+		if src.ProjectID == nil || repo.ProjectID != *src.ProjectID {
+			continue
+		}
+		if src.RepoURL != nil && strings.TrimSpace(*src.RepoURL) != "" {
+			if strings.TrimSpace(repo.RepoURL) != strings.TrimSpace(*src.RepoURL) {
+				continue
+			}
+		} else if strings.HasPrefix(src.Name, "code-repo-") && src.Name != fmt.Sprintf("code-repo-%d", repo.ID) {
+			continue
+		}
+		if src.Branch != nil && strings.TrimSpace(*src.Branch) != "" && strings.TrimSpace(repo.Branch) != strings.TrimSpace(*src.Branch) {
+			continue
+		}
+		matches = append(matches, repo)
+	}
+	if len(matches) != 1 {
+		return CustomerCodeRepo{}, fmt.Errorf("未找到唯一匹配的项目仓库，请检查知识源的仓库地址和分支；本次未生成索引")
+	}
+	return matches[0], nil
 }
 
 // KnowledgeRetrieveTestHandler 检索测试（返回原始 hits，不经草稿）

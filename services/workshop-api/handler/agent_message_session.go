@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -17,23 +18,35 @@ import (
 // AgentMessageRequestSession 是 session 模式（嵌入 SDK）下的客户发消息请求。
 // 与 AgentMessageRequest 一致，attachments 为图片附件引用（本期落库 + 多模态预留）。
 type AgentMessageRequestSession struct {
-	Content        string                  `json:"content" binding:"required"`
-	ConversationID string                  `json:"conversation_id,omitempty"`
-	Attachments    []AgentAttachmentInput  `json:"attachments,omitempty"`
+	Content         string                 `json:"content"`
+	ClientMessageID string                 `json:"client_message_id,omitempty"`
+	NewConversation bool                   `json:"new_conversation,omitempty"`
+	ConversationID  string                 `json:"conversation_id,omitempty"`
+	Attachments     []AgentAttachmentInput `json:"attachments,omitempty"`
 }
 
 // AgentAttachmentInput 智能客服消息的图片附件输入（已上传到 OSS 后的引用）。
 type AgentAttachmentInput struct {
-	Type      string `json:"type"`                 // image
-	ObjectKey string `json:"object_key,omitempty"` // OSS object key
-	URL       string `json:"url,omitempty"`        // 可直接访问的 URL（多模态时传给 LLM）
-	FileName  string `json:"file_name,omitempty"`
-	MimeType  string `json:"mime_type,omitempty"`
+	Type       string `json:"type"`                 // image
+	ObjectKey  string `json:"object_key,omitempty"` // OSS object key
+	URL        string `json:"url,omitempty"`        // 可直接访问的 URL（多模态时传给 LLM）
+	FileName   string `json:"file_name,omitempty"`
+	MimeType   string `json:"mime_type,omitempty"`
+	Size       int64  `json:"size,omitempty"`
+	DurationMS int64  `json:"duration_ms,omitempty"`
 }
 
 // AgentMessageFromSession session 模式：客户向智能客服发送消息。
 // POST /workshop/v2/feedback/feedbacks/:id/agent-message
 func AgentMessageFromSession(c *gin.Context) {
+	scope, ok := middleware.RequireFeedbackSessionScope(c)
+	if !ok {
+		return
+	}
+	runBoundAgentMessage(c, scope)
+}
+
+func runBoundAgentMessage(c *gin.Context, scope middleware.FeedbackSessionScope) {
 	feedbackID, ok := parseFeedbackIDParam(c)
 	if !ok {
 		return
@@ -42,11 +55,6 @@ func AgentMessageFromSession(c *gin.Context) {
 	db := middleware.GetDB(c)
 	if db == nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
-		return
-	}
-
-	scope, ok := middleware.RequireFeedbackSessionScope(c)
-	if !ok {
 		return
 	}
 
@@ -62,6 +70,29 @@ func AgentMessageFromSession(c *gin.Context) {
 		return
 	}
 
+	turn, err := beginSupportTurn(db, fmt.Sprintf("%d/%s/feedback/%d", projectID, scope.CustomUserID, feedbackID), req)
+	if err != nil {
+		c.JSON(409, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+	defer turn.Rollback()
+	if turn.Replay != nil {
+		c.JSON(200, response.NewSuccessResponse(turn.Replay))
+		return
+	}
+	db = turn.DB
+	if err := validateAgentMedia(req.Content, req.Attachments, feedbackAttachmentPrefix(projectID, scope.CustomUserID)); err != nil {
+		c.JSON(400, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+	for index := range req.Attachments {
+		req.Attachments[index].MimeType = strings.Split(req.Attachments[index].MimeType, ";")[0]
+	}
+	imageUrls, audioUnderstanding, err := prepareAgentMedia(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(503, response.NewErrorResponse(response.CodeInternalError, err.Error(), nil))
+		return
+	}
 	conv, err := GetOrCreateConversation(db, req.ConversationID, feedbackID, projectID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "创建对话失败: "+err.Error(), nil))
@@ -77,7 +108,7 @@ func AgentMessageFromSession(c *gin.Context) {
 		Content:        req.Content,
 	}
 	if len(req.Attachments) > 0 {
-		attJSON, _ := json.Marshal(map[string]interface{}{"attachments": req.Attachments})
+		attJSON, _ := json.Marshal(map[string]interface{}{"attachments": req.Attachments, "audio_understanding": audioUnderstanding})
 		attStr := string(attJSON)
 		customerMsg.Metadata = &attStr
 	}
@@ -93,26 +124,20 @@ func AgentMessageFromSession(c *gin.Context) {
 	}
 
 	// 收集图片附件的可访问 URL；仅当启用多模态（AGENT_VISION_ENABLED）时传给 Agent 真实看图。
-	imageUrls := make([]string, 0, len(req.Attachments))
-	for _, att := range req.Attachments {
-		if strings.EqualFold(strings.TrimSpace(att.Type), "image") {
-			if u := strings.TrimSpace(att.URL); u != "" {
-				imageUrls = append(imageUrls, u)
-			}
-		}
+	if len(imageUrls) == 0 {
+		imageUrls = historicalAgentImages(history, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID))
 	}
-
-	// 调用 Agent 处理（图片附件以 image_url part 传入，多模态模型可真实看图）
 	agentResponse, err := processWithAgent(c, db, projectID, feedbackID, req.Content, history, conv.ID, imageUrls)
 	if err != nil {
 		log.Printf("[agent-message-session] processWithAgent 失败 project=%d feedback=%d: %v", projectID, feedbackID, err)
 		agentResponse = &AgentResponse{
-			Content:    arcOrbitAgentUnavailableReply(),
-			Confidence: 0,
+			Content:     arcOrbitAgentUnavailableReply(),
+			Confidence:  0,
 			NeedCollect: true,
 		}
 	}
 
+	applyClarification(agentResponse, history)
 	agentMsg := &AgentMessageRecord{
 		ConversationID: conv.ID,
 		FeedbackID:     feedbackID,
@@ -134,6 +159,8 @@ func AgentMessageFromSession(c *gin.Context) {
 		agentMsg.Metadata = &metaStr
 	}
 	applyAgentMessageUnresolvedMetadata(agentMsg, agentResponse.Confidence, agentResponse.Content)
+	persistClarificationMetadata(agentMsg, agentResponse.Clarification)
+	persistAgentSources(agentMsg, agentResponse.Sources)
 
 	if err := SaveMessage(db, agentMsg); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
@@ -142,16 +169,24 @@ func AgentMessageFromSession(c *gin.Context) {
 
 	// session 模式无内部 userID，不触发面向内部用户的 need_collect 事件；
 	// 低置信兜底由前端依据 NeedCollect 字段处理。
-	c.JSON(http.StatusOK, response.NewSuccessResponse(AgentMessageResponse{
-		MessageID:      agentMsg.ID,
-		ConversationID: conv.ID,
-		Content:        agentResponse.Content,
-		SenderType:     "agent",
-		ToolCalls:      agentResponse.ToolCalls,
-		Confidence:     agentResponse.Confidence,
-		NeedCollect:    agentResponse.NeedCollect,
-		Structured:     agentResponse.Structured,
-	}))
+	result := AgentMessageResponse{
+		MessageID:         agentMsg.ID,
+		CustomerMessageID: customerMsg.ID,
+		ConversationID:    conv.ID,
+		Content:           agentResponse.Content,
+		SenderType:        "agent",
+		ToolCalls:         agentResponse.ToolCalls,
+		Confidence:        agentResponse.Confidence,
+		NeedCollect:       agentResponse.NeedCollect,
+		Structured:        agentResponse.Structured,
+		Clarification:     agentResponse.Clarification,
+		Sources:           agentResponse.Sources,
+	}
+	if err := turn.Complete(result); err != nil {
+		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "保存完整会话失败，请重试", nil))
+		return
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(result))
 }
 
 // GetAgentConversationsFromSession session 模式：获取反馈关联的智能客服对话列表。
@@ -211,6 +246,16 @@ func GetAgentConversationMessagesFromSession(c *gin.Context) {
 	if conversation.ProjectID != scope.ProjectID {
 		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, "您无权访问该对话", nil))
 		return
+	}
+	if conversation.FeedbackID == 0 {
+		if conversation.CustomUserID != scope.CustomUserID {
+			c.JSON(404, response.NewErrorResponse(response.CodeNotFound, "会话不存在", nil))
+			return
+		}
+	} else {
+		if _, ok := loadFeedbackForSession(c, db, conversation.FeedbackID, scope); !ok {
+			return
+		}
 	}
 	messages, err := GetConversationMessages(db, conversationID)
 	if err != nil {

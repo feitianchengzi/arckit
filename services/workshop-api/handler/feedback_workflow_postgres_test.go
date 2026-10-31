@@ -82,6 +82,9 @@ func openFeedbackWorkflowPostgres(t *testing.T) *gorm.DB {
 		&models.FeedbackSubscription{},
 		&models.FeedbackEmailDelivery{},
 		&models.FeedbackTaskLink{},
+		&models.FeedbackConclusion{},
+		&models.FeedbackConclusionResponse{},
+		&models.SupportTurn{},
 		&AgentConversation{},
 		&AgentMessageRecord{},
 	); err != nil {

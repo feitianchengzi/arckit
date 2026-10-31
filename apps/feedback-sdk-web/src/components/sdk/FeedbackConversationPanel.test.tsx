@@ -1,51 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
-import { FeedbackConversationPanel } from '@/components/sdk/FeedbackConversationPanel'
-
-vi.mock('@/lib/feedback/v2', () => ({
-  getFeedbackMessagesV2: vi.fn(),
-  createFeedbackMessageV2: vi.fn(),
-  markFeedbackNotificationsReadV2: vi.fn(),
-}))
-vi.mock('@/lib/feedback/upload', () => ({
-  uploadFeedbackFileV2: vi.fn(),
-}))
-vi.mock('@/lib/sdk', () => ({
-  isFeedbackSDKV2NotificationsEnabled: vi.fn().mockReturnValue(false),
-}))
-
-import { getFeedbackMessagesV2 } from '@/lib/feedback/v2'
-
-describe('FeedbackConversationPanel', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { FeedbackConversationPanel } from './FeedbackConversationPanel'
+vi.mock('@/lib/feedback/v2', () => ({ getConversationMessagesPageV2: vi.fn(), createFeedbackMessageV2: vi.fn(), markFeedbackNotificationsReadV2: vi.fn() }))
+vi.mock('@/lib/sdk', () => ({ isFeedbackSDKV2NotificationsEnabled: vi.fn().mockReturnValue(false) }))
+import { getConversationMessagesPageV2 } from '@/lib/feedback/v2'
+const msg = (id: number, source: 'agent' | 'feedback', content: string) => ({ id, source, sender_type: 'agent' as const, content, created_at: `2026-10-01T00:00:${String(id).padStart(2, '0')}Z` })
+describe('complete feedback conversation', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it('shows pre-submission Agent records and loads remaining history', async () => {
+    vi.mocked(getConversationMessagesPageV2).mockResolvedValueOnce({ messages: [msg(1, 'agent', '原咨询')], total: 2 }).mockResolvedValueOnce({ messages: [msg(2, 'feedback', '团队回复')], total: 2 })
+    render(<FeedbackConversationPanel feedbackId="9" />)
+    expect(await screen.findByText('原咨询')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '加载更多沟通记录' }))
+    expect(await screen.findByText('团队回复')).toBeInTheDocument()
+    expect(getConversationMessagesPageV2).toHaveBeenLastCalledWith(9, { page: 2, pageSize: 50 })
   })
-
-  it('加载消息后自动滚动到底部（调用 scrollIntoView）', async () => {
-    vi.mocked(getFeedbackMessagesV2).mockResolvedValue([
-      { id: 1, feedback_id: 1, project_id: 1, sender_type: 'developer', message_type: 'text', content: '最新一条消息', attachments: [], created_at: '2026-09-23T00:00:00Z', updated_at: '2026-09-23T00:00:00Z' },
-    ])
-    const scrollIntoViewSpy = vi.spyOn(Element.prototype, 'scrollIntoView')
-
-    render(<FeedbackConversationPanel feedbackId="1" />)
-    await waitFor(() => expect(screen.getByText('最新一条消息')).toBeInTheDocument())
-    // 消息变化后应触发滚动锚点 scrollIntoView
-    expect(scrollIntoViewSpy).toHaveBeenCalled()
-  })
-
-  it('refreshKey 变化时重新拉取消息', async () => {
-    vi.mocked(getFeedbackMessagesV2).mockResolvedValue([])
-
-    const { rerender } = render(<FeedbackConversationPanel feedbackId="1" refreshKey={0} />)
-    await waitFor(() => expect(getFeedbackMessagesV2).toHaveBeenCalledTimes(1))
-
-    vi.mocked(getFeedbackMessagesV2).mockResolvedValue([
-      { id: 9, feedback_id: 1, project_id: 1, sender_type: 'developer', message_type: 'text', content: '刷新后的消息', attachments: [], created_at: '2026-09-23T00:00:01Z', updated_at: '2026-09-23T00:00:01Z' },
-    ])
-    act(() => {
-      rerender(<FeedbackConversationPanel feedbackId="1" refreshKey={1} />)
-    })
-    await waitFor(() => expect(getFeedbackMessagesV2).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(screen.getByText('刷新后的消息')).toBeInTheDocument())
+  it('refreshes the same loaded history range on a realtime event', async () => {
+    vi.mocked(getConversationMessagesPageV2).mockResolvedValue({ messages: [], total: 0 })
+    const { rerender } = render(<FeedbackConversationPanel feedbackId="9" refreshKey={0} />)
+    await waitFor(() => expect(getConversationMessagesPageV2).toHaveBeenCalledTimes(1))
+    rerender(<FeedbackConversationPanel feedbackId="9" refreshKey={1} />)
+    await waitFor(() => expect(getConversationMessagesPageV2).toHaveBeenCalledTimes(2))
   })
 })

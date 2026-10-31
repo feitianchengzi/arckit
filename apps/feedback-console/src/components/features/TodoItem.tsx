@@ -113,7 +113,7 @@ export function TodoItem({
     
     return false
   }, [selectionMode, todo, currentUserRole, currentUserId, canEdit])
-  const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
+  const [] = useState(false)
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
   const [isEditingPriority, setIsEditingPriority] = useState(false)
@@ -126,7 +126,7 @@ export function TodoItem({
   const [isUpdatingTags, setIsUpdatingTags] = useState(false)
   const [showContentDialog, setShowContentDialog] = useState(false)
   const navigate = useNavigate()
-  const { loadProjectTags, getProjectTags } = useTagStore()
+  const { loadProjectTags } = useTagStore()
   
   // 提取第一行内容
   const firstLine = useMemo(() => getFirstNonEmptyLine(todo.content), [todo.content])
@@ -666,21 +666,7 @@ function formatDate(dateString: string): string {
 
 // ==================== 图标组件 ====================
 
-function UserIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-  )
-}
 
-function AssignIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  )
-}
 
 function ClockIcon({ className }: { className?: string }) {
   return (
@@ -738,202 +724,7 @@ function DisabledIcon({ className }: { className?: string }) {
   )
 }
 
-// ==================== 执行人选择器组件（内联版本）====================
 
-interface AssigneeSelectorInlineProps {
-  members: ProjectMember[]
-  value: number | undefined
-  onChange: (value: number | undefined) => void
-  onSave: () => Promise<void>
-  onCancel: () => void
-  loading?: boolean
-}
-
-function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, loading }: AssigneeSelectorInlineProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  const selectedMember = members.find((m) => m.user_id === value)
-  const selectedUsername = selectedMember?.username || selectedMember?.user?.username || (value === undefined ? '未选定' : '未知用户')
-
-  // 计算下拉菜单位置
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const buttonRect = buttonRef.current.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const viewportWidth = window.innerWidth
-      const menuHeight = Math.min(320, (members.length + 1) * 40 + 8)
-      const menuWidth = 240
-
-      let top = buttonRect.bottom + 4
-      if (top + menuHeight > viewportHeight) {
-        top = buttonRect.top - menuHeight - 4
-      }
-
-      let left = buttonRect.left
-      if (left + menuWidth > viewportWidth) {
-        left = viewportWidth - menuWidth - 8
-      }
-      if (left < 8) {
-        left = 8
-      }
-
-      setMenuPosition({ top, left })
-    } else {
-      setMenuPosition(null)
-    }
-  }, [isOpen, members.length])
-
-  // 点击外部关闭
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
-
-  return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-1">
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[120px]"
-        >
-          <div className="flex items-center gap-1 flex-1 min-w-0">
-            {value !== undefined ? (
-              <>
-                <Avatar
-                  user={{
-                    username: selectedMember?.username || selectedMember?.user?.username,
-                    avatar: selectedMember?.avatar || selectedMember?.user?.avatar
-                  }}
-                  size="xs"
-                />
-                <span className="truncate text-xs">{selectedUsername}</span>
-              </>
-            ) : (
-              <span className="text-foreground-secondary text-xs">未选定</span>
-            )}
-          </div>
-          <svg className="w-3 h-3 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={loading}
-          className="p-0.5 rounded bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          aria-label="保存"
-          title="保存"
-        >
-          {loading ? (
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="p-0.5 rounded bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          aria-label="取消"
-          title="取消"
-        >
-          <XIcon className="w-3 h-3" />
-        </button>
-      </div>
-
-      {isOpen && menuPosition && createPortal(
-        <>
-          <div
-            className="fixed inset-0 z-[100]"
-            onClick={() => setIsOpen(false)}
-          />
-          <div
-            ref={menuRef}
-            className="fixed z-[101] w-[240px] rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
-            style={{
-              top: `${menuPosition.top}px`,
-              left: `${menuPosition.left}px`,
-              backgroundColor: 'var(--color-surface-elevated)'
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                onChange(undefined)
-                setIsOpen(false)
-              }}
-              className={clsx(
-                'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
-                value === undefined && 'bg-surface-hover'
-              )}
-              style={{ borderBottom: 'none' }}
-            >
-              <span className="text-xs text-foreground-secondary">未选定</span>
-            </button>
-            {members.map((member) => {
-              const memberUsername = member.username || member.user?.username || '未知用户'
-              const isSelected = member.user_id === value
-              return (
-                <button
-                  key={member.user_id}
-                  type="button"
-                  onClick={() => {
-                    onChange(member.user_id)
-                    setIsOpen(false)
-                  }}
-                  className={clsx(
-                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
-                    isSelected && 'bg-surface-hover'
-                  )}
-                  style={{ borderBottom: 'none' }}
-                >
-                  <Avatar
-                    user={{
-                      username: memberUsername,
-                      avatar: member.avatar || member.user?.avatar
-                    }}
-                    size="xs"
-                  />
-                  <span className="text-xs text-foreground flex-1">{memberUsername}</span>
-                  {isSelected && (
-                    <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
-  )
-}
 
 // ==================== 优先级选择器组件（内联版本）====================
 
@@ -1118,7 +909,7 @@ interface TagSelectorInlineProps {
   loading?: boolean
 }
 
-function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, onSave, onCancel, loading }: TagSelectorInlineProps) {
+function TagSelectorInline({ projectId, selectedTagIds, onChange, onSave, onCancel, loading }: TagSelectorInlineProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)

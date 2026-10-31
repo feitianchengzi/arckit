@@ -1,5 +1,33 @@
-import { describe, expect, it } from 'vitest'
-import { configureFeedbackSDK, getFeedbackSDKConfig, normalizeFeedbackSDKHostContext } from './config'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  configureFeedbackSDK,
+  getFeedbackSDKConfig,
+  getFeedbackSDKProductContract,
+  isFeedbackSDKV3Enabled,
+  normalizeFeedbackSDKHostContext,
+} from './config'
+
+afterEach(() => vi.unstubAllEnvs())
+
+describe('Feedback SDK product contract', () => {
+  it('enables the new support surface only in a V3 artifact with valid V2 transport auth', () => {
+    vi.stubEnv('VITE_SDK_CONTRACT', 'v3')
+    configureFeedbackSDK({
+      feedbackV2Enabled: true,
+      feedbackV2AuthMode: 'apiKey',
+      apiKey: 'ak_fixture_0123456789abcdef',
+      projectId: 115,
+      customUserId: 'stable-user-1',
+    })
+
+    expect(getFeedbackSDKProductContract()).toBe('v3')
+    expect(isFeedbackSDKV3Enabled()).toBe(true)
+
+    vi.stubEnv('VITE_SDK_CONTRACT', 'v2')
+    expect(getFeedbackSDKProductContract()).toBe('v2')
+    expect(isFeedbackSDKV3Enabled()).toBe(false)
+  })
+})
 
 describe('Feedback SDK hostContext diagnostics boundary', () => {
   it('keeps only bounded non-identifying fields', () => {

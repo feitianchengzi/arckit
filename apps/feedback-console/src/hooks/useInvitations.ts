@@ -5,7 +5,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invitationsApi, CreateInvitationInput } from '@/lib/api/endpoints/invitations'
 import { useAuthStore } from '@/store/authStore'
-import { todoUserApi } from '@/lib/api/endpoints/auth'
 
 /**
  * 获取项目的邀请列表

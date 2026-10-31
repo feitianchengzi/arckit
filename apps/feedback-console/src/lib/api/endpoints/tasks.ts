@@ -193,7 +193,7 @@ export const tasksApi = {
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
    * 请求体需要包含 project_id
    */
-  create: async (input: CreateTaskInput, userId?: number): Promise<Task> => {
+  create: async (input: CreateTaskInput, _userId?: number): Promise<Task> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     const taskInput: any = {
       project_id: input.projectId,
@@ -232,7 +232,7 @@ export const tasksApi = {
    * 注意：后端没有单独的获取任务详情接口
    * 我们从任务列表中查找对应的任务
    */
-  getById: async (projectId: string, taskId: string, userId?: number): Promise<Task> => {
+  getById: async (projectId: string, taskId: string, _userId?: number): Promise<Task> => {
     // 后端没有单独的获取任务详情接口，我们从任务列表中查找
     const { tasks } = await tasksApi.listByProject(projectId, { page: 1, pageSize: 200 })
     const task = tasks.find((t) => t.id.toString() === taskId)
@@ -256,10 +256,10 @@ export const tasksApi = {
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
    */
   update: async (
-    projectId: string,
+    _projectId: string,
     taskId: string,
     input: UpdateTaskInput,
-    userId?: number
+    _userId?: number
   ): Promise<Task> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     const taskInput: any = {}
@@ -310,7 +310,7 @@ export const tasksApi = {
    *   }
    * }
    */
-  delete: async (projectId: string, taskId: string, userId?: number): Promise<{ task_id: number; deleted_at: string }> => {
+  delete: async (_projectId: string, taskId: string, _userId?: number): Promise<{ task_id: number; deleted_at: string }> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('🗑️ 删除任务，任务ID:', taskId)
     const response = await apiClient.delete(`/user/tasks/${taskId}`)
@@ -325,10 +325,10 @@ export const tasksApi = {
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
    */
   updateStatus: async (
-    projectId: string,
+    _projectId: string,
     taskId: string,
     status: string,
-    userId?: number
+    _userId?: number
   ): Promise<Task> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('🔄 更新任务状态，任务ID:', taskId, '新状态:', status)

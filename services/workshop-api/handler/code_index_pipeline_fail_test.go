@@ -186,3 +186,33 @@ func ensureKnowledgeSourceTable(t *testing.T, db *gorm.DB) {
 	_ = db.Exec(`CREATE SCHEMA IF NOT EXISTS code_index`).Error
 	_ = db.AutoMigrate(&models.CodeChunk{})
 }
+
+func TestReindexSelectedSourceUpdatesThatSourceWithoutCreatingSibling(t *testing.T) {
+	db := setupCustomerCodeRepoTestDB(t)
+	defer teardownCustomerCodeRepoTestDB(t, db)
+	ensureKnowledgeSourceTable(t, db)
+	user := createCustomerCodeRepoTestUser(t, db, "selected-source-user")
+	project := createCustomerCodeRepoTestProject(t, db, user.ID, "selected-source-project")
+	repo := CustomerCodeRepo{ProjectID: project.ID, CustomerID: "selected", RepoPath: filepath.Join(t.TempDir(), "missing"), Branch: "main", Status: "ready"}
+	if err := db.Create(&repo).Error; err != nil {
+		t.Fatal(err)
+	}
+	src := models.KnowledgeSource{ProjectID: &project.ID, Name: "chosen-source", SourceType: models.KnowledgeSourceTypeCodeRepo, Scope: models.KnowledgeScopeProject, Status: models.KnowledgeSourceStatusIndexing}
+	if err := db.Create(&src).Error; err != nil {
+		t.Fatal(err)
+	}
+	runCodeIndexPipelineForSource(db, project.ID, repo, &src)
+	if err := db.First(&src, src.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if src.Status != models.KnowledgeSourceStatusSyncFailed || src.LastIndexError == nil {
+		t.Fatalf("source not failed: %+v", src)
+	}
+	var count int64
+	if err := db.Model(&models.KnowledgeSource{}).Where("project_id = ?", project.ID).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("reindex created sibling source: %d", count)
+	}
+}

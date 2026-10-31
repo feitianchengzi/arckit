@@ -144,7 +144,8 @@ func hmacSHA256(key []byte, value string) []byte {
 
 func feedbackUploadObjectKey(prefix, mimeType string) string {
 	extensions := map[string]string{
-		"image/jpeg":      "jpg",
+		"image/jpeg": "jpg",
+		"audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3",
 		"image/png":       "png",
 		"image/webp":      "webp",
 		"image/gif":       "gif",

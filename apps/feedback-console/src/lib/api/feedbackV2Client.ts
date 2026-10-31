@@ -53,6 +53,11 @@ export function isFeedbackV2NotificationsProjectEnabled(projectId: string | numb
 
 async function listByProject(projectId: string | number, options?: FeedbackListOptions): Promise<FeedbackListResult> {
   const params: Record<string, unknown> = { project_id: projectId }
+  if (options?.q) params.q = options.q
+  if (options?.status) params.status = options.status
+  if (options?.dateFrom) params.date_from = options.dateFrom
+  if (options?.dateTo) params.date_to = options.dateTo
+  if (options?.dateField) params.date_field = options.dateField
   if (options?.shortId) params.short_id = options.shortId
   if (options?.userPhone) params.user_phone = options.userPhone
   if (options?.userEmail) params.user_email = options.userEmail
@@ -127,7 +132,9 @@ export interface FeedbackSessionToken {
 
 export interface FeedbackV2Attachment {
   id?: number
-  type: 'image' | 'file' | 'url'
+  access_path?: string
+  duration_ms?: number
+  type: 'image' | 'file' | 'url' | 'audio'
   object_key?: string
   url?: string
   file_name?: string
@@ -146,7 +153,8 @@ export interface FeedbackV2Message {
   id: number
   feedback_id: number
   project_id: number
-  sender_type: 'customer' | 'developer' | 'system'
+  sender_type: 'customer' | 'developer' | 'system' | 'agent'
+  source?: 'agent' | 'feedback'
   sender_user_id?: number
   sender_custom_user_id?: string
   client_message_id?: string
@@ -302,6 +310,59 @@ async function getMessages(feedbackId: number): Promise<FeedbackV2Message[]> {
   })
   const messages = handleResponse<FeedbackV2Message[]>(response)
   return Array.isArray(messages) ? messages : []
+}
+
+export interface FeedbackConclusion {
+  id: number
+  feedback_id: number
+  project_id: number
+  version: number
+  kind: 'answer' | 'delivery' | 'not_planned'
+  title: string
+  body: string
+  version_label?: string
+  artifact_url?: string
+  published_by: number
+  created_at: string
+}
+export interface FeedbackLifecycleDetail {
+  feedback: Feedback
+  events: Array<{ id: string; type: string; status?: string; title: string; created_at: string }>
+  conclusions: FeedbackConclusion[]
+  responses: Array<{ id: number; feedback_id: number; conclusion_id: number; response: 'accepted' | 'needs_review'; content: string; client_message_id: string; created_at: string }>
+}
+async function getDetail(feedbackId: number): Promise<FeedbackLifecycleDetail> {
+  const response = await apiClient.get(`${resolveWorkshopV2BaseUrl()}/user/feedbacks/${feedbackId}/detail`)
+  return handleResponse<FeedbackLifecycleDetail>(response)
+}
+async function publishConclusion(feedbackId: number, input: {
+  kind: FeedbackConclusion['kind']; title: string; body: string; version_label?: string; artifact_url?: string; expected_version: number
+}): Promise<FeedbackConclusion> {
+  const response = await apiClient.post(`${resolveWorkshopV2BaseUrl()}/user/feedbacks/${feedbackId}/conclusions`, input)
+  return handleResponse<FeedbackConclusion>(response)
+}
+async function getAgentAttachmentAccess(accessPath: string): Promise<{ url: string; expires_at: string }> {
+  if (!/^\/agent-(?:chats\/conversations|conversations)\/[^/]+\/messages\/\d+\/attachments\/\d+\/access$/.test(accessPath)) {
+    throw new Error('无效的媒体访问路径')
+  }
+  const response = await apiClient.get(`${resolveWorkshopV2BaseUrl()}/user${accessPath}`)
+  return handleResponse<{ url: string; expires_at: string }>(response)
+}
+async function getConversationMessages(feedbackId: number): Promise<FeedbackV2Message[]> {
+  const all: FeedbackV2Message[] = []
+  let page = 1
+  while (true) {
+    const response = await apiClient.get(`${resolveWorkshopV2BaseUrl()}/user/feedbacks/${feedbackId}/conversation-messages`, {
+      params: { page, page_size: 100 },
+    })
+    const data = handleResponse<FeedbackV2Message[]>(response)
+    const next = Array.isArray(data) ? data : []
+    all.push(...next.map(message => ({ ...message, feedback_id: feedbackId })))
+    const total = response.data?.meta?.total
+    if (!next.length || typeof total !== 'number' || all.length >= total) break
+    page += 1
+  }
+  return all
 }
 
 async function getNotifications(params: {
@@ -501,6 +562,10 @@ export const feedbackV2Client = {
   remove,
   createSession,
   getMessages,
+  getConversationMessages,
+  getDetail,
+  publishConclusion,
+  getAgentAttachmentAccess,
 	getNotifications,
 	markNotificationsRead,
 	getSubscription,

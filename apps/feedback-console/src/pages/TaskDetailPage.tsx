@@ -11,7 +11,6 @@ import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadg
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
-import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
 import ReactMarkdown from 'react-markdown'
 import { normalizeMarkdown } from '@/lib/utils/markdown'
@@ -79,7 +78,6 @@ export default function TaskDetailPage() {
   const [createSubtaskDialogOpen, setCreateSubtaskDialogOpen] = useState(false)
   
   const { data: members } = useProjectMembers(projectId)
-  const currentUser = useAuthStore((state) => state.user)
   const { getProjectTags } = useTagStore()
   
   // 从成员列表中查找创建者和执行者信息
@@ -96,8 +94,6 @@ export default function TaskDetailPage() {
   const currentUserId = currentUserMember?.user_id || null
   
   // 检查当前用户是否是任务创建者或执行者（通过 user_id 比较，更可靠）
-  const isCreator = todo?.creatorId !== undefined && todo?.creatorId !== null && currentUserId !== null && todo.creatorId === currentUserId
-  const isAssignee = todo?.assigneeId !== undefined && todo?.assigneeId !== null && currentUserId !== null && todo.assigneeId === currentUserId
   
   // 判断执行者是否未分配（用于显示和提示）
   const isAssigneeUnassignedLocal = !todo?.assigneeId || executorUsername === '未分配'
@@ -281,7 +277,7 @@ export default function TaskDetailPage() {
     setCreateSubtaskDialogOpen(true)
   }
   
-  const handleCreateSubtaskSuccess = (newTaskId: number) => {
+  const handleCreateSubtaskSuccess = (_newTaskId: number) => {
     // 创建成功后刷新任务详情
     refetch()
     setCreateSubtaskDialogOpen(false)

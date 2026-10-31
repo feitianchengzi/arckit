@@ -4,7 +4,6 @@
  * SubtaskList - 子待办列表组件
  */
 
-import { useNavigate } from 'react-router-dom'
 import { TodoItem } from './TodoItem'
 import { Button, EmptyStateView } from '@/components/ui'
 import type { Todo, ProjectMember } from '@/types'
@@ -30,7 +29,6 @@ export interface SubtaskListProps {
 export function SubtaskList({
   subtasks,
   projectId,
-  parentTaskId,
   onCreateSubtask,
   onStatusChange,
   onSubtaskClick,
@@ -44,7 +42,6 @@ export function SubtaskList({
   canEditTags = false,
   onUpdateTags,
 }: SubtaskListProps) {
-  const navigate = useNavigate()
 
   if (!subtasks || subtasks.length === 0) {
     return (

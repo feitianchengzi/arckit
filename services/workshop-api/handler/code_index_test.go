@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -199,19 +201,6 @@ func TestCosineSimilarity(t *testing.T) {
 	}
 }
 
-func TestGeneratePseudoEmbedding(t *testing.T) {
-	emb := generatePseudoEmbedding()
-	if len(emb) != 128 {
-		t.Errorf("generatePseudoEmbedding() returned %d dimensions, want 128", len(emb))
-	}
-	for i, v := range emb {
-		expected := float64(i) / 128.0
-		if v != expected {
-			t.Errorf("emb[%d] = %f, want %f", i, v, expected)
-		}
-	}
-}
-
 func TestDefaultCodeIndexConfig(t *testing.T) {
 	config := DefaultCodeIndexConfig()
 	if config.MaxChunkLines <= 0 {
@@ -222,5 +211,35 @@ func TestDefaultCodeIndexConfig(t *testing.T) {
 	}
 	if config.BatchSize <= 0 {
 		t.Error("BatchSize should be positive")
+	}
+}
+
+func TestBatchEmbedRejectsUnavailableOrInvalidService(t *testing.T) {
+	for _, body := range []string{"invalid", `{"embeddings":[]}`, `{"embeddings":[[]]}`, `{"embeddings":[[1],[1,2]]}`} {
+		t.Run(body, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) }))
+			defer server.Close()
+			config := DefaultCodeIndexConfig()
+			config.EmbeddingURL = server.URL
+			vectors, err := batchEmbed([]string{"a", "b"}, config)
+			if err == nil || vectors != nil {
+				t.Fatalf("invalid service must not fabricate vectors: %v, %v", vectors, err)
+			}
+		})
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
+	defer server.Close()
+	config := DefaultCodeIndexConfig()
+	config.EmbeddingURL = server.URL
+	if vectors, err := batchEmbed([]string{"a"}, config); err == nil || vectors != nil {
+		t.Fatal("service error must fail indexing")
+	}
+}
+
+func TestDisabledAgentDoesNotInventRetrievalAnswer(t *testing.T) {
+	t.Setenv("OPENHANDS_ENABLED", "false")
+	response, err := processWithAgent(nil, nil, 1, 0, "订单导出为什么失败", nil, "", nil)
+	if err == nil || response != nil {
+		t.Fatalf("want unavailable, got %+v %v", response, err)
 	}
 }

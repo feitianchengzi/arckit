@@ -53,27 +53,13 @@ func TestOhCreateConversationUsesGivenWorkingDir(t *testing.T) {
 	}
 }
 
-func TestOhCreateConversationFallsBackToGlobalWorkspaceDir(t *testing.T) {
+func TestOhCreateConversationRejectsMissingWorkspace(t *testing.T) {
 	t.Setenv("LLM_API_KEY", "test-key")
-	t.Setenv("OH_WORKSPACE_DIR", "/fallback/projects")
-
-	var payload map[string]any
-	server := captureOpenHandsConversations(t, &payload)
-
-	agent := &OpenHandsAgent{URL: server.URL, APIKey: "k"}
-	if _, err := ohCreateConversation(agent, "hello", ""); err != nil {
-		t.Fatalf("ohCreateConversation: %v", err)
-	}
-
-	workspace, ok := payload["workspace"].(map[string]any)
-	if !ok {
-		t.Fatalf("payload workspace missing: %#v", payload)
-	}
-	if got := workspace["working_dir"]; got != "/fallback/projects" {
-		t.Fatalf("working_dir = %v, want /fallback/projects", got)
+	agent := &OpenHandsAgent{URL: "http://unused.invalid", APIKey: "k"}
+	if _, err := ohCreateConversation(agent, "hello", ""); err == nil {
+		t.Fatal("missing project workspace must be rejected")
 	}
 }
-
 
 func TestOhRepoRootDefaultsAndOverride(t *testing.T) {
 	t.Setenv("OH_REPO_ROOT", "")
@@ -97,8 +83,8 @@ func TestOhClonedRepoDirIsProjectScoped(t *testing.T) {
 
 func TestResolveProjectWorkspaceDirWithoutDatabase(t *testing.T) {
 	t.Setenv("OH_WORKSPACE_DIR", "/projects")
-	if got := resolveProjectWorkspaceDir(nil, 11); got != "/projects" {
-		t.Fatalf("resolveProjectWorkspaceDir(nil, 11) = %q, want /projects", got)
+	if got := resolveProjectWorkspaceDir(nil, 11); got != "" {
+		t.Fatalf("resolveProjectWorkspaceDir(nil, 11) = %q, want empty (fail closed)", got)
 	}
 }
 
@@ -109,6 +95,7 @@ func TestResolveProjectWorkspaceDirWithDatabase(t *testing.T) {
 	}
 
 	existingPath := t.TempDir()
+	existingPath, _ = filepath.EvalSymlinks(existingPath)
 	t.Setenv("OH_WORKSPACE_DIR", "/projects")
 	t.Setenv("OH_REPO_ROOT", filepath.Join(t.TempDir(), "repos"))
 
@@ -132,12 +119,13 @@ func TestResolveProjectWorkspaceDirWithDatabase(t *testing.T) {
 		if err := db.Create(&repo).Error; err != nil {
 			t.Fatalf("create repo: %v", err)
 		}
-		if got := resolveProjectWorkspaceDir(db, 902); got != cloneDir {
+		resolvedClone, _ := filepath.EvalSymlinks(cloneDir)
+		if got := resolveProjectWorkspaceDir(db, 902); got != resolvedClone {
 			t.Fatalf("resolveProjectWorkspaceDir = %q, want %q", got, cloneDir)
 		}
 	})
 
-	t.Run("ready repo is preferred over syncing one", func(t *testing.T) {
+	t.Run("partial repository coverage is rejected", func(t *testing.T) {
 		syncingPath := t.TempDir()
 		readyRepo := CustomerCodeRepo{ProjectID: 903, CustomerID: "a", RepoPath: existingPath, Branch: "main", Status: "ready"}
 		syncingRepo := CustomerCodeRepo{ProjectID: 903, CustomerID: "b", RepoPath: syncingPath, Branch: "main", Status: "syncing"}
@@ -147,14 +135,14 @@ func TestResolveProjectWorkspaceDirWithDatabase(t *testing.T) {
 		if err := db.Create(&readyRepo).Error; err != nil {
 			t.Fatalf("create ready repo: %v", err)
 		}
-		if got := resolveProjectWorkspaceDir(db, 903); got != existingPath {
-			t.Fatalf("resolveProjectWorkspaceDir = %q, want ready repo path %q", got, existingPath)
+		if got := resolveProjectWorkspaceDir(db, 903); got != "" {
+			t.Fatalf("resolveProjectWorkspaceDir = %q, want unavailable while one repo is syncing", got)
 		}
 	})
 
 	t.Run("unknown project falls back to global workspace", func(t *testing.T) {
-		if got := resolveProjectWorkspaceDir(db, 904); got != "/projects" {
-			t.Fatalf("resolveProjectWorkspaceDir = %q, want /projects", got)
+		if got := resolveProjectWorkspaceDir(db, 904); got != "" {
+			t.Fatalf("resolveProjectWorkspaceDir = %q, want empty (fail closed)", got)
 		}
 	})
 }

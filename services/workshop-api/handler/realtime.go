@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -59,8 +61,8 @@ func websocketSubprotocols(r *http.Request) []string {
 // WebSocket handshake, so the feedback session token is carried in the
 // Sec-WebSocket-Protocol field as "nebula-auth.<token>". workshop-api verifies
 // the self-signed fbs_ token itself (no gateway header injection required),
-// derives the project scope, and joins the same project room so the SDK receives
-// "feedback.message.created" broadcasts alongside the desktop/console clients.
+// derives the project/customer scope. Outbound events are checked against
+// feedback ownership and reduced to invalidation IDs, never project payloads.
 // Websocket route: GET /{service}/v2/feedback/projects/:id/ws
 func ConnectFeedbackSDKWebsocket(c *gin.Context) {
 	db := middleware.GetDB(c)
@@ -82,27 +84,21 @@ func ConnectFeedbackSDKWebsocket(c *gin.Context) {
 		return
 	}
 
-	// SDK session 客户没有内部 userID，仅按 projectID 入房；actor 置空。
+	// SDK 客户在项目房间接收前必须经过客户所有权过滤。
 	client := realtime.NewClient(conn, 0)
+	client.SetFilter(feedbackSDKEventFilter(db, scope))
+	// A socket may outlive its handshake. Enforce token expiry without waiting
+	// for a new HTTP request or a ping timeout.
+	expiresAt := feedbackSDKSocketExpiry(c.Request)
+	expiryTimer := time.AfterFunc(time.Until(expiresAt), client.Close)
+	defer expiryTimer.Stop()
 	realtime.DefaultHub.Join(projectID, client)
 	defer func() {
 		realtime.DefaultHub.Leave(projectID, client)
 		client.Close()
 	}()
 
-	store := realtime.DefaultStore
-	if store == nil {
-		store = realtime.NewStore(db)
-	}
-	earliestID, latestID, err := store.Bounds(projectID)
-	if err != nil {
-		return
-	}
-	connected := realtime.Event{SchemaVersion: realtime.EventSchemaVersion, Event: "system.connected", ProjectID: projectID, Actor: realtime.Actor{}, OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Data: gin.H{
-		"message":           "connected",
-		"earliest_event_id": earliestID,
-		"latest_event_id":   latestID,
-	}}
+	connected := gin.H{"type": "system.connected", "project_id": projectID}
 	done := make(chan struct{})
 	go func() {
 		_ = client.WritePump(wsPingPeriod, connected)
@@ -126,6 +122,76 @@ func ConnectFeedbackSDKWebsocket(c *gin.Context) {
 			break
 		}
 	}
+}
+
+// feedbackSDKEventFilter deliberately sends invalidation IDs only. The full
+// project event can contain customer content, actor data, and internal task data.
+func feedbackSDKEventFilter(db *gorm.DB, scope middleware.FeedbackSessionScope) func(any) (any, bool) {
+	return func(payload any) (any, bool) {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return nil, false
+		}
+		var event struct {
+			Event     string          `json:"event"`
+			ProjectID uint            `json:"project_id"`
+			Data      json.RawMessage `json:"data"`
+		}
+		if json.Unmarshal(raw, &event) != nil || event.ProjectID != scope.ProjectID || (event.Event != "feedback.updated" && event.Event != "feedback.message.created") {
+			return nil, false
+		}
+		var data struct {
+			ID         uint `json:"id"`
+			FeedbackID uint `json:"feedback_id"`
+		}
+		if json.Unmarshal(event.Data, &data) != nil {
+			return nil, false
+		}
+		feedbackID := data.FeedbackID
+		if event.Event == "feedback.updated" {
+			feedbackID = data.ID
+		}
+		if feedbackID == 0 {
+			return nil, false
+		}
+		var count int64
+		if db.Model(&models.Feedback{}).Where("id = ? AND project_id = ? AND custom_user_id = ?", feedbackID, scope.ProjectID, scope.CustomUserID).Count(&count).Error != nil || count != 1 {
+			return nil, false
+		}
+		result := gin.H{"type": event.Event, "project_id": scope.ProjectID, "feedback_id": feedbackID}
+		if event.Event == "feedback.message.created" {
+			result["message_id"] = data.ID
+		}
+		return result, true
+	}
+}
+
+func feedbackSDKSocketExpiry(r *http.Request) time.Time {
+	for _, protocol := range websocket.Subprotocols(r) {
+		if !strings.HasPrefix(protocol, wsAuthSubprotocolPrefix) {
+			continue
+		}
+		token := strings.TrimPrefix(protocol, wsAuthSubprotocolPrefix)
+		// Only inspect claims after verifying the signed token.
+		if _, err := verifyFeedbackSessionToken(token, time.Now()); err != nil {
+			return time.Now()
+		}
+		parts := strings.SplitN(strings.TrimPrefix(token, feedbackSessionTokenPrefix), ".", 2)
+		if len(parts) != 2 {
+			return time.Now()
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+		if err != nil {
+			return time.Now()
+		}
+		var claims feedbackSessionClaims
+		if json.Unmarshal(raw, &claims) != nil || claims.ExpiresAt <= 0 {
+			return time.Now()
+		}
+		return time.Unix(claims.ExpiresAt, 0)
+	}
+	// Legacy trusted-gateway scope cannot keep a socket open indefinitely.
+	return time.Now().Add(feedbackSessionLifetime)
 }
 
 // resolveFeedbackSDKWebsocketScope resolves the feedback session scope for a

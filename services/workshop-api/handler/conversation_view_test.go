@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -128,6 +129,12 @@ func TestAggregateConversationMessages(t *testing.T) {
 		mustCreateAgentRecord(t, db, AgentMessageRecord{
 			ConversationID: convID, FeedbackID: feedbackID, ProjectID: 11,
 			SenderType: "developer", Content: "已修复，请验证", CreatedAt: base.Add(13 * time.Millisecond),
+			Metadata: func() *string {
+				var original models.FeedbackMessage
+				db.Where("feedback_id = ? AND sender_type = ?", feedbackID, "developer").First(&original)
+				text := fmt.Sprintf(`{"feedback_message_id":%d}`, original.ID)
+				return &text
+			}(),
 		})
 		// agent 表：另一条真实的 agent 回答（不应被去重）
 		conf := 0.9

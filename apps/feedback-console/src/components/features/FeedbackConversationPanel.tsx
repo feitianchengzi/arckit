@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
+import { FeedbackLifecyclePanel } from './FeedbackLifecyclePanel'
 import { feedbackV2Client, type FeedbackV2Attachment, type FeedbackV2Message } from '@/lib/api/feedbackV2Client'
 import { getSignedUrl } from '@/lib/oss/upload/getSignedUrl'
 
@@ -21,6 +22,7 @@ function formatMessageTime(value: string) {
 function senderLabel(senderType: FeedbackV2Message['sender_type']) {
   if (senderType === 'customer') return '用户'
   if (senderType === 'system') return '系统'
+  if (senderType === 'agent') return '智能客服'
   return '开发者'
 }
 
@@ -36,7 +38,7 @@ function attachmentLabel(attachment: FeedbackV2Attachment) {
   return attachment.file_name || attachment.url || attachment.object_key?.split('/').pop() || '附件'
 }
 
-type AttachmentPreviewKind = 'image' | 'pdf' | null
+type AttachmentPreviewKind = 'image' | 'pdf' | 'audio' | null
 
 const SIGNED_ATTACHMENT_URL_TTL_MS = 15 * 60 * 1000
 const SIGNED_ATTACHMENT_URL_CACHE_SAFETY_WINDOW_MS = 60 * 1000
@@ -51,6 +53,7 @@ const signedAttachmentUrlCache = new Map<string, CachedAttachmentUrl>()
 const signedAttachmentUrlRequests = new Map<string, Promise<string>>()
 
 function getAttachmentCacheKey(feedbackId: number, attachment: FeedbackV2Attachment) {
+  if (attachment.access_path) return `agent:${feedbackId}:${attachment.access_path}`
   if (!attachment.id || !attachment.object_key) return ''
   return `${feedbackId}:${attachment.id}:${attachment.object_key}`
 }
@@ -109,6 +112,7 @@ async function getOrCreateSignedAttachmentUrl(
 function getAttachmentPreviewKind(attachment: FeedbackV2Attachment): AttachmentPreviewKind {
   const mimeType = attachment.mime_type?.toLowerCase() || ''
   const name = attachmentLabel(attachment).toLowerCase()
+  if (attachment.type === 'audio' || mimeType.startsWith('audio/')) return 'audio'
   if (attachment.type === 'image' || mimeType.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg)$/.test(name)) {
     return 'image'
   }
@@ -148,6 +152,8 @@ function AttachmentPreviewDialog({
         <div className="min-h-0 flex-1 bg-surface p-3">
           {kind === 'image' ? (
             <img src={previewUrl} alt={name} className="h-full w-full object-contain" />
+          ) : kind === 'audio' ? (
+            <audio controls preload="metadata" src={previewUrl} aria-label={name} className="w-full" />
           ) : (
             <iframe src={previewUrl} title={name} className="h-full w-full rounded border border-divider bg-white" />
           )}
@@ -183,6 +189,10 @@ function ConversationAttachment({
 
   const resolveSourceUrl = useCallback(async (forceRefresh = false) => {
     let nextUrl = forceRefresh ? '' : sourceUrl || attachment.url || ''
+    if (!nextUrl && attachment.access_path) {
+      const access = await feedbackV2Client.getAgentAttachmentAccess(attachment.access_path)
+      nextUrl = access.url
+    }
     if (!nextUrl && attachment.object_key) {
       if (!attachment.id) throw new Error('附件标识缺失，无法申请临时访问权限')
       const createSignedUrl = async () => {
@@ -198,7 +208,7 @@ function ConversationAttachment({
     if (!nextUrl) throw new Error('无法生成附件访问链接')
     setSourceUrl(nextUrl)
     return nextUrl
-  }, [attachment.id, attachment.object_key, attachment.url, attachmentCacheKey, feedbackId, sourceUrl])
+  }, [attachment.id, attachment.object_key, attachment.url, attachment.access_path, attachmentCacheKey, feedbackId, sourceUrl])
 
   useEffect(() => {
     if (kind !== 'image' || sourceUrl || imageLoadFailed) return
@@ -292,6 +302,7 @@ export function FeedbackConversationPanel({
   refreshKey = 0,
   standalone = false,
 }: FeedbackConversationPanelProps) {
+  const [panel, setPanel] = useState<'conversation' | 'lifecycle'>('conversation')
   const [messages, setMessages] = useState<FeedbackV2Message[]>([])
   const [draft, setDraft] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -303,7 +314,7 @@ export function FeedbackConversationPanel({
     setLoading(true)
     setError('')
     try {
-      setMessages(await feedbackV2Client.getMessages(feedbackId))
+      setMessages(await feedbackV2Client.getConversationMessages(feedbackId))
       if (projectId) {
         try {
           const result = await feedbackV2Client.markNotificationsRead({ projectId, feedbackId })
@@ -365,7 +376,7 @@ export function FeedbackConversationPanel({
         metadata: { source: 'feedback-console-web' },
         attachments,
       })
-      setMessages((current) => [...current, message])
+      setMessages((current) => [...current, { ...message, source: 'feedback' }])
       setDraft('')
       setFile(null)
       onChanged?.()
@@ -378,6 +389,11 @@ export function FeedbackConversationPanel({
 
   return (
     <section className="flex h-full min-h-0 flex-col" aria-label="反馈会话">
+      <div className="order-first flex shrink-0 gap-5 border-b border-divider bg-surface px-4 py-3" role="tablist" aria-label="反馈详情">
+        <button type="button" role="tab" aria-selected={panel === 'conversation'} onClick={() => setPanel('conversation')} className={panel === 'conversation' ? 'text-xs font-semibold text-primary' : 'text-xs text-foreground-secondary'}>完整沟通记录</button>
+        <button type="button" role="tab" aria-selected={panel === 'lifecycle'} onClick={() => setPanel('lifecycle')} className={panel === 'lifecycle' ? 'text-xs font-semibold text-primary' : 'text-xs text-foreground-secondary'}>卡片流转与结论</button>
+      </div>
+      {panel === 'lifecycle' ? <FeedbackLifecyclePanel feedbackId={feedbackId} refreshKey={refreshKey} onChanged={onChanged} /> : <>
       <div
         className={clsx(
           'shrink-0 bg-surface px-4 py-3',
@@ -447,7 +463,7 @@ export function FeedbackConversationPanel({
 
             if (systemEvent) {
               return (
-                <div key={message.id} className="flex items-center gap-3 py-0.5" role="status">
+                <div key={`${message.source || 'feedback'}:${message.id}`} className="flex items-center gap-3 py-0.5" role="status">
                   <span className="h-px flex-1 bg-divider" />
                   <div className="flex max-w-[80%] items-center gap-2 rounded-full border border-divider bg-surface-elevated px-3 py-1.5 text-xs text-foreground-secondary">
                     <span className="font-semibold text-foreground-tertiary">系统更新</span>
@@ -476,7 +492,7 @@ export function FeedbackConversationPanel({
 
             return (
               <article
-                key={message.id}
+                key={`${message.source || 'feedback'}:${message.id}`}
                 className={clsx(
                   'border px-4 py-3.5',
                   standalone ? 'rounded-xl sm:px-5 sm:py-4' : 'rounded-lg',
@@ -514,6 +530,7 @@ export function FeedbackConversationPanel({
           })}
         </div>
       </div>
+      </>}
     </section>
   )
 }

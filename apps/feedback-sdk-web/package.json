@@ -8,9 +8,12 @@
     "dev": "vite",
     "build": "vite build",
     "build:check": "tsc && vite build",
-    "build:v2": "VITE_PUBLIC_BASE=/sdk-v2 vite build",
-    "build:v2:check": "tsc && VITE_PUBLIC_BASE=/sdk-v2 vite build",
+    "build:v2": "VITE_PUBLIC_BASE=/sdk-v2 VITE_SDK_CONTRACT=v2 VITE_SDK_SUPPORTED_CONTRACTS=v2 vite build",
+    "build:v2:check": "tsc && VITE_PUBLIC_BASE=/sdk-v2 VITE_SDK_CONTRACT=v2 VITE_SDK_SUPPORTED_CONTRACTS=v2 vite build",
+    "build:v3": "VITE_PUBLIC_BASE=/sdk-v3 VITE_SDK_CONTRACT=v3 VITE_SDK_SUPPORTED_CONTRACTS=v3 vite build",
+    "build:v3:check": "tsc && VITE_PUBLIC_BASE=/sdk-v3 VITE_SDK_CONTRACT=v3 VITE_SDK_SUPPORTED_CONTRACTS=v3 vite build",
     "build:release": "bash ./scripts/build-sdk-release.sh",
+    "build:release:v3": "VITE_SDK_CONTRACT=v3 VITE_SDK_SUPPORTED_CONTRACTS=v3 bash ./scripts/build-sdk-release.sh",
     "test": "vitest run",
     "test:release": "python3 ./scripts/test_sdk_release.py",
     "test:watch": "vitest",
@@ -23,7 +26,7 @@
     "clsx": "^2.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.1"
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.10.0",
@@ -38,5 +41,8 @@
     "typescript": "^5.0.0",
     "vite": "^5.0.8",
     "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

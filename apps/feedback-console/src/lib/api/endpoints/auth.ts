@@ -5,7 +5,6 @@
 import { apiClient } from '../client'
 import { handleResponse } from '../interceptors/response'
 import { CreateUserRequest, TodoUser } from '@/types/auth'
-import { getAuthInfo } from '@/lib/utils/tokenManager'
 
 export const todoUserApi = {
   /**
@@ -51,7 +50,7 @@ export const todoUserApi = {
    * @param id 用户ID（保留参数用于兼容，但不会被使用）
    * @param data 要更新的用户信息
    */
-  updateUser: async (id: number, data: Partial<CreateUserRequest>): Promise<TodoUser> => {
+  updateUser: async (_id: number, data: Partial<CreateUserRequest>): Promise<TodoUser> => {
     console.log('🔄 更新用户信息:', data)
     // 根据API文档，更新接口路径是 PUT /workshop/v1/user/users（不需要ID）
     try {

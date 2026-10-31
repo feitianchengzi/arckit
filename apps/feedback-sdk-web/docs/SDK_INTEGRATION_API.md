@@ -1,4 +1,4 @@
-# Feedback SDK 接入 API（V1 / V2）
+# Feedback SDK 接入 API（V1 / V2 / V3）
 
 本文档说明移动端 WebView 如何以函数方式接入反馈组件。
 
@@ -11,7 +11,9 @@
 
 ## 控制台 iframe 接入
 
-反馈平台控制台的 V2 通过 iframe 打开 `/sdk-v2/index.html?embed=web`，SDK 加载后会向父页面发送 `feedback-sdk:ready`，父页面再以 `postMessage` 发送配置。现有待办 Web 与 iOS 继续使用稳定的 `/sdk`，不受 V2 影响：
+稳定 V2 继续使用 `/sdk-v2/index.html?embed=web`。新版统一工作台只发布到 `/sdk-v3-canary` 与 `/sdk-v3`；切换 V3 的宿主只需替换 iframe URL，运行时仍复用已验证的 V2 Session/API Key 鉴权字段。`/sdk` 与 `/sdk-v2` 不随 V3 发布切换。
+
+SDK 加载后会向父页面发送 `feedback-sdk:ready`，父页面再以 `postMessage` 发送配置：
 
 ```ts
 iframe.contentWindow?.postMessage({
@@ -58,7 +60,7 @@ SDK 在生产环境只接受来自同源父页面的消息，以及本机开发�
 
 `feedback-console-web` 是兼容保留的旧 `source` 值；新的接入应使用 `feedback-sdk-host`。
 
-V2 的嵌入页会自行渲染全屏遮罩、反馈卡片和关闭按钮。接入方只需承载一个全屏透明 iframe、发送配置及打开命令；不应提供容器、尺寸、关闭按钮、遮罩样式或跨 iframe 读取 SDK DOM。SDK 通过 `feedback-sdk:close` 通知接入方隐藏 iframe。
+V2/V3 的嵌入页会自行渲染全屏遮罩、反馈卡片和关闭按钮。接入方只需承载一个全屏透明 iframe、发送配置及打开命令；不应提供容器、尺寸、关闭按钮、遮罩样式或跨 iframe 读取 SDK DOM。SDK 通过 `feedback-sdk:close` 通知接入方隐藏 iframe。
 
 ## 2. 全局桥接对象
 

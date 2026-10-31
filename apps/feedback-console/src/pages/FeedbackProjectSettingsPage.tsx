@@ -17,7 +17,7 @@ import type { ApiKeyInfo } from '@/types/auth'
 type V2AuthMode = 'direct' | 'session'
 type Platform = 'web' | 'ios' | 'android'
 
-const SDK_URL = 'https://feedback.feitianchengzi.com/sdk-v2/index.html?embed=web'
+const SDK_URL = 'https://feedback.feitianchengzi.com/sdk-v3/index.html?embed=web'
 
 function oneYearLaterISO() {
   const date = new Date()

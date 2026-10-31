@@ -1,4 +1,5 @@
-import { configureFeedbackSDK, getFeedbackSDKConfig, isFeedbackSDKV2NotificationsEnabled, setFeedbackSDKTheme } from './config'
+import { feedbackSessionExpired } from '../feedback/errors'
+import { configureFeedbackSDK, getFeedbackSDKConfig, getFeedbackSDKProductContract, isFeedbackSDKV2NotificationsEnabled, setFeedbackSDKTheme } from './config'
 import type { FeedbackSDKConfig, FeedbackSDKLocale } from './config'
 import { fetchFeedbackNotificationsV2 } from '@/lib/feedback/v2'
 import { buildAppPath } from './router'
@@ -65,7 +66,8 @@ interface FeedbackSDKHostConfigMessage {
 let hostMessageListenerInstalled = false
 
 function getReleaseInfo(): FeedbackSDKReleaseInfo {
-  const supportedContracts = (import.meta.env.VITE_SDK_SUPPORTED_CONTRACTS || 'v1,v2')
+  const defaultContracts = getFeedbackSDKProductContract() === 'v3' ? 'v3' : 'v1,v2'
+  const supportedContracts = (import.meta.env.VITE_SDK_SUPPORTED_CONTRACTS || defaultContracts)
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
@@ -141,13 +143,13 @@ function isFeedbackSDKConfig(value: unknown): value is FeedbackSDKConfig {
 
 export function requestFeedbackSessionRefresh(): Promise<void> {
   if (typeof window === 'undefined' || window.parent === window) {
-    return Promise.reject(new Error('反馈会话已过期，请由宿主应用刷新后重试'))
+    return Promise.reject(new Error(feedbackSessionExpired))
   }
 
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
       window.removeEventListener(FEEDBACK_SDK_CONFIGURED_EVENT, onConfigured)
-      reject(new Error('反馈会话刷新超时，请重试'))
+      reject(new Error(feedbackSessionExpired))
     }, 10000)
     const onConfigured = () => {
       window.clearTimeout(timeout)
@@ -183,7 +185,7 @@ export async function getFeedbackSDKUnreadCount(): Promise<number> {
 
 function isAllowedParentOrigin(origin: string): boolean {
   if (getAllowedParentOrigins().includes(origin)) return true
-  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+  return import.meta.env.DEV && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
 }
 
 function installHostMessageListener() {

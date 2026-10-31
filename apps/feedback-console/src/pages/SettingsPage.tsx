@@ -5,17 +5,14 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
 import { Button, TextField, LoadingView, ErrorView, Avatar } from '@/components/ui'
 import { AvatarCropUpload } from '@/components/ui/AvatarCropUpload'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
 import { useLogout, useFirstTimeSetup } from '@/hooks/useAuth'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
-import { getAuthInfo } from '@/lib/utils/tokenManager'
 
 export default function SettingsPage() {
-  const navigate = useNavigate()
   const setUser = useAuthStore((state) => state.setUser)
   const currentUser = useAuthStore((state) => state.user)
   const logoutMutation = useLogout()

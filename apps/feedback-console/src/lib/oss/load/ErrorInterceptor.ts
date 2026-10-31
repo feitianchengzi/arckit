@@ -23,9 +23,10 @@ const OSS_IMAGE_URL_UPDATED_EVENT = 'oss-image-url-updated'
 /**
  * 触发全局事件，通知所有使用相同 objectKey 的图片元素更新 URL
  */
-function notifyUrlUpdated(objectKey: string, newUrl: string): void {
+function notifyImageUrlUpdated(objectKey: string, newUrl: string): void {
   // 更新全局缓存
   urlCache.set(objectKey, newUrl)
+  notifyUrlUpdated(objectKey, newUrl)
   
   // 触发自定义事件
   const event = new CustomEvent(OSS_IMAGE_URL_UPDATED_EVENT, {
@@ -135,7 +136,7 @@ function handleImageError(event: ErrorEvent): void {
         img.removeEventListener('load', onLoadSuccess)
         
         // 通知所有使用相同 objectKey 的图片元素更新 URL
-        notifyUrlUpdated(objectKey, newUrl)
+        notifyImageUrlUpdated(objectKey, newUrl)
       }
       img.addEventListener('load', onLoadSuccess, { once: true })
       

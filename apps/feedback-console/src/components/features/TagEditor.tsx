@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui'
-import { normalizeColorTo8Digit, argbToCssColor, buildTagName } from '@/lib/utils/tagUtils'
+import { normalizeColorTo8Digit, argbToCssColor } from '@/lib/utils/tagUtils'
 
 export interface TagEditorProps {
   /** 当前标签名称 */

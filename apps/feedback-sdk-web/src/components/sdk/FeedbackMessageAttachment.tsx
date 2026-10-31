@@ -1,9 +1,10 @@
+import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
-import type { FeedbackV2Attachment } from '@/lib/feedback/v2'
+import { getAgentAttachmentAccessV2, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { getFeedbackAttachmentURLV2 } from '@/lib/feedback/upload'
 import { t } from '@/i18n'
 
-type PreviewKind = 'image' | 'pdf' | null
+type PreviewKind = 'image' | 'pdf' | 'audio' | null
 
 function attachmentLabel(attachment: FeedbackV2Attachment) {
   return attachment.file_name || attachment.url || attachment.object_key?.split('/').pop() || t('attachment.default_label')
@@ -15,6 +16,7 @@ function getPreviewKind(attachment: FeedbackV2Attachment): PreviewKind {
   if (attachment.type === 'image' || mimeType.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg)$/.test(name)) {
     return 'image'
   }
+  if (attachment.type === 'audio' || mimeType.startsWith('audio/')) return 'audio'
   if (mimeType === 'application/pdf' || name.endsWith('.pdf')) {
     return 'pdf'
   }
@@ -23,7 +25,7 @@ function getPreviewKind(attachment: FeedbackV2Attachment): PreviewKind {
 
 async function createInlinePreviewUrl(sourceUrl: string, mimeType: string) {
   const response = await fetch(sourceUrl)
-  if (!response.ok) throw new Error(t('attachment.read_failed', { status: response.status }))
+  if (!response.ok) throw new Error(t('attachment.read_failed'))
   const file = await response.blob()
   return URL.createObjectURL(new Blob([file], { type: mimeType }))
 }
@@ -41,8 +43,13 @@ function AttachmentPreviewDialog({
   sourceUrl: string
   onClose: () => void
 }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3" role="dialog" aria-modal="true" aria-label={t('attachment.preview_label', { name })}>
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); onClose() } }
+    document.addEventListener('keydown', close, true)
+    return () => document.removeEventListener('keydown', close, true)
+  }, [onClose])
+  return createPortal(
+    <div data-feedback-sdk-shell className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3" role="dialog" aria-modal="true" aria-label={t('attachment.preview_label', { name })}>
       <section className="flex h-full max-h-[88dvh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-surface shadow-2xl">
         <header className="flex items-center justify-between gap-3 border-b border-divider px-3 py-2.5">
           <p className="min-w-0 truncate text-sm font-semibold text-foreground">{name}</p>
@@ -58,16 +65,16 @@ function AttachmentPreviewDialog({
         <div className="min-h-0 flex-1 bg-surface p-2">
           {kind === 'image' ? (
             <img src={previewUrl} alt={name} className="h-full w-full object-contain" />
-          ) : (
+          ) : kind === 'audio' ? <audio controls autoPlay={false} src={previewUrl} aria-label={name} className="w-full" /> : (
             <iframe src={previewUrl} title={name} className="h-full w-full rounded border border-divider bg-white" />
           )}
         </div>
       </section>
-    </div>
+    </div>, document.body
   )
 }
 
-export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedbackId: number; attachment: FeedbackV2Attachment }) {
+export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedbackId: number; conversationId?: string; attachment: FeedbackV2Attachment }) {
   const [sourceUrl, setSourceUrl] = useState(attachment.url || '')
   const [previewUrl, setPreviewUrl] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -95,6 +102,7 @@ export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedback
     setError('')
     try {
       let nextUrl = sourceUrl || attachment.url || ''
+      if (attachment.access_path) nextUrl = await getAgentAttachmentAccessV2(attachment.access_path)
       if (!nextUrl && attachment.object_key) {
         if (!attachment.id) throw new Error(t('attachment.missing_id'))
         nextUrl = await getFeedbackAttachmentURLV2({
@@ -109,11 +117,11 @@ export function FeedbackMessageAttachment({ feedbackId, attachment }: { feedback
         window.open(nextUrl, '_blank', 'noopener,noreferrer')
         return
       }
-      const nextPreviewUrl = await createInlinePreviewUrl(nextUrl, kind === 'pdf' ? 'application/pdf' : attachment.mime_type || 'image/*')
+      const nextPreviewUrl = await createInlinePreviewUrl(nextUrl, kind === 'pdf' ? 'application/pdf' : attachment.mime_type || (kind === 'audio' ? 'audio/webm' : 'image/*'))
       setPreviewUrl(nextPreviewUrl)
       setPreviewOpen(true)
     } catch (err: any) {
-      setError(err?.message || t('attachment.preview_failed'))
+      setError(t('attachment.preview_failed'))
     } finally {
       setLoading(false)
     }

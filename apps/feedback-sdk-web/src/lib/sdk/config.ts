@@ -2,6 +2,7 @@ import { applyFeedbackSDKTheme, normalizeFeedbackSDKTheme, type FeedbackSDKTheme
 
 export type FeedbackSDKV2AuthMode = 'session' | 'apiKey'
 export type FeedbackSDKLocale = 'zh-CN' | 'en-US'
+export type FeedbackSDKProductContract = 'v1' | 'v2' | 'v3'
 
 /**
  * Optional non-identifying diagnostics supplied by an embedding host. This is
@@ -188,6 +189,21 @@ export function getFeedbackSDKV2AuthMode(): FeedbackSDKV2AuthMode | null {
 
 export function isFeedbackSDKV2Enabled(): boolean {
   return getFeedbackSDKV2AuthMode() !== null
+}
+
+/**
+ * Product-surface contract selected when the immutable SDK artifact is built.
+ * V3 deliberately keeps using the stable Workshop V2 authentication/API
+ * contract; the product version and the transport/API version are separate.
+ */
+export function getFeedbackSDKProductContract(): FeedbackSDKProductContract {
+  const contract = trimValue(import.meta.env.VITE_SDK_CONTRACT || '').toLowerCase()
+  if (contract === 'v1' || contract === 'v2' || contract === 'v3') return contract
+  return 'v2'
+}
+
+export function isFeedbackSDKV3Enabled(): boolean {
+  return getFeedbackSDKProductContract() === 'v3' && getFeedbackSDKV2AuthMode() !== null
 }
 
 // Notifications are a separate V2 rollout. Existing V2 integrations keep

@@ -39,6 +39,11 @@ export interface CreateFeedbackInput {
 }
 
 export interface FeedbackListOptions {
+  q?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  dateField?: 'created' | 'updated'
   page?: number
   pageSize?: number
   includeDeleted?: boolean

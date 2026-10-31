@@ -1,3 +1,4 @@
+import { feedbackFetch, readFeedbackEnvelope, feedbackNotConfigured, feedbackUploadUnavailable } from './errors'
 import { getFeedbackSDKConfig } from '@/lib/sdk'
 import { createFeedbackUploadPolicyV2, getFeedbackAttachmentOSSCredentialsV2, type FeedbackV2Attachment } from './v2'
 
@@ -48,23 +49,14 @@ function getGatewayBaseUrl(): string {
   const cfg = getFeedbackSDKConfig()
   if (cfg.gatewayUrl?.trim()) return cfg.gatewayUrl.trim()
   if (import.meta.env.DEV) return '/gateway'
-  return import.meta.env.VITE_GATEWAY_URL || 'https://api.feitianchengzi.com'
+  if (import.meta.env.VITE_GATEWAY_URL) return import.meta.env.VITE_GATEWAY_URL
+  throw new Error(feedbackNotConfigured)
 }
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init)
-  const json = (await response.json().catch(() => ({}))) as ApiEnvelope<T>
-
-  if (!response.ok) {
-    const message = json.error?.message || json.message || `Request failed: ${response.status}`
-    throw new Error(message)
-  }
-
-  if (json.code && json.code !== 'OK') {
-    throw new Error(json.error?.message || json.message || `API error: ${json.code}`)
-  }
-
-  return (json.data ?? (json as unknown as T))
+  const json = await readFeedbackEnvelope<ApiEnvelope<T>>(await feedbackFetch(input, init))
+  if (json.data === undefined) throw new Error(feedbackUploadUnavailable)
+  return json.data
 }
 
 async function loadOSSSDK(): Promise<any> {
@@ -84,12 +76,22 @@ async function loadOSSSDK(): Promise<any> {
       if (window.OSS) {
         resolve(window.OSS)
       } else {
-        reject(new Error('OSS SDK 加载失败'))
+        reject(new Error(feedbackUploadUnavailable))
       }
     }
-    script.onerror = () => reject(new Error('无法加载 OSS SDK'))
+    script.onerror = () => reject(new Error(feedbackUploadUnavailable))
     document.head.appendChild(script)
   })
+}
+
+function createOSSClient(OSS: any, options: Record<string, unknown>): any {
+  try { return new OSS(options) }
+  catch { throw new Error(feedbackUploadUnavailable) }
+}
+
+function signedObjectURL(client: any, key: string, expires: number): string {
+  try { return client.signatureUrl(key, { expires }) }
+  catch { throw new Error('附件暂时无法读取，请稍后重试。') }
 }
 
 function getFileExtension(filename: string): string {
@@ -139,12 +141,12 @@ export async function uploadFeedbackImageByApiKey(params: {
 }): Promise<{ objectKey: string; signedUrl: string }> {
   const apiKey = trimValue(params.apiKey)
   if (!apiKey) {
-    throw new Error('上传失败：API Key 为空')
+    throw new Error(feedbackNotConfigured)
   }
 
   const credentials = await getOSSCredentials(apiKey)
   const OSS = await loadOSSSDK()
-  const client = new OSS({
+  const client = createOSSClient(OSS, {
     region: credentials.region,
     accessKeyId: credentials.accessKeyId,
     accessKeySecret: credentials.accessKeySecret,
@@ -159,15 +161,13 @@ export async function uploadFeedbackImageByApiKey(params: {
     progress: (progress: number) => {
       params.onProgress?.(progress)
     },
-  })
+  }).catch(() => { throw new Error(feedbackUploadUnavailable) })
 
   if (result?.res?.status !== 200) {
-    throw new Error(`上传失败：OSS 返回状态 ${String(result?.res?.status || 'unknown')}`)
+    throw new Error(feedbackUploadUnavailable)
   }
 
-  const signedUrl = client.signatureUrl(objectKey, {
-    expires: 3600,
-  })
+  const signedUrl = signedObjectURL(client, objectKey, 3600)
 
   return {
     objectKey,
@@ -184,7 +184,7 @@ export async function uploadFeedbackFileV2(params: {
   if (!mimeType) {
     throw new Error('附件缺少 MIME 类型，无法安全上传')
   }
-  const type = mimeType.startsWith('image/') ? 'image' : 'file'
+  const type = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('audio/') ? 'audio' : 'file'
 
   const policy = await createFeedbackUploadPolicyV2({
     type,
@@ -200,9 +200,9 @@ export async function uploadFeedbackFileV2(params: {
   form.append('file', params.file, fileName)
 
   params.onProgress?.(0.1)
-  const response = await fetch(policy.upload_url, { method: 'POST', body: form })
+  const response = await feedbackFetch(policy.upload_url, { method: 'POST', body: form })
   if (response.status !== 201) {
-    throw new Error(`上传失败：OSS 返回状态 ${response.status}`)
+    throw new Error(feedbackUploadUnavailable)
   }
   params.onProgress?.(1)
 
@@ -241,7 +241,7 @@ export async function getFeedbackAttachmentURLV2(params: {
     attachmentId: params.attachmentId,
   })
   const OSS = await loadOSSSDK()
-  const client = new OSS({
+  const client = createOSSClient(OSS, {
     region: credentials.region,
     accessKeyId: credentials.access_key_id,
     accessKeySecret: credentials.access_key_secret,
@@ -250,5 +250,5 @@ export async function getFeedbackAttachmentURLV2(params: {
     secure: credentials.secure,
     authorizationV4: credentials.authorization_v4,
   })
-  return client.signatureUrl(key, { expires: 900 })
+  return signedObjectURL(client, key, 900)
 }

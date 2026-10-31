@@ -22,7 +22,6 @@ export function FirstTimeSetupDialog({
   open,
   onClose,
   onComplete,
-  defaultEmail,
 }: FirstTimeSetupDialogProps) {
   const [username, setUsername] = useState('')
   const [avatar, setAvatar] = useState<string>()

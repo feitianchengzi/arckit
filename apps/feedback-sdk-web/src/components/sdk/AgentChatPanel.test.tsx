@@ -5,6 +5,7 @@ import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 // 屏蔽 v2 模块的真实网络调用，仅关心渲染产物。
 vi.mock('@/lib/feedback/v2', () => {
   const fakeHistory = (): import('@/lib/feedback/v2').AgentMessage[] => []
+  const standaloneMessages = vi.fn().mockResolvedValue(fakeHistory())
   return {
     sendAgentMessage: vi.fn(),
     getAgentConversations: vi.fn().mockResolvedValue([]),
@@ -12,7 +13,8 @@ vi.mock('@/lib/feedback/v2', () => {
     // 独立客服会话（standalone）API：不绑定 feedback
     sendStandaloneAgentMessage: vi.fn(),
     getStandaloneAgentConversations: vi.fn().mockResolvedValue([]),
-    getStandaloneAgentMessages: vi.fn().mockResolvedValue(fakeHistory()),
+    getStandaloneAgentMessages: standaloneMessages,
+    getStandaloneAgentMessagesPage: vi.fn(async (id: string) => { const messages = await standaloneMessages(id); return { messages, total: messages.length } }),
     // escalateFeedbackV2 不应再被引用；若仍被 import 会因不存在而失败测试。
   }
 })
@@ -266,4 +268,41 @@ describe('AgentChatPanel standalone 独立会话', () => {
     render(<AgentChatPanel standalone onConversationReady={onConversationReady} />)
     await waitFor(() => expect(onConversationReady).toHaveBeenCalledWith('conv-r1'))
   })
+})
+
+
+describe('multi-turn clarification continuity', () => {
+  it('keeps the same conversation for multiple clarification rounds and prefers server state', async () => {
+    const v2 = await import('@/lib/feedback/v2')
+    vi.mocked(v2.getStandaloneAgentConversations).mockResolvedValue([])
+    vi.mocked(v2.sendStandaloneAgentMessage).mockResolvedValueOnce({ message_id: 1, conversation_id: 'persistent-draft', content: '请补充期望结果', sender_type: 'agent', confidence: 0.3, need_collect: true, clarification: { status: 'collecting', summary: { position: '订单页', phenomenon: '导出无响应', expect: '' }, missing_fields: ['expect'], questions: ['期望结果？'], ready_to_confirm: false } }).mockResolvedValueOnce({ message_id: 2, conversation_id: 'persistent-draft', content: '请核对', sender_type: 'agent', confidence: 0.4, need_collect: true, structured: { position: '订单页', phenomenon: '导出无响应', expect: '下载 CSV' } })
+    const collect = vi.fn()
+    render(<AgentChatPanel standalone onNeedCollect={collect} />)
+    await waitFor(() => expect(screen.queryByText('正在加载会话...')).toBeNull())
+    const input = screen.getByPlaceholderText('输入你的问题...')
+    fireEvent.change(input, { target: { value: '订单页导出无响应' } }); fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(collect).toHaveBeenCalledTimes(1))
+    expect(collect.mock.calls[0][0].structured.position).toBe('订单页')
+    fireEvent.change(input, { target: { value: '期望下载 CSV' } }); fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(collect).toHaveBeenCalledTimes(2))
+    expect(v2.sendStandaloneAgentMessage).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'persistent-draft', content: '期望下载 CSV' }))
+    expect(screen.getByText('请补充期望结果')).toBeInTheDocument()
+  })
+})
+
+it('requests a new server conversation only for the first successful turn after explicit new consultation', async () => {
+  const api = await import('@/lib/feedback/v2')
+  vi.mocked(api.getStandaloneAgentConversations).mockResolvedValue([])
+  vi.mocked(api.sendStandaloneAgentMessage).mockResolvedValueOnce({ conversation_id: 'new-server', message_id: 55, content: '已分析', sender_type: 'agent' } as never).mockResolvedValueOnce({ conversation_id: 'new-server', message_id: 56, content: '已补充', sender_type: 'agent' } as never)
+  render(<AgentChatPanel standalone />)
+  await waitFor(() => expect(screen.getByRole('button', { name: '新咨询' })).not.toBeDisabled())
+  fireEvent.click(screen.getByRole('button', { name: '新咨询' }))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '第一个问题' } })
+  fireEvent.click(screen.getByRole('button', { name: '发送' }))
+  await waitFor(() => expect(api.sendStandaloneAgentMessage).toHaveBeenLastCalledWith(expect.objectContaining({ newConversation: true, conversationId: undefined })))
+  await waitFor(() => expect(screen.getByRole('button', { name: '发送' })).not.toBeDisabled())
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '补充说明' } })
+  fireEvent.click(screen.getByRole('button', { name: '发送' }))
+  await waitFor(() => expect(api.sendStandaloneAgentMessage).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new-server' })))
+  expect(vi.mocked(api.sendStandaloneAgentMessage).mock.calls.at(-1)?.[0].newConversation).not.toBe(true)
 })

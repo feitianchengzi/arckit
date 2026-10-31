@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"strconv"
@@ -93,6 +94,16 @@ func feedbackNotificationTypeForMessage(message models.FeedbackMessage) string {
 		switch message.MessageType {
 		case models.FeedbackMessageTypeStatusChange, models.FeedbackMessageTypeTaskLink:
 			return models.FeedbackNotificationTypeStatusChange
+		case models.FeedbackMessageTypeSystem:
+			if message.Metadata != nil {
+				var meta struct {
+					Type string `json:"type"`
+				}
+				if json.Unmarshal([]byte(*message.Metadata), &meta) == nil && meta.Type == "delivery_notification" {
+					return models.FeedbackNotificationTypeStatusChange
+				}
+			}
+
 		}
 	}
 	return ""

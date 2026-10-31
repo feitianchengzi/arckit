@@ -43,7 +43,7 @@ export function buildRealtimeAuth(projectId?: number): RealtimeAuth | null {
     const pathId = projectId && projectId > 0 ? projectId : 0
     return {
       url: `${wsBase}/workshop/v2/feedback/projects/${pathId}/ws`,
-      subprotocols: [`${wsAuthSubprotocolPrefix}${token}`],
+      subprotocols: ['feedback-v2', `${wsAuthSubprotocolPrefix}${token}`],
     }
   }
 
@@ -112,7 +112,8 @@ export function useFeedbackRealtime({ projectId, onEvent, enabled = true }: UseF
         ws.onmessage = (event) => {
           if (cancelled) return
           try {
-            const data = JSON.parse(event.data) as FeedbackRealtimeEvent
+            const data = normalizeFeedbackRealtimeEvent(JSON.parse(event.data))
+            if (!data) return
             if (data.type === 'feedback.updated' || data.type === 'feedback.message.created') {
               setLastEvent(data)
               onEvent?.(data)
@@ -157,4 +158,15 @@ export function useFeedbackRealtime({ projectId, onEvent, enabled = true }: UseF
   }, [projectId, enabled, onEvent, cleanup])
 
   return { connected, lastEvent }
+}
+
+/** Normalize the backend event envelope before the status page consumes it. */
+export function normalizeFeedbackRealtimeEvent(raw: unknown): FeedbackRealtimeEvent | null {
+  if (!raw || typeof raw !== 'object') return null
+  const event = raw as Record<string, unknown>
+  const kind = event.event ?? event.type
+  if (kind !== 'feedback.updated' && kind !== 'feedback.message.created') return null
+  const payload = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : event
+  const feedbackId = payload.feedback_id ?? (kind === 'feedback.updated' ? payload.id : undefined) ?? event.feedback_id ?? event.subject_id
+  return { type: kind, project_id: String(event.project_id ?? ''), feedback_id: feedbackId !== undefined && Number.isFinite(Number(feedbackId)) ? Number(feedbackId) : undefined, message_id: kind === 'feedback.message.created' ? Number(payload.id ?? event.message_id) || undefined : undefined, updated_at: String(payload.updated_at ?? event.occurred_at ?? '') }
 }

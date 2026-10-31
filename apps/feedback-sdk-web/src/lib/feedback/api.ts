@@ -1,3 +1,4 @@
+import { feedbackFetch, readFeedbackEnvelope, feedbackNotConfigured, feedbackUnavailable } from './errors'
 import type { FeedbackItem, FeedbackStatus, TimelineNode } from '@/lib/feedback/types'
 import { getFeedbackSDKConfig, setFeedbackSDKApiKey, setFeedbackSDKCustomUserId, setFeedbackSDKProjectId } from '@/lib/sdk'
 
@@ -9,7 +10,7 @@ function getGatewayBaseUrl(): string {
   // 避免外部客户封装时误连到默认内部域名。
   const envGateway = import.meta.env.VITE_GATEWAY_URL
   if (envGateway) return envGateway
-  throw new Error('未配置反馈网关地址，请通过 window.FeedbackSDK.configure({ gatewayUrl }) 或环境变量 VITE_GATEWAY_URL 注入。')
+  throw new Error(feedbackNotConfigured)
 }
 
 const FEEDBACK_API_KEY_STORAGE = 'sdk_feedback_api_key'
@@ -378,19 +379,7 @@ export function feedbackToItem(feedback: FeedbackRecord, options?: { useCustomer
 }
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<ApiEnvelope<T>> {
-  const response = await fetch(input, init)
-  const json = (await response.json().catch(() => ({}))) as ApiEnvelope<T>
-
-  if (!response.ok) {
-    const message = json.error?.message || json.message || `Request failed: ${response.status}`
-    throw new Error(message)
-  }
-
-  if (json.code && json.code !== 'OK') {
-    throw new Error(json.error?.message || json.message || `API error: ${json.code}`)
-  }
-
-  return json
+  return readFeedbackEnvelope<ApiEnvelope<T>>(await feedbackFetch(input, init))
 }
 
 export function getOrPersistApiKey(_searchParams?: URLSearchParams): string {
@@ -476,7 +465,7 @@ export async function resolveProjectId(_searchParams: URLSearchParams | undefine
   const projects = await listProjectsByApiKey(apiKey)
   const firstProject = projects[0]
   if (!firstProject?.id) {
-    throw new Error('未找到可用项目，请先在工作台创建项目，或通过 SDK configure 注入 projectId')
+    throw new Error(feedbackNotConfigured)
   }
 
   setFeedbackSDKProjectId(firstProject.id)
@@ -530,7 +519,7 @@ export async function submitFeedbackByApiKey(params: {
 
   const feedback = envelope.data
   if (!feedback?.id || !feedback.short_id) {
-    throw new Error('反馈提交成功，但返回数据不完整')
+    throw new Error(feedbackUnavailable)
   }
 
   return {

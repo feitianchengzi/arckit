@@ -112,11 +112,9 @@ export async function compressImageDataUrl(
   const img = await loadImage(dataUrl)
 
   let currentDimension = Math.max(1, resolved.maxDimension)
-  let lastResult: { dataUrl: string; sizeBytes: number; width: number; height: number } | null = null
 
   while (true) {
     const result = await compressAtDimension(img, currentDimension, resolved)
-    lastResult = result
 
     if (result.sizeBytes <= resolved.maxSizeBytes) {
       return {

@@ -114,7 +114,7 @@ export const zhCN = {
   'form.close_preview': '关闭图片预览',
 
   'attachment.default_label': '附件',
-  'attachment.read_failed': '读取附件失败：{status}',
+  'attachment.read_failed': '附件暂时无法读取，请稍后重试。',
   'attachment.download': '下载',
   'attachment.close_preview': '关闭预览',
   'attachment.preview_label': '{name}预览',
