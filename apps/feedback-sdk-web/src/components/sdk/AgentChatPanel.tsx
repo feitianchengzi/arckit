@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { sendAgentMessage, getAgentConversationMessages, sendStandaloneAgentMessage, getStandaloneAgentConversations, getStandaloneAgentConversationsPage, getStandaloneAgentMessages, getStandaloneAgentMessagesPage, getAgentConversations, type AgentSource, type AgentMessage, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
+import { sendAgentMessage, getAgentCapabilities, getAgentConversationMessages, sendStandaloneAgentMessage, getStandaloneAgentConversations, getStandaloneAgentConversationsPage, getStandaloneAgentMessages, getStandaloneAgentMessagesPage, getAgentConversations, type AgentSource, type AgentMessage, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { MediaComposer } from './MediaComposer'
 import { FeedbackMessageAttachment } from './FeedbackMessageAttachment'
 import { activeConsultation, setActiveConsultation, clearConsultationDraft, migrateConsultationDraft, readConsultationDraft, saveConsultationDraft } from '@/lib/feedback/drafts'
@@ -55,6 +55,7 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
   const [historyPage, setHistoryPage] = useState(1)
   const [historyTotal, setHistoryTotal] = useState(0)
   const [answered, setAnswered] = useState(false)
+  const [imageUnderstanding, setImageUnderstanding] = useState(false)
   const [pendingTransition, setPendingTransition] = useState<{ kind: 'new' } | { kind: 'history'; id: string }>()
   const composerDirty = useRef(false)
   const historyRequest = useRef(0)
@@ -72,6 +73,13 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
   const callbacks = useRef({ onNeedCollect, onConversationReady })
   callbacks.current = { onNeedCollect, onConversationReady }
   const initialRef = useRef(initialMessage?.trim() || '')
+  useEffect(() => {
+    let active = true
+    void Promise.resolve(getAgentCapabilities())
+      .then((capabilities) => { if (active) setImageUnderstanding(Boolean(capabilities?.image_understanding)) })
+      .catch(() => { if (active) setImageUnderstanding(false) })
+    return () => { active = false }
+  }, [])
 
   const notifyDraft = (history: AgentMessage[], id: string) => {
     const saved = readConsultationDraft(draftScope, id)
@@ -270,7 +278,7 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
     {error && <p role="alert" className="text-xs text-error">{error}</p>}
     <div ref={containerRef} className="sdk-agent-messages">
       {!formOpen && standalone && messages.length < messageTotal && <button type="button" className="sdk-button" disabled={olderLoading || loading || sending} onClick={() => void loadOlder()}>{olderLoading ? '正在加载更早记录…' : '加载更早咨询记录'}</button>}
-      {!formOpen && !loading && !messages.length && <div className="sdk-welcome"><div className="sdk-spark" aria-hidden="true">✧</div><h2>你好，有什么可以帮你？</h2><p>可以问产品怎么用，也可以上传截图或使用语音转文字。</p><small className="sdk-knowledge"><span aria-hidden="true">●</span> 基于当前产品代码仓库与使用文档答疑</small><div className="sdk-suggestions">{['这个产品有哪些功能？', '我遇到了操作异常，需要帮助', '我想提出一个功能建议'].map((question) => <button key={question} type="button" disabled={sending || loading || submitting || Boolean(pendingTransition)} onClick={() => void send(question).catch((e) => setError(e instanceof Error ? e.message : t('agent.error_load')))}>{question}<span aria-hidden="true">↗</span></button>)}</div></div>}
+      {!formOpen && !loading && !messages.length && <div className="sdk-welcome"><div className="sdk-spark" aria-hidden="true">✧</div><h2>你好，有什么可以帮你？</h2><p>{imageUnderstanding ? '可以问产品怎么用，也可以上传截图或使用语音转文字。' : '可以问产品怎么用，也可以使用语音转文字；图片问题请暂时用文字描述。'}</p><small className="sdk-knowledge"><span aria-hidden="true">●</span> 基于当前产品代码仓库与使用文档答疑</small><div className="sdk-suggestions">{['这个产品有哪些功能？', '我遇到了操作异常，需要帮助', '我想提出一个功能建议'].map((question) => <button key={question} type="button" disabled={sending || loading || submitting || Boolean(pendingTransition)} onClick={() => void send(question).catch((e) => setError(e instanceof Error ? e.message : t('agent.error_load')))}>{question}<span aria-hidden="true">↗</span></button>)}</div></div>}
       {!formOpen && messages.map((message) => <article key={`${message.sender_type}:${message.id}`} className={`sdk-message ${message.sender_type === 'customer' ? 'mine' : ''}`}>
         <div className="sdk-message-avatar" aria-hidden="true">{message.sender_type === 'customer' ? '我' : message.sender_type === 'agent' ? '✧' : '支'}</div>
         <div className="sdk-message-main"><div className="sdk-message-by"><span>{message.sender_type === 'agent' ? t('agent.title') : message.sender_type === 'developer' ? t('conversation.sender.developer') : message.sender_type === 'system' ? t('conversation.sender.system') : t('conversation.sender.customer')}</span> · <time>{new Date(message.created_at).toLocaleString()}</time></div>
@@ -284,6 +292,6 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
       {!formOpen && answered && <p role="status" className="sdk-notice">本次答疑已结束，未创建反馈卡片。你也可以继续提问。</p>}
       {children}
     </div>
-    <MediaComposer hidden={formOpen} key={`${standalone}:${feedbackId || ''}:${composerEpoch}`} onSend={send} draftScope={draftScope} draftConversationId={conversationId} onDraftChange={(dirty: boolean) => { composerDirty.current = dirty }} disabled={sending || loading || submitting || Boolean(pendingTransition) || linkedIds.current.has(conversationId)} />
+    <MediaComposer hidden={formOpen} key={`${standalone}:${feedbackId || ''}:${composerEpoch}`} onSend={send} draftScope={draftScope} draftConversationId={conversationId} onDraftChange={(dirty: boolean) => { composerDirty.current = dirty }} disabled={sending || loading || submitting || Boolean(pendingTransition) || linkedIds.current.has(conversationId)} imageDisabledReason={imageUnderstanding ? '' : '当前 Agent 暂不支持多模态，图片不会发送给 AI 识别，请使用文字描述问题。'} />
   </section>
 }

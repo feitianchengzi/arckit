@@ -27,6 +27,15 @@ describe('multimodal composer', () => {
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
     await waitFor(() => expect(send).toHaveBeenCalledWith('', [expect.objectContaining({ object_key: 'customer/image.png' })], expect.any(String)))
   })
+  it('explains and blocks Agent images when multimodal understanding is unavailable', async () => {
+    const { uploadFeedbackFileV2 } = await import('@/lib/feedback/upload')
+    render(<MediaComposer imageDisabledReason="当前 Agent 暂不支持多模态，图片不会发送给 AI 识别，请使用文字描述问题。" onSend={vi.fn()} />)
+    expect(screen.getByRole('status')).toHaveTextContent('当前 Agent 暂不支持多模态')
+    expect(screen.getByLabelText('添加图片')).toBeDisabled()
+    fireEvent.paste(screen.getByRole('textbox'), { clipboardData: { files: [new File(['x'], 'error.png', { type: 'image/png' })] } })
+    expect(screen.getByRole('alert')).toHaveTextContent('图片不会发送给 AI 识别')
+    expect(uploadFeedbackFileV2).not.toHaveBeenCalled()
+  })
   it('restores text and uploaded image references after iframe recreation without uploading them again', async () => {
     const { uploadFeedbackFileV2 } = await import('@/lib/feedback/upload')
     const send = vi.fn().mockResolvedValue(undefined)

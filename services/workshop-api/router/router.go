@@ -75,6 +75,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(apikeyGroup)
 			registerFeedbackNotificationAPIKeyRoutes(apikeyGroup)
+			apikeyGroup.GET("/agent-capabilities", handler.GetAgentCapabilities)
 			apikeyGroup.POST("/feedback-sessions", handler.CreateFeedbackSession)
 			apikeyGroup.POST("/feedbacks/upload-policies", handler.CreateFeedbackUploadPolicyByAPIKey)
 			apikeyGroup.GET("/feedbacks/oss/credentials", handler.GetFeedbackAPIKeyOSSTempCredentials)
@@ -261,6 +262,7 @@ func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
 }
 
 func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
+	group.GET("/agent-capabilities", handler.GetAgentCapabilities)
 	group.GET("/feedbacks/:id/detail", handler.GetFeedbackDetailFromSession)
 	group.GET("/feedbacks/:id/conclusions", handler.GetFeedbackConclusionsFromSession)
 	group.POST("/feedbacks/:id/conclusions/:conclusionId/response", handler.RespondFeedbackConclusionFromSession)

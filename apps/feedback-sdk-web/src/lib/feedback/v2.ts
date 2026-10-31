@@ -24,6 +24,23 @@ export interface FeedbackV2Attachment {
   access_path?: string
 }
 
+export interface AgentCapabilities {
+  image_understanding: boolean
+}
+
+/** Runtime Agent media capabilities for the current deployment. */
+export async function getAgentCapabilities(): Promise<AgentCapabilities> {
+  const envelope = await requestJson<AgentCapabilities>(
+    '/agent-capabilities',
+    '/agent-capabilities',
+    { method: 'GET' },
+  )
+  if (!envelope.data || typeof envelope.data.image_understanding !== 'boolean') {
+    throw new Error(feedbackUnavailable)
+  }
+  return envelope.data
+}
+
 export interface FeedbackV2Message {
   id: number
   feedback_id: number

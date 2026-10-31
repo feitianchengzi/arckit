@@ -7,6 +7,7 @@ vi.mock('@/lib/feedback/v2', () => {
   const fakeHistory = (): import('@/lib/feedback/v2').AgentMessage[] => []
   const standaloneMessages = vi.fn().mockResolvedValue(fakeHistory())
   return {
+    getAgentCapabilities: vi.fn().mockResolvedValue({ image_understanding: false }),
     sendAgentMessage: vi.fn(),
     getAgentConversations: vi.fn().mockResolvedValue([]),
     getAgentConversationMessages: vi.fn().mockResolvedValue(fakeHistory()),
