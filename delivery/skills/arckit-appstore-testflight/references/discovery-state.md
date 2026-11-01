@@ -5,14 +5,16 @@
 2. 查找 xcodeproj/xcworkspace、Package.swift、XcodeGen/Tuist 生成源及 CI。用 xcodebuild -list/-showBuildSettings 获取实际配置，不仅正则读取 pbxproj。
 3. 识别主 app、扩展、测试和多平台 targets。版本只要求同一分发单元相关 targets 对齐。
 4. 查找明确的团队、bundle ID、版本规范和交付配置。不跨全盘扫描私钥，不读取用户其他项目作为默认身份。
-5. 发现已有 ASC CLI、Fastlane、MCP 或脚本并评估复用；无入口使用附带脚本。无 Node 18+ 时说明依赖，不能擅自全局安装。
+5. 发现已有 ASC CLI、Fastlane、MCP 或脚本并评估复用；无入口使用连接依赖的脚本。无 Node 18+ 时说明依赖，不能擅自全局安装。
 
 可推断字段直接采用并说明依据。多团队、多主应用、缺凭据或 Bundle ID 命名依据时集中询问最少字段。已有有效营销版本保持；没有时默认 1.0.0。默认应用名为产品名，组名为“产品名 Internal”。Developer Team ID 与 API Issuer ID 不同，不能互换。
 
 ## 记录契约
-优先沿用项目现有路径。否则非秘密共享配置可放 arckit/delivery/apple.json，进度放 Git common dir 下 arckit-appstore-delivery/<发布单元>/state.json（不提交）。通过 git rev-parse --git-common-dir 处理 worktree；写入前检查该发布单元是否有并发任务，避免同时分配 tag。
+优先沿用项目现有路径。否则非秘密共享配置可放 arckit/delivery/apple.json，进度放 Git common dir 下 arckit-appstore-testflight/<发布单元>/state.json（不提交）。通过 git rev-parse --git-common-dir 处理 worktree；写入前检查该发布单元是否有并发任务，避免同时分配 tag。
 
 配置：schemaVersion、发布单元、platform、project/workspace、scheme、teamId、bundleIds、appId、workflowId、groupId、remote、tag 规则来源、测试成员策略。凭据仅从环境或明确的本机配置引用；共享配置不含绝对私钥路径、成员邮箱或 token。
+
+本机进度额外记录 credentialProfile（已登记的 profile 名）；不写私钥或 JWT。恢复时按该引用加载并验证，不能因为当前 shell 没有 ASC 环境变量而再次索要已有凭据。共享配置不绑定个人本机 profile。
 
 进度：schemaVersion、repo 标识、发布单元、目标 SHA/tag、获准范围及指令来源、资源 IDs、runId/buildId、阶段状态、verifiedAt、证据摘要、pendingHumanAction 和下一步查询。旧记录不提供无限授权，当前用户指令优先。
 
@@ -30,3 +32,7 @@
 
 已存在匹配 run 则续接；同提交已交付则报告完成；只有代码变动或明确重建意图才新发构建。不能每次调用自动增加 tag 序号。
 
+
+## 名称迁移兼容
+
+新的本机状态目录为 arckit-appstore-testflight；恢复时若不存在新目录，检查同一 Git common dir 的旧 arckit-appstore-delivery/<发布单元>/state.json 并沿用其 credentialProfile、build/run/tag 和锁范围。两个目录同时存在时先对账，不能把旧任务当新任务重建。确认无并发后可复制状态到新目录并记录来源；不自动删除旧记录。凭据目录 appstore-connect 不随 skill 改名。

@@ -1,0 +1,6 @@
+interface:
+  display_name: "App Store TestFlight 交付"
+  short_description: "配置并交付 Apple 应用到内部 TestFlight"
+  default_prompt: "使用 $arckit-appstore-testflight 先定位并读取必需依赖 arckit-appstore-connect，再将当前 Apple 应用推进到内部 TestFlight 可测试，复用本机连接和签名，配置 Cloud、提交推送必要改动与 tag，追踪构建后入组并邀请合格成员。鉴权窗口保存后自动续接；不正式送审或上架。"
+policy:
+  allow_implicit_invocation: false

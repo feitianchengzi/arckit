@@ -97,6 +97,11 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Technical solution: `definition/skills/arckit-tech/`
 - General debug diagnosis and implementation troubleshooting: `engineering/skills/arckit-debug-diagnosis/`
 - Git branching, release lines, and tag-based release triggers: `delivery/skills/arckit-git-branching/`
+- App Store Connect credentials and connection recovery: `delivery/skills/arckit-appstore-connect/`
+- Internal TestFlight delivery: `delivery/skills/arckit-appstore-testflight/`
+- iOS/macOS screenshots, localized listing copy, and preview assets: `delivery/skills/arckit-appstore-assets/`
+- iOS/macOS formal review submission: `delivery/skills/arckit-appstore-submission/`
+- Shared Apple tools and tests live only in `delivery/skills/arckit-appstore-connect/`. TestFlight and submission explicitly require this skill and resolve its actual installed root before calling tools; no duplicated tool packages or assumed sibling paths.
 - SwiftUI and Apple client coding practice: `code/skills/arckit-code-swiftui/`
 - Feedback platform integration: `code/skills/arckit-feedback-platform-integration/`
 - Alibaba Cloud OSS controlled image access: `code/skills/oss-controlled-image-access/`
@@ -105,6 +110,8 @@ For example, an authentication architecture note belongs in `definition/skills/`
 The three `code/skills/` capabilities are distributed from this repository and may be selected natively by the Codex Agent; Runtime does not add them to an `allowed_skills` list or pre-associate them with a gap.
 
 Directories not listed above are reserved capability domains and currently contain no retained Arckit skills. Do not restore a removed skill reference as a dependency. Automated Loop work keeps unresolved context in the active case or hands it to an external adapter; `arckit-pending` is a user-on-demand, explicitly invoked manual workspace and is not a Runtime dependency.
+
+Apple delivery exception explicitly authorized by the user: `arckit-appstore-testflight` and `arckit-appstore-submission` must depend on and read `arckit-appstore-connect`. Missing dependencies stop execution with a clear installation/enablement request. Submission additionally requires `arckit-appstore-assets` when assets need creation or modification; verified existing assets may be reused without invoking it. The assets skill can run independently without TestFlight or Connect. These exceptions do not create a Git skill dependency.
 
 ## Skill Folder Convention
 

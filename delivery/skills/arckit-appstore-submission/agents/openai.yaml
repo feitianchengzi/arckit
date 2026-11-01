@@ -1,0 +1,6 @@
+interface:
+  display_name: "App Store 正式送审"
+  short_description: "核验最新 TestFlight 构建及素材并提交 iOS/macOS 审核"
+  default_prompt: "使用 $arckit-appstore-submission 先定位并读取必需依赖 arckit-appstore-connect，再将当前应用最新 TestFlight 构建提交审核。动态读取语言，默认全球发行，明确免费或付费，复用合格素材，需制作或更新时加载 arckit-appstore-assets，准备审核资料，完成后集中确认具体送审摘要；提交并核验关联回执即结束，不等待审核通过。"
+policy:
+  allow_implicit_invocation: true

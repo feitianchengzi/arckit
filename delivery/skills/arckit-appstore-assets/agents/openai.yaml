@@ -1,0 +1,6 @@
+interface:
+  display_name: "App Store 素材"
+  short_description: "制作 iOS/macOS 真实截图、本地化文案和预览素材"
+  default_prompt: "使用 $arckit-appstore-assets 为指定应用版本准备商店素材。读取实际语言与设备范围，复用或采集真实 UI，确认新视觉首张后制作全套，校验实际文件并交付 manifest；不要求 TestFlight 或连接配置，不上传或提交审核。"
+policy:
+  allow_implicit_invocation: true

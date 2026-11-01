@@ -1,5 +1,47 @@
 # TestFlight 与合规
 
+## 默认 API 交付顺序
+
+调用本 skill 已表达内部测试意图。不要再索取分发目标 prompt、建立渠道映射或等待用户配置 Cloud post-action。执行顺序：
+1. 从目标 tag/SHA 对应 run 的 builds 关系取得 buildId，核对 app、平台及版本；不要取全应用最新 build 代替。
+2. 查询并复用/创建目标内部组；此步可在等待构建时先完成，保存 appId/groupId。
+3. 查询构建 processingState、expired、buildBetaDetail 和加密声明；VALID 且具备内部测试条件后继续。IN_BETA_TESTING 是成功状态，也接受可开始内测的状态，不要求未入组前已在测试。
+4. 查询组内 builds，按差集添加本次 build；回读确认。
+5. 查询组织成员、应用访问权限和目标 app/组已有 testers，按差集加入合格成员并检查邀请状态。
+6. 最终回读构建、组内 builds 和成员状态；零合格成员时报告未达到“有人可测试”的目标，询问指定测试成员，不扩大组织权限。
+
+每次写入后保存已确认的资源 ID；部分成员失败时保留成功项并逐项报告，下次仅补失败项。因 post-action 或人工操作已经完成的资源关系直接复用。403、合规缺口等按具体原因处理，不默认要求用户改为网页手动分发。
+
+## 请求示例
+
+占位符必须替换为同一应用的已验证 ID。先 GET 查询所有分页，再用 api-operations 的客户端生成计划并执行；下列示例不是可直接对生产重放的批处理。
+
+建组：GET /v1/apps/{appId}/betaGroups，无匹配内部组才 POST /v1/betaGroups：
+
+```json
+{"data":{"type":"betaGroups","attributes":{"name":"<产品名> Internal","isInternalGroup":true},"relationships":{"app":{"data":{"type":"apps","id":"<appId>"}}}}}
+```
+
+构建入组：POST /v1/betaGroups/{groupId}/relationships/builds：
+
+```json
+{"data":[{"type":"builds","id":"<buildId>"}]}
+```
+
+已有目标应用 tester 入组：POST /v1/betaGroups/{groupId}/relationships/betaTesters：
+
+```json
+{"data":[{"type":"betaTesters","id":"<testerId>"}]}
+```
+
+创建合格组织成员对应的 tester 并关联组：POST /v1/betaTesters：
+
+```json
+{"data":{"type":"betaTesters","attributes":{"email":"<已核实的组织成员邮箱>","firstName":"<名>","lastName":"<姓>"},"relationships":{"betaGroups":{"data":[{"type":"betaGroups","id":"<groupId>"}]}}}}
+```
+
+回读入口：GET /v1/betaGroups/{groupId}/builds、GET /v1/betaGroups/{groupId}/betaTesters、GET /v1/builds/{buildId}/buildBetaDetail。组和 app 的 testers 查询必须分页；不能只看 include 默认返回的前几项。邀请重发仅在下面规定的 NOT_INVITED 情形进行，正常 INVITED 不再重发。
+
 ## 加密声明
 读取目标 build 的 usesNonExemptEncryption 与 buildBetaDetail。已有声明记录事实，不擅自覆盖。缺声明时审查该提交代码、依赖锁文件、静态库/SDK及网络和本地加密用途；不能看到 HTTPS 就忽略第三方算法。
 
@@ -32,4 +74,3 @@
 - https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers/
 - https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations
 - https://developer.apple.com/documentation/appstoreconnectapi/buildupdaterequest/data-data.dictionary/attributes-data.dictionary
-

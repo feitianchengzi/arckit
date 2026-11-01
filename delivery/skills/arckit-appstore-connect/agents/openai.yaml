@@ -1,0 +1,6 @@
+interface:
+  display_name: "App Store Connect 连接"
+  short_description: "配置并验证可复用的 Apple 团队凭据与访问条件"
+  default_prompt: "使用 $arckit-appstore-connect 复用或配置本机连接，验证目标团队与应用，按需启动鉴权窗口并等待回执，返回 profile 和权限事实后续接原任务；不索取聊天中的密钥或代替业务授权。"
+policy:
+  allow_implicit_invocation: true
