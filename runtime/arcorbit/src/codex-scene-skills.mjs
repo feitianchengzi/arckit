@@ -39,8 +39,8 @@ export async function createOnDemandTools(binding) {
   const command = (process.platform === 'win32' ? '& ' : '') + [launch.executable,...launch.args,'--scope-file',scopeFile].map(quote).join(' ');
 
   return {
-    developerInstructions: `当前场景提供 $arcforge-on-demand 显式调用入口。仅当用户显式调用，或宿主程序在本轮显式配置该入口调用时，才可使用 arcforge_catalog。入口可见、工具存在和按需范围配置均不代表调用授权；不得因自行判断任务缺少能力而查询或加载隐藏技能。本说明仅提供接口，不是调用指令。已收到显式调用时，旧线程若未提供该工具，只能使用以下同范围的只读命令：${command} --action list；选定后 ${command} --action resolve --query '<qualifiedName>'。不得改用全局 catalog 绕过当前场景的禁用或范围限制。`,
-    dynamicTools: [{type:'function',name:'arcforge_catalog', description:'仅用于执行用户或宿主程序对 arcforge-on-demand 的显式调用；不得自主发现隐藏技能。查询当前场景允许的技能。list 返回候选元数据，resolve 校验选定技能并返回指令路径。', inputSchema:{type:'object',properties:{action:{type:'string',enum:['list','resolve']},query:{type:'string'}},required:['action'],additionalProperties:false}}],
+    developerInstructions: `当前场景提供 $arcforge-on-demand 显式调用入口。仅当用户显式调用、宿主程序显式配置该入口调用，或正在续接有可恢复显式调用依据的同一未结束任务时，才可使用 arcforge_catalog。Agent 根据会话上下文判断任务续接，不依赖关键词匹配。该任务内可继续解析必要依赖与协作技能，无需逐个点名；用户补充资料或确认步骤不要求重新调用入口。入口可见、工具存在和按需范围配置均不代表初始调用授权；不得因自行判断任务缺少能力而启动新的按需任务。取消、明确替换目标或完成后结束原任务加载授权；暂停时停止加载，明确恢复后续接。恢复依据不明时先澄清，不将历史调用视为永久授权。每轮遵守当前范围与内容校验，已禁用的技能不得沿用历史路径；加载不扩大业务写操作授权。本说明仅提供接口，不是调用指令。已收到显式调用时，旧线程若未提供该工具，只能使用以下同范围的只读命令：${command} --action list；选定后 ${command} --action resolve --query '<qualifiedName>'。不得改用全局 catalog 绕过当前场景的禁用或范围限制。`,
+    dynamicTools: [{type:'function',name:'arcforge_catalog', description:'用于显式启动的 arcforge-on-demand 任务及其可恢复续接，允许在当前范围解析必要依赖与协作能力；不得自主启动新的按需任务。查询当前场景允许的技能。list 返回候选元数据，resolve 校验选定技能并返回指令路径。', inputSchema:{type:'object',properties:{action:{type:'string',enum:['list','resolve']},query:{type:'string'}},required:['action'],additionalProperties:false}}],
     dynamicToolProvider: async params => {
       const input = typeof params.arguments === 'string' ? JSON.parse(params.arguments) : params.arguments;
       if (params.tool !== 'arcforge_catalog' || !input || !['list','resolve'].includes(input.action)) throw new Error('Invalid on-demand catalog request.');

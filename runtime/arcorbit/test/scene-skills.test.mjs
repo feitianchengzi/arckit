@@ -198,6 +198,11 @@ test('scene modes separate discovery, scoped on-demand lookup and disabled skill
  const tools=await createOnDemandTools(binding);
  assert.match(tools.developerInstructions,/本说明仅提供接口，不是调用指令/);
  assert.match(tools.developerInstructions,/不得因自行判断任务缺少能力/);
+ assert.match(tools.developerInstructions,/可恢复显式调用依据的同一未结束任务/);
+ assert.match(tools.developerInstructions,/可继续解析必要依赖与协作技能/);
+ assert.match(tools.developerInstructions,/取消、明确替换目标或完成后结束/);
+ assert.match(tools.developerInstructions,/已禁用的技能不得沿用历史路径/);
+ assert.match(tools.developerInstructions,/加载不扩大业务写操作授权/);
  const listed=await tools.dynamicToolProvider({tool:'arcforge_catalog',arguments:{action:'list'}});
  assert.deepEqual(listed.candidates.map(x=>x.skillName),['manual-skill']);
  const resolved=await tools.dynamicToolProvider({tool:'arcforge_catalog',arguments:{action:'resolve',query:'manual-skill'}});assert.equal(resolved.status,'resolved');

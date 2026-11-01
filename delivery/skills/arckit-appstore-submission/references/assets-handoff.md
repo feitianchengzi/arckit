@@ -17,7 +17,7 @@
 
 需要创建/修改截图、预览或商店文案时，必须从当前 Agent 可见技能元数据或项目明确配置定位并读取 `arckit-appstore-assets/SKILL.md`，记实际根目录为 `<assets-root>`，再读取其 manifest 契约。
 
-这是明确的按需必需依赖。依赖缺失、不可见或无法读取时报告 `blocked_missing_dependency: arckit-appstore-assets`，说明所缺素材，等待安装/启用；可继续独立的审核资料准备，但不能绕过依赖自行复制素材生产流程或提交不完整版本。不得假定相邻安装路径或绕过宿主按需能力授权。
+这是明确的条件依赖。尚未加载时，在宿主允许的已显式启动按需任务内按 arcforge-on-demand 通用协议解析；不把未加载当成未安装。解析后仍不可用或无法读取时报告 `blocked_missing_dependency: arckit-appstore-assets`，说明所缺素材及查询实际支持的阻塞原因与恢复动作，不臆断 not-found 的原因；可继续独立的审核资料准备，但不能绕过依赖自行复制素材生产流程或提交不完整版本。不得假定相邻安装路径或绕过宿主按需能力授权。
 
 交接输入：appId/bundleId/名称、platform、version/buildNumber/buildId、对应源码/归档证据、语言映射和设备要求、既有素材/视觉确认、需要新增或修改的具体项、输出目录和写入边界。收费、地区、正式审核声明及最终送审批准由 submission 保持责任。
 

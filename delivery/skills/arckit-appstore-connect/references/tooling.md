@@ -2,7 +2,7 @@
 
 唯一维护源码与运行入口为本 skill 的 `scripts/`，测试在 `tests/`，仓库根运行 `npm run test:appstore`。不再生成或维护其他 skill 的工具副本。
 
-`arckit-appstore-testflight` 与 `arckit-appstore-submission` 强制依赖本 skill。调用方必须从可见技能元数据/明确配置定位本 skill 的实际根目录并读取 SKILL.md，随后通过绝对路径调用工具；不能假定相邻目录。依赖缺失时报告并等待安装/启用，不自动复制脚本或绕过宿主能力授权。
+`arckit-appstore-testflight` 与 `arckit-appstore-submission` 强制依赖本 skill。调用方必须从可见技能元数据、明确配置或已授权按需任务的解析结果定位本 skill 的实际根目录并读取 SKILL.md，随后通过绝对路径调用工具；不能假定相邻目录。尚未加载时按入口通用协议解析；解析后仍不可用时报告具体阻塞与恢复动作，不自动复制脚本或绕过宿主能力授权。
 
 Node >=18；鉴权 UI 另需 macOS 图形桌面和 Swift 工具链。profile 名称、存储路径、权限和取消/失败回执保持兼容。
 
