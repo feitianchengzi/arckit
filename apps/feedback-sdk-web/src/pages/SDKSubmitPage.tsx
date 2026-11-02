@@ -2,11 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { FeedbackShell } from '@/components/sdk/FeedbackShell'
 import { FeedbackSubmitStep, type FeedbackSubmitImage } from '@/components/sdk/FeedbackSubmitStep'
-import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 import { getOrPersistApiKey, getOrPersistCustomUserId, resolveProjectId, submitFeedbackByApiKey } from '@/lib/feedback/api'
-import { submitFeedbackV2, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
-import { ClarificationReview } from '@/components/sdk/ClarificationReview'
-import { formatStructuredFeedback, mergeStructuredSummary, missingClarificationFields, clarificationFields } from '@/lib/feedback/structured'
+import { submitFeedbackV2, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { uploadFeedbackImageByApiKey, uploadFeedbackImageV2 } from '@/lib/feedback/upload'
 import { FEEDBACK_SDK_CONFIGURED_EVENT, FEEDBACK_SDK_NATIVE_IMAGE_EVENT, getFeedbackSDKConfig, type FeedbackSDKNativeImagePayload } from '@/lib/sdk'
 import { t } from '@/i18n'
@@ -68,27 +65,8 @@ export function SDKSubmitPage() {
   const [submitting, setSubmitting] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [pickerWarning, setPickerWarning] = useState('')
-  const [agentChatOpen, setAgentChatOpen] = useState(false)
-  // 智能客服低置信兜底时的预填提示（区别于 submitError 的错误语义）
-  const [prefillNotice, setPrefillNotice] = useState('')
-  // 预填进表单的原文；客户改写后提示不再成立，需一并撤销
-  const [prefilledContent, setPrefilledContent] = useState('')
-  // 提交反馈前与智能客服的独立会话 ID，提交时带上以关联到新建反馈（会话总线衔接）
-  const [agentConversationId, setAgentConversationId] = useState('')
-  const [structured, setStructured] = useState<AgentStructuredSummary>()
-  const [structureConfirmed, setStructureConfirmed] = useState(false)
-  const customerDraftRef = useRef<Partial<AgentStructuredSummary>>({})
-
-  const handleContentChange = (value: string) => {
-    setContent(value)
-    if (structured) setStructureConfirmed(false)
-    if (prefilledContent && value !== prefilledContent) {
-      setPrefilledContent('')
-      setPrefillNotice('')
-    }
-  }
   // 宿主通过 postMessage 异步注入配置（晚于首次渲染），配置到达后需重渲染，
-  // 否则 feedbackV2Enabled 相关分支（智能客服入口、图片数量上限）停在默认值。
+  // 否则 feedbackV2Enabled 相关分支（图片数量上限和上传协议）停在默认值。
   const [, setConfigVersion] = useState(0)
   const pickerAttemptRef = useRef(0)
   const imagesRef = useRef<SelectedFeedbackImage[]>([])
@@ -252,26 +230,11 @@ export function SDKSubmitPage() {
     return () => window.removeEventListener(FEEDBACK_SDK_NATIVE_IMAGE_EVENT, handleNativeImage)
   }, [handleUploadFiles])
 
-  // Keep the multi-turn conversation open; review and customer confirmation precede creation.
-  const handleAssistantNeedCollect = (payload: { question: string; structured?: AgentStructuredSummary }) => {
-    setStructured((previous) => {
-      const merged = mergeStructuredSummary(previous, payload.structured)
-      const edited = customerDraftRef.current
-      return edited ? { ...merged, ...edited } : merged
-    })
-    setStructureConfirmed(false)
-    setPrefillNotice('请继续回答客服的追问，或在下方补充并确认问题信息。确认提交前不会创建反馈卡片。')
-  }
-
   const submitFeedback = async () => {
     const uploading = images.some((image) => image.status === 'uploading')
     if (submitting || uploading) return
 
     setSubmitError('')
-    if (structured && (!structureConfirmed || missingClarificationFields(structured).length > 0)) {
-      setSubmitError('请先补充并确认结构化问题信息')
-      return
-    }
     const trimmedContent = content.trim()
     if (!trimmedContent) {
       setSubmitError(t('submit.error_empty'))
@@ -285,18 +248,11 @@ export function SDKSubmitPage() {
         if (images.some((image) => image.status !== 'uploaded' || !image.uploadedAttachment)) {
           throw new Error(t('submit.error_images_uploading'))
         }
-        const submitted = await submitFeedbackV2({
+        await submitFeedbackV2({
           content: trimmedContent,
           attachments: images.map((image) => image.uploadedAttachment).filter(Boolean) as FeedbackV2Attachment[],
-          conversationId: agentConversationId || undefined,
-          structured,
         })
-        // 提交后进入智能客服会话：反馈内容自动发给 Agent（基于代码库推理），
-        // 客户可在对话窗口继续追问，并在“我的反馈”查看进展。
-        const chatParams = new URLSearchParams(location.search)
-        chatParams.set('feedback', String(submitted.id))
-        chatParams.set('q', trimmedContent)
-        navigate({ pathname: '/chat', search: `?${chatParams.toString()}` })
+        navigate({ pathname: '/status', search: location.search })
         return
       }
 
@@ -376,7 +332,6 @@ export function SDKSubmitPage() {
   const formWrapClass = 'mx-auto w-full max-w-[760px]'
   const uploading = images.some((image) => image.status === 'uploading')
   const maxImages = getFeedbackSDKConfig().feedbackV2Enabled === true ? MAX_FEEDBACK_IMAGES : 1
-  const v2Enabled = getFeedbackSDKConfig().feedbackV2Enabled === true
 
   return (
     <div className="min-h-[100dvh] bg-surface px-4 py-6 md:px-6">
@@ -384,47 +339,6 @@ export function SDKSubmitPage() {
         <FeedbackShell mode="embed">
           <div className={innerWrapClass}>
             <div className={formWrapClass}>
-              {v2Enabled ? (
-                <div className="mb-4 space-y-3 rounded-lg border border-divider bg-surface-elevated p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{t('submit.agent_entry_title')}</p>
-                      <p className="mt-1 text-xs leading-5 text-foreground-secondary">{t('submit.agent_entry_desc')}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setAgentChatOpen((open) => !open)}
-                      aria-expanded={agentChatOpen}
-                      className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-hover"
-                    >
-                      {agentChatOpen ? t('submit.agent_entry_close') : t('submit.agent_entry_open')}
-                    </button>
-                  </div>
-                  {agentChatOpen ? (
-                    <div className="border-t border-divider pt-4">
-                      <AgentChatPanel
-                        standalone
-                        onNeedCollect={handleAssistantNeedCollect}
-                        onConversationReady={setAgentConversationId}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-              {prefillNotice ? (
-                <p className="mb-3 rounded-lg border border-primary/25 bg-primary-light/40 px-3 py-2 text-xs leading-5 text-foreground-secondary">
-                  {prefillNotice}
-                </p>
-              ) : null}
-              {structured && <ClarificationReview value={structured} confirmed={structureConfirmed}
-                onChange={(next) => {
-                  const changed = { ...customerDraftRef.current }
-                  for (const [key] of clarificationFields) if (next[key] !== structured[key]) changed[key] = next[key]
-                  if (JSON.stringify(next.unknown_fields) !== JSON.stringify(structured.unknown_fields)) changed.unknown_fields = next.unknown_fields
-                  customerDraftRef.current = changed
-                  setStructured(next); setStructureConfirmed(false)
-                }}
-                onConfirm={() => { setContent(formatStructuredFeedback(structured, content)); setStructureConfirmed(true); setSubmitError('') }} />}
               <FeedbackSubmitStep
                 value={content}
                 images={images}
@@ -434,7 +348,7 @@ export function SDKSubmitPage() {
                 uploadError={uploadError}
                 uploading={uploading}
                 pickerWarning={pickerWarning}
-                onChange={handleContentChange}
+                onChange={setContent}
                 onUpload={handleUploadFiles}
                 onRemoveImage={removeImage}
                 onRetryImage={retryImage}
