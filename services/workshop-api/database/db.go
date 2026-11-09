@@ -224,8 +224,36 @@ func ensureOpenHandsSchema(db *gorm.DB) error {
 				}
 			}
 		}
-		return nil
+		return migrateAgentTimestamps(tx)
 	})
+}
+
+// Legacy timestamps contain wall time only. Require an explicit source zone
+// rather than silently shifting historical messages according to the DB zone.
+func migrateAgentTimestamps(db *gorm.DB) error {
+	for _, table := range []string{"agent_conversations", "agent_message_records"} {
+		for _, column := range []string{"created_at", "updated_at", "delete_at"} {
+			var count int64
+			if err := db.Raw(`SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND column_name = ? AND data_type = 'timestamp without time zone'`, table, column).Scan(&count).Error; err != nil {
+				return err
+			}
+			if count == 0 {
+				continue
+			}
+			zone := strings.TrimSpace(os.Getenv("LEGACY_AGENT_TIMEZONE"))
+			if zone == "" {
+				return fmt.Errorf("legacy Agent timestamps require LEGACY_AGENT_TIMEZONE (the original writer timezone, e.g. UTC or Asia/Shanghai) before migration")
+			}
+			if _, err := time.LoadLocation(zone); err != nil {
+				return fmt.Errorf("invalid LEGACY_AGENT_TIMEZONE: %w", err)
+			}
+			statement := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s TYPE timestamptz USING %s AT TIME ZONE '%s'`, table, column, column, strings.ReplaceAll(zone, "'", "''"))
+			if err := db.Exec(statement).Error; err != nil {
+				return fmt.Errorf("migrate %s.%s: %w", table, column, err)
+			}
+		}
+	}
+	return nil
 }
 
 // ensureKnowledgeSchema 幂等创建知识库表/索引，并修复历史约束冲突。

@@ -198,7 +198,7 @@
 .sdk-recording { padding: 12px; background: color-mix(in srgb, var(--color-error) 8%, var(--color-surface-elevated)); border-radius: 9px; display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; margin-bottom: 10px; }.sdk-recording button { color: var(--color-primary); }
 .sdk-notice { font-size: 12px; line-height: 1.9; padding: 13px 16px; background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface-elevated)); color: var(--color-foreground-secondary); border-radius: 9px; margin: 16px 0 18px; }
 .sdk-collection { padding: 18px; border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--color-border)); background: var(--color-primary-light); border-radius: 12px; margin: 15px 0; }.sdk-collection h3 { font-size: 15px; }.sdk-collection textarea { background: var(--color-surface-elevated); font-size: 12px; line-height: 1.8; border-radius: 9px; }.sdk-collection button { font-size: 12px; border-radius: 9px; }.sdk-collection input[type="checkbox"] { accent-color: var(--color-primary); }
-.sdk-feedback-view { padding: 22px; }
+.sdk-feedback-view { --sdk-detail-padding: 22px; padding: var(--sdk-detail-padding); }
 .sdk-list-heading h2 { font-size: 20px; font-weight: 650; }.sdk-list-heading p { font-size: 12px; color: var(--color-foreground-secondary); margin-top: 3px; }
 .sdk-filters { display: flex; flex-wrap: wrap; gap: 7px; margin: 16px 0; align-items: center; }
 .sdk-input { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--color-border); border-radius: 9px; font-size: 12px; background: var(--color-surface-elevated); }
@@ -214,7 +214,7 @@
 .sdk-status.developing, .sdk-status.analyzing, .sdk-status.reviewing { color: var(--color-primary); background: var(--color-primary-light); }.sdk-status.released, .sdk-status.completed, .sdk-status.accepted { color: var(--color-success); background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface-elevated)); }.sdk-status.ignored { color: var(--color-foreground-secondary); background: var(--color-surface); }
 .sdk-backline { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }.sdk-backline small { font-size: 11px; color: var(--color-foreground-secondary); }
 .sdk-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.sdk-detail-heading h2 { min-width: 0; font-size: 19px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }.sdk-detail-meta { color: var(--color-foreground-secondary); font-size: 11px; margin: 10px 0; }
-.sdk-detail-tabs { gap: 20px; padding: 0; margin: 0 0 18px; }.sdk-detail-tabs button { padding: 13px 0; }
+.sdk-detail-tabs { position: sticky; top: 0; z-index: 2; gap: 20px; padding: 0 var(--sdk-detail-padding); margin: 0 calc(-1 * var(--sdk-detail-padding)) 18px; background: var(--color-surface); }.sdk-detail-tabs button { padding: 13px 0; }
 .sdk-conversation-messages { max-height: 48dvh; overflow-y: auto; overflow-wrap: anywhere; overscroll-behavior: contain; scrollbar-width: thin; }.sdk-conversation .sdk-composer { position: sticky; bottom: -22px; margin: 22px -22px -22px; z-index: 1; }.sdk-conversation>div.row { font-size: 11px; color: var(--color-foreground-secondary); }
 .sdk-empty { padding: 55px 15px; text-align: center; font-size: 12px; color: var(--color-foreground-secondary); line-height: 1.9; }.sdk-empty h3 { font-size: 15px; font-weight: 650; color: var(--color-foreground); margin-bottom: 10px; }
 .sdk-timeline { padding: 5px 0 0 8px; margin: 20px 0; list-style: none; }.sdk-timeline li { border-left: 1px solid var(--color-border); padding: 0 0 27px 25px; position: relative; }.sdk-timeline li:before { content: ''; position: absolute; left: -5px; top: 5px; width: 9px; height: 9px; border-radius: 50%; background: var(--color-primary); box-shadow: 0 0 0 4px var(--color-primary-light); }.sdk-timeline small { font-size: 11px; color: var(--color-foreground-secondary); }.sdk-timeline h3 { font-weight: 650; font-size: 13px; margin: 6px 0; }.sdk-timeline p { font-size: 12px; color: var(--color-foreground-secondary); }
@@ -225,7 +225,7 @@
 @media (max-width:650px) {
   .sdk-support, .sdk-support-wide { inset: 0; width: 100%; max-width: none; height: 100dvh; border: 0; border-radius: 0; box-shadow: none; }
   .sdk-header { padding-top: max(14px, env(safe-area-inset-top)); }.sdk-footer { padding-bottom: max(8px, env(safe-area-inset-bottom)); }.sdk-resize { display: none; }
-  .sdk-feedback-view { padding: 19px; }.sdk-agent-messages { padding-left: 19px; padding-right: 19px; }.sdk-chat-toolbar { padding-left: 19px; padding-right: 19px; }
+  .sdk-feedback-view { --sdk-detail-padding: 19px; }.sdk-agent-messages { padding-left: 19px; padding-right: 19px; }.sdk-chat-toolbar { padding-left: 19px; padding-right: 19px; }
   .sdk-composer textarea { font-size: 16px; }.sdk-close { min-height: 32px; }.sdk-navigation button { min-height: 46px; }.sdk-chat-actions button { min-height: 32px; }
   .sdk-chat-toolbar>p { max-width: 125px; }.sdk-send-tools small { display: none; }.sdk-composer-tools>.flex { gap: 6px; }.sdk-media-tool { min-height: 36px; }.sdk-message-main { max-width: calc(100% - 37px); }
   .sdk-conversation .sdk-composer { bottom: -19px; margin-left: -19px; margin-right: -19px; margin-bottom: -19px; }.sdk-card-footer { flex-wrap: wrap; gap: 4px; }
@@ -250,3 +250,24 @@
 .sdk-history button:disabled { opacity: .45; cursor: not-allowed; }
 .dark .sdk-history { background: #1d2431; color: #e3e7f0; }
 .dark .sdk-history>button[aria-pressed], .dark .sdk-history .sdk-button:not(.primary) { background: #1d2431; color: #e3e7f0; border-color: #303a4d; }
+
+/* Markdown remains readable inside narrow chat bubbles. */
+.sdk-message-markdown { overflow-wrap: anywhere; line-height: 1.65; }
+.sdk-message-markdown > :first-child { margin-top: 0; }
+.sdk-message-markdown > :last-child { margin-bottom: 0; }
+.sdk-message-markdown p, .sdk-message-markdown ul, .sdk-message-markdown ol,
+.sdk-message-markdown pre, .sdk-message-markdown blockquote { margin: .65em 0; }
+.sdk-message-markdown h1, .sdk-message-markdown h2, .sdk-message-markdown h3,
+.sdk-message-markdown h4, .sdk-message-markdown h5, .sdk-message-markdown h6 { font-weight: 700; margin: 1em 0 .5em; line-height: 1.4; }
+.sdk-message-markdown h1 { font-size: 1.25em; }
+.sdk-message-markdown h2 { font-size: 1.15em; }
+.sdk-message-markdown h3 { font-size: 1.05em; }
+.sdk-message-markdown ul { list-style: disc; padding-left: 1.5em; }
+.sdk-message-markdown ol { list-style: decimal; padding-left: 1.5em; }
+.sdk-message-markdown li { margin: .25em 0; }
+.sdk-message-markdown code { font-family: monospace; background: rgb(127 127 127 / .12); border-radius: .25em; padding: .1em .3em; }
+.sdk-message-markdown pre { overflow-x: auto; padding: .75em; background: rgb(127 127 127 / .08); border-radius: .5em; }
+.sdk-message-markdown pre code { padding: 0; background: transparent; }
+.sdk-message-markdown blockquote { border-left: 3px solid currentColor; padding-left: .75em; opacity: .85; }
+.sdk-message-markdown a { color: var(--color-primary, #6554c0); text-decoration: underline; }
+.sdk-message-markdown hr { margin: 1em 0; border-top: 1px solid currentColor; opacity: .2; }

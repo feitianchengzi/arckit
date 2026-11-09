@@ -1,3 +1,4 @@
+import { MessageContent } from './MessageContent'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createFeedbackMessageV2, getConversationMessagesPageV2, markFeedbackNotificationsReadV2, type ConversationMessage, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { FeedbackMessageAttachment } from './FeedbackMessageAttachment'
@@ -62,7 +63,7 @@ export function FeedbackConversationPanel({ feedbackId, onNotificationsRead, ref
     <div ref={viewport} className="sdk-conversation-messages">
       {messages.map((message) => <article key={`${message.source}:${message.id}`} className={`sdk-message ${message.sender_type === 'customer' ? 'mine' : ''}`}>
         <div className="sdk-message-avatar" aria-hidden="true">{message.sender_type === 'customer' ? '我' : message.sender_type === 'agent' ? '✧' : '支'}</div><div className="sdk-message-main"><div className="sdk-message-by">{message.sender_type === 'agent' ? t('agent.title') : message.sender_type === 'developer' ? t('conversation.sender.developer') : message.sender_type === 'system' ? t('conversation.sender.system') : t('conversation.sender.customer')} · <time>{new Date(message.created_at).toLocaleString()}</time></div>
-        <div className="sdk-message-body">{message.content && <p className="whitespace-pre-wrap">{message.content}</p>}{message.attachments?.map((attachment, index) => <FeedbackMessageAttachment key={`${attachment.object_key || attachment.id || index}`} feedbackId={Number(feedbackId)} attachment={attachment} />)}</div></div>
+        <div className="sdk-message-body">{message.content && <MessageContent content={message.content} markdown={message.sender_type === 'agent'} />}{message.attachments?.map((attachment, index) => <FeedbackMessageAttachment key={`${attachment.object_key || attachment.id || index}`} feedbackId={Number(feedbackId)} attachment={attachment} />)}</div></div>
       </article>)}
       {!loading && !messages.length && <p className="text-sm text-foreground-secondary">暂无沟通记录，可在下方补充问题。</p>}
     </div>

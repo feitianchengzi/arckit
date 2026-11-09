@@ -1,10 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import axios from 'axios'
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock('./client', () => ({ apiClient: { get, post } }))
 vi.mock('./interceptors/response', () => ({ handleResponse: (r: {data:{data:unknown}}) => r.data.data }))
 import { feedbackV2Client } from './feedbackV2Client'
 beforeEach(() => { get.mockReset(); post.mockReset() })
 describe('feedback lifecycle API', () => {
+ it('keeps root-relative V2 routes out of the Axios V1 base for lists and session creation', async () => {
+  vi.stubEnv('VITE_API_URL', '/workshop/v1')
+  vi.stubEnv('VITE_WORKSHOP_V2_API_URL', '/workshop/v2')
+  try {
+   get.mockResolvedValue({data:{data:[]}})
+   post.mockResolvedValue({data:{data:{token:'test-session',expires_at:'2026-11-10T00:00:00Z'}}})
+   await feedbackV2Client.listByProject(13)
+   await feedbackV2Client.createSession(13, 'console_test')
+   const client = axios.create({baseURL:'/workshop/v1'})
+   expect(client.getUri({url:get.mock.calls[0][0]})).toBe(`${window.location.origin}/workshop/v2/user/feedbacks`)
+   expect(client.getUri({url:post.mock.calls[0][0]})).toBe(`${window.location.origin}/workshop/v2/user/feedback-sessions`)
+  } finally {
+   vi.unstubAllEnvs()
+  }
+ })
  it('reads all unified conversation pages rather than truncating original consultation', async () => {
   get.mockResolvedValueOnce({data:{data:[{id:1,source:'agent'}],meta:{total:2}}}).mockResolvedValueOnce({data:{data:[{id:2,source:'feedback'}],meta:{total:2}}})
   const result=await feedbackV2Client.getConversationMessages(42)

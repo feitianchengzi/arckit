@@ -1,3 +1,4 @@
+import ReactMarkdown from 'react-markdown'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { FeedbackLifecyclePanel } from './FeedbackLifecyclePanel'
@@ -506,9 +507,15 @@ export function FeedbackConversationPanel({
                   <time>{formatMessageTime(message.created_at)}</time>
                 </div>
                 {message.content ? (
+                  message.sender_type === 'agent' ? (
+                  <div className="mt-2 text-sm leading-6 text-foreground [&_h1]:text-lg [&_h2]:text-base [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-bold [&_p]:my-2 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-6 [&_ol]:pl-6 [&_pre]:overflow-x-auto [&_pre]:p-3 [&_code]:font-mono [&_a]:underline">
+                    <ReactMarkdown skipHtml components={{ a: ({ children, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer">{children}</a> }}>{message.content}</ReactMarkdown>
+                  </div>
+                ) : (
                   <p className={clsx('mt-2 whitespace-pre-wrap text-foreground', initial ? 'text-base leading-6' : 'text-sm leading-6')}>
                     {message.content}
                   </p>
+                )
                 ) : null}
                 {message.attachments?.length ? (
                   <div className="mt-3">

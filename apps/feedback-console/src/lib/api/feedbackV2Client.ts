@@ -14,11 +14,11 @@ const DEFAULT_WORKSHOP_V2_BASE_URL = 'https://api.feitianchengzi.com/workshop/v2
 
 function resolveWorkshopV2BaseUrl(): string {
   const configured = import.meta.env.VITE_WORKSHOP_V2_API_URL?.trim()
-  if (configured) return configured.replace(/\/$/, '')
-
   const v1Base = import.meta.env.VITE_API_URL?.trim()
-  if (v1Base) return v1Base.replace(/\/v1\/?$/, '/v2').replace(/\/$/, '')
-  return DEFAULT_WORKSHOP_V2_BASE_URL
+  const base = (configured || (v1Base ? v1Base.replace(/\/v1\/?$/, '/v2') : DEFAULT_WORKSHOP_V2_BASE_URL)).replace(/\/$/, '')
+  // Axios appends even root-relative URLs to the client's V1 baseURL.
+  // Resolve against the browser origin so V2 requests bypass that base.
+  return new URL(base, window.location.origin).href.replace(/\/$/, '')
 }
 
 function parseProjectIds(raw?: string): Set<number> {
