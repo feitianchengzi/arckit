@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 const { configure, parent } = vi.hoisted(() => ({ configure: vi.fn(), parent: { postMessage: vi.fn() } }))
 vi.mock('./config', () => ({
   configureFeedbackSDK: configure,
+  getFeedbackSDKProductContract: () => 'v2',
   getFeedbackSDKConfig: () => ({ parentOrigins: ['https://allowed.example'], theme: 'light' }),
   isFeedbackSDKV2NotificationsEnabled: () => false,
   setFeedbackSDKTheme: vi.fn(),

@@ -214,7 +214,8 @@ export async function submitFeedbackV2(params: {
 
   const authMode = currentV2AuthMode()
   const directScope = authMode === 'apiKey' ? directScopePayload() : null
-  const metadata = { source: 'feedback-sdk-web', channel: 'webview', feedback_state: 'pending', ...(params.structured ? { structured: params.structured, clarification: { confirmed: true, confirmed_by_customer: true, confirmed_at: new Date().toISOString(), version: 1 } } : {}) }
+  const hostContext = getFeedbackSDKConfig().hostContext
+  const metadata = { source: 'feedback-sdk-web', channel: 'webview', feedback_state: 'pending', ...(hostContext ? { host_context: hostContext } : {}), ...(params.structured ? { structured: params.structured, clarification: { confirmed: true, confirmed_by_customer: true, confirmed_at: new Date().toISOString(), version: 1 } } : {}) }
   const body: Record<string, unknown> = {
     ...(directScope
       ? { project_id: directScope.projectId, custom_user_id: directScope.customUserId }
@@ -603,7 +604,36 @@ export async function getAgentConversations(feedbackId: number): Promise<AgentCo
 /**
  * 获取 Agent 对话消息列表
  */
-export async function getAgentConversationMessages(conversationId: string): Promise<AgentMessage[]> {
+interface FeedbackAgentMessageView {
+  id: number
+  sender: AgentMessage['sender_type']
+  content: string
+  confidence?: number
+  created_at: string
+}
+
+export async function getAgentConversationMessages(conversationId: string, feedbackId?: number): Promise<AgentMessage[]> {
+  // 直连 API Key 部署历史上已暴露 chat-widget 专用的反馈消息投影；
+  // 优先使用它避免旧版 conversation handler 错读不存在的 feedback 路由参数。
+  // 调用端已先通过 getAgentConversations(feedbackId) 完成反馈归属与项目成员校验。
+  if (currentV2AuthMode() === 'apiKey' && Number.isFinite(feedbackId) && Number(feedbackId) > 0) {
+    const envelope = await requestJson<FeedbackAgentMessageView[]>(
+      `/feedbacks/${feedbackId}/agent-messages`,
+      `/feedbacks/${feedbackId}/agent-messages`,
+      { method: 'GET' },
+    )
+    return (envelope.data || []).map((message) => ({
+      id: message.id,
+      conversation_id: conversationId,
+      feedback_id: Number(feedbackId),
+      project_id: 0,
+      sender_type: message.sender,
+      content: message.content,
+      confidence: message.confidence,
+      created_at: message.created_at,
+    }))
+  }
+
   const envelope = await requestJson<AgentMessage[]>(
     `/agent-conversations/${conversationId}/messages`,
     `/agent-conversations/${conversationId}/messages`,
