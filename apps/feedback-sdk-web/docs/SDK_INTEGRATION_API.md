@@ -1,4 +1,4 @@
-# Feedback SDK 接入 API（V1 / V2）
+# Feedback SDK 接入 API（V1 / V2 / V3）
 
 本文档说明移动端 WebView 如何以函数方式接入反馈组件。
 
@@ -11,14 +11,27 @@
 
 ## 控制台 iframe 接入
 
-反馈平台控制台的 V2 通过 iframe 打开 `/sdk-v2/index.html?embed=web`，SDK 加载后会向父页面发送 `feedback-sdk:ready`，父页面再以 `postMessage` 发送配置。现有待办 Web 与 iOS 继续使用稳定的 `/sdk`，不受 V2 影响：
+稳定 V2 继续使用 `/sdk-v2/index.html?embed=web`。新版统一工作台只发布到 `/sdk-v3-canary` 与 `/sdk-v3`；切换 V3 的宿主只需替换 iframe URL，运行时仍复用已验证的 V2 Session/API Key 鉴权字段。`/sdk` 与 `/sdk-v2` 不随 V3 发布切换。
+
+SDK 加载后会向父页面发送 `feedback-sdk:ready`，父页面再以 `postMessage` 发送配置：
 
 ```ts
 iframe.contentWindow?.postMessage({
   source: 'feedback-sdk-host',
   type: 'feedback-sdk:configure',
+  request_id: 'configure-001',
   config: { apiKey, projectId, customUserId, theme },
 }, sdkOrigin)
+```
+
+SDK 接受并应用配置后，会使用相同的 `request_id` 回执；宿主应收到回执后再发送打开或读取未读数命令，避免把“iframe 已加载”误判为“鉴权配置已生效”：
+
+```js
+{
+  source: 'feedback-sdk-web',
+  type: 'feedback-sdk:configured',
+  request_id: 'configure-001',
+}
 ```
 
 打开页面时，再发送路由命令：
@@ -47,7 +60,7 @@ SDK 在生产环境只接受来自同源父页面的消息，以及本机开发�
 
 `feedback-console-web` 是兼容保留的旧 `source` 值；新的接入应使用 `feedback-sdk-host`。
 
-V2 的嵌入页会自行渲染全屏遮罩、反馈卡片和关闭按钮。接入方只需承载一个全屏透明 iframe、发送配置及打开命令；不应提供容器、尺寸、关闭按钮、遮罩样式或跨 iframe 读取 SDK DOM。SDK 通过 `feedback-sdk:close` 通知接入方隐藏 iframe。
+V2/V3 的嵌入页会自行渲染全屏遮罩、反馈卡片和关闭按钮。接入方只需承载一个全屏透明 iframe、发送配置及打开命令；不应提供容器、尺寸、关闭按钮、遮罩样式或跨 iframe 读取 SDK DOM。SDK 通过 `feedback-sdk:close` 通知接入方隐藏 iframe。
 
 ## 2. 全局桥接对象
 
@@ -75,9 +88,22 @@ type FeedbackSDKConfig = {
   feedbackV2NotificationsEnabled?: boolean
   feedbackV2AuthMode?: 'session' | 'apiKey'
   feedbackSessionToken?: string
+  hostContext?: {
+    release?: string
+    build?: string
+    module?: string
+    route?: string
+    browser?: string
+    os?: string
+    locale?: string
+    clientTimestamp?: string
+    requestId?: string
+  }
   theme?: 'light' | 'dark' | 'system'
 }
 ```
+
+`hostContext` 是可选的非标识诊断上下文，只随新反馈的 `data.host_context` 保存。SDK 会再次按白名单和长度清洗；`route` 只能是无 ID 的语义页面键，不能传 URL 或资源路径。禁止传入租户、账号、人员、业务对象、表单、金额、文件、完整 User-Agent、认证 Header、Cookie、堆栈或截图。未知字段会被丢弃。
 
 ## 3. 推荐接入流程（移动端）
 

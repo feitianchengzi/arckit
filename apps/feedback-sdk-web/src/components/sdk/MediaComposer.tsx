@@ -14,6 +14,7 @@ interface Props {
   disabled?: boolean
   placeholder?: string
   allowFiles?: boolean
+  imageDisabledReason?: string
 }
 
 interface SpeechResult { isFinal: boolean; readonly [index: number]: { transcript: string } }
@@ -32,7 +33,7 @@ function speechConstructor(): SpeechConstructor | undefined {
 }
 
 /** Owns capture and upload UI. The application decides whether a message consults Agent or appends a card. */
-export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftConversationId = '', hidden = false, disabled = false, placeholder = '输入你的问题...', allowFiles = false }: Props) {
+export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftConversationId = '', hidden = false, disabled = false, placeholder = '输入你的问题...', allowFiles = false, imageDisabledReason = '' }: Props) {
   const initialDraft = useRef(readConsultationDraft(draftScope, draftConversationId)?.composer)
   const [text, setText] = useState(initialDraft.current?.text || '')
   const [media, setMedia] = useState<PendingMedia[]>(() => (initialDraft.current?.attachments || []).map((attachment, index) => ({ id: `restored-${index}`, file: new File([], attachment.file_name || '已上传图片', { type: attachment.mime_type || 'image/png' }), preview: '', attachment })))
@@ -93,6 +94,7 @@ export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftCon
   const addFiles = (files: File[]) => {
     setError('')
     for (const file of files) {
+      if (imageDisabledReason && file.type.startsWith('image/')) { setError(imageDisabledReason); continue }
       if (file.type.startsWith('audio/') || /\.(webm|ogg|oga|mp3|mp4|m4a|wav|aac|flac)$/i.test(file.name)) { setError('请使用语音输入转成文字后发送，不支持发送音频附件。'); continue }
       const validation = allowFiles && !file.type.startsWith('image/')
         ? (!file.size || file.size > 10 * 1024 * 1024 ? '附件应小于10MB且不能为空' : '')
@@ -169,6 +171,7 @@ export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftCon
   const send = async () => {
     if (sendingRef.current || disabled || recording || uploading) return
     if (!text.trim() && !media.length) { setError('请输入问题'); return }
+    if (imageDisabledReason && media.some((m) => m.file.type.startsWith('image/') || m.attachment?.type === 'image')) { setError(imageDisabledReason); return }
     if (media.some((m) => !m.attachment)) { setError('请先重试或移除上传失败的附件'); return }
     sendingRef.current = true; setSending(true); setError('')
     try {
@@ -191,10 +194,11 @@ export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftCon
       onPaste={(e) => { const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/')); if (files.length) { e.preventDefault(); addFiles(files) } }}
       onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (!locked) addFiles([...e.dataTransfer.files]) }} />
     <div className="sdk-composer-tools"><div className="flex items-center gap-3">
-      <label className="sdk-media-tool"><span aria-hidden="true">▧</span> 图片<input aria-label="添加图片" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={locked || recording} onChange={(e) => { addFiles([...(e.target.files || [])]); e.target.value = '' }} /></label>
+      <label className="sdk-media-tool" aria-disabled={Boolean(imageDisabledReason) || locked || recording}><span aria-hidden="true">▧</span> 图片<input aria-label="添加图片" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={Boolean(imageDisabledReason) || locked || recording} onChange={(e) => { addFiles([...(e.target.files || [])]); e.target.value = '' }} /></label>
       <button type="button" disabled={locked || recording} onClick={startSpeech} className="sdk-media-tool"><span aria-hidden="true">♩</span> 语音输入</button>
       {allowFiles && <label className="cursor-pointer text-xs text-foreground-secondary">文件<input aria-label="添加文件" className="sr-only" type="file" disabled={locked} onChange={(e) => { addFiles([...(e.target.files || [])]); e.target.value = '' }} /></label>}
     </div><div className="sdk-send-tools"><small>Enter 发送</small><button type="button" onClick={() => void send()} disabled={locked || uploading || recording} className="sdk-button primary">{sending ? '发送中…' : '发送'}<span aria-hidden="true"> ↑</span></button></div></div>
     {error && <p role="alert" className="mt-2 text-xs text-error">{error}</p>}
+    {imageDisabledReason && <p role="status" className="mt-2 text-xs text-foreground-secondary">{imageDisabledReason}</p>}
   </div>
 }

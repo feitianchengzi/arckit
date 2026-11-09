@@ -1,5 +1,5 @@
 import { feedbackSessionExpired } from '../feedback/errors'
-import { configureFeedbackSDK, getFeedbackSDKConfig, isFeedbackSDKV2NotificationsEnabled, setFeedbackSDKTheme } from './config'
+import { configureFeedbackSDK, getFeedbackSDKConfig, getFeedbackSDKProductContract, isFeedbackSDKV2NotificationsEnabled, setFeedbackSDKTheme } from './config'
 import type { FeedbackSDKConfig, FeedbackSDKLocale } from './config'
 import { fetchFeedbackNotificationsV2 } from '@/lib/feedback/v2'
 import { buildAppPath } from './router'
@@ -21,6 +21,7 @@ const FEEDBACK_SDK_HOST_CONFIGURE_MESSAGE = 'feedback-sdk:configure'
 const FEEDBACK_SDK_HOST_OPEN_MESSAGE = 'feedback-sdk:open'
 const FEEDBACK_SDK_HOST_GET_UNREAD_MESSAGE = 'feedback-sdk:get-unread-count'
 const FEEDBACK_SDK_READY_MESSAGE = 'feedback-sdk:ready'
+const FEEDBACK_SDK_CONFIGURED_MESSAGE = 'feedback-sdk:configured'
 const FEEDBACK_SDK_REFRESH_SESSION_MESSAGE = 'feedback-sdk:refresh-session'
 const FEEDBACK_SDK_UNREAD_CHANGED_MESSAGE = 'feedback-sdk:unread-changed'
 const FEEDBACK_SDK_UNREAD_COUNT_MESSAGE = 'feedback-sdk:unread-count'
@@ -65,7 +66,8 @@ interface FeedbackSDKHostConfigMessage {
 let hostMessageListenerInstalled = false
 
 function getReleaseInfo(): FeedbackSDKReleaseInfo {
-  const supportedContracts = (import.meta.env.VITE_SDK_SUPPORTED_CONTRACTS || 'v1,v2')
+  const defaultContracts = getFeedbackSDKProductContract() === 'v3' ? 'v3' : 'v1,v2'
+  const supportedContracts = (import.meta.env.VITE_SDK_SUPPORTED_CONTRACTS || defaultContracts)
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
@@ -117,6 +119,12 @@ function isFeedbackSDKConfig(value: unknown): value is FeedbackSDKConfig {
   const config = value as Record<string, unknown>
   const isStringArray = (v: unknown) =>
     v === undefined || (Array.isArray(v) && v.every((item) => typeof item === 'string'))
+  const isHostContext = (v: unknown) => {
+    if (v === undefined) return true
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return false
+    const allowed = new Set(['release', 'build', 'module', 'route', 'browser', 'os', 'locale', 'clientTimestamp', 'requestId'])
+    return Object.entries(v as Record<string, unknown>).every(([key, item]) => allowed.has(key) && typeof item === 'string')
+  }
   return (
     (config.apiKey === undefined || typeof config.apiKey === 'string') &&
     (config.projectId === undefined || typeof config.projectId === 'number') &&
@@ -128,6 +136,7 @@ function isFeedbackSDKConfig(value: unknown): value is FeedbackSDKConfig {
     (config.feedbackSessionToken === undefined || typeof config.feedbackSessionToken === 'string') &&
     (config.locale === undefined || config.locale === 'zh-CN' || config.locale === 'en-US') &&
     isStringArray(config.parentOrigins) &&
+    isHostContext(config.hostContext) &&
     (config.theme === undefined || typeof config.theme === 'string')
   )
 }
@@ -191,6 +200,14 @@ function installHostMessageListener() {
       if (!isFeedbackSDKConfig(event.data.config)) return
       configureFeedbackSDK(event.data.config)
       window.dispatchEvent(new CustomEvent(FEEDBACK_SDK_CONFIGURED_EVENT))
+      ;(event.source as WindowProxy).postMessage(
+        {
+          source: 'feedback-sdk-web',
+          type: FEEDBACK_SDK_CONFIGURED_MESSAGE,
+          ...(typeof event.data.request_id === 'string' ? { request_id: event.data.request_id } : {}),
+        },
+        event.origin,
+      )
       return
     }
 

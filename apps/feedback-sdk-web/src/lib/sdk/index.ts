@@ -8,11 +8,13 @@ export {
   setFeedbackSDKTheme,
   getFeedbackSDKConfig,
   getFeedbackSDKV2AuthMode,
+  getFeedbackSDKProductContract,
   isFeedbackSDKV2Enabled,
+  isFeedbackSDKV3Enabled,
   isFeedbackSDKV2NotificationsEnabled,
 } from './config'
 
-export type { FeedbackSDKConfig, FeedbackSDKV2AuthMode, FeedbackSDKLocale } from './config'
+export type { FeedbackSDKConfig, FeedbackSDKV2AuthMode, FeedbackSDKLocale, FeedbackSDKProductContract } from './config'
 export type { FeedbackSDKTheme } from './theme'
 
 export {

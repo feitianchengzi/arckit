@@ -76,6 +76,26 @@ VITE_FEEDBACK_SDK_URL=https://feedback.feitianchengzi.com/sdk-v2/index.html?embe
 
 正式环境应使用不可变 release + channel，而不是反复覆盖同一份 SDK 资源：
 
+V3 必须构建为独立产品契约，并使用独立 channel 名称，避免改写 V2 的 channel 清单：
+
+```bash
+npm run build:release:v3 -- 3.0.0-canary.20261031
+python3 scripts/sdk_release.py publish \
+  --version 3.0.0-canary.20261031 \
+  --dist-dir dist \
+  --env-file .env \
+  --compatible-contracts v3 \
+  --source-commit "$(git rev-parse HEAD)"
+python3 scripts/sdk_release.py promote \
+  --version 3.0.0-canary.20261031 \
+  --channel v3-canary \
+  --env-file .env \
+  --alias sdk-v3-canary:v3 \
+  --confirm-promote v3-canary:3.0.0-canary.20261031
+```
+
+验收通过后，把同一不可变产物提升到 `v3-stable` 并只维护 `/sdk-v3`。不要在 V3 promote 命令中加入 `/sdk` 或 `/sdk-v2`。
+
 ```bash
 # 低内存串行构建；Node 堆上限默认 1 GiB。
 npm run build:release -- 2.0.0-canary.20261014
