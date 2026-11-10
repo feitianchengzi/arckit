@@ -72,13 +72,13 @@ func buildAgentQueryWithConfidenceInstruction(query string) string {
 如引用产品使用文档，只有实际读取了项目工作区下 docs/、help/ 的 Markdown 或 README.md 才可在正文后输出 [sources] JSON数组 [/sources]，每项 {"path":"相对工作区路径","start_line":1,"end_line":5}，最多4项、每项最多20行。不得引用私密配置、业务数据或源码；没有实际文档依据就不输出。服务器将读取原文件核验，不得虚构文件、行号或来源。
 1. 基于代码仓库与项目文档回答；若信息不足以可靠回答，请如实说明未找到依据。
 2. 在回答的最末尾单独一行输出自评置信度标注，格式必须严格为 [confidence:0.00]（0~1 的小数，例如 [confidence:0.92]）。
-3. 若自评置信度低于 0.75，或者无法解决用户问题、用户报告故障/提出需求，或已有澄清草稿，继续多轮收集信息，不要声称已经创建反馈或承诺实现。即使本轮是补充信息也必须输出更新后的摘要。只总结客户实际说过的信息，不能从仓库、常识或你此前的回答推测客户情况。每轮正文仅追问一到两个缺失字段，避免反复询问已知事实。
+3. 若自评置信度低于 0.75，或者无法解决用户问题、用户报告故障/提出需求，继续多轮收集信息，不要声称已经创建反馈或承诺实现。已有澄清草稿时，只有本轮确实在补充或更正该反馈，才输出更新后的摘要；若本轮是独立的普通使用咨询且已依据资料完整回答，使用 answered，不要让旧草稿覆盖答案。只总结客户实际说过的信息，不能从仓库、常识或你此前的回答推测客户情况。每轮正文仅追问一到两个缺失字段，避免反复询问已知事实。
 4. 用如下协议输出摘要，字段不确定时留空。evidence 的每个键对应字段名，值必须是客户消息中支持该字段的逐字原文片段。request_type 是你基于仓库与事实自主分析的分类，引用支持判断的现象或期望原话，不要求用户自己说出类型名称。unknown_fields 只能列客户明确表示不知道的字段，并在 evidence 中给出该原话。不得用“未提供/待确认/未知”填充事实字段，不得生成 ready 标志。request_type 仅可为 bug/feature/question/other。建议不等于已确认需求，优先级和实现决定留给团队判断。
 [summary]
 {"position":"","phenomenon":"","expect":"","reproduction_steps":"","environment":"","impact":"","frequency":"","request_type":"","business_goal":"","workaround":"","target_users":"","current_workflow":"","pain_points":"","expected_benefit":"","constraints":"","evidence":{},"unknown_fields":[]}
 [/summary]
 5. 信息齐备时请客户检查摘要并通过界面确认提交，不能代替用户确认。信息缺失时继续问具体问题；客户明确不知道的辅助信息保留为待核实，不编造。JSON 必须合法。
-6. 在置信度标注前另起一行输出 [resolution:answered]、[resolution:unresolved] 或 [resolution:feedback_requested]。已依据资料完整回答的普通使用咨询用 answered，且不要输出 summary；尚无法解决的客户问题用 unresolved；用户明确要求整理故障或新需求反馈用 feedback_requested。已在澄清中的补充继续用 feedback_requested，不能因为你确信文档未覆盖而标为 answered。`
+6. 在置信度标注前另起一行输出 [resolution:answered]、[resolution:unresolved] 或 [resolution:feedback_requested]。已依据资料完整回答的普通使用咨询用 answered，且不要输出 summary；尚无法解决的客户问题用 unresolved；用户明确要求整理故障或新需求反馈用 feedback_requested。已在澄清中的补充继续用 feedback_requested；与旧草稿无关且已完整回答的新咨询仍用 answered。不能因为你确信文档未覆盖而标为 answered。`
 }
 
 var agentResolutionMarkerRe = regexp.MustCompile(`\[resolution:([^\]]*)\]`)

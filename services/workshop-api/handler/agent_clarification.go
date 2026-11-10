@@ -176,8 +176,9 @@ func applyClarification(response *AgentResponse, history []AgentMessageRecord) {
 		return
 	}
 	previous := latestClarification(history)
-	if previous == nil && response.Resolution == "answered" && !response.NeedCollect {
+	if response.Resolution == "answered" && !response.NeedCollect {
 		response.Structured = nil
+		response.Clarification = nil
 		return
 	}
 	candidate := mergeClarification(nil, response.Structured, history)
@@ -190,6 +191,12 @@ func applyClarification(response *AgentResponse, history []AgentMessageRecord) {
 	response.Clarification = state
 	response.Structured = &state.Summary
 	response.NeedCollect = true
+	if state.Summary.RequestType == "question" && response.Confidence >= agentConfidenceLowThreshold {
+		// A high-confidence usage answer remains useful even when an older
+		// clarification draft exists. Keep that answer visible; the draft is
+		// still returned separately and the SDK renders it as a collapsed card.
+		return
+	}
 	if state.ReadyToConfirm {
 		response.Content = "信息已整理，请检查下方结构化草稿，修正后确认提交。尚未创建反馈，优先级和实现方案由团队评估。"
 	} else {

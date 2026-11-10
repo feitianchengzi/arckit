@@ -2,13 +2,34 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestOhWaitFinishedMapsInsufficientBalance(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/conversations/conv-balance":
+			_, _ = w.Write([]byte(`{"execution_status":"error"}`))
+		case r.URL.Path == "/api/conversations/conv-balance/events/search":
+			_, _ = w.Write([]byte(`{"items":[{"kind":"ConversationErrorEvent","code":"LLMBadRequestError","detail":"DeepseekException: Insufficient Balance; 402 Payment Required"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	err := ohWaitFinished(&OpenHandsAgent{URL: server.URL}, "conv-balance", time.Second)
+	if !errors.Is(err, errOpenHandsInsufficientBalance) {
+		t.Fatalf("error = %v, want insufficient balance", err)
+	}
+}
 
 func captureOpenHandsConversations(t *testing.T, payload *map[string]any) *httptest.Server {
 	t.Helper()

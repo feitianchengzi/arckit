@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -40,9 +41,13 @@ func arcOrbitAgentUnavailableReply() string {
 	return "抱歉，我是" + arcOrbitAgentName + "，智能客服服务暂时不可用，当前暂时无法完成本次回答。请稍后重试；本次尚未创建反馈或转交人工。需要提交反馈时，请核对信息并确认后再提交反馈。"
 }
 
-func newAgentUnavailableResponse() *AgentResponse {
+func newAgentUnavailableResponse(err error) *AgentResponse {
+	content := arcOrbitAgentUnavailableReply()
+	if errors.Is(err, errOpenHandsInsufficientBalance) {
+		content = "模型 API Key 对应的账户余额不足，智能客服暂时无法回答。请联系项目管理员充值，或在反馈 Console 中更换可用的 Key 后重试；本次尚未创建反馈或转交人工。"
+	}
 	return &AgentResponse{
-		Content:              arcOrbitAgentUnavailableReply(),
+		Content:              content,
 		Confidence:           0,
 		NeedCollect:          false,
 		InferenceUnavailable: true,

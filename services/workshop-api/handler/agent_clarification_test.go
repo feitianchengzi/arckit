@@ -67,7 +67,7 @@ func TestClarificationMissingFactsOverrideModelClaimOfCompleteness(t *testing.T)
 }
 
 func TestInferenceUnavailableReplyIsNotOverwrittenByClarification(t *testing.T) {
-	response := newAgentUnavailableResponse()
+	response := newAgentUnavailableResponse(nil)
 	want := response.Content
 
 	applyClarification(response, []AgentMessageRecord{{
@@ -83,6 +83,33 @@ func TestInferenceUnavailableReplyIsNotOverwrittenByClarification(t *testing.T) 
 	}
 	if response.NeedCollect || response.Confidence != 0 || !response.InferenceUnavailable {
 		t.Fatalf("availability failure flags changed: %+v", response)
+	}
+}
+
+func TestInsufficientBalanceReplyIsActionable(t *testing.T) {
+	response := newAgentUnavailableResponse(errOpenHandsInsufficientBalance)
+	applyClarification(response, nil)
+	if !strings.Contains(response.Content, "账户余额不足") || !strings.Contains(response.Content, "充值") || !strings.Contains(response.Content, "更换") {
+		t.Fatalf("balance failure is not actionable: %q", response.Content)
+	}
+	if response.NeedCollect || response.Clarification != nil {
+		t.Fatalf("balance failure became a clarification draft: %+v", response)
+	}
+}
+
+func TestHighConfidenceQuestionKeepsAnswerWithExistingDraft(t *testing.T) {
+	previous := AgentClarification{Summary: AgentStructuredSummary{RequestType: "question", Position: "Feedback SDK V3", Phenomenon: "入口组件在哪个文件"}}
+	prior := AgentMessageRecord{SenderType: "agent"}
+	persistClarificationMetadata(&prior, &previous)
+	response := &AgentResponse{Content: "入口组件是 SDKSupportPage，文件位于 apps/feedback-sdk-web/src/pages/SDKSupportPage.tsx。", Confidence: .86, Resolution: "feedback_requested"}
+
+	applyClarification(response, []AgentMessageRecord{prior})
+
+	if !strings.Contains(response.Content, "SDKSupportPage.tsx") {
+		t.Fatalf("useful answer was overwritten: %q", response.Content)
+	}
+	if response.Clarification == nil || !response.NeedCollect {
+		t.Fatalf("existing draft should remain separately recoverable: %+v", response)
 	}
 }
 

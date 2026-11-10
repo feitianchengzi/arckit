@@ -125,7 +125,7 @@ func AgentMessageHandler(c *gin.Context) {
 	if err != nil {
 		// Agent 失败时降级为带平台身份的兜底（保留跟进承诺）
 		log.Printf("[agent-message] processWithAgent 失败 project=%d feedback=%d: %v", projectID, feedbackID, err)
-		agentResponse = newAgentUnavailableResponse()
+		agentResponse = newAgentUnavailableResponse(err)
 	}
 
 	// 存储 Agent 回复

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,8 @@ import (
 
 	"gorm.io/gorm"
 )
+
+var errOpenHandsInsufficientBalance = errors.New("model API account balance is insufficient")
 
 // OpenHandsSyncResult OpenHands Agent Server 同步调用结果
 type OpenHandsSyncResult struct {
@@ -396,6 +399,9 @@ func ohWaitFinished(agent *OpenHandsAgent, conversationID string, timeout time.D
 				case "finished", "idle":
 					return nil
 				case "error":
+					if failure := ohFetchConversationFailure(agent, conversationID); failure != nil {
+						return failure
+					}
 					return fmt.Errorf("OpenHands 执行出错")
 				}
 			}
@@ -403,6 +409,39 @@ func ohWaitFinished(agent *OpenHandsAgent, conversationID string, timeout time.D
 		time.Sleep(2 * time.Second)
 	}
 	return fmt.Errorf("等待 OpenHands 执行超时（%s）", timeout)
+}
+
+// ohFetchConversationFailure reads the structured error event emitted by
+// OpenHands. Do not return provider detail directly to clients: it can contain
+// request identifiers and internal implementation text. Known actionable
+// failures are represented as typed errors and mapped to safe product copy.
+func ohFetchConversationFailure(agent *OpenHandsAgent, conversationID string) error {
+	endpoint := agent.URL + "/api/conversations/" + conversationID + "/events/search?query=" + url.QueryEscape("ConversationErrorEvent")
+	status, data, err := ohRequest("GET", endpoint, resolveOpenHandsSessionAPIKey(agent), nil, 0)
+	if err != nil || status != http.StatusOK {
+		return nil
+	}
+	var resp struct {
+		Items []struct {
+			Kind   string `json:"kind"`
+			Code   string `json:"code"`
+			Detail string `json:"detail"`
+		} `json:"items"`
+	}
+	if json.Unmarshal(data, &resp) != nil {
+		return nil
+	}
+	for i := len(resp.Items) - 1; i >= 0; i-- {
+		item := resp.Items[i]
+		if item.Kind != "ConversationErrorEvent" {
+			continue
+		}
+		normalized := strings.ToLower(item.Code + " " + item.Detail)
+		if strings.Contains(normalized, "insufficient balance") || strings.Contains(normalized, "insufficient_balance") || strings.Contains(normalized, "402 payment required") {
+			return errOpenHandsInsufficientBalance
+		}
+	}
+	return nil
 }
 
 // ohFetchAgentReply 从 MessageEvent 中提取最后一条 agent 回复文本
