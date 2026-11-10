@@ -40,6 +40,8 @@ append_value CUSTOMER_REPOS_PATH /opt/todo/customer-repos
 append_value OH_REPO_ROOT /workspace/customer-repos
 append_value OH_WORKSPACE_DIR /workspace/customer-repos
 append_value OH_SHARED_GID 2000
+append_value OH_CONTAINER_UID 10001
+append_value OH_CONTAINER_GID 10001
 append_value WORKSHOP_CPU_LIMIT 0.5
 append_value WORKSHOP_MEMORY_LIMIT 384M
 append_value OPENHANDS_CPU_LIMIT 1.0

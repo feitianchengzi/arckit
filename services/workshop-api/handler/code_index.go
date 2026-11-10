@@ -300,7 +300,8 @@ func runCodeIndexPipelineForSource(db *gorm.DB, projectID uint, repo CustomerCod
 }
 
 // failCodeIndexSource 将索引失败写入 knowledge_source（状态 + 原因 + 时间）。
-// 失败必须可观测，禁止静默伪 synced；同时把 repo 状态收口为 error。
+// 失败必须可观测，禁止静默伪 synced。代码仓库状态只反映 checkout 是否
+// 可用；可选向量索引失败不得把已经同步成功的 OpenHands 工作区标成不可用。
 func failCodeIndexSource(db *gorm.DB, src models.KnowledgeSource, reason string) {
 	now := time.Now()
 	errStr := reason
@@ -310,14 +311,6 @@ func failCodeIndexSource(db *gorm.DB, src models.KnowledgeSource, reason string)
 		"last_index_error": &errStr,
 		"last_indexed_at":  &now,
 	})
-	if src.ProjectID != nil {
-		// code-repo-{id} 命名约定：从 source 反推 repo 并收口状态。
-		var repoID uint
-		if _, err := fmt.Sscanf(src.Name, "code-repo-%d", &repoID); err == nil && repoID > 0 {
-			db.Model(&CustomerCodeRepo{}).Where("id = ? AND project_id = ?", repoID, *src.ProjectID).
-				Update("status", "error")
-		}
-	}
 }
 
 // chunkedSymbol 分块结果

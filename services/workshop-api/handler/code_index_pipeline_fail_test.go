@@ -54,6 +54,13 @@ func TestRunCodeIndexPipelineMissingPathMarksSyncFailed(t *testing.T) {
 	if src.LastIndexedAt == nil {
 		t.Fatal("last_indexed_at 应记录失败时间")
 	}
+	var persistedRepo CustomerCodeRepo
+	if err := db.First(&persistedRepo, repo.ID).Error; err != nil {
+		t.Fatalf("reload repo: %v", err)
+	}
+	if persistedRepo.Status != "ready" {
+		t.Fatalf("repo status = %s, want ready（索引失败不得阻断 OpenHands 读取已同步 checkout）", persistedRepo.Status)
+	}
 }
 
 // 空目录（0 个可索引文件）同样不得标 synced。
@@ -88,6 +95,13 @@ func TestRunCodeIndexPipelineEmptyDirMarksSyncFailed(t *testing.T) {
 	}
 	if src.LastIndexError == nil || strings.TrimSpace(*src.LastIndexError) == "" {
 		t.Fatal("last_index_error 必须说明未扫到可索引文件")
+	}
+	var persistedRepo CustomerCodeRepo
+	if err := db.First(&persistedRepo, repo.ID).Error; err != nil {
+		t.Fatalf("reload repo: %v", err)
+	}
+	if persistedRepo.Status != "ready" {
+		t.Fatalf("repo status = %s, want ready（知识索引状态与仓库可用性必须解耦）", persistedRepo.Status)
 	}
 }
 

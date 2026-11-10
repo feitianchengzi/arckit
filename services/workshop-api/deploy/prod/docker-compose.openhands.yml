@@ -11,6 +11,12 @@ services:
       OH_SECRET_KEY: ${OH_SECRET_KEY}
       OH_PERSISTENCE_DIR: /home/openhands/.openhands
       SANDBOX_VOLUMES: /workspace/customer-repos:/workspace/customer-repos:ro
+      # Customer repositories are intentionally owned by the Workshop sync
+      # user and mounted read-only. Mark only that controlled tree as safe so
+      # OpenHands reads the existing checkout instead of trying `git init`.
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "/workspace/customer-repos/*"
     expose:
       - "8000"
     group_add:

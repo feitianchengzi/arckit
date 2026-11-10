@@ -21,6 +21,8 @@ source "$ENV_FILE"
 compose=(docker compose --env-file "$ENV_FILE" -f "$BASE_COMPOSE" -f "$OPENHANDS_COMPOSE")
 repo_path=${CUSTOMER_REPOS_PATH:-/opt/todo/customer-repos}
 shared_gid=${OH_SHARED_GID:-2000}
+container_uid=${OH_CONTAINER_UID:-10001}
+container_gid=${OH_CONTAINER_GID:-10001}
 minimum_available_mb=${OPENHANDS_MIN_AVAILABLE_MB:-1536}
 minimum_swap_mb=${OPENHANDS_MIN_SWAP_MB:-2048}
 
@@ -35,6 +37,8 @@ validate_secret() {
 preflight() {
   [[ $repo_path =~ ^/[a-zA-Z0-9._/-]+$ ]] || { echo "CUSTOMER_REPOS_PATH must be a safe absolute path" >&2; exit 1; }
   [[ $shared_gid =~ ^[1-9][0-9]*$ ]] || { echo "OH_SHARED_GID must be a positive numeric group id" >&2; exit 1; }
+  [[ $container_uid =~ ^[1-9][0-9]*$ ]] || { echo "OH_CONTAINER_UID must be a positive numeric user id" >&2; exit 1; }
+  [[ $container_gid =~ ^[1-9][0-9]*$ ]] || { echo "OH_CONTAINER_GID must be a positive numeric group id" >&2; exit 1; }
   [[ ${OPENHANDS_IMAGE:-} == *@sha256:* ]] || {
     echo "OPENHANDS_IMAGE must be pinned by sha256 digest; latest tags are not allowed" >&2
     exit 1
@@ -71,6 +75,13 @@ preflight() {
   echo "OpenHands preflight passed: available=${available_mb}MiB swap=${swap_mb}MiB repos=$repo_path"
 }
 
+prepare_state_volume() {
+  # A newly created named volume is root-owned. OpenHands runs as an
+  # unprivileged user and otherwise cannot create its profiles directory.
+  "${compose[@]}" run --rm --no-deps --user 0:0 --entrypoint sh openhands-agent -ceu \
+    "chown '$container_uid:$container_gid' /home/openhands/.openhands && chmod 700 /home/openhands/.openhands"
+}
+
 wait_healthy() {
   local attempt status
   for ((attempt = 1; attempt <= 30; attempt += 1)); do
@@ -92,6 +103,7 @@ case $command_name in
     if ! docker image inspect "$OPENHANDS_IMAGE" >/dev/null 2>&1; then
       "${compose[@]}" pull openhands-agent
     fi
+    prepare_state_volume
     "${compose[@]}" up -d openhands-agent
     wait_healthy
     echo "OpenHands is healthy on the internal workshop network"
