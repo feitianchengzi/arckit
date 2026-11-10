@@ -170,11 +170,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 	agentResponse, err := processWithAgent(c, db, scope.ProjectID, standaloneConversationFeedbackID, req.Content, history, conv.ID, imageUrls)
 	if err != nil {
 		log.Printf("[agent-chat-standalone] processWithAgent 失败 project=%d user=%s: %v", scope.ProjectID, scope.CustomUserID, err)
-		agentResponse = &AgentResponse{
-			Content:     arcOrbitAgentUnavailableReply(),
-			Confidence:  0,
-			NeedCollect: true,
-		}
+		agentResponse = newAgentUnavailableResponse()
 	}
 
 	applyClarification(agentResponse, history)

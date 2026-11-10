@@ -66,6 +66,26 @@ func TestClarificationMissingFactsOverrideModelClaimOfCompleteness(t *testing.T)
 	}
 }
 
+func TestInferenceUnavailableReplyIsNotOverwrittenByClarification(t *testing.T) {
+	response := newAgentUnavailableResponse()
+	want := response.Content
+
+	applyClarification(response, []AgentMessageRecord{{
+		SenderType: "customer",
+		Content:    "请根据仓库说明 Feedback SDK V3 的入口组件在哪个文件？",
+	}})
+
+	if response.Content != want {
+		t.Fatalf("availability reply was overwritten: %q", response.Content)
+	}
+	if response.Clarification != nil || response.Structured != nil {
+		t.Fatalf("availability failure created a clarification draft: %+v", response)
+	}
+	if response.NeedCollect || response.Confidence != 0 || !response.InferenceUnavailable {
+		t.Fatalf("availability failure flags changed: %+v", response)
+	}
+}
+
 func TestClarificationPersistencePostgres(t *testing.T) {
 	db := openFeedbackWorkflowPostgres(t)
 	conv := AgentConversation{ID: uuid.NewString(), ProjectID: 11, CustomUserID: "clarification-customer"}

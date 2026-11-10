@@ -125,11 +125,7 @@ func AgentMessageHandler(c *gin.Context) {
 	if err != nil {
 		// Agent 失败时降级为带平台身份的兜底（保留跟进承诺）
 		log.Printf("[agent-message] processWithAgent 失败 project=%d feedback=%d: %v", projectID, feedbackID, err)
-		agentResponse = &AgentResponse{
-			Content:     arcOrbitAgentUnavailableReply(),
-			Confidence:  0,
-			NeedCollect: true,
-		}
+		agentResponse = newAgentUnavailableResponse()
 	}
 
 	// 存储 Agent 回复
@@ -203,6 +199,10 @@ type AgentResponse struct {
 	// Structured 低置信时由 Agent 总结的问题结构，供反馈表单预填。
 	Structured    *AgentStructuredSummary `json:"structured,omitempty"`
 	Clarification *AgentClarification     `json:"clarification,omitempty"`
+	// InferenceUnavailable distinguishes an infrastructure/model failure from a
+	// genuine low-confidence product answer. The former must keep the honest
+	// service-unavailable reply instead of being rewritten as a feedback draft.
+	InferenceUnavailable bool `json:"-"`
 	// OHConversationID OpenHands 侧会话 ID，用于持久化映射
 	OHConversationID string `json:"openhands_conversation_id,omitempty"`
 }

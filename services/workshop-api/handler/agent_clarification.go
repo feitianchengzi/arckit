@@ -163,6 +163,18 @@ func mergeClarification(previous *AgentClarification, candidate *AgentStructured
 	return state
 }
 func applyClarification(response *AgentResponse, history []AgentMessageRecord) {
+	if response == nil {
+		return
+	}
+	if response.InferenceUnavailable {
+		// A failed model/runtime call is not evidence that the customer reported
+		// a bug or requested a feature. Preserve the honest availability message;
+		// otherwise the clarification template hides the operational failure and
+		// asks irrelevant product questions.
+		response.Structured = nil
+		response.Clarification = nil
+		return
+	}
 	previous := latestClarification(history)
 	if previous == nil && response.Resolution == "answered" && !response.NeedCollect {
 		response.Structured = nil

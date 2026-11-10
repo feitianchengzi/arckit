@@ -130,11 +130,7 @@ func runBoundAgentMessage(c *gin.Context, scope middleware.FeedbackSessionScope)
 	agentResponse, err := processWithAgent(c, db, projectID, feedbackID, req.Content, history, conv.ID, imageUrls)
 	if err != nil {
 		log.Printf("[agent-message-session] processWithAgent 失败 project=%d feedback=%d: %v", projectID, feedbackID, err)
-		agentResponse = &AgentResponse{
-			Content:     arcOrbitAgentUnavailableReply(),
-			Confidence:  0,
-			NeedCollect: true,
-		}
+		agentResponse = newAgentUnavailableResponse()
 	}
 
 	applyClarification(agentResponse, history)
