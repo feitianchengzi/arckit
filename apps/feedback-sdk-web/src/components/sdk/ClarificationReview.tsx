@@ -13,8 +13,12 @@ interface Props {
 export function ClarificationReview({ value, confirmed, pending = false, onChange, onConfirm, mode = 'create' }: Props) {
   const missing = missingClarificationFields(value)
   const update = (field: ClarificationField, text: string) => onChange({ ...value, [field]: text, unknown_fields: value.unknown_fields?.filter((key) => key !== field) })
-  return <section aria-label="核对结构化反馈" className="sdk-collection space-y-3">
-    <h3 className="font-semibold">核对问题信息</h3>
+  return <details aria-label="核对结构化反馈" className="sdk-collection sdk-collection-review">
+    <summary className="sdk-collection-summary">
+      <span><strong>核对问题信息</strong><small>{confirmed ? '已核对，展开可查看或修改' : '已整理为草稿，可继续咨询；需要提交时再展开核对'}</small></span>
+      <span className="sdk-collection-arrow" aria-hidden="true">⌄</span>
+    </summary>
+    <div className="sdk-collection-review-body space-y-3">
     <p className="text-xs text-foreground-secondary">可以继续与客服补充，或直接编辑。请仅确认真实信息；暂时无法提供的内容可标记为待确认，供团队继续澄清。</p>
     {visibleClarificationFields(value).map(([field, label]) => <div key={field} className="space-y-1">
       <label className="block text-xs font-medium" htmlFor={`clarification-${field}`}>{label}</label>
@@ -24,5 +28,6 @@ export function ClarificationReview({ value, confirmed, pending = false, onChang
     {missing.length > 0 && <p role="status" className="text-xs text-foreground-secondary">还需补充或标记待确认：{missing.map((key) => clarificationFields.find(([field]) => field === key)?.[1]).join('、')}</p>}
     <button type="button" disabled={confirmed || pending || missing.length > 0 || !value.phenomenon.trim() || !value.expect.trim()} onClick={onConfirm} className="rounded bg-primary px-3 py-2 text-sm text-white disabled:opacity-50">{pending ? '正在记录...' : confirmed ? '已确认，修改后需重新确认' : mode === 'append' ? '确认并追加到当前反馈' : '确认以上信息，准备提交反馈'}</button>
     {confirmed && <p role="status" className="text-xs text-success">{mode === 'append' ? '已确认并记录到当前反馈。' : '已由你确认。点击下方提交按钮后才会创建反馈卡片。'}</p>}
-  </section>
+    </div>
+  </details>
 }

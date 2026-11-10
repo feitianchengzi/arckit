@@ -4,12 +4,22 @@ import { ClarificationReview } from './ClarificationReview'
 import { mergeStructuredSummary, missingClarificationFields } from '@/lib/feedback/structured'
 
 const core = { request_type: 'bug', position: '订单列表', phenomenon: '点击导出无响应', expect: '下载 CSV' }
+const openReview = () => fireEvent.click(screen.getByText('核对问题信息'))
 
 describe('structured clarification review', () => {
+  it('starts collapsed so the customer can keep chatting, and expands on demand', () => {
+    render(<ClarificationReview value={core} confirmed={false} onChange={vi.fn()} onConfirm={vi.fn()} />)
+    const review = screen.getByLabelText('核对结构化反馈') as HTMLDetailsElement
+    expect(review.open).toBe(false)
+    expect(screen.getByText(/可继续咨询/)).toBeInTheDocument()
+    openReview()
+    expect(review.open).toBe(true)
+  })
   it('blocks repeated confirmation and edits while an append is in flight', () => {
     const value = { ...core, unknown_fields: ['reproduction_steps', 'environment', 'impact'] }
     const confirm = vi.fn()
     const { rerender } = render(<ClarificationReview mode="append" value={value} confirmed={false} pending onChange={vi.fn()} onConfirm={confirm} />)
+    openReview()
     expect(screen.getByLabelText('期望结果')).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: '正在记录...' }))
     expect(confirm).not.toHaveBeenCalled()
@@ -20,6 +30,7 @@ describe('structured clarification review', () => {
   it('blocks confirmation until required context is supplied or explicitly unknown', () => {
     const confirm = vi.fn()
     const { rerender } = render(<ClarificationReview value={core} confirmed={false} onChange={vi.fn()} onConfirm={confirm} />)
+    openReview()
     expect(screen.getByRole('button', { name: '确认以上信息，准备提交反馈' })).toBeDisabled()
     rerender(<ClarificationReview value={{ ...core, unknown_fields: ['reproduction_steps', 'environment', 'impact'] }} confirmed={false} onChange={vi.fn()} onConfirm={confirm} />)
     fireEvent.click(screen.getByRole('button', { name: '确认以上信息，准备提交反馈' }))
@@ -35,6 +46,7 @@ describe('structured clarification review', () => {
   it('edits notify the parent and never create a feedback card', () => {
     const change = vi.fn(), confirm = vi.fn()
     render(<ClarificationReview value={core} confirmed={false} onChange={change} onConfirm={confirm} />)
+    openReview()
     fireEvent.change(screen.getByLabelText('期望结果'), { target: { value: '下载 Excel 文件' } })
     expect(change).toHaveBeenCalledWith(expect.objectContaining({ expect: '下载 Excel 文件' }))
     expect(confirm).not.toHaveBeenCalled()
@@ -46,6 +58,7 @@ describe('feature review form', () => {
   it('switches the form to product discovery fields and preserves explicit manual edits', () => {
     const change = vi.fn()
     const { rerender } = render(<ClarificationReview value={core} confirmed={false} onChange={change} onConfirm={vi.fn()} />)
+    openReview()
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.getByText(/Agent/)).toBeInTheDocument()
     rerender(<ClarificationReview value={{ ...core, request_type: 'feature' }} confirmed={false} onChange={change} onConfirm={vi.fn()} />)

@@ -23,6 +23,7 @@ describe('embedded support application', () => {
   it('requires fact confirmation after autonomous Agent classification before creating one card', async () => {
     mount(); fireEvent.click(screen.getByText('Agent完成分析'))
     expect(screen.queryByRole('combobox')).toBeNull()
+    fireEvent.click(screen.getByText('核对问题信息'))
     const create = screen.getByRole('button', { name: '确认并创建反馈卡片' })
     expect(create).toBeDisabled(); expect(submitFeedbackV2).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '确认以上信息，准备提交反馈' }))
