@@ -20,6 +20,11 @@ export default function App() {
   useEffect(() => {
     const configured = () => setV3(isFeedbackSDKV3Enabled())
     window.addEventListener(FEEDBACK_SDK_CONFIGURED_EVENT, configured)
+    // The bridge announces ready before React mounts. A fast host can finish
+    // configuration before this effect subscribes, so reconcile the current
+    // config once after installing the listener instead of relying only on
+    // the edge-triggered event.
+    configured()
     return () => window.removeEventListener(FEEDBACK_SDK_CONFIGURED_EVENT, configured)
   }, [])
   if (v3) return <SDKSupportPage />
