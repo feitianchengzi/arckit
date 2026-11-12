@@ -136,11 +136,31 @@ describe('consultation history continuity', () => {
     await screen.findByText('已有咨询记录')
     expect(screen.queryByRole('button', { name: '直接反馈' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: '仍未解决，提交反馈' })).toHaveLength(1)
+    const viewport = document.querySelector('.sdk-agent-messages') as HTMLDivElement
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 1200 })
+    const scrollTo = vi.spyOn(viewport, 'scrollTo')
     fireEvent.click(screen.getByRole('button', { name: /^已解答$/ }))
     expect(screen.getByRole('status')).toHaveTextContent('未创建反馈卡片')
+    await waitFor(() => expect(scrollTo).toHaveBeenLastCalledWith({ top: 1200, behavior: 'smooth' }))
     fireEvent.click(screen.getByRole('button', { name: '仍未解决，提交反馈' }))
     expect(direct).toHaveBeenCalledOnce()
     expect(api.sendStandaloneAgentMessage).not.toHaveBeenCalled()
+  })
+  it('restores the conversation scroll position after returning from direct feedback', async () => {
+    const direct = vi.fn()
+    const view = render(<AgentChatPanel standalone formOpen={false} onDirectFeedback={direct} />)
+    await screen.findByText('已有咨询记录')
+    const viewport = document.querySelector('.sdk-agent-messages') as HTMLDivElement
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 1200 })
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 300 })
+    viewport.scrollTop = 420
+    fireEvent.click(screen.getByRole('button', { name: '仍未解决，提交反馈' }))
+    expect(direct).toHaveBeenCalledOnce()
+    view.rerender(<AgentChatPanel standalone formOpen onDirectFeedback={direct} />)
+    viewport.scrollTop = 0
+    view.rerender(<AgentChatPanel standalone formOpen={false} onDirectFeedback={direct} />)
+    expect(viewport.scrollTop).toBe(420)
+    expect(screen.getByText('已有咨询记录')).toBeInTheDocument()
   })
 
   it('loads earlier messages only on demand and retains the selected recent messages', async () => {

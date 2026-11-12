@@ -1,6 +1,6 @@
 import { MessageContent } from './MessageContent'
 import { createPortal } from 'react-dom'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { sendAgentMessage, getAgentCapabilities, getAgentConversationMessages, sendStandaloneAgentMessage, getStandaloneAgentConversations, getStandaloneAgentConversationsPage, getStandaloneAgentMessages, getStandaloneAgentMessagesPage, getAgentConversations, type AgentSource, type AgentMessage, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { MediaComposer } from './MediaComposer'
 import { FeedbackMessageAttachment } from './FeedbackMessageAttachment'
@@ -71,6 +71,7 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
   submittingRef.current = submitting
   const containerRef = useRef<HTMLDivElement>(null)
   const preserveScroll = useRef(false)
+  const feedbackReturnScroll = useRef<{ top: number; atBottom: boolean }>()
   const callbacks = useRef({ onNeedCollect, onConversationReady })
   callbacks.current = { onNeedCollect, onConversationReady }
   const initialRef = useRef(initialMessage?.trim() || '')
@@ -215,6 +216,14 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
     if (next.kind === 'new') beginNew()
     else void load(next.id)
   }
+  const openDirectFeedback = () => {
+    const node = containerRef.current
+    if (node) {
+      const maximumTop = Math.max(0, node.scrollHeight - node.clientHeight)
+      feedbackReturnScroll.current = { top: node.scrollTop, atBottom: maximumTop - node.scrollTop <= 24 }
+    }
+    onDirectFeedback?.()
+  }
   useEffect(() => {
     setMessages([]); conversationRef.current = ''; setConversationId('')
     void load()
@@ -247,7 +256,15 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
     document.addEventListener('keydown', handleKey, true)
     return () => { document.removeEventListener('keydown', handleKey, true); previous?.focus() }
   }, [historyOpen])
-  useEffect(() => { if (preserveScroll.current) { preserveScroll.current = false; return }; const node = containerRef.current; if (node) node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' }) }, [messages])
+  useLayoutEffect(() => {
+    if (formOpen || !feedbackReturnScroll.current) return
+    const node = containerRef.current
+    if (!node) return
+    const saved = feedbackReturnScroll.current
+    node.scrollTop = saved.atBottom ? Math.max(0, node.scrollHeight - node.clientHeight) : saved.top
+    feedbackReturnScroll.current = undefined
+  }, [formOpen])
+  useEffect(() => { if (preserveScroll.current) { preserveScroll.current = false; return }; const node = containerRef.current; if (node) node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' }) }, [messages, answered])
 
   return <section aria-label={t('chat.header_tag')} className="sdk-agent-panel">
     <div className="sdk-chat-toolbar">
@@ -278,7 +295,7 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
     <div ref={containerRef} className="sdk-agent-messages">
       {!formOpen && standalone && messages.length < messageTotal && <button type="button" className="sdk-button" disabled={olderLoading || loading || sending} onClick={() => void loadOlder()}>{olderLoading ? '正在加载更早记录…' : '加载更早咨询记录'}</button>}
       {!formOpen && !loading && !messages.length && <div className="sdk-welcome"><div className="sdk-spark" aria-hidden="true">✧</div><h2>你好，有什么可以帮你？</h2><p>{imageUnderstanding ? '可以问产品怎么用，也可以上传截图或使用语音转文字。' : '可以问产品怎么用，也可以使用语音转文字；图片问题请暂时用文字描述。'}</p><small className="sdk-knowledge"><span aria-hidden="true">●</span> 基于当前产品代码仓库与使用文档答疑</small><div className="sdk-suggestions">{['这个产品有哪些功能？', '我遇到了操作异常，需要帮助', '我想提出一个功能建议'].map((question) => <button key={question} type="button" disabled={sending || loading || submitting || Boolean(pendingTransition)} onClick={() => void send(question).catch((e) => setError(e instanceof Error ? e.message : t('agent.error_load')))}>{question}<span aria-hidden="true">↗</span></button>)}</div></div>}
-      {!formOpen && !loading && !messages.length && onDirectFeedback && <button type="button" disabled={sending || submitting} className="sdk-button my-3" onClick={onDirectFeedback}>直接反馈</button>}
+      {!formOpen && !loading && !messages.length && onDirectFeedback && <button type="button" disabled={sending || submitting} className="sdk-button my-3" onClick={openDirectFeedback}>直接反馈</button>}
       {!formOpen && messages.map((message) => <article key={`${message.sender_type}:${message.id}`} className={`sdk-message ${message.sender_type === 'customer' ? 'mine' : ''}`}>
         <div className="sdk-message-avatar" aria-hidden="true">{message.sender_type === 'customer' ? '我' : message.sender_type === 'agent' ? '✧' : '支'}</div>
         <div className="sdk-message-main"><div className="sdk-message-by"><span>{message.sender_type === 'agent' ? t('agent.title') : message.sender_type === 'developer' ? t('conversation.sender.developer') : message.sender_type === 'system' ? t('conversation.sender.system') : t('conversation.sender.customer')}</span> · <time>{new Date(message.created_at).toLocaleString()}</time></div>
@@ -287,7 +304,7 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
       {!formOpen && sending && <p role="status" className="sdk-chat-pending">正在结合项目资料分析…</p>}
       {!formOpen && standalone && messages.length > 0 && !linkedIds.current.has(conversationId) && <div className="inline-actions flex gap-3 my-3">
         <button type="button" disabled={sending || submitting} className="sdk-button" onClick={() => { setAnswered(true); saveConsultationDraft(draftScope, conversationId, { answered: true }) }}>已解答</button>
-        <button type="button" disabled={sending || submitting} className="sdk-button" onClick={onDirectFeedback}>仍未解决，提交反馈</button>
+        <button type="button" disabled={sending || submitting} className="sdk-button" onClick={openDirectFeedback}>仍未解决，提交反馈</button>
       </div>}
       {!formOpen && answered && <p role="status" className="sdk-notice">本次答疑已结束，未创建反馈卡片。你也可以继续提问。</p>}
       {children}
