@@ -1,0 +1,34 @@
+{
+  "schema_version": "feedback-sdk-release-policy/v1",
+  "channels": {
+    "canary": {
+      "required_parent_origins": [
+        "https://workshop.feitianchengzi.com",
+        "https://feedback.feitianchengzi.com",
+        "https://jinghong.wang",
+        "https://oatest.antuinfo.cn"
+      ]
+    },
+    "stable": {
+      "required_parent_origins": [
+        "https://workshop.feitianchengzi.com",
+        "https://feedback.feitianchengzi.com",
+        "https://jinghong.wang",
+        "https://oatest.antuinfo.cn"
+      ]
+    },
+    "v3-canary": {
+      "required_parent_origins": [
+        "https://oatest.antuinfo.cn"
+      ]
+    },
+    "v3-stable": {
+      "required_parent_origins": [
+        "https://workshop.feitianchengzi.com",
+        "https://feedback.feitianchengzi.com",
+        "https://jinghong.wang",
+        "https://oatest.antuinfo.cn"
+      ]
+    }
+  }
+}

@@ -12,6 +12,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 
 RELEASE_ROOT = "sdk-releases"
@@ -22,6 +23,7 @@ SEMVER_RE = re.compile(
     r"(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$"
 )
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+DEFAULT_POLICY_FILE = Path(__file__).resolve().parent.parent / "config" / "sdk-release-policy.json"
 
 IMMUTABLE_HEADERS = {"Cache-Control": "public, max-age=31536000, immutable"}
 NO_CACHE_HTML_HEADERS = {
@@ -85,6 +87,100 @@ def parse_contracts(raw: str) -> list[str]:
     return contracts
 
 
+def parse_parent_origins(raw: str | list[str]) -> list[str]:
+    values = raw if isinstance(raw, list) else raw.split(",")
+    origins: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        value = item.strip()
+        if not value:
+            continue
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.netloc
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in ("", "/")
+            or parsed.query
+            or parsed.fragment
+        ):
+            fail(
+                f"invalid parent origin {value!r}; expected an HTTPS origin without path, query, or fragment"
+            )
+        normalized = f"https://{parsed.netloc.lower()}"
+        if normalized in seen:
+            fail(f"duplicate parent origin {normalized}")
+        seen.add(normalized)
+        origins.append(normalized)
+    if not origins:
+        fail("at least one parent origin is required")
+    return origins
+
+
+def load_release_policy(policy_file: Path) -> dict[str, list[str]]:
+    if not policy_file.is_file():
+        fail(f"missing SDK release policy: {policy_file}")
+    try:
+        payload = json.loads(policy_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"invalid SDK release policy {policy_file}: {error}")
+    if payload.get("schema_version") != "feedback-sdk-release-policy/v1":
+        fail("SDK release policy has an unsupported schema")
+    raw_channels = payload.get("channels")
+    if not isinstance(raw_channels, dict) or not raw_channels:
+        fail("SDK release policy must define channels")
+    channels: dict[str, list[str]] = {}
+    for raw_channel, raw_config in raw_channels.items():
+        channel = validate_name(str(raw_channel), "policy channel")
+        if not isinstance(raw_config, dict) or not isinstance(
+            raw_config.get("required_parent_origins"), list
+        ):
+            fail(f"SDK release policy channel {channel} has invalid required_parent_origins")
+        channels[channel] = parse_parent_origins(raw_config["required_parent_origins"])
+    return channels
+
+
+def required_parent_origins(
+    channel: str, policy_file: Path, extras: list[str] | None = None
+) -> list[str]:
+    channel = validate_name(channel, "channel")
+    policy = load_release_policy(policy_file)
+    required = list(policy.get(channel) or [])
+    for origin in parse_parent_origins(extras or []) if extras else []:
+        if origin not in required:
+            required.append(origin)
+    if not required:
+        fail(f"channel {channel} has no required parent origins in {policy_file}")
+    return required
+
+
+def verify_dist_parent_origins(dist_dir: Path, origins: list[str]) -> None:
+    assets_dir = dist_dir / "assets"
+    javascript_files = sorted(assets_dir.glob("*.js")) if assets_dir.is_dir() else []
+    if not javascript_files:
+        fail(f"missing JavaScript build assets in {assets_dir}")
+    javascript = "\n".join(path.read_text(encoding="utf-8") for path in javascript_files)
+    missing = [origin for origin in origins if origin not in javascript]
+    if missing:
+        fail("release assets are missing required parent origins: " + ", ".join(missing))
+
+
+def validate_required_parent_origins(
+    release_manifest: dict[str, Any], required_origins: list[str]
+) -> None:
+    raw_origins = release_manifest.get("parent_origins")
+    if not isinstance(raw_origins, list):
+        fail("release manifest does not declare parent origins")
+    release_origins = set(parse_parent_origins(raw_origins))
+    missing = [origin for origin in required_origins if origin not in release_origins]
+    if missing:
+        fail(
+            f"release {release_manifest.get('version')} cannot be promoted; missing required parent origins: "
+            + ", ".join(missing)
+        )
+
+
 def parse_aliases(values: list[str]) -> dict[str, str]:
     aliases: dict[str, str] = {}
     for value in values:
@@ -134,6 +230,7 @@ def build_release_manifest(
     version: str,
     compatible_contracts: list[str],
     source_commit: str,
+    parent_origins: list[str],
 ) -> dict[str, Any]:
     prefix = release_prefix(version)
     index_file = dist_dir / "index.html"
@@ -142,6 +239,8 @@ def build_release_manifest(
     index_text = index_file.read_text(encoding="utf-8")
     if f"/{prefix}/assets/" not in index_text:
         fail(f"dist/index.html was not built with VITE_PUBLIC_BASE=/{prefix}")
+    normalized_origins = parse_parent_origins(parent_origins)
+    verify_dist_parent_origins(dist_dir, normalized_origins)
 
     file_records: dict[str, dict[str, Any]] = {}
     artifact_digest = hashlib.sha256()
@@ -167,6 +266,7 @@ def build_release_manifest(
         "version": validate_version(version),
         "release_path": f"/{prefix}",
         "compatible_contracts": compatible_contracts,
+        "parent_origins": normalized_origins,
         "source_commit": source_commit.strip(),
         "artifact_sha256": artifact_digest.hexdigest(),
         "files": file_records,
@@ -201,6 +301,7 @@ def build_channel_manifest(
         "force_upgrade_after": validate_force_upgrade_after(force_upgrade_after),
         "release_path": release_path,
         "artifact_sha256": release_manifest["artifact_sha256"],
+        "parent_origins": release_manifest.get("parent_origins") or [],
         "aliases": {
             alias: {"contract": contract, "release_path": release_path}
             for alias, contract in sorted(aliases.items())
@@ -222,6 +323,11 @@ def validate_remote_release_manifest(manifest: dict[str, Any], expected_version:
     if not isinstance(contracts, list) or any(not isinstance(item, str) for item in contracts):
         fail("remote release manifest has invalid compatible contracts")
     parse_contracts(",".join(contracts))
+    parent_origins = manifest.get("parent_origins")
+    if parent_origins is not None:
+        if not isinstance(parent_origins, list):
+            fail("remote release manifest has invalid parent origins")
+        parse_parent_origins(parent_origins)
     spa_aliases = manifest.get("spa_aliases")
     if not isinstance(spa_aliases, dict) or set(spa_aliases) != set(ROUTES):
         fail("remote release manifest has invalid SPA aliases")
@@ -327,7 +433,10 @@ def publish_release(args: argparse.Namespace) -> None:
     version = validate_version(args.version)
     contracts = parse_contracts(args.compatible_contracts)
     dist_dir = Path(args.dist_dir).resolve()
-    manifest = build_release_manifest(dist_dir, version, contracts, args.source_commit)
+    parent_origins = parse_parent_origins(args.parent_origins)
+    manifest = build_release_manifest(
+        dist_dir, version, contracts, args.source_commit, parent_origins
+    )
     config = load_oss_config(Path(args.env_file).resolve())
     bucket = connect_bucket(config)
     prefix = release_prefix(version)
@@ -337,6 +446,7 @@ def publish_release(args: argparse.Namespace) -> None:
         immutable_fields = (
             "artifact_sha256",
             "compatible_contracts",
+            "parent_origins",
             "source_commit",
             "release_path",
             "spa_aliases",
@@ -378,6 +488,12 @@ def promote_channel(args: argparse.Namespace) -> None:
     if not release_manifest:
         fail(f"release {version} is not published in bucket {config['bucket_name']}")
     validate_remote_release_manifest(release_manifest, version)
+    required_origins = required_parent_origins(
+        channel,
+        Path(args.policy_file).resolve(),
+        args.required_parent_origin,
+    )
+    validate_required_parent_origins(release_manifest, required_origins)
     channel_manifest = build_channel_manifest(
         channel,
         release_manifest,
@@ -413,6 +529,28 @@ def promote_channel(args: argparse.Namespace) -> None:
     print(f"promoted {channel} -> {version} in {config['bucket_name']}")
 
 
+def print_policy_origins(args: argparse.Namespace) -> None:
+    origins = required_parent_origins(
+        args.channel,
+        Path(args.policy_file).resolve(),
+        args.required_parent_origin,
+    )
+    print(",".join(origins))
+
+
+def validate_dist(args: argparse.Namespace) -> None:
+    dist_dir = Path(args.dist_dir).resolve()
+    origins = parse_parent_origins(args.parent_origins)
+    build_release_manifest(
+        dist_dir,
+        args.version,
+        parse_contracts(args.compatible_contracts),
+        args.source_commit,
+        origins,
+    )
+    print("validated release build parent origins: " + ", ".join(origins))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -423,6 +561,7 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--env-file", required=True)
     publish.add_argument("--compatible-contracts", default="v1,v2")
     publish.add_argument("--source-commit", default="")
+    publish.add_argument("--parent-origins", required=True)
     publish.set_defaults(handler=publish_release)
 
     promote = subparsers.add_parser("promote", help="point a channel and its aliases at a release")
@@ -433,7 +572,27 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("--minimum-version")
     promote.add_argument("--force-upgrade-after")
     promote.add_argument("--confirm-promote")
+    promote.add_argument("--policy-file", default=str(DEFAULT_POLICY_FILE))
+    promote.add_argument("--required-parent-origin", action="append", default=[])
     promote.set_defaults(handler=promote_channel)
+
+    policy = subparsers.add_parser(
+        "policy-origins", help="print the required parent origins for one release channel"
+    )
+    policy.add_argument("--channel", required=True)
+    policy.add_argument("--policy-file", default=str(DEFAULT_POLICY_FILE))
+    policy.add_argument("--required-parent-origin", action="append", default=[])
+    policy.set_defaults(handler=print_policy_origins)
+
+    validate = subparsers.add_parser(
+        "validate-dist", help="verify that a release build contains its declared parent origins"
+    )
+    validate.add_argument("--version", required=True)
+    validate.add_argument("--dist-dir", required=True)
+    validate.add_argument("--compatible-contracts", required=True)
+    validate.add_argument("--source-commit", default="")
+    validate.add_argument("--parent-origins", required=True)
+    validate.set_defaults(handler=validate_dist)
     return parser
 
 

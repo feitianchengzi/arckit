@@ -80,12 +80,14 @@ V3 必须构建为独立产品契约，并使用独立 channel 名称，避免�
 
 ```bash
 npm run build:release:v3 -- 3.0.0-canary.20261031
+parent_origins=$(python3 scripts/sdk_release.py policy-origins --channel v3-stable)
 python3 scripts/sdk_release.py publish \
   --version 3.0.0-canary.20261031 \
   --dist-dir dist \
   --env-file .env \
   --compatible-contracts v3 \
-  --source-commit "$(git rev-parse HEAD)"
+  --source-commit "$(git rev-parse HEAD)" \
+  --parent-origins "$parent_origins"
 python3 scripts/sdk_release.py promote \
   --version 3.0.0-canary.20261031 \
   --channel v3-canary \
@@ -94,11 +96,12 @@ python3 scripts/sdk_release.py promote \
   --confirm-promote v3-canary:3.0.0-canary.20261031
 ```
 
-验收通过后，把同一不可变产物提升到 `v3-stable` 并只维护 `/sdk-v3`。不要在 V3 promote 命令中加入 `/sdk` 或 `/sdk-v2`。
+`config/sdk-release-policy.json` 是正式宿主父域的版本化发布策略。构建会把对应父域编入 SDK 并扫描产物；release 清单会记录父域；`promote` 会再次按目标 channel 检查，缺少 OMS 等必要宿主时禁止提升。验收通过后，把同一不可变产物提升到 `v3-stable` 并只维护 `/sdk-v3`。不要在 V3 promote 命令中加入 `/sdk` 或 `/sdk-v2`。
 
 ```bash
 # 低内存串行构建；Node 堆上限默认 1 GiB。
-npm run build:release -- 2.0.0-canary.20261014
+SDK_RELEASE_CHANNEL=stable npm run build:release -- 2.0.0-canary.20261014
+parent_origins=$(python3 scripts/sdk_release.py policy-origins --channel stable)
 
 # 将同一份产物分别发布到需要承载 SDK 的 bucket。发布过的版本不可覆盖。
 python3 scripts/sdk_release.py publish \
@@ -106,7 +109,8 @@ python3 scripts/sdk_release.py publish \
   --dist-dir dist \
   --env-file .env \
   --compatible-contracts v1,v2 \
-  --source-commit "$(git rev-parse HEAD)"
+  --source-commit "$(git rev-parse HEAD)" \
+  --parent-origins "$parent_origins"
 
 # 灰度入口；只影响显式使用 /sdk-v2-canary 的测试宿主。
 python3 scripts/sdk_release.py promote \

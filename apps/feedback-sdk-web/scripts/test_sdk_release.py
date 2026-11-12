@@ -22,15 +22,24 @@ class SDKReleaseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             dist = Path(temporary)
             (dist / "assets").mkdir()
-            (dist / "assets" / "main.js").write_text("console.log('ok')", encoding="utf-8")
+            (dist / "assets" / "main.js").write_text(
+                "const parents=['https://oatest.antuinfo.cn']", encoding="utf-8"
+            )
             (dist / "index.html").write_text(
                 '<script src="/sdk-releases/3.0.0/assets/main.js"></script>', encoding="utf-8"
             )
 
-            manifest = sdk_release.build_release_manifest(dist, "3.0.0", ["v1", "v2", "v3"], "abc")
+            manifest = sdk_release.build_release_manifest(
+                dist,
+                "3.0.0",
+                ["v1", "v2", "v3"],
+                "abc",
+                ["https://oatest.antuinfo.cn"],
+            )
 
             self.assertEqual(manifest["release_path"], "/sdk-releases/3.0.0")
             self.assertEqual(manifest["compatible_contracts"], ["v1", "v2", "v3"])
+            self.assertEqual(manifest["parent_origins"], ["https://oatest.antuinfo.cn"])
             self.assertIn("index.html", manifest["files"])
             self.assertEqual(set(manifest["spa_aliases"]), {"submit", "status", "chat"})
             self.assertEqual(
@@ -65,6 +74,7 @@ class SDKReleaseTest(unittest.TestCase):
             "release_path": "/sdk-releases/2.0.0",
             "artifact_sha256": "a" * 64,
             "compatible_contracts": ["v1", "v2"],
+            "parent_origins": ["https://oatest.antuinfo.cn"],
             "spa_aliases": {
                 route: {"sha256": "b" * 64, "size": 1} for route in sdk_release.ROUTES
             },
@@ -74,6 +84,56 @@ class SDKReleaseTest(unittest.TestCase):
         manifest["release_path"] = "https://example.invalid/sdk-releases/2.0.0"
         with self.assertRaises(SystemExit):
             sdk_release.validate_remote_release_manifest(manifest, "2.0.0")
+
+    def test_parent_origins_must_be_https_origins(self):
+        self.assertEqual(
+            sdk_release.parse_parent_origins(
+                "https://oatest.antuinfo.cn,https://feedback.feitianchengzi.com/"
+            ),
+            ["https://oatest.antuinfo.cn", "https://feedback.feitianchengzi.com"],
+        )
+        for value in (
+            "http://oatest.antuinfo.cn",
+            "https://oatest.antuinfo.cn/path",
+            "https://user@oatest.antuinfo.cn",
+        ):
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                sdk_release.parse_parent_origins(value)
+
+    def test_release_build_rejects_missing_parent_origin_in_assets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            dist = Path(temporary)
+            (dist / "assets").mkdir()
+            (dist / "assets" / "main.js").write_text(
+                "const parents=['https://feedback.feitianchengzi.com']", encoding="utf-8"
+            )
+            (dist / "index.html").write_text(
+                '<script src="/sdk-releases/3.0.0/assets/main.js"></script>', encoding="utf-8"
+            )
+
+            with self.assertRaises(SystemExit):
+                sdk_release.build_release_manifest(
+                    dist,
+                    "3.0.0",
+                    ["v3"],
+                    "abc",
+                    ["https://oatest.antuinfo.cn"],
+                )
+
+    def test_stable_policy_blocks_release_without_oms_origin(self):
+        release = {
+            "version": "3.0.6",
+            "parent_origins": ["https://feedback.feitianchengzi.com"],
+        }
+        with self.assertRaises(SystemExit):
+            sdk_release.validate_required_parent_origins(
+                release, ["https://oatest.antuinfo.cn"]
+            )
+
+        release["parent_origins"].append("https://oatest.antuinfo.cn")
+        sdk_release.validate_required_parent_origins(
+            release, ["https://oatest.antuinfo.cn"]
+        )
 
     def test_force_upgrade_deadline_requires_timezone(self):
         with self.assertRaises(SystemExit):

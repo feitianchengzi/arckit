@@ -44,7 +44,7 @@ iframe.contentWindow?.postMessage({
 }, sdkOrigin)
 ```
 
-SDK 在生产环境只接受来自同源父页面的消息，以及本机开发来源（`localhost` / `127.0.0.1`，任意端口）；如需明确限制来源，可设置 `VITE_SDK_PARENT_ORIGINS`（逗号分隔）或兼容旧配置的 `VITE_SDK_PARENT_ORIGIN`。
+SDK 在生产环境只接受来自同源父页面或显式允许父域的消息，以及本机开发来源（`localhost` / `127.0.0.1`，任意端口）。托管 release 的允许父域必须登记在 `config/sdk-release-policy.json`，构建、不可变 release 清单和 channel 提升三层都会校验；普通本地构建仍可设置 `VITE_SDK_PARENT_ORIGINS`（逗号分隔）或兼容旧配置的 `VITE_SDK_PARENT_ORIGIN`。
 
 `feedback-sdk:ready` 会附带只增不减的发布信息，旧宿主可以忽略新增字段：
 

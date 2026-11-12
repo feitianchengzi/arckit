@@ -13,7 +13,7 @@
     "build:v3": "VITE_PUBLIC_BASE=/sdk-v3 VITE_SDK_CONTRACT=v3 VITE_SDK_SUPPORTED_CONTRACTS=v3 vite build",
     "build:v3:check": "tsc && VITE_PUBLIC_BASE=/sdk-v3 VITE_SDK_CONTRACT=v3 VITE_SDK_SUPPORTED_CONTRACTS=v3 vite build",
     "build:release": "bash ./scripts/build-sdk-release.sh",
-    "build:release:v3": "VITE_SDK_CONTRACT=v3 VITE_SDK_SUPPORTED_CONTRACTS=v3 bash ./scripts/build-sdk-release.sh",
+    "build:release:v3": "SDK_RELEASE_CHANNEL=v3-stable VITE_SDK_CONTRACT=v3 VITE_SDK_SUPPORTED_CONTRACTS=v3 bash ./scripts/build-sdk-release.sh",
     "test": "vitest run",
     "test:release": "python3 ./scripts/test_sdk_release.py",
     "test:watch": "vitest",
