@@ -9,7 +9,7 @@ const { sdkConfig } = vi.hoisted(() => ({ sdkConfig: { current: {} as Record<str
 vi.mock('@/lib/sdk', () => ({ FEEDBACK_SDK_CONFIGURED_EVENT: 'configured', getFeedbackSDKConfig: () => sdkConfig.current, isFeedbackSDKV2NotificationsEnabled: () => false, notifyFeedbackSDKUnreadCount: vi.fn() }))
 vi.mock('@/components/sdk/FeedbackConversationPanel', () => ({ FeedbackConversationPanel: () => <p>关联沟通记录</p> }))
 vi.mock('@/components/sdk/FeedbackLifecyclePanel', () => ({ FeedbackLifecyclePanel: () => <p>关联流转记录</p> }))
-vi.mock('@/components/sdk/AgentChatPanel', () => ({ AgentChatPanel: ({ onNeedCollect, onConversationReady, children }: any) => <div><input aria-label="咨询草稿" /><button onClick={() => { onConversationReady('conv-1'); onNeedCollect({ question: '无法导出', structured: { request_type: 'bug', position: '订单', phenomenon: '导出失败', expect: '成功导出', unknown_fields: ['reproduction_steps', 'environment', 'impact'] } }) }}>Agent完成分析</button>{children}</div> }))
+vi.mock('@/components/sdk/AgentChatPanel', () => ({ AgentChatPanel: ({ onNeedCollect, onConversationReady, onDirectFeedback, children }: any) => <div><input aria-label="咨询草稿" /><button onClick={() => { onConversationReady('conv-1'); onNeedCollect({ question: '无法导出', structured: { request_type: 'bug', position: '订单', phenomenon: '导出失败', expect: '成功导出', unknown_fields: ['reproduction_steps', 'environment', 'impact'] } }) }}>Agent完成分析</button>{onDirectFeedback && <button onClick={onDirectFeedback}>直接反馈</button>}{children}</div> }))
 const mount = (path = '/submit') => render(<MemoryRouter initialEntries={[path]}><SDKSupportPage /></MemoryRouter>)
 beforeEach(() => { sessionStorage.clear(); sdkConfig.current = {}; vi.clearAllMocks(); vi.mocked(getFeedbackLifecycleV2).mockResolvedValue({ feedback: { id: 12, title: '反馈', content: '原始说明', data: JSON.stringify({ structured: { position: '报表页面', phenomenon: '加载失败', expect: '正常显示', unknown_fields: ['environment'] } }) }, events: [], conclusions: [], responses: [] } as never); vi.mocked(fetchFeedbackItemsV2).mockResolvedValue({ items: [], total: 0 } as never); vi.mocked(submitFeedbackV2).mockResolvedValue({ id: 12, shortId: 'FB-12' }) })
 describe('embedded support application', () => {
@@ -50,7 +50,7 @@ describe('manual feedback and customer isolation', () => {
   it('allows confirmed real feedback without a model conversation and keeps the retry request id', async () => {
     sessionStorage.clear()
     vi.mocked(submitFeedbackV2).mockRejectedValueOnce(new Error('服务暂时不可用，请重试。'))
-    mount(); fireEvent.click(screen.getByRole('button', { name: '仍未解决 / 直接反馈' }))
+    mount(); expect(screen.getAllByRole('button', { name: '直接反馈' })).toHaveLength(1); fireEvent.click(screen.getByRole('button', { name: '直接反馈' }))
     fireEvent.change(screen.getByLabelText('问题位置'), { target: { value: '订单页' } })
     fireEvent.change(screen.getByLabelText('实际现象'), { target: { value: '无法保存' } })
     fireEvent.change(screen.getByLabelText('期望结果'), { target: { value: '成功保存' } })
@@ -81,11 +81,11 @@ describe('manual feedback and customer isolation', () => {
 
 it('restores manual facts after returning, and requires fresh confirmation', async () => {
   sessionStorage.clear()
-  mount(); fireEvent.click(screen.getByRole('button', { name: '仍未解决 / 直接反馈' }))
+  mount(); fireEvent.click(screen.getByRole('button', { name: '直接反馈' }))
   fireEvent.change(screen.getByLabelText('问题位置'), { target: { value: '导出页面' } })
   fireEvent.click(screen.getByRole('checkbox', { name: '我已核对以上事实，确认提交给处理团队' }))
   fireEvent.click(screen.getByRole('button', { name: '返回咨询并保留草稿' }))
-  fireEvent.click(screen.getByRole('button', { name: '仍未解决 / 直接反馈' }))
+  fireEvent.click(screen.getByRole('button', { name: '直接反馈' }))
   expect(screen.getByLabelText('问题位置')).toHaveValue('导出页面')
   expect(screen.getByRole('checkbox', { name: '我已核对以上事实，确认提交给处理团队' })).not.toBeChecked()
 })

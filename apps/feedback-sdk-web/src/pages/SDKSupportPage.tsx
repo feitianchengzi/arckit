@@ -168,7 +168,7 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
     <div className="sdk-workarea">
       {/* Keep the consulting component mounted between tabs so switching to feedback does not lose an in-progress draft. */}
       <section hidden={view !== 'chat'} aria-label="智能客服咨询" className="sdk-chat-view">
-        <AgentChatPanel standalone formOpen={manualOpen} draftScope={scopeKey} structuredDraft={structured} questionDraft={question} onDirectFeedback={openManual} onNeedCollect={onNeedCollect} onConversationReady={onConversationReady} hasUnsubmittedSummary={Boolean(structured && !created)} submittedConversationId={created?.conversationId} submitting={creating || manualOpen} onMyFeedback={() => changeView('feedback')}>
+        <AgentChatPanel standalone formOpen={manualOpen} draftScope={scopeKey} structuredDraft={structured} questionDraft={question} onDirectFeedback={created ? undefined : openManual} onNeedCollect={onNeedCollect} onConversationReady={onConversationReady} hasUnsubmittedSummary={Boolean(structured && !created)} submittedConversationId={created?.conversationId} submitting={creating || manualOpen} onMyFeedback={() => changeView('feedback')}>
         {manualOpen && <ManualFeedbackForm key={manualConversationId} scopeKey={scopeKey} conversationId={manualConversationId || undefined} onCancel={() => setManualOpen(false)} onPendingChange={setCreating} onCreated={(result) => { setManualOpen(false); setCreated({ ...result, conversationId: manualConversationId || undefined }); setRevision((v) => v + 1); changeView('feedback', String(result.id)) }} />}
         {!manualOpen && structured && !created && <><ClarificationReview value={structured} confirmed={confirmed} pending={creating} onChange={(next) => {
           const changes = { ...edits.current }
@@ -180,7 +180,6 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
           <button type="button" className="sdk-button primary my-3" disabled={!confirmed || creating || missingClarificationFields(structured).length > 0} onClick={() => void create()}>{creating ? '正在提交…' : '确认并创建反馈卡片'}</button>
           {createError && <p role="alert" className="text-xs text-error">{createError}</p>}
         </>}
-        {!manualOpen && !created && <button type="button" className="sdk-button my-3" onClick={openManual}>仍未解决 / 直接反馈</button>}
         {created && <div className="sdk-notice"><strong>反馈 {created.shortId} 已提交</strong><p>{created.conversationId ? '原咨询及媒体已关联，可在我的反馈中查看后续回复。' : '可在我的反馈中查看后续回复。'}</p><button type="button" className="sdk-button mt-3" onClick={() => changeView('feedback', String(created.id))}>查看卡片全生命周期 →</button></div>}
         </AgentChatPanel>
       </section>
