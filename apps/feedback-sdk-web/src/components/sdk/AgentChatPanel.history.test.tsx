@@ -127,6 +127,7 @@ describe('consultation history continuity', () => {
     render(<AgentChatPanel standalone onDirectFeedback={direct} />)
     const entry = await screen.findByRole('button', { name: '直接反馈' })
     expect(screen.getAllByRole('button', { name: '直接反馈' })).toHaveLength(1)
+    expect(entry).toHaveClass('primary')
     fireEvent.click(entry)
     expect(direct).toHaveBeenCalledOnce()
   })
