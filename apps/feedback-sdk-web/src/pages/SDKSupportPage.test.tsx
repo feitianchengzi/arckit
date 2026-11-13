@@ -43,6 +43,16 @@ describe('embedded support application', () => {
     mount('/chat?feedback=12'); await waitFor(() => expect(fetchFeedbackItemsV2).toHaveBeenCalled()); expect(screen.getByText('关联沟通记录')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '卡片流转' })); expect(screen.getByText('关联流转记录')).toBeInTheDocument()
   })
+  it('keeps outside clicks inert and closes only from the explicit button', () => {
+    const postMessage = vi.spyOn(window, 'postMessage').mockImplementation(() => {})
+    mount(); postMessage.mockClear()
+    fireEvent.mouseDown(document.body); fireEvent.click(document.body)
+    expect(postMessage).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '关闭帮助与反馈' }))
+    expect(postMessage).toHaveBeenCalledOnce()
+    expect(postMessage).toHaveBeenCalledWith({ source: 'feedback-sdk-web', type: 'feedback-sdk:close' }, '*')
+    postMessage.mockRestore()
+  })
 })
 
 

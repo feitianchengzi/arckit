@@ -46,7 +46,10 @@
         document.addEventListener('mousedown', (event) => {
           if (document.documentElement.dataset.feedbackEmbed !== 'web') return
           if (event.target instanceof Element && event.target.closest('[data-feedback-sdk-shell]')) return
-          closeEmbeddedSdk()
+          // The embedded viewport owns the backdrop. Keep outside clicks inert;
+          // dismissal is available from the panel's explicit close button.
+          event.preventDefault()
+          event.stopImmediatePropagation()
         })
       })()
     </script>
