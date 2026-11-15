@@ -1,0 +1,783 @@
+import { feedbackFetch, readFeedbackEnvelope, feedbackNotConfigured, feedbackUnavailable, feedbackSessionExpired } from './errors'
+import type { FeedbackItem } from '@/lib/feedback/types'
+import { feedbackToItem, type FeedbackRecord } from './api'
+import { requestFeedbackSessionRefresh } from '@/lib/sdk/bridge'
+import { getFeedbackSDKConfig, getFeedbackSDKV2AuthMode } from '@/lib/sdk'
+
+interface ApiEnvelope<T> {
+  code?: string
+  message?: string
+  data?: T
+  error?: { message?: string }
+  meta?: { total?: number; page?: number; page_size?: number }
+}
+
+export interface FeedbackV2Attachment {
+  id?: number
+  type: 'image' | 'audio' | 'file' | 'url'
+  object_key?: string
+  url?: string
+  file_name?: string
+  mime_type?: string
+  size?: number
+  duration_ms?: number
+  access_path?: string
+}
+
+export interface AgentCapabilities {
+  image_understanding: boolean
+}
+
+/** Runtime Agent media capabilities for the current deployment. */
+export async function getAgentCapabilities(): Promise<AgentCapabilities> {
+  const envelope = await requestJson<AgentCapabilities>(
+    '/agent-capabilities',
+    '/agent-capabilities',
+    { method: 'GET' },
+  )
+  if (!envelope.data || typeof envelope.data.image_understanding !== 'boolean') {
+    throw new Error(feedbackUnavailable)
+  }
+  return envelope.data
+}
+
+export interface FeedbackV2Message {
+  id: number
+  feedback_id: number
+  project_id: number
+  sender_type: 'customer' | 'developer' | 'system'
+  sender_user_id?: number
+  sender_custom_user_id?: string
+  client_message_id?: string
+  message_type: string
+  content: string
+  metadata?: unknown
+  attachments: FeedbackV2Attachment[]
+  created_at: string
+  updated_at: string
+}
+
+export interface FeedbackV2Notification {
+  id: number
+  project_id: number
+  feedback_id: number
+  feedback_short_id?: string
+  feedback_title?: string
+  message_id: number
+  message_type: string
+  message_preview: string
+  sender_type: 'customer' | 'developer' | 'system'
+  type: 'customer_message' | 'developer_message' | 'status_change'
+  created_at: string
+  read_at?: string
+}
+
+interface FeedbackV2NotificationListResponse {
+  notifications: FeedbackV2Notification[]
+  unread_count: number
+}
+
+export interface FeedbackV2UploadPolicy {
+  object_key: string
+  upload_url: string
+  fields: Record<string, string>
+  expires_at: string
+}
+
+export interface FeedbackV2OSSCredentials {
+  access_key_id: string
+  access_key_secret: string
+  security_token: string
+  expiration: string
+  bucket_name: string
+  region: string
+  root_path: string
+  authorization_v4: boolean
+  secure: boolean
+}
+
+interface DirectAPIKeyContext {
+  apiKey: string
+  projectId: number
+  customUserId: string
+}
+
+function getGatewayBaseUrl(): string {
+  const cfg = getFeedbackSDKConfig()
+  if (cfg.gatewayUrl?.trim()) return cfg.gatewayUrl.trim()
+  if (import.meta.env.DEV) return '/gateway'
+  // 构建期可注入 VITE_GATEWAY_URL；否则要求宿主通过 configure({ gatewayUrl }) 显式注入，
+  // 避免外部客户封装时误连到默认内部域名。
+  const envGateway = import.meta.env.VITE_GATEWAY_URL
+  if (envGateway) return envGateway
+  throw new Error(feedbackNotConfigured)
+}
+
+function currentSessionToken(): string {
+  const token = getFeedbackSDKConfig().feedbackSessionToken?.trim()
+  if (!token) throw new Error(feedbackNotConfigured)
+  return token
+}
+
+function currentDirectAPIKeyContext(): DirectAPIKeyContext {
+  const config = getFeedbackSDKConfig()
+  const apiKey = config.apiKey?.trim() || ''
+  const customUserId = config.customUserId?.trim() || ''
+  const projectId = Number(config.projectId)
+  if (!apiKey || !customUserId || !Number.isFinite(projectId) || projectId <= 0) {
+    throw new Error(feedbackNotConfigured)
+  }
+  return { apiKey, projectId: Math.floor(projectId), customUserId }
+}
+
+function currentV2AuthMode() {
+  const mode = getFeedbackSDKV2AuthMode()
+  if (!mode) {
+    throw new Error(feedbackNotConfigured)
+  }
+  return mode
+}
+
+/** In-flight requests must never be retried under another customer's identity. */
+function requestIdentity(): string {
+  const config = getFeedbackSDKConfig()
+  let scope = `${config.projectId || ''}:${config.customUserId || ''}`
+  if (getFeedbackSDKV2AuthMode() === 'session') {
+    try {
+      const raw = (config.feedbackSessionToken || '').replace(/^fbs_/, '').split('.')[0].replace(/-/g, '+').replace(/_/g, '/')
+      const claims = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(raw), (character) => character.charCodeAt(0))))
+      if (!claims.project_id || !claims.custom_user_id) throw new Error('scope missing')
+      scope = `${claims.project_id}:${claims.custom_user_id}`
+    } catch { scope += `:${config.feedbackSessionToken || ''}` }
+  }
+  return JSON.stringify([config.gatewayUrl || '', getFeedbackSDKV2AuthMode(), scope])
+}
+
+async function requestJson<T>(sessionPath: string, directAPIKeyPath: string, init: RequestInit, retry = true): Promise<ApiEnvelope<T>> {
+  const identity = requestIdentity()
+  const authMode = currentV2AuthMode()
+  const isSession = authMode === 'session'
+  const directContext = isSession ? null : currentDirectAPIKeyContext()
+  const response = await feedbackFetch(
+    `${getGatewayBaseUrl()}/workshop/v2/${isSession ? 'feedback' : 'apikey'}${isSession ? sessionPath : directAPIKeyPath}`,
+    {
+      ...init,
+      headers: {
+        ...init.headers,
+        Authorization: `Bearer ${isSession ? currentSessionToken() : directContext?.apiKey}`,
+      },
+    },
+  )
+
+  if (identity !== requestIdentity()) throw new Error('当前账号已变化，请重新打开帮助与反馈。')
+  if (isSession && response.status === 401 && retry) {
+    try { await requestFeedbackSessionRefresh() }
+    catch { throw new Error(feedbackSessionExpired) }
+    if (identity !== requestIdentity()) throw new Error('当前账号已变化，请重新打开帮助与反馈。')
+    return requestJson<T>(sessionPath, directAPIKeyPath, init, false)
+  }
+
+  return readFeedbackEnvelope<ApiEnvelope<T>>(response)
+}
+
+function listData<T>(envelope: ApiEnvelope<T[]>): T[] {
+  // Go encodes a legitimate nil slice as null; missing or object data is a
+  // broken contract and must never look like a successful empty history.
+  if (!('data' in envelope) || (envelope.data !== null && !Array.isArray(envelope.data))) throw new Error(feedbackUnavailable)
+  return envelope.data || []
+}
+
+function buildSubmitTitle(content: string): string {
+  const normalized = content.trim().replace(/\s+/g, ' ')
+  if (!normalized) return '用户反馈'
+  return normalized.length > 24 ? `${normalized.slice(0, 24)}...` : normalized
+}
+
+function directScopePayload(): Pick<DirectAPIKeyContext, 'projectId' | 'customUserId'> {
+  const { projectId, customUserId } = currentDirectAPIKeyContext()
+  return { projectId, customUserId }
+}
+
+export async function submitFeedbackV2(params: {
+  clientRequestId?: string
+  content: string
+  attachments?: FeedbackV2Attachment[]
+  /**
+   * 提交反馈前与智能客服的独立会话 ID（feedback_id=0）。
+   * 传给后端把该会话关联到新建反馈，使咨询上下文延续到跟进阶段；后端校验不通过则明确拒绝，不静默关联其他会话。
+   */
+  conversationId?: string
+  structured?: AgentStructuredSummary
+}): Promise<{ id: number; shortId: string }> {
+  const content = params.content.trim()
+  if (!content) throw new Error('反馈内容不能为空')
+
+  const authMode = currentV2AuthMode()
+  const directScope = authMode === 'apiKey' ? directScopePayload() : null
+  const hostContext = getFeedbackSDKConfig().hostContext
+  const metadata = { source: 'feedback-sdk-web', channel: 'webview', feedback_state: 'pending', ...(hostContext ? { host_context: hostContext } : {}), ...(params.structured ? { structured: params.structured, clarification: { confirmed: true, confirmed_by_customer: true, confirmed_at: new Date().toISOString(), version: 1 } } : {}) }
+  const body: Record<string, unknown> = {
+    ...(directScope
+      ? { project_id: directScope.projectId, custom_user_id: directScope.customUserId }
+      : {}),
+    ...(params.clientRequestId ? { client_request_id: params.clientRequestId } : {}),
+    title: buildSubmitTitle(content),
+    content,
+    data: directScope ? JSON.stringify(metadata) : metadata,
+    attachments: params.attachments || [],
+  }
+  if (params.conversationId) {
+    body.conversation_id = params.conversationId
+  }
+  const envelope = await requestJson<FeedbackRecord>('/feedbacks', '/feedbacks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!envelope.data?.id || !envelope.data.short_id) {
+    throw new Error(feedbackUnavailable)
+  }
+  return {
+    id: envelope.data.id,
+    shortId: envelope.data.short_id,
+  }
+}
+
+export interface FeedbackListQuery {
+  page?: number
+  pageSize?: number
+  query?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  dateField?: 'created' | 'updated'
+}
+
+export async function fetchFeedbackItemsV2(params?: FeedbackListQuery): Promise<{ items: FeedbackItem[]; total: number }> {
+  const authMode = currentV2AuthMode()
+  const query = new URLSearchParams({
+    page: String(params?.page || 1),
+    page_size: String(params?.pageSize || 50),
+  })
+  if (params?.query?.trim()) query.set('q', params.query.trim())
+  if (params?.status) query.set('status', params.status)
+  if (params?.dateFrom) query.set('date_from', params.dateFrom)
+  if (params?.dateTo) query.set('date_to', params.dateTo)
+  if (params?.dateField) query.set('date_field', params.dateField)
+  if (authMode === 'apiKey') {
+    const { projectId, customUserId } = directScopePayload()
+    query.set('project_id', String(projectId))
+    query.set('custom_user_id', customUserId)
+  }
+  const path = `/feedbacks?${query.toString()}`
+  const envelope = await requestJson<FeedbackRecord[]>(path, path, { method: 'GET' })
+  const list = listData(envelope)
+  return {
+	items: list.map((feedback) => feedbackToItem(feedback, { useCustomerWorkflow: true })),
+    total: typeof envelope.meta?.total === 'number' ? envelope.meta.total : list.length,
+  }
+}
+
+export async function getFeedbackMessagesV2(feedbackId: number, params?: { page?: number; pageSize?: number }): Promise<FeedbackV2Message[]> {
+  const authMode = currentV2AuthMode()
+  const query = new URLSearchParams({
+    page: String(params?.page || 1),
+    page_size: String(params?.pageSize || 50),
+  })
+  if (authMode === 'apiKey') {
+    query.set('custom_user_id', directScopePayload().customUserId)
+  }
+  const path = `/feedbacks/${feedbackId}/messages?${query.toString()}`
+  const envelope = await requestJson<FeedbackV2Message[]>(path, path, { method: 'GET' })
+  return listData(envelope)
+}
+
+/**
+ * 统一会话视图条目：聚合智能客服会话消息（agent 来源）与反馈消息流（feedback 来源）。
+ * source 标注来源表，id 在两表独立编号，前端按 source+id 区分。
+ */
+export interface ConversationMessage {
+  id: number
+  source: 'agent' | 'feedback'
+  sender_type: 'customer' | 'agent' | 'developer' | 'system'
+  content: string
+  confidence?: number
+  attachments?: FeedbackV2Attachment[]
+  created_at: string
+}
+
+/**
+ * 获取某反馈的统一会话视图：聚合智能客服咨询 + 反馈消息流，按时间升序。
+ * 客户在反馈详情会话看到完整对话流（提问/Agent 回答/客服跟进），无需在两个面板间切换。
+ */
+export async function getConversationMessagesV2(feedbackId: number): Promise<ConversationMessage[]> {
+  const authMode = currentV2AuthMode()
+  const sessionPath = `/feedbacks/${feedbackId}/conversation-messages`
+  let directPath = sessionPath
+  // apiKey 模式需带 custom_user_id 做客户归属校验（与 getFeedbackMessagesV2 一致）
+  if (authMode === 'apiKey') {
+    directPath = `${sessionPath}?${new URLSearchParams({ custom_user_id: directScopePayload().customUserId }).toString()}`
+  }
+  const envelope = await requestJson<ConversationMessage[]>(sessionPath, directPath, { method: 'GET' })
+  return listData(envelope)
+}
+
+export async function createFeedbackMessageV2(params: {
+  feedbackId: number
+  content?: string
+  clientMessageId: string
+  metadata?: Record<string, unknown>
+  attachments?: FeedbackV2Attachment[]
+}): Promise<FeedbackV2Message> {
+  const authMode = currentV2AuthMode()
+  const directScope = authMode === 'apiKey' ? directScopePayload() : null
+  const path = `/feedbacks/${params.feedbackId}/messages`
+  const envelope = await requestJson<FeedbackV2Message>(path, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...(directScope ? { custom_user_id: directScope.customUserId } : {}),
+      content: params.content?.trim() || '',
+      client_message_id: params.clientMessageId,
+      metadata: params.metadata,
+      attachments: params.attachments || [],
+    }),
+  })
+  if (!envelope.data) throw new Error(feedbackUnavailable)
+  return envelope.data
+}
+
+export async function createFeedbackUploadPolicyV2(params: {
+  type: 'image' | 'audio' | 'file'
+  fileName: string
+  mimeType: string
+  size: number
+}): Promise<FeedbackV2UploadPolicy> {
+  const authMode = currentV2AuthMode()
+  const directScope = authMode === 'apiKey' ? directScopePayload() : null
+  const envelope = await requestJson<FeedbackV2UploadPolicy>('/upload-policies', '/feedbacks/upload-policies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...(directScope
+        ? { project_id: directScope.projectId, custom_user_id: directScope.customUserId }
+        : {}),
+      type: params.type,
+      file_name: params.fileName,
+      mime_type: params.mimeType,
+      size: params.size,
+    }),
+  })
+  if (!envelope.data?.object_key || !envelope.data.upload_url || !envelope.data.fields) {
+    throw new Error(feedbackUnavailable)
+  }
+  return envelope.data
+}
+
+export async function getFeedbackOSSCredentialsV2(): Promise<FeedbackV2OSSCredentials> {
+  const authMode = currentV2AuthMode()
+  let directPath = '/feedbacks/oss/credentials'
+  if (authMode === 'apiKey') {
+    const { projectId, customUserId } = directScopePayload()
+    directPath += `?${new URLSearchParams({ project_id: String(projectId), custom_user_id: customUserId }).toString()}`
+  }
+  const envelope = await requestJson<FeedbackV2OSSCredentials>('/oss/credentials', directPath, { method: 'GET' })
+  if (!envelope.data?.access_key_id || !envelope.data.bucket_name) {
+    throw new Error(feedbackUnavailable)
+  }
+  return envelope.data
+}
+
+export async function getFeedbackAttachmentOSSCredentialsV2(params: {
+  feedbackId: number
+  attachmentId: number
+}): Promise<FeedbackV2OSSCredentials> {
+  if (!Number.isFinite(params.feedbackId) || params.feedbackId <= 0 || !Number.isFinite(params.attachmentId) || params.attachmentId <= 0) {
+    throw new Error('附件标识无效，无法申请临时访问权限')
+  }
+  const authMode = currentV2AuthMode()
+  const sessionPath = `/feedbacks/${Math.floor(params.feedbackId)}/attachments/${Math.floor(params.attachmentId)}/oss/credentials`
+  let directPath = sessionPath
+  if (authMode === 'apiKey') {
+    directPath += `?${new URLSearchParams({ custom_user_id: directScopePayload().customUserId }).toString()}`
+  }
+  const envelope = await requestJson<FeedbackV2OSSCredentials>(sessionPath, directPath, { method: 'GET' })
+  if (!envelope.data?.access_key_id || !envelope.data.bucket_name) {
+    throw new Error(feedbackUnavailable)
+  }
+  return envelope.data
+}
+
+export async function fetchFeedbackNotificationsV2(params?: {
+  feedbackId?: number
+  unreadOnly?: boolean
+  page?: number
+  pageSize?: number
+}): Promise<{ notifications: FeedbackV2Notification[]; unreadCount: number }> {
+  const authMode = currentV2AuthMode()
+  const sessionQuery = new URLSearchParams({
+    page: String(params?.page || 1),
+    page_size: String(params?.pageSize || 100),
+  })
+  if (params?.feedbackId) sessionQuery.set('feedback_id', String(params.feedbackId))
+  if (params?.unreadOnly) sessionQuery.set('unread_only', 'true')
+
+  const directQuery = new URLSearchParams(sessionQuery)
+  if (authMode === 'apiKey') {
+    const { projectId, customUserId } = directScopePayload()
+    directQuery.set('project_id', String(projectId))
+    directQuery.set('custom_user_id', customUserId)
+  }
+
+  const envelope = await requestJson<FeedbackV2NotificationListResponse>(
+    `/notifications?${sessionQuery.toString()}`,
+    `/feedback-notifications?${directQuery.toString()}`,
+    { method: 'GET' },
+  )
+  if (!envelope.data || !Array.isArray(envelope.data.notifications) || typeof envelope.data.unread_count !== 'number') throw new Error(feedbackUnavailable)
+  return {
+    notifications: Array.isArray(envelope.data?.notifications) ? envelope.data.notifications : [],
+    unreadCount: typeof envelope.data?.unread_count === 'number' ? envelope.data.unread_count : 0,
+  }
+}
+
+export async function markFeedbackNotificationsReadV2(params: {
+  feedbackId?: number
+  notificationIds?: number[]
+}): Promise<{ markedCount: number }> {
+  const authMode = currentV2AuthMode()
+  const payload: Record<string, unknown> = {
+    ...(params.feedbackId ? { feedback_id: params.feedbackId } : {}),
+    ...(params.notificationIds?.length ? { notification_ids: params.notificationIds } : {}),
+  }
+  if (authMode === 'apiKey') {
+    const { projectId, customUserId } = directScopePayload()
+    payload.project_id = projectId
+    payload.custom_user_id = customUserId
+  }
+  const envelope = await requestJson<{ marked_count?: number }>(
+    '/notifications/read',
+    '/feedback-notifications/read',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  )
+  return { markedCount: typeof envelope.data?.marked_count === 'number' ? envelope.data.marked_count : 0 }
+}
+
+// ==================== Agent 智能客服 ====================
+
+export interface AgentSource { path: string; start_line: number; end_line: number; excerpt: string }
+
+export interface AgentMessage {
+  sources?: AgentSource[]
+  id: number
+  conversation_id: string
+  feedback_id: number
+  project_id: number
+  // developer：客服回复经 syncDeveloperReplyToAgentMessages 同步进会话，供智能客服面板展示
+  sender_type: 'customer' | 'agent' | 'developer' | 'system'
+  content: string
+  confidence?: number
+  metadata?: unknown
+  attachments?: FeedbackV2Attachment[]
+  created_at: string
+}
+
+export interface AgentConversation {
+  title?: string
+  message_count?: number
+  id: string
+  feedback_id: number
+  project_id: number
+  created_at: string
+  updated_at: string
+}
+
+/** 低置信时由智能客服总结的问题结构（PRD F-01 三字段），用于预填反馈表单。字段可为空。 */
+export interface AgentStructuredSummary {
+  position: string
+  phenomenon: string
+  expect: string
+  reproduction_steps?: string
+  environment?: string
+  impact?: string
+  frequency?: string
+  request_type?: string
+  evidence?: Record<string, string>
+  target_users?: string
+  current_workflow?: string
+  pain_points?: string
+  expected_benefit?: string
+  constraints?: string
+  business_goal?: string
+  workaround?: string
+  unknown_fields?: string[]
+  missing_fields?: string[]
+  ready_for_confirmation?: boolean
+}
+
+export interface AgentMessageResponse {
+  customer_message_id?: number
+  sources?: AgentSource[]
+  message_id: number
+  conversation_id: string
+  content: string
+  sender_type: 'agent'
+  confidence: number
+  need_collect?: boolean
+  structured?: AgentStructuredSummary
+  clarification?: { status: 'collecting' | 'ready'; summary: AgentStructuredSummary; missing_fields: string[]; questions: string[]; ready_to_confirm: boolean }
+}
+
+/**
+ * 发送消息给 Agent 智能客服
+ */
+export async function sendAgentMessage(params: {
+  feedbackId: number
+  content: string
+  conversationId?: string
+  attachments?: FeedbackV2Attachment[]
+  clientMessageId?: string
+}): Promise<AgentMessageResponse> {
+  const authMode = currentV2AuthMode()
+  const directScope = authMode === 'apiKey' ? directScopePayload() : null
+
+  const body: Record<string, unknown> = {
+    content: params.content,
+    client_message_id: params.clientMessageId,
+  }
+  if (params.conversationId) {
+    body.conversation_id = params.conversationId
+  }
+  if (directScope) {
+    body.custom_user_id = directScope.customUserId
+  }
+  // 图片附件：上传到 OSS 后传 object_key 等引用给后端落库；
+  // 后端在多模态开关开启时据此生成可访问 URL 传给 Agent 真实看图。
+  if (params.attachments && params.attachments.length > 0) {
+    body.attachments = params.attachments.map((att) => ({
+      type: att.type,
+      object_key: att.object_key,
+      url: att.url,
+      file_name: att.file_name,
+      mime_type: att.mime_type,
+      size: att.size,
+      duration_ms: att.duration_ms,
+    }))
+  }
+
+  const envelope = await requestJson<AgentMessageResponse>(
+    `/feedbacks/${params.feedbackId}/agent-message`,
+    `/feedbacks/${params.feedbackId}/agent-message`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  )
+
+  if (!envelope.data) {
+    throw new Error(feedbackUnavailable)
+  }
+
+  return envelope.data
+}
+
+/**
+ * 获取反馈关联的 Agent 对话列表
+ */
+export async function getAgentConversations(feedbackId: number): Promise<AgentConversation[]> {
+  const envelope = await requestJson<AgentConversation[]>(
+    `/feedbacks/${feedbackId}/agent-conversations`,
+    `/feedbacks/${feedbackId}/agent-conversations`,
+    {
+      method: 'GET',
+    },
+  )
+
+  return listData(envelope)
+}
+
+/**
+ * 获取 Agent 对话消息列表
+ */
+interface FeedbackAgentMessageView {
+  id: number
+  sender: AgentMessage['sender_type']
+  content: string
+  confidence?: number
+  created_at: string
+}
+
+export async function getAgentConversationMessages(conversationId: string, feedbackId?: number): Promise<AgentMessage[]> {
+  // 直连 API Key 部署历史上已暴露 chat-widget 专用的反馈消息投影；
+  // 优先使用它避免旧版 conversation handler 错读不存在的 feedback 路由参数。
+  // 调用端已先通过 getAgentConversations(feedbackId) 完成反馈归属与项目成员校验。
+  if (currentV2AuthMode() === 'apiKey' && Number.isFinite(feedbackId) && Number(feedbackId) > 0) {
+    const envelope = await requestJson<FeedbackAgentMessageView[]>(
+      `/feedbacks/${feedbackId}/agent-messages`,
+      `/feedbacks/${feedbackId}/agent-messages`,
+      { method: 'GET' },
+    )
+    return (envelope.data || []).map((message) => ({
+      id: message.id,
+      conversation_id: conversationId,
+      feedback_id: Number(feedbackId),
+      project_id: 0,
+      sender_type: message.sender,
+      content: message.content,
+      confidence: message.confidence,
+      created_at: message.created_at,
+    }))
+  }
+
+  const envelope = await requestJson<AgentMessage[]>(
+    `/agent-conversations/${conversationId}/messages`,
+    `/agent-conversations/${conversationId}/messages`,
+    {
+      method: 'GET',
+    },
+  )
+
+  return listData(envelope)
+}
+
+/**
+ * 独立智能客服会话（不绑定反馈）的作用域 query。
+ * session 模式由 token 决定作用域；apikey 模式需显式传 project_id + custom_user_id。
+ */
+function standaloneScopeQuery(): string {
+  if (currentV2AuthMode() !== 'apiKey') return ''
+  const { projectId, customUserId } = directScopePayload()
+  return `?${new URLSearchParams({ project_id: String(projectId), custom_user_id: customUserId }).toString()}`
+}
+
+/**
+ * 向独立智能客服发送消息（「反馈建议」页客服入口）
+ */
+export async function sendStandaloneAgentMessage(params: {
+  content: string
+  newConversation?: boolean
+  conversationId?: string
+  attachments?: FeedbackV2Attachment[]
+  clientMessageId?: string
+}): Promise<AgentMessageResponse> {
+  const path = `/agent-chats/messages${standaloneScopeQuery()}`
+  const body: Record<string, unknown> = { content: params.content, client_message_id: params.clientMessageId }
+  if (params.newConversation) body.new_conversation = true
+  if (params.conversationId) body.conversation_id = params.conversationId
+  if (params.attachments && params.attachments.length > 0) {
+    body.attachments = params.attachments.map((att) => ({
+      type: att.type,
+      object_key: att.object_key,
+      url: att.url,
+      file_name: att.file_name,
+      mime_type: att.mime_type,
+      size: att.size,
+      duration_ms: att.duration_ms,
+    }))
+  }
+  const envelope = await requestJson<AgentMessageResponse>(path, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!envelope.data) throw new Error(feedbackUnavailable)
+  return envelope.data
+}
+
+/**
+ * 获取独立智能客服会话列表
+ */
+export async function getStandaloneAgentConversations(): Promise<AgentConversation[]> {
+  return (await getStandaloneAgentConversationsPage()).conversations
+}
+
+export async function getStandaloneAgentConversationsPage(page = 1, pageSize = 20): Promise<{ conversations: AgentConversation[]; total: number }> {
+  const scope = standaloneScopeQuery()
+  const path = `/agent-chats/conversations${scope}${scope ? '&' : '?'}page=${page}&page_size=${pageSize}`
+  const envelope = await requestJson<AgentConversation[]>(path, path, { method: 'GET' })
+  const conversations = listData(envelope)
+  return { conversations, total: envelope.meta?.total ?? conversations.length }
+}
+
+/**
+ * 获取独立智能客服会话消息列表
+ */
+export async function getStandaloneAgentMessages(conversationId: string): Promise<AgentMessage[]> {
+  return (await getStandaloneAgentMessagesPage(conversationId)).messages
+}
+export async function getStandaloneAgentMessagesPage(conversationId: string, page = 1, pageSize = 50): Promise<{ messages: AgentMessage[]; total: number }> {
+  const scope = standaloneScopeQuery()
+  const path = `/agent-chats/conversations/${conversationId}/messages${scope}${scope ? '&' : '?'}page=${page}&page_size=${pageSize}`
+  const envelope = await requestJson<AgentMessage[]>(path, path, { method: 'GET' })
+  const messages = listData(envelope)
+  return { messages, total: envelope.meta?.total ?? messages.length }
+}
+
+
+export interface FeedbackLifecycleEvent {
+  id: string
+  type: string
+  title: string
+  status?: string
+  created_at: string
+}
+export interface FeedbackConclusion {
+  id: number
+  feedback_id: number
+  version: number
+  kind: 'delivery' | 'answer' | 'not_planned'
+  title: string
+  body: string
+  version_label?: string
+  artifact_url?: string
+  published_by: number
+  created_at: string
+}
+export interface FeedbackConclusionResponse {
+  id: number
+  feedback_id: number
+  conclusion_id: number
+  response: 'accepted' | 'needs_review'
+  content: string
+  client_message_id: string
+  created_at: string
+}
+export interface FeedbackLifecycle {
+  feedback: FeedbackRecord
+  events: FeedbackLifecycleEvent[]
+  conclusions: FeedbackConclusion[]
+  responses: FeedbackConclusionResponse[]
+}
+function customerScopedPath(path: string): string {
+  if (currentV2AuthMode() !== 'apiKey') return path
+  return `${path}${path.includes('?') ? '&' : '?'}${new URLSearchParams({ custom_user_id: directScopePayload().customUserId })}`
+}
+export async function getConversationMessagesPageV2(feedbackId: number, params: { page?: number; pageSize?: number } = {}): Promise<{ messages: ConversationMessage[]; total: number }> {
+  const path = `/feedbacks/${feedbackId}/conversation-messages?${new URLSearchParams({ page: String(params.page || 1), page_size: String(params.pageSize || 50) })}`
+  const envelope = await requestJson<ConversationMessage[]>(path, customerScopedPath(path), { method: 'GET' })
+  const messages = listData(envelope)
+  return { messages, total: envelope.meta?.total ?? messages.length }
+}
+export async function getFeedbackLifecycleV2(feedbackId: number): Promise<FeedbackLifecycle> {
+  const path = `/feedbacks/${feedbackId}/detail`
+  const envelope = await requestJson<FeedbackLifecycle>(path, customerScopedPath(path), { method: 'GET' })
+  if (!envelope.data) throw new Error(feedbackUnavailable)
+  return envelope.data
+}
+export async function respondFeedbackConclusionV2(feedbackId: number, conclusionId: number, response: 'accepted' | 'needs_review', content?: string, clientMessageId?: string): Promise<void> {
+  const path = `/feedbacks/${feedbackId}/conclusions/${conclusionId}/response`
+  await requestJson(path, customerScopedPath(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response, content: content || '', client_message_id: clientMessageId || crypto.randomUUID() }) })
+}
+export async function getAgentAttachmentAccessV2(accessPath: string): Promise<string> {
+  if (!/^\/(agent-chats\/conversations|agent-conversations)\/[a-zA-Z0-9_-]+\/messages\/\d+\/attachments\/\d+\/access$/.test(accessPath)) throw new Error('媒体读取路径无效')
+  const scope = standaloneScopeQuery()
+  const path = `${accessPath}${scope}`
+  const envelope = await requestJson<{ url: string; expires_at: string }>(path, path, { method: 'GET' })
+  if (!envelope.data?.url || !/^https?:\/\//i.test(envelope.data.url)) throw new Error('媒体读取地址无效')
+  return envelope.data.url
+}

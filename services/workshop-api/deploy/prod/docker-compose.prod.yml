@@ -12,6 +12,13 @@ services:
       - .env.workshop.production  # 从 .env.workshop.production 文件加载所有环境变量
     ports:
       - "${PORT:-8081}:${PORT:-8081}"
+    group_add:
+      - "${OH_SHARED_GID:-2000}"
+    volumes:
+      # Workshop owns clone/pull writes. OpenHands mounts the same host directory read-only.
+      - type: bind
+        source: ${CUSTOMER_REPOS_PATH:-/opt/todo/customer-repos}
+        target: /workspace/customer-repos
     restart: unless-stopped
     stop_grace_period: 20s
     extra_hosts:
@@ -21,8 +28,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: 256M
+          cpus: '${WORKSHOP_CPU_LIMIT:-0.5}'
+          memory: ${WORKSHOP_MEMORY_LIMIT:-384M}
         reservations:
           cpus: '0.1'
           memory: 128M

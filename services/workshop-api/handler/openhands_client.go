@@ -2,14 +2,19 @@ package handler
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // OpenHandsSyncResult OpenHands Agent Server 同步调用结果
@@ -19,20 +24,32 @@ type OpenHandsSyncResult struct {
 }
 
 // ohLLMConfig 构建每请求必填的 LLM 配置。
-// 真实契约：agent.llm 为必填字段，容器环境变量不会作为默认值，
-// 因此 api_key 从服务环境变量 LLM_API_KEY 读取，不落库。
+// 真实契约：agent.llm 为必填字段，容器环境变量不会作为默认值。
+// 项目密钥优先；没有项目密钥时才使用服务环境变量 LLM_API_KEY。
 // temperature 必须下传（取 DB agent.LLMTemperature，默认 0.0）：
 // 否则模型按默认随机采样运行，同一 query 每次回复不同，
 // 检索抽取的文件路径/命中集合随之抖动（反馈详情"一会有内容一会没内容"）。
 func ohLLMConfig(agent *OpenHandsAgent) (map[string]interface{}, error) {
-	apiKey := strings.TrimSpace(os.Getenv("LLM_API_KEY"))
+	apiKey := ""
+	if agent != nil && strings.TrimSpace(agent.LLMAPIKeyEncrypted) != "" {
+		decrypted, err := decryptOpenHandsLLMAPIKey(agent.ProjectID, agent.LLMAPIKeyEncrypted)
+		if err != nil {
+			return nil, fmt.Errorf("读取项目模型 Key 失败: %w", err)
+		}
+		apiKey = strings.TrimSpace(decrypted)
+	} else {
+		apiKey = configuredServerLLMAPIKey()
+	}
 	if apiKey == "" {
-		return nil, fmt.Errorf("环境变量 LLM_API_KEY 未配置，无法调用 OpenHands Agent")
+		return nil, fmt.Errorf("项目和服务器均未配置模型 API Key，无法调用 OpenHands Agent")
 	}
 
-	model := strings.TrimSpace(os.Getenv("LLM_MODEL"))
-	if model == "" && agent != nil && agent.LLMModel != "" {
+	model := ""
+	if agent != nil && agent.LLMModel != "" {
 		model = agent.LLMModel
+	}
+	if model == "" {
+		model = strings.TrimSpace(os.Getenv("LLM_MODEL"))
 	}
 	if model == "" {
 		model = "deepseek/deepseek-chat"
@@ -48,7 +65,14 @@ func ohLLMConfig(agent *OpenHandsAgent) (map[string]interface{}, error) {
 		"api_key":     apiKey,
 		"temperature": temperature,
 	}
-	if baseURL := strings.TrimSpace(os.Getenv("LLM_BASE_URL")); baseURL != "" {
+	baseURL := ""
+	if agent != nil {
+		baseURL = strings.TrimSpace(agent.LLMBaseURL)
+	}
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(os.Getenv("LLM_BASE_URL"))
+	}
+	if baseURL != "" {
 		llm["base_url"] = baseURL
 	}
 	return llm, nil
@@ -69,6 +93,100 @@ func ohWorkspaceDir() string {
 		return dir
 	}
 	return "/projects"
+}
+
+// ohRepoRoot 每项目代码副本的存放根目录（部署方案 A：每项目一份 clone）。
+// 容器需把该目录挂进 OpenHands 容器并保证可写，Agent 才能在其下工作。
+func ohRepoRoot() string {
+	if dir := strings.TrimSpace(os.Getenv("OH_REPO_ROOT")); dir != "" {
+		return dir
+	}
+	return "/workspace/customer-repos"
+}
+
+// ohClonedRepoDir 某项目 clone 代码副本的落点：{ohRepoRoot}/{projectID}
+func ohClonedRepoDir(projectID uint) string {
+	return filepath.Join(ohRepoRoot(), strconv.FormatUint(uint64(projectID), 10))
+}
+
+// resolveProjectWorkspaceDir fails closed when project repository coverage is unavailable.
+// Multiple repositories are exposed beneath a project-only, content-addressed directory.
+// This narrows repository discovery; process/container filesystem isolation is still an operator responsibility.
+func resolveProjectWorkspaceDir(db *gorm.DB, projectID uint) string {
+	if db == nil || projectID == 0 {
+		return ""
+	}
+	var repos []CustomerCodeRepo
+	if err := db.Where("project_id = ?", projectID).Order("id ASC").Find(&repos).Error; err != nil {
+		return ""
+	}
+	path, err := projectRepositoryWorkspace(projectID, repos)
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
+func projectRepositoryWorkspace(projectID uint, repos []CustomerCodeRepo) (string, error) {
+	if projectID == 0 || len(repos) == 0 {
+		return "", fmt.Errorf("项目尚未配置可用仓库")
+	}
+	paths := make([]string, 0, len(repos))
+	for _, repo := range repos {
+		if repo.ProjectID != projectID || repo.Status != "ready" {
+			return "", fmt.Errorf("项目仓库尚未全部准备好，请完成同步后重试")
+		}
+		path := strings.TrimSpace(repo.RepoPath)
+		if len(repos) == 1 && (path == "" || !dirExists(path)) {
+			path = ohClonedRepoDir(projectID)
+		}
+		canonical, err := filepath.EvalSymlinks(path)
+		if err != nil || !dirExists(canonical) {
+			return "", fmt.Errorf("项目仓库目录不可用")
+		}
+		canonical, err = filepath.Abs(canonical)
+		if err != nil {
+			return "", err
+		}
+		for _, root := range []string{ohWorkspaceDir(), ohRepoRoot(), string(filepath.Separator)} {
+			resolved, _ := filepath.EvalSymlinks(root)
+			if canonical == filepath.Clean(root) || (resolved != "" && canonical == resolved) {
+				return "", fmt.Errorf("项目仓库不得指向共享根目录")
+			}
+		}
+		paths = append(paths, canonical)
+	}
+	if len(paths) == 1 {
+		return paths[0], nil
+	}
+	identity := make([]string, len(paths))
+	for index, path := range paths {
+		identity[index] = fmt.Sprintf("%d:%s", repos[index].ID, path)
+	}
+	digest := sha256.Sum256([]byte(strings.Join(identity, "\x00")))
+	root := filepath.Join(ohRepoRoot(), ".agent-workspaces", strconv.FormatUint(uint64(projectID), 10), fmt.Sprintf("%x", digest[:12]))
+	if err := os.MkdirAll(root, 0700); err != nil {
+		return "", err
+	}
+	for index, path := range paths {
+		link := filepath.Join(root, fmt.Sprintf("repo-%d", repos[index].ID))
+		if current, err := os.Readlink(link); err == nil {
+			if current != path {
+				return "", fmt.Errorf("项目工作区仓库映射不匹配")
+			}
+			continue
+		}
+		if err := os.Symlink(path, link); err != nil {
+			return "", err
+		}
+	}
+	return root, nil
+}
+
+// dirExists 判断路径是否存在且为目录。
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 // ohMaxIterations agent 循环上限
@@ -130,20 +248,32 @@ func ohRequest(method, url, apiKey string, payload interface{}, timeout time.Dur
 }
 
 // ohCreateConversation 创建 OpenHands 会话（真实契约必填 workspace/initial_message/agent）
-func ohCreateConversation(agent *OpenHandsAgent, query string) (string, error) {
+// ohCreateConversation 创建 OpenHands 会话。
+// workingDir 必须是按项目隔离的工作区（见 resolveProjectWorkspaceDir），
+// 未提供项目工作区时拒绝调用，不允许回退到共享目录。
+func ohCreateConversation(agent *OpenHandsAgent, query, workingDir string) (string, error) {
+	return ohCreateConversationWithImages(agent, query, workingDir, nil)
+}
+
+func ohCreateConversationWithImages(agent *OpenHandsAgent, query, workingDir string, imageURLs []string) (string, error) {
 	llm, err := ohLLMConfig(agent)
 	if err != nil {
 		return "", err
 	}
 
+	dir := strings.TrimSpace(workingDir)
+	if dir == "" {
+		return "", fmt.Errorf("项目知识工作区暂不可用，请完成项目仓库同步后重试")
+	}
+
 	payload := map[string]interface{}{
 		"workspace": map[string]interface{}{
 			"kind":        "LocalWorkspace",
-			"working_dir": ohWorkspaceDir(),
+			"working_dir": dir,
 		},
 		"initial_message": map[string]interface{}{
 			"role":    "user",
-			"content": []map[string]string{{"text": query}},
+			"content": ohMessageContent(query, imageURLs),
 		},
 		"agent": map[string]interface{}{
 			"kind": "Agent",
@@ -156,7 +286,7 @@ func ohCreateConversation(agent *OpenHandsAgent, query string) (string, error) {
 		"max_iterations": ohMaxIterations(agent),
 	}
 
-	status, data, err := ohRequest("POST", agent.URL+"/api/conversations", agent.APIKey, payload, ohAgentTimeout(agent))
+	status, data, err := ohRequest("POST", agent.URL+"/api/conversations", resolveOpenHandsSessionAPIKey(agent), payload, ohAgentTimeout(agent))
 	if err != nil {
 		return "", err
 	}
@@ -181,7 +311,7 @@ func ohSendMessage(agent *OpenHandsAgent, conversationID, query string) error {
 		"run":     true,
 	}
 
-	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/events", agent.APIKey, payload, ohAgentTimeout(agent))
+	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/events", resolveOpenHandsSessionAPIKey(agent), payload, ohAgentTimeout(agent))
 	if err != nil {
 		return err
 	}
@@ -222,7 +352,7 @@ func ohSendMessageWithImages(agent *OpenHandsAgent, conversationID, query string
 		"run":     true,
 	}
 
-	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/events", agent.APIKey, payload, ohAgentTimeout(agent))
+	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/events", resolveOpenHandsSessionAPIKey(agent), payload, ohAgentTimeout(agent))
 	if err != nil {
 		return err
 	}
@@ -237,7 +367,7 @@ func ohSendMessageWithImages(agent *OpenHandsAgent, conversationID, query string
 
 // ohEnsureRunning 新建会话未自动执行时显式触发 run
 func ohEnsureRunning(agent *OpenHandsAgent, conversationID string) {
-	status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, agent.APIKey, nil, 0)
+	status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, resolveOpenHandsSessionAPIKey(agent), nil, 0)
 	if err != nil || status != http.StatusOK {
 		return
 	}
@@ -248,7 +378,7 @@ func ohEnsureRunning(agent *OpenHandsAgent, conversationID string) {
 		return
 	}
 	if resp.ExecutionStatus == "idle" {
-		_, _, _ = ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/run", agent.APIKey, map[string]interface{}{}, 0)
+		_, _, _ = ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/run", resolveOpenHandsSessionAPIKey(agent), map[string]interface{}{}, 0)
 	}
 }
 
@@ -256,7 +386,7 @@ func ohEnsureRunning(agent *OpenHandsAgent, conversationID string) {
 func ohWaitFinished(agent *OpenHandsAgent, conversationID string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, agent.APIKey, nil, 0)
+		status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, resolveOpenHandsSessionAPIKey(agent), nil, 0)
 		if err == nil && status == http.StatusOK {
 			var resp struct {
 				ExecutionStatus string `json:"execution_status"`
@@ -278,7 +408,7 @@ func ohWaitFinished(agent *OpenHandsAgent, conversationID string, timeout time.D
 // ohFetchAgentReply 从 MessageEvent 中提取最后一条 agent 回复文本
 func ohFetchAgentReply(agent *OpenHandsAgent, conversationID string) (string, error) {
 	url := agent.URL + "/api/conversations/" + conversationID + "/events/search?query=" + url.QueryEscape("MessageEvent")
-	status, data, err := ohRequest("GET", url, agent.APIKey, nil, 0)
+	status, data, err := ohRequest("GET", url, resolveOpenHandsSessionAPIKey(agent), nil, 0)
 	if err != nil {
 		return "", err
 	}
@@ -288,8 +418,8 @@ func ohFetchAgentReply(agent *OpenHandsAgent, conversationID string) (string, er
 
 	var resp struct {
 		Items []struct {
-			ID     string `json:"id"`
-			Source string `json:"source"`
+			ID         string `json:"id"`
+			Source     string `json:"source"`
 			LLMMessage *struct {
 				Content []struct {
 					Text string `json:"text"`
@@ -319,24 +449,31 @@ func ohFetchAgentReply(agent *OpenHandsAgent, conversationID string) (string, er
 // callOpenHandsAgentSync 同步调用 OpenHands Agent Server（真实契约）。
 // ohConversationID 为空时新建会话；非空时续发消息，会话失效则自动重建。
 // 返回 OpenHands 侧会话 ID 与 agent 最终回复。
-func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID string, imageUrls []string) (*OpenHandsSyncResult, error) {
+func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID string, imageUrls []string, workingDir string) (*OpenHandsSyncResult, error) {
+	if strings.TrimSpace(workingDir) == "" {
+		return nil, fmt.Errorf("项目知识工作区暂不可用，请完成项目仓库同步后重试")
+	}
+	if len(imageUrls) > 0 && !agentVisionEnabled() {
+		return nil, fmt.Errorf("当前服务未启用图片理解，图片尚未被模型读取")
+	}
 	timeout := ohAgentTimeout(agent)
 
 	convID := ""
 	if strings.TrimSpace(ohConversationID) != "" {
-		sendErr := ohSendMessage(agent, ohConversationID, query)
+		var sendErr error
+		if len(imageUrls) > 0 {
+			sendErr = ohSendMessageWithImages(agent, ohConversationID, query, imageUrls)
+		} else {
+			sendErr = ohSendMessage(agent, ohConversationID, query)
+		}
 		if sendErr == nil {
 			convID = ohConversationID
-		} else if agentVisionEnabled() && len(imageUrls) > 0 {
-			// 纯文本续发失败时，若启用多模态且有图片，尝试带图续发
-			if imgErr := ohSendMessageWithImages(agent, ohConversationID, query, imageUrls); imgErr == nil {
-				convID = ohConversationID
-			}
 		}
+
 		// 续发失败（会话已清理）时降级为新建
 	}
 	if convID == "" {
-		id, err := ohCreateConversation(agent, query)
+		id, err := ohCreateConversationWithImages(agent, query, workingDir, imageUrls)
 		if err != nil {
 			return nil, err
 		}
@@ -362,4 +499,13 @@ func truncateStr(s string, n int) string {
 		return string(runes)
 	}
 	return string(runes[:n]) + "..."
+}
+
+// ohMessageContent uses one content constructor for initial and resumed turns.
+func ohMessageContent(query string, images []string) []map[string]interface{} {
+	content := []map[string]interface{}{{"type": "text", "text": query}}
+	for _, u := range images {
+		content = append(content, map[string]interface{}{"type": "image_url", "image_url": map[string]string{"url": u}})
+	}
+	return content
 }

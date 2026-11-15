@@ -11,7 +11,7 @@ Arckit 采用 Apache License 2.0 开源。仓库中的 ArcOrbit、Todo、Feedbac
 | `apps/todo-web/` | Todo Web 客户端 |
 | `apps/feedback-console/` | Feedback 管理控制台 |
 | `services/workshop-api/` | Todo 与 Feedback 共用 Go API |
-| `packages/feedback-sdk-web/` | Apache-2.0 的 Feedback Web SDK |
+| `apps/feedback-sdk-web/` | Apache-2.0 的 Feedback Web SDK |
 | `examples/feedback-ios/` | Apache-2.0 的 iOS 接入示例 |
 | `runtime/arcorbit/` | ArcOrbit Desktop 与 Runtime |
 | `docs/workshop/` | 可公开的 Workshop 产品与设计资料 |
@@ -273,6 +273,6 @@ Arckit 当前优先验证的是：不同执行桥能否基于同一组仓库事�
 
 - Arckit 及仓库中没有更具体许可证的内容：[Apache License 2.0](LICENSE)（[简体中文参考译文](LICENSE.zh-CN.md)）。
 - `runtime/arcorbit/`、`apps/todo-web/`、`apps/feedback-console/`、`services/workshop-api/`：[PolyForm Perimeter License 1.0.1](runtime/arcorbit/LICENSE)（[简体中文参考译文](runtime/arcorbit/LICENSE.zh-CN.md)）。
-- `packages/feedback-sdk-web/`、`examples/feedback-ios/` 和公共 Workshop 文档：Apache License 2.0。
+- `apps/feedback-sdk-web/`、`examples/feedback-ios/` 和公共 Workshop 文档：Apache License 2.0。
 - 商业授权、OEM、白标或竞争性产品与服务：`hi@feitianchengzi.com`。
 - 商标规则与第三方组件边界见[中文商标规则](TRADEMARKS.zh-CN.md)和[中文许可说明](LICENSING.zh-CN.md)。

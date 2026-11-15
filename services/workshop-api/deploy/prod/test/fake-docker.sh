@@ -28,6 +28,14 @@ case ${1:-} in
     exit
     ;;
   run)
+    if [[ $* == *'pg_dump --format=custom'* ]]; then
+      [[ ${FAKE_BACKUP_FAIL:-0} != 1 ]] || exit 1
+      printf 'fake-postgres-custom-backup\n'
+      exit 0
+    fi
+    if [[ $* == *'pg_restore --list /backup/'* ]]; then
+      exit 0
+    fi
     [[ ${FAKE_MIGRATION_FAIL:-0} != 1 ]]
     exit
     ;;

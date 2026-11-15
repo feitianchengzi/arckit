@@ -55,6 +55,7 @@ const (
 
 const (
 	FeedbackAttachmentTypeImage = "image"
+	FeedbackAttachmentTypeAudio = "audio"
 	FeedbackAttachmentTypeFile  = "file"
 	FeedbackAttachmentTypeURL   = "url"
 )
@@ -233,7 +234,7 @@ func IsValidFeedbackMessageType(messageType string) bool {
 
 func IsValidFeedbackAttachmentType(attachmentType string) bool {
 	switch attachmentType {
-	case FeedbackAttachmentTypeImage,
+	case FeedbackAttachmentTypeImage, FeedbackAttachmentTypeAudio,
 		FeedbackAttachmentTypeFile,
 		FeedbackAttachmentTypeURL:
 		return true

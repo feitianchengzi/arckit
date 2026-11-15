@@ -1,0 +1,44 @@
+# Optional production OpenHands service.
+# It is managed separately from the Workshop API so ordinary API deployments do not
+# pull, restart, or expose the larger Agent Server container.
+
+services:
+  openhands-agent:
+    image: ${OPENHANDS_IMAGE}
+    container_name: openhands-agent
+    environment:
+      OH_SESSION_API_KEYS_0: ${OH_SESSION_API_KEYS_0}
+      OH_SECRET_KEY: ${OH_SECRET_KEY}
+      OH_PERSISTENCE_DIR: /home/openhands/.openhands
+      SANDBOX_VOLUMES: /workspace/customer-repos:/workspace/customer-repos:ro
+    expose:
+      - "8000"
+    group_add:
+      - "${OH_SHARED_GID:-2000}"
+    volumes:
+      - openhands-state:/home/openhands/.openhands
+      - type: bind
+        source: ${CUSTOMER_REPOS_PATH:-/opt/todo/customer-repos}
+        target: /workspace/customer-repos
+        read_only: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    networks:
+      - workshop
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '${OPENHANDS_CPU_LIMIT:-1.0}'
+          memory: ${OPENHANDS_MEMORY_LIMIT:-1536M}
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+volumes:
+  openhands-state:

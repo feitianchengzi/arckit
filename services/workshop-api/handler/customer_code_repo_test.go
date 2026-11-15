@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -451,5 +453,339 @@ func TestDeleteCustomerCodeRepo(t *testing.T) {
 	}
 	if resp.Data.Status != "deleted" {
 		t.Fatalf("status = %s, want deleted", resp.Data.Status)
+	}
+}
+
+// mustRunGit 在 dir 下执行 git 命令，失败即终止测试。
+func mustRunGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v in %s: %v\n%s", args, dir, err, out)
+	}
+}
+
+func mustWriteFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// TestCloneOrPullRepoClonesToProjectWorkspace 验证 repo_url 仓库 clone 落点统一到
+// per-project 工作区 {OH_REPO_ROOT}/{projectID}（替换原硬编码 /workspace/customer-repos/{pid}/{cid}）。
+// 真实 git，无 DB，默认即跑。
+func TestCloneOrPullRepoClonesToProjectWorkspace(t *testing.T) {
+	// 准备一个带 1 个 commit 的源仓库。
+	srcDir := t.TempDir()
+	mustRunGit(t, srcDir, "init", "-b", "main")
+	mustRunGit(t, srcDir, "config", "user.email", "t@t")
+	mustRunGit(t, srcDir, "config", "user.name", "t")
+	mustWriteFile(t, filepath.Join(srcDir, "README.md"), "hello")
+	mustRunGit(t, srcDir, "add", "README.md")
+	mustRunGit(t, srcDir, "commit", "-m", "init")
+	// 裸仓作为 RepoURL 来源。
+	bareDir := filepath.Join(t.TempDir(), "src.git")
+	mustRunGit(t, srcDir, "clone", "--bare", srcDir, bareDir)
+
+	reposRoot := filepath.Join(t.TempDir(), "repos")
+	if err := os.MkdirAll(reposRoot, 0o755); err != nil {
+		t.Fatalf("mkdir repos root: %v", err)
+	}
+	t.Setenv("OH_REPO_ROOT", reposRoot)
+
+	repo := CustomerCodeRepo{ProjectID: 11, RepoURL: bareDir, Branch: "main"}
+	cloneDir, err := cloneOrPullRepo(repo)
+	if err != nil {
+		t.Fatalf("cloneOrPullRepo: %v", err)
+	}
+
+	want := ohClonedRepoDir(11)
+	if cloneDir != want {
+		t.Fatalf("cloneDir = %q, want %q", cloneDir, want)
+	}
+	if !dirExists(cloneDir) {
+		t.Fatalf("clone dir not exists: %s", cloneDir)
+	}
+	if _, err := os.Stat(filepath.Join(cloneDir, ".git")); err != nil {
+		t.Fatalf("clone dir has no .git: %v", err)
+	}
+}
+
+// TestCloneOrPullRepoPullsExistingRepoPath 验证 RepoPath 是 git 工作树时走 pull，落点为 RepoPath（不 clone）。
+func TestCloneOrPullRepoPullsExistingRepoPath(t *testing.T) {
+	remoteDir := t.TempDir()
+	mustRunGit(t, remoteDir, "init", "-b", "main")
+	mustRunGit(t, remoteDir, "config", "user.email", "t@t")
+	mustRunGit(t, remoteDir, "config", "user.name", "t")
+	mustWriteFile(t, filepath.Join(remoteDir, "README.md"), "hello")
+	mustRunGit(t, remoteDir, "add", "README.md")
+	mustRunGit(t, remoteDir, "commit", "-m", "init")
+
+	workDir := filepath.Join(t.TempDir(), "work")
+	mustRunGit(t, filepath.Dir(workDir), "clone", remoteDir, workDir)
+
+	repo := CustomerCodeRepo{ProjectID: 11, RepoPath: workDir, Branch: "main"}
+	cloneDir, err := cloneOrPullRepo(repo)
+	if err != nil {
+		t.Fatalf("cloneOrPullRepo: %v", err)
+	}
+	if cloneDir != workDir {
+		t.Fatalf("cloneDir = %q, want %q", cloneDir, workDir)
+	}
+}
+
+// TestCloneOrPullRepoNoSource 验证既无 RepoURL 也无 RepoPath 时返回 errCodeRepoNoSource。
+func TestCloneOrPullRepoNoSource(t *testing.T) {
+	repo := CustomerCodeRepo{ProjectID: 11, Branch: "main"}
+	_, err := cloneOrPullRepo(repo)
+	if err != errCodeRepoNoSource {
+		t.Fatalf("err = %v, want errCodeRepoNoSource", err)
+	}
+}
+
+// TestPersistCodeRepoSyncResultWritesBackRepoPath 验证 fresh clone 成功后回写
+// repo_path=per-project 工作区，并置 status=ready。DB-gated，无 DSN 跳过。
+func TestPersistCodeRepoSyncResultWritesBackRepoPath(t *testing.T) {
+	db := setupCustomerCodeRepoTestDB(t)
+	defer teardownCustomerCodeRepoTestDB(t, db)
+	t.Setenv("OH_REPO_ROOT", filepath.Join(t.TempDir(), "repos"))
+
+	repo := CustomerCodeRepo{ProjectID: 11, CustomerID: "c1", Branch: "main", Status: "syncing", RepoPath: ""}
+	if err := db.Create(&repo).Error; err != nil {
+		t.Fatalf("create repo: %v", err)
+	}
+
+	want := ohClonedRepoDir(11)
+	persistCodeRepoSyncResult(db, repo, want, "ready")
+
+	var got CustomerCodeRepo
+	if err := db.First(&got, repo.ID).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got.RepoPath != want {
+		t.Fatalf("repo_path = %q, want %q", got.RepoPath, want)
+	}
+	if got.Status != "ready" {
+		t.Fatalf("status = %q, want ready", got.Status)
+	}
+}
+
+// TestPersistCodeRepoSyncResultSkipsRepoPathWhenEmpty 验证 cloneDir 传空时不回写
+// repo_path（fresh clone 失败兜底：不把不存在的落点写进 repo_path）。
+func TestPersistCodeRepoSyncResultSkipsRepoPathWhenEmpty(t *testing.T) {
+	db := setupCustomerCodeRepoTestDB(t)
+	defer teardownCustomerCodeRepoTestDB(t, db)
+
+	repo := CustomerCodeRepo{ProjectID: 11, CustomerID: "c1", Branch: "main", Status: "syncing", RepoPath: ""}
+	if err := db.Create(&repo).Error; err != nil {
+		t.Fatalf("create repo: %v", err)
+	}
+
+	persistCodeRepoSyncResult(db, repo, "", "ready")
+
+	var got CustomerCodeRepo
+	if err := db.First(&got, repo.ID).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got.RepoPath != "" {
+		t.Fatalf("repo_path = %q, want empty", got.RepoPath)
+	}
+	if got.Status != "ready" {
+		t.Fatalf("status = %q, want ready", got.Status)
+	}
+}
+
+func TestNormalizeGitHubRepoURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{name: "canonical", input: "https://github.com/feitianchengzi/arckit", want: "https://github.com/feitianchengzi/arckit.git"},
+		{name: "keeps git suffix", input: " https://github.com/feitianchengzi/arckit.git ", want: "https://github.com/feitianchengzi/arckit.git"},
+		{name: "rejects non github host", input: "https://example.com/owner/repo", wantErr: true},
+		{name: "rejects insecure scheme", input: "http://github.com/owner/repo", wantErr: true},
+		{name: "rejects credentials", input: "https://token@github.com/owner/repo", wantErr: true},
+		{name: "rejects nested path", input: "https://github.com/owner/repo/tree/main", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeGitHubRepoURL(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("normalizeGitHubRepoURL(%q) = %q, want error", tt.input, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("normalizeGitHubRepoURL(%q): %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Fatalf("normalizeGitHubRepoURL(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeGitBranch(t *testing.T) {
+	tests := []struct {
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{input: "", want: "main"},
+		{input: "release/v3", want: "release/v3"},
+		{input: "feature..bad", wantErr: true},
+		{input: "-danger", wantErr: true},
+		{input: "main; touch /tmp/bad", wantErr: true},
+	}
+	for _, tt := range tests {
+		got, err := normalizeGitBranch(tt.input)
+		if tt.wantErr {
+			if err == nil {
+				t.Fatalf("normalizeGitBranch(%q) = %q, want error", tt.input, got)
+			}
+			continue
+		}
+		if err != nil || got != tt.want {
+			t.Fatalf("normalizeGitBranch(%q) = %q, %v; want %q", tt.input, got, err, tt.want)
+		}
+	}
+}
+
+// Existing project workspaces must follow repository URL changes. Otherwise
+// the Console can display the new URL while OpenHands still reads old code.
+func TestCloneOrPullRepoUpdatesExistingRemote(t *testing.T) {
+	makeRemote := func(name, content string) string {
+		source := t.TempDir()
+		mustRunGit(t, source, "init", "-b", "main")
+		mustRunGit(t, source, "config", "user.email", "t@t")
+		mustRunGit(t, source, "config", "user.name", "t")
+		mustWriteFile(t, filepath.Join(source, "README.md"), content)
+		mustRunGit(t, source, "add", "README.md")
+		mustRunGit(t, source, "commit", "-m", "init "+name)
+		remote := filepath.Join(t.TempDir(), name+".git")
+		mustRunGit(t, source, "clone", "--bare", source, remote)
+		return remote
+	}
+
+	firstRemote := makeRemote("first", "first")
+	secondRemote := makeRemote("second", "second")
+	workDir := filepath.Join(t.TempDir(), "work")
+	mustRunGit(t, filepath.Dir(workDir), "clone", firstRemote, workDir)
+
+	repo := CustomerCodeRepo{ProjectID: 21, RepoPath: workDir, RepoURL: secondRemote, Branch: "main"}
+	gotDir, err := cloneOrPullRepo(repo)
+	if err != nil {
+		t.Fatalf("cloneOrPullRepo: %v", err)
+	}
+	if gotDir != workDir {
+		t.Fatalf("clone dir = %q, want %q", gotDir, workDir)
+	}
+	content, err := os.ReadFile(filepath.Join(workDir, "README.md"))
+	if err != nil {
+		t.Fatalf("read switched repository: %v", err)
+	}
+	if string(content) != "second" {
+		t.Fatalf("README content = %q, want second", string(content))
+	}
+	remoteURL, err := exec.Command("git", "-C", workDir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		t.Fatalf("read origin URL: %v", err)
+	}
+	if strings.TrimSpace(string(remoteURL)) != secondRemote {
+		t.Fatalf("origin = %q, want %q", strings.TrimSpace(string(remoteURL)), secondRemote)
+	}
+}
+
+func TestUpsertProjectGitHubRepoPermissionAndValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupCustomerCodeRepoTestDB(t)
+	defer teardownCustomerCodeRepoTestDB(t, db)
+
+	owner := createCustomerCodeRepoTestUser(t, db, "github-repo-owner")
+	member := createCustomerCodeRepoTestUser(t, db, "github-repo-member")
+	outsider := createCustomerCodeRepoTestUser(t, db, "github-repo-outsider")
+	project := createCustomerCodeRepoTestProject(t, db, owner.ID, "github-repo-project")
+	createCustomerCodeRepoTestMember(t, db, project.ID, owner.ID, models.ProjectRoleOwner)
+	createCustomerCodeRepoTestMember(t, db, project.ID, member.ID, models.ProjectRoleMember)
+
+	call := func(userID uint, repoURL string) *httptest.ResponseRecorder {
+		bodyBytes, _ := json.Marshal(ProjectGitHubRepoRequest{RepoURL: repoURL, Branch: "main"})
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodPut, fmt.Sprintf("/workshop/v2/user/projects/%d/code-repo", project.ID), bytes.NewReader(bodyBytes))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		ctx.Set("db", db)
+		ctx.Set("userID", userID)
+		ctx.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", project.ID)}}
+		UpsertProjectGitHubRepoHandler(ctx)
+		return recorder
+	}
+
+	// A normal member reaches input validation instead of being blocked by the
+	// old owner/admin gate. Invalid input avoids starting a background clone.
+	if recorder := call(member.ID, "https://example.com/not/github"); recorder.Code != http.StatusBadRequest {
+		t.Fatalf("member status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	if recorder := call(outsider.ID, "https://github.com/example/repo"); recorder.Code != http.StatusForbidden {
+		t.Fatalf("outsider status = %d, want %d; body=%s", recorder.Code, http.StatusForbidden, recorder.Body.String())
+	}
+}
+
+func TestSaveProjectGitHubRepoCreatesAndUpdatesSingleWorkspace(t *testing.T) {
+	db := setupCustomerCodeRepoTestDB(t)
+	defer teardownCustomerCodeRepoTestDB(t, db)
+
+	owner := createCustomerCodeRepoTestUser(t, db, "github-repo-save-owner")
+	project := createCustomerCodeRepoTestProject(t, db, owner.ID, "github-repo-save-project")
+
+	created, err := saveProjectGitHubRepo(
+		db,
+		project.ID,
+		"https://github.com/feitianchengzi/arckit.git",
+		"main",
+	)
+	if err != nil {
+		t.Fatalf("create project GitHub repo: %v", err)
+	}
+	if created.ID == 0 || created.CustomerID != fmt.Sprintf("project-%d", project.ID) || created.Status != "syncing" {
+		t.Fatalf("unexpected created repo: %+v", created)
+	}
+
+	updated, err := saveProjectGitHubRepo(
+		db,
+		project.ID,
+		"https://github.com/feitianchengzi/other.git",
+		"release/v3",
+	)
+	if err != nil {
+		t.Fatalf("update project GitHub repo: %v", err)
+	}
+	if updated.ID != created.ID {
+		t.Fatalf("updated repo ID = %d, want existing ID %d", updated.ID, created.ID)
+	}
+	if updated.RepoURL != "https://github.com/feitianchengzi/other.git" || updated.Branch != "release/v3" {
+		t.Fatalf("unexpected updated repo: %+v", updated)
+	}
+
+	var count int64
+	if err := db.Model(&CustomerCodeRepo{}).Where("project_id = ?", project.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count repos: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("repo count = %d, want 1", count)
+	}
+
+	var reloadedProject models.Project
+	if err := db.First(&reloadedProject, project.ID).Error; err != nil {
+		t.Fatalf("reload project: %v", err)
+	}
+	if reloadedProject.GitURL == nil || *reloadedProject.GitURL != updated.RepoURL {
+		t.Fatalf("project git_url = %v, want %q", reloadedProject.GitURL, updated.RepoURL)
 	}
 }

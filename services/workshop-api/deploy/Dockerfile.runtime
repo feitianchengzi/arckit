@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+
+# Low-memory packaging path: deploy.sh cross-compiles the static Linux binary on
+# the host, then this image only installs runtime tools and copies that binary.
+FROM alpine:3.22
+
+ARG SOURCE_COMMIT=unknown
+ARG SOURCE_DIRTY=true
+LABEL org.opencontainers.image.revision=$SOURCE_COMMIT \
+      org.opencontainers.image.source-dirty=$SOURCE_DIRTY
+
+RUN apk --no-cache add ca-certificates git openssh-client postgresql17-client tzdata \
+    && addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /home/appuser/
+COPY todo ./todo
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=12 \
+  CMD wget -q -O /dev/null "http://127.0.0.1:${PORT:-8081}/${SERVICE_NAME:-workshop}/v1/public/health" || exit 1
+
+USER appuser
+CMD ["./todo"]

@@ -102,7 +102,7 @@ export function useUpdateProject(projectId: string) {
   
   return useMutation({
     mutationFn: (input: UpdateProjectInput) => projectsApi.update(projectId, input),
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       // 更新项目详情缓存
       queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
       // 更新项目列表缓存并主动刷新（确保侧边栏立即更新）

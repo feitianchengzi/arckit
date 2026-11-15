@@ -44,7 +44,7 @@ externally provided product whose functionality or value competes with them.
 
 ## Public SDKs and Examples
 
-`packages/feedback-sdk-web/`, `examples/feedback-ios/`, and `docs/workshop/`
+`apps/feedback-sdk-web/`, `examples/feedback-ios/`, and `docs/workshop/`
 are licensed under Apache-2.0 through their nearest license or the repository
 root license. Their package metadata and local license files make this boundary
 explicit so SDK consumers do not inherit a product application license.

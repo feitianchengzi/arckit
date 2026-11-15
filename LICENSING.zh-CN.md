@@ -27,7 +27,7 @@ Apache License 2.0 允许个人、团队和企业使用、修改和分发，但�
 
 ## 公共 SDK 与示例
 
-`packages/feedback-sdk-web/`、`examples/feedback-ios/` 和 `docs/workshop/` 通过最近目录或仓库根许可证采用 Apache-2.0。目录许可证与 package metadata 会明确该边界，避免 SDK 消费者继承产品应用许可证。
+`apps/feedback-sdk-web/`、`examples/feedback-ios/` 和 `docs/workshop/` 通过最近目录或仓库根许可证采用 Apache-2.0。目录许可证与 package metadata 会明确该边界，避免 SDK 消费者继承产品应用许可证。
 
 ## 私有运维工作区
 

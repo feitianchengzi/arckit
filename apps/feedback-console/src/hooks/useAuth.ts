@@ -36,7 +36,7 @@ export function useSendVerificationCode() {
  */
 export function useLogin() {
   const navigate = useNavigate()
-  const { setAuth, setUser } = useAuthStore()
+  const { setAuth } = useAuthStore()
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -78,7 +78,7 @@ export function useLogin() {
  * 首次设置用户信息 Hook
  */
 export function useFirstTimeSetup() {
-  const { setUser, user } = useAuthStore()
+  const { setUser } = useAuthStore()
 
   return useMutation({
     mutationFn: async (data: CreateUserRequest) => {

@@ -169,3 +169,72 @@ test("one healthy feedback surface preserves routed drafts and only reloads for 
   assert.deepEqual(views[0].webContents.loadCalls, [PRODUCT_FEEDBACK_SDK_URL, PRODUCT_FEEDBACK_SDK_URL, PRODUCT_FEEDBACK_SDK_URL]);
   surface.close();
 });
+
+test("unread count failure does not drag shell state to error (tab stays enabled)", async () => {
+  const windows = [];
+  const views = [];
+  const unreadCounts = [];
+  class FakeBrowserWindow {
+    constructor() {
+      this.messages = [];
+      this.contentView = { addChildView: (view) => { this.view = view; } };
+      this.webContents = { send: (...args) => this.messages.push(args) };
+      windows.push(this);
+    }
+    loadFile() {}
+    show() {}
+    focus() {}
+    getContentBounds() { return { width: 920, height: 720 }; }
+    on() {}
+    isDestroyed() { return false; }
+    close() {}
+  }
+  class FakeWebContentsView {
+    constructor() { this.webContents = new FakeWebContents(); views.push(this); }
+    setBounds() {}
+  }
+  class FakeWebContents {
+    constructor() { this.handlers = new Map(); this.scripts = []; this.url = ""; }
+    getURL() { return this.url; }
+    async loadURL(value) { this.url = value; this.handlers.get("did-finish-load")?.(); }
+    setWindowOpenHandler() { this.windowOpenHandler = () => ({ action: "deny" }); }
+    on(name, listener) { this.handlers.set(name, listener); }
+    async executeJavaScript(source) {
+      this.scripts.push(source);
+      if (source.startsWith("Boolean(")) return true;
+      if (source.includes("__arcOrbitFeedbackUnreadSignal")) return 0;
+      // 模拟 getUnreadCount 失败（SDK 内部异常，如通知接口 404 级联）
+      if (source.includes("FeedbackSDK.getUnreadCount")) throw new Error("unread fetch failed");
+      if (source.startsWith("window.FeedbackSDK.openSubmit")) this.url = "https://feedback.feitianchengzi.com/sdk-v2/submit?embed=web";
+      if (source.startsWith("Promise.resolve(window.FeedbackSDK.configure")) return undefined;
+      return undefined;
+    }
+    close() {}
+  }
+
+  const surface = createProductFeedbackSurface({
+    BrowserWindow: FakeBrowserWindow,
+    WebContentsView: FakeWebContentsView,
+    shellFile: "/local/product-feedback/index.html",
+    shellPreload: "/local/product-feedback/preload.cjs",
+    getParentWindow: () => null,
+    onUnreadCount: (count) => unreadCounts.push(count)
+  });
+  const config = {
+    feedbackV2Enabled: true,
+    feedbackV2AuthMode: "apiKey",
+    apiKey: "test-key",
+    projectId: 42,
+    customUserId: "731",
+    gatewayUrl: "https://api.feitianchengzi.com",
+    theme: "system",
+    feedbackV2NotificationsEnabled: false
+  };
+  await surface.open({ mode: "submit", config });
+
+  // shell 收到的所有 state：不应有 status==="error"（unread 失败不得拖累 tab）
+  const states = windows[0].messages.map((args) => args[1]);
+  const errorStates = states.filter((s) => s.status === "error");
+  assert.equal(errorStates.length, 0, `unread 失败不应 sendState error，实际: ${JSON.stringify(states)}`);
+  surface.close();
+});

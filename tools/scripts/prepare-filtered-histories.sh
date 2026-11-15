@@ -74,14 +74,14 @@ git clone --quiet --no-local --single-branch --branch main "$feedbacks_source" "
   --path Test/ios/TestFeedBack/ \
   --path design/ \
   --path-rename webapps/feedback-console-web/:apps/feedback-console/ \
-  --path-rename webapps/feedback-sdk-web/:packages/feedback-sdk-web/ \
+  --path-rename webapps/feedback-sdk-web/:apps/feedback-sdk-web/ \
   --path-rename Test/ios/TestFeedBack/:examples/feedback-ios/ \
   --path-rename design/:docs/workshop/feedback-design/
 "$filter_repo" --force --source "$output_root/workshop-feedbacks" --target "$output_root/workshop-feedbacks" --invert-paths \
   --path apps/feedback-console/dist/ \
   --path apps/feedback-console/node_modules/ \
-  --path packages/feedback-sdk-web/dist/ \
-  --path packages/feedback-sdk-web/node_modules/ \
+  --path apps/feedback-sdk-web/dist/ \
+  --path apps/feedback-sdk-web/node_modules/ \
   --path examples/feedback-ios/DerivedData/ \
   --path examples/feedback-ios/xcuserdata/
 

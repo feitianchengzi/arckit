@@ -17,7 +17,6 @@ export default function InviteMemberPage() {
   const projectSlug = params.id ?? ''
   const decodedProjectId = decodeProjectId(projectSlug)
   const projectIdParam = decodedProjectId ?? projectSlug
-  const projectId = Number(projectIdParam)
   
   const { data: project, isLoading: projectLoading } = useProject(projectIdParam)
   const createInvitation = useCreateInvitation(projectIdParam)

@@ -19,6 +19,10 @@ type CreateFeedbackFromSessionRequest struct {
 	Content     string                           `json:"content" binding:"required"`
 	Data        json.RawMessage                  `json:"data,omitempty"`
 	Attachments []FeedbackMessageAttachmentInput `json:"attachments,omitempty"`
+	// ConversationID 提交反馈前客户与智能客服的独立会话 ID（feedback_id=0）。
+	// 传入后把该会话关联到新建反馈，使咨询上下文延续到反馈跟进阶段；校验客户归属并原子关联，同一已确认会话只创建一张反馈。
+	ConversationID  string `json:"conversation_id,omitempty"`
+	ClientRequestID string `json:"client_request_id,omitempty"`
 }
 
 func requireScopedFeedback(c *gin.Context, db *gorm.DB, feedbackID uint) (models.Feedback, middleware.FeedbackSessionScope, bool) {
@@ -59,6 +63,15 @@ func CreateFeedbackFromSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "data 必须是合法 JSON", nil))
 		return
 	}
+	if err := validateConversationFeedbackConfirmation(req.ConversationID, data); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+	if err := validateFeedbackClarification(data); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+
 	attachments, err := buildFeedbackMessageAttachments(req.Attachments, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
@@ -87,14 +100,34 @@ func CreateFeedbackFromSession(c *gin.Context) {
 		Data:         data,
 	}
 	var initialMessage models.FeedbackMessage
+	replay := false
 	if err := db.Transaction(func(tx *gorm.DB) error {
+		receiptID, existingRequest, err := lockFeedbackRequest(tx, scope.ProjectID, scope.CustomUserID, req.ClientRequestID, req)
+		if err != nil {
+			return err
+		}
+		if existingRequest != nil {
+			existing := existingRequest
+			feedback = *existing
+			replay = true
+			return nil
+		}
+
+		existing, err := lockConversationForFeedback(tx, req.ConversationID, scope.ProjectID, scope.CustomUserID)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			feedback = *existing
+			replay = true
+			return finishFeedbackRequest(tx, receiptID, feedback.ID)
+		}
 		if err := tx.Create(&feedback).Error; err != nil {
 			if isUniqueViolation(err, "uniq_feedback_short_id") {
 				return errFeedbackShortIDExists
 			}
 			return err
 		}
-		var err error
 		initialMessage, err = createFeedbackMessageRecord(
 			tx,
 			feedback,
@@ -110,8 +143,18 @@ func CreateFeedbackFromSession(c *gin.Context) {
 		if err != nil {
 			return err
 		}
+		if err := linkStandaloneConversationToFeedback(tx, req.ConversationID, feedback.ID, scope.ProjectID, scope.CustomUserID); err != nil {
+			return err
+		}
+		if err := finishFeedbackRequest(tx, receiptID, feedback.ID); err != nil {
+			return err
+		}
 		return createFeedbackNotificationsForMessage(tx, feedback, initialMessage)
 	}); err != nil {
+		if errors.Is(err, errConversationCreationScope) {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, err.Error(), nil))
+			return
+		}
 		if errors.Is(err, errFeedbackShortIDExists) {
 			c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, "短 ID 冲突，请重试", nil))
 			return
@@ -121,6 +164,10 @@ func CreateFeedbackFromSession(c *gin.Context) {
 	}
 
 	feedbackResponse := buildFeedbackResponse(feedback)
+	if replay {
+		c.JSON(http.StatusOK, response.NewSuccessResponse(feedbackResponse))
+		return
+	}
 	notifyProjectEvent(c, db, feedback.ProjectID, 0, "feedback.created", feedbackResponse)
 	notifyProjectEvent(c, db, feedback.ProjectID, 0, "feedback.message.created", buildFeedbackMessageResponse(initialMessage))
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(feedbackResponse))
@@ -151,6 +198,10 @@ func GetFeedbacksFromSession(c *gin.Context) {
 		Order("created_at DESC").
 		Order("id DESC")
 
+	query, ok = applyFeedbackSearch(c, query)
+	if !ok {
+		return
+	}
 	var total int64
 	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈总数失败: "+err.Error(), nil))
@@ -193,7 +244,7 @@ func GetFeedbackMessagesFromSession(c *gin.Context) {
 
 	pagination, _ := ParsePagination(c)
 	query := db.Model(&models.FeedbackMessage{}).
-		Where("feedback_id = ?", feedback.ID).
+		Where("feedback_id = ? AND state = ?", feedback.ID, models.FeedbackMessageStateSent).
 		Order("created_at ASC").
 		Order("id ASC")
 	var total int64
@@ -217,6 +268,28 @@ func GetFeedbackMessagesFromSession(c *gin.Context) {
 		PageSize: pagination.PageSize,
 		Total:    int(total),
 	}))
+}
+
+// GetConversationMessagesFromSession 返回某反馈的统一会话视图：
+// 聚合 agent_message_records（客户与智能客服的咨询/Agent 回答/P3 同步的客服回复）
+// 与 feedback_messages（客户首条反馈/客服 developer 回复/system 消息），按时间升序。
+// 客户在反馈详情会话看到完整对话流，不必在智能客服面板与反馈消息间来回切换。
+// GET /workshop/v2/feedback/feedbacks/:id/conversation-messages
+func GetConversationMessagesFromSession(c *gin.Context) {
+	feedbackID, ok := parseFeedbackIDParam(c)
+	if !ok {
+		return
+	}
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+	feedback, _, ok := requireScopedFeedback(c, db, feedbackID)
+	if !ok {
+		return
+	}
+	respondConversationPage(c, db, feedback.ID)
 }
 
 func CreateFeedbackMessageFromSession(c *gin.Context) {
@@ -253,6 +326,11 @@ func CreateFeedbackMessageFromSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "metadata 必须是合法 JSON", nil))
 		return
 	}
+	if err := validateFeedbackClarification(metadata); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+
 	attachments, err := buildFeedbackMessageAttachments(req.Attachments, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))

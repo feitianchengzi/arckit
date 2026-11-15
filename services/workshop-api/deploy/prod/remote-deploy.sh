@@ -53,6 +53,60 @@ compose_run() {
   IMAGE_NAME=$image_name IMAGE_TAG=$image_tag "${compose[@]}" --env-file "$env_file" -f "$compose_file" "$@"
 }
 
+env_value() {
+  local key=$1
+  awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, ""); print}' "$env_file" | tail -n 1
+}
+
+prepare_customer_repos() {
+  local repo_path shared_gid
+  repo_path=$(env_value CUSTOMER_REPOS_PATH)
+  shared_gid=$(env_value OH_SHARED_GID)
+  repo_path=${repo_path:-/opt/todo/customer-repos}
+  shared_gid=${shared_gid:-2000}
+  [[ $repo_path =~ ^/[a-zA-Z0-9._/-]+$ ]] || { echo "Invalid CUSTOMER_REPOS_PATH" >&2; return 1; }
+  [[ $shared_gid =~ ^[1-9][0-9]*$ ]] || { echo "Invalid OH_SHARED_GID" >&2; return 1; }
+  install -d -o root -g "$shared_gid" -m 2770 "$repo_path"
+}
+
+backup_database() {
+  local backup_dir backup_file backup_tmp timestamp
+  backup_dir=$(env_value DEPLOY_BACKUP_DIR)
+  backup_dir=${backup_dir:-/opt/todo/backups}
+  [[ $backup_dir =~ ^/[a-zA-Z0-9._/-]+$ ]] || { echo "Invalid DEPLOY_BACKUP_DIR" >&2; return 1; }
+
+  timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+  backup_file="$backup_dir/workshop-before-${image_tag}-${timestamp}.dump"
+  backup_tmp="${backup_file}.tmp"
+  install -d -o root -g root -m 700 "$backup_dir"
+
+  echo "Backing up the production database before migration"
+  if ! docker run --rm --env-file "$env_file" "$full_image" sh -ceu '
+    : "${DB_HOST:?DB_HOST is required}"
+    : "${DB_PORT:?DB_PORT is required}"
+    : "${DB_USER:?DB_USER is required}"
+    : "${DB_PASSWORD:?DB_PASSWORD is required}"
+    : "${DB_NAME:?DB_NAME is required}"
+    export PGPASSWORD="$DB_PASSWORD"
+    export PGSSLMODE="${DB_SSLMODE:-require}"
+    exec pg_dump --format=custom --no-owner --no-acl \
+      --host="$DB_HOST" --port="$DB_PORT" --username="$DB_USER" "$DB_NAME"
+  ' > "$backup_tmp"; then
+    rm -f -- "$backup_tmp"
+    return 1
+  fi
+  [[ -s $backup_tmp ]] || { rm -f -- "$backup_tmp"; echo "Database backup is empty" >&2; return 1; }
+  if ! docker run --rm --user 0:0 \
+    --mount "type=bind,source=$backup_dir,target=/backup,readonly" \
+    "$full_image" pg_restore --list "/backup/$(basename "$backup_tmp")" >/dev/null; then
+    rm -f -- "$backup_tmp"
+    return 1
+  fi
+  chmod 600 "$backup_tmp"
+  mv -- "$backup_tmp" "$backup_file"
+  echo "Database backup verified: $backup_file"
+}
+
 wait_until_healthy() {
   local attempt status
   for ((attempt = 1; attempt <= health_attempts; attempt += 1)); do
@@ -76,10 +130,9 @@ wait_until_healthy() {
 
 rollback() {
   echo "Deployment failed after cutover; restoring the previous service image." >&2
-  compose_run down >/dev/null 2>&1 || true
   if [[ -n $old_image_id ]]; then
     docker tag "$rollback_image" "$full_image"
-    compose_run up -d
+    compose_run up -d --no-deps --force-recreate "$container_name"
     wait_until_healthy || echo "Previous image restart did not become healthy; manual intervention is required." >&2
   fi
 }
@@ -102,13 +155,17 @@ fi
 echo "Loading candidate image $full_image"
 docker load -i "$image_tar"
 
+backup_database
+
 echo "Applying idempotent database migration before service cutover"
 docker run --rm --env-file "$env_file" "$full_image" ./todo migrate
 
+echo "Preparing the shared per-project repository directory"
+prepare_customer_repos
+
 echo "Switching service container"
 cutover_started=true
-compose_run down >/dev/null 2>&1 || true
-compose_run up -d
+compose_run up -d --no-deps --force-recreate "$container_name"
 
 if ! wait_until_healthy; then
   cutover_started=false

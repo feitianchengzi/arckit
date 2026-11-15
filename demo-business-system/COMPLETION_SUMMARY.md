@@ -169,7 +169,7 @@ arckit/
 │   ├── start.sh                    # 一键启动脚本
 │   ├── stop.sh                     # 一键停止脚本
 │   └── README.md                   # 使用文档
-├── packages/feedback-sdk-web/      # Feedback SDK
+├── apps/feedback-sdk-web/          # Feedback SDK
 ├── services/workshop-api/          # 后端 API
 └── runtime/arcorbit/               # ArcOrbit 运行时
 ```
@@ -199,7 +199,7 @@ arckit/
 
 ## 相关文档
 
-- [Feedback SDK 文档](packages/feedback-sdk-web/README.md)
+- [Feedback SDK 文档](apps/feedback-sdk-web/README.md)
 - [workshop-api 文档](services/workshop-api/README.md)
 - [迭代版本文档](docs/product-space/迭代版本/【1】20260904/)
 - [演示系统文档](demo-business-system/README.md)

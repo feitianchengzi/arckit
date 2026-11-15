@@ -55,7 +55,6 @@ export function TodoTreeItem({
   currentUserId,
   canEdit = false,
   depth = 0,
-  isLast = false,
   parentExpanded = false,
   members = [],
   canAssignAssignee = false,
@@ -83,7 +82,7 @@ export function TodoTreeItem({
   const [isUpdatingTags, setIsUpdatingTags] = useState(false)
   const [showContentDialog, setShowContentDialog] = useState(false)
   const navigate = useNavigate()
-  const { loadProjectTags, getProjectTags } = useTagStore()
+  const { loadProjectTags } = useTagStore()
   const theme = useThemeStore((state) => state.theme)
   
   // 提取第一行内容
@@ -561,7 +560,7 @@ export function TodoTreeItem({
                 {isEditingAssignee && canAssignAssignee && onUpdateAssignee && members.length > 0 ? (
                   <AssigneeSelectorInline
                     members={members}
-                    value={newAssigneeId !== undefined ? newAssigneeId : (todo.assigneeId || undefined)}
+                    value={newAssigneeId !== undefined ? (newAssigneeId ?? undefined) : (todo.assigneeId || undefined)}
                     onChange={setNewAssigneeId}
                     onSave={async () => {
                       try {
@@ -935,21 +934,7 @@ function ChevronIcon({ isExpanded }: { isExpanded: boolean }) {
   )
 }
 
-function UserIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-  )
-}
 
-function AssignIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  )
-}
 
 function ClockIcon({ className }: { className?: string }) {
   return (
@@ -1216,7 +1201,7 @@ interface TagSelectorInlineProps {
   loading?: boolean
 }
 
-function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, onSave, onCancel, loading }: TagSelectorInlineProps) {
+function TagSelectorInline({ projectId, selectedTagIds, onChange, onSave, onCancel, loading }: TagSelectorInlineProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)

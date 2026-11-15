@@ -57,7 +57,7 @@ if curl -s http://localhost:3100/sdk/ > /dev/null 2>&1; then
   echo -e "${GREEN}✓ Feedback SDK 已运行${NC}"
 else
   echo -e "${YELLOW}⚠ 启动 Feedback SDK...${NC}"
-  cd "$PROJECT_ROOT/packages/feedback-sdk-web"
+  cd "$PROJECT_ROOT/apps/feedback-sdk-web"
   nohup npm run dev > /tmp/sdk-dev.log 2>&1 &
   sleep 5
   if curl -s http://localhost:3100/sdk/ > /dev/null 2>&1; then

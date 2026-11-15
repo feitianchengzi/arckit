@@ -3,7 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"gorm.io/gorm/clause"
 	"net/http"
+	feedbackdomain "todo/domain/feedback"
 	"todo/middleware"
 	"todo/models"
 	"todo/response"
@@ -55,38 +57,53 @@ func NotifyDeliveryHandler(c *gin.Context) {
 		return
 	}
 
-	// 更新反馈状态为已完成
-	if err := db.Model(&feedback).Update("status", models.FeedbackStatusCompleted).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackUpdateFailed, "更新反馈状态失败: "+err.Error(), nil))
+	if err := (feedbackdomain.Conclusion{Kind: "delivery", Title: "处理结果已交付", Body: "请验证交付结果", ArtifactURL: req.ArtifactURL}).Validate(); err != nil {
+		c.JSON(400, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
 		return
 	}
-
-	// 构建通知消息内容
-	notifyContent := fmt.Sprintf("您的反馈已处理完成。\n\n产物链接: %s", req.ArtifactURL)
-	if req.Message != "" {
-		notifyContent = req.Message + "\n\n" + notifyContent
-	}
-
-	// 创建系统消息通知客户
-	metadata := map[string]interface{}{
-		"type":         "delivery_notification",
-		"artifact_url": req.ArtifactURL,
-	}
-	metadataBytes, _ := json.Marshal(metadata)
-	metadataStr := string(metadataBytes)
-
-	message := models.FeedbackMessage{
-		FeedbackID:  feedbackID,
-		ProjectID:   feedback.ProjectID,
-		SenderType:  models.FeedbackMessageSenderSystem,
-		MessageType: models.FeedbackMessageTypeSystem,
-		State:       models.FeedbackMessageStateSent,
-		Content:     notifyContent,
-		Metadata:    &metadataStr,
-	}
-
-	if err := db.Create(&message).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建通知消息失败: "+err.Error(), nil))
+	var message models.FeedbackMessage
+	var notReady bool
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&feedback, feedbackID).Error; err != nil {
+			return err
+		}
+		// V2 delivery reports finished work; it cannot bypass task-driven progress.
+		if isV2Request(c) && feedback.Status != models.FeedbackStatusCompleted && feedback.Status != models.FeedbackStatusReleased {
+			notReady = true
+			return fmt.Errorf("关联任务尚未完成，不能发送交付通知")
+		}
+		if !isV2Request(c) {
+			if err := tx.Model(&feedback).Update("status", models.FeedbackStatusCompleted).Error; err != nil {
+				return err
+			}
+		}
+		notifyContent := fmt.Sprintf("您的反馈已处理完成。\n\n产物链接: %s", req.ArtifactURL)
+		if req.Message != "" {
+			notifyContent = req.Message + "\n\n" + notifyContent
+		}
+		var version int
+		if err := tx.Model(&models.FeedbackConclusion{}).Where("feedback_id = ?", feedbackID).Select("COALESCE(MAX(version),0)").Scan(&version).Error; err != nil {
+			return err
+		}
+		conclusion := models.FeedbackConclusion{FeedbackID: feedbackID, ProjectID: feedback.ProjectID, Version: version + 1, Kind: "delivery", Title: "处理结果已交付", Body: notifyContent, ArtifactURL: req.ArtifactURL, PublishedBy: userID}
+		if err := tx.Create(&conclusion).Error; err != nil {
+			return err
+		}
+		raw, _ := json.Marshal(map[string]interface{}{"type": "delivery_notification", "artifact_url": req.ArtifactURL, "conclusion_id": conclusion.ID})
+		metadata := string(raw)
+		var err error
+		message, err = createFeedbackMessageRecord(tx, feedback, models.FeedbackMessageSenderSystem, &userID, nil, nil, models.FeedbackMessageTypeSystem, notifyContent, &metadata, nil)
+		if err != nil {
+			return err
+		}
+		return createFeedbackNotificationsForMessage(tx, feedback, message)
+	})
+	if err != nil {
+		if notReady {
+			c.JSON(409, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		} else {
+			lifecycleError(c, err)
+		}
 		return
 	}
 
@@ -129,9 +146,17 @@ func GetDeliveryStatusHandler(c *gin.Context) {
 		return
 	}
 
+	if _, ok := requireFeedbackProjectMember(c, db, feedback.ProjectID, "查看交付状态"); !ok {
+		return
+	}
+	if isAPIKeyRequest(c) {
+		if _, ok := requireCustomerFeedbackAccess(c, feedback, c.Query("custom_user_id")); !ok {
+			return
+		}
+	}
 	// 查询关联的交付消息
 	var messages []models.FeedbackMessage
-	db.Where("feedback_id = ? AND sender_type = ? AND metadata LIKE ?",
+	db.Where("feedback_id = ? AND sender_type = ? AND CAST(metadata AS TEXT) LIKE ?",
 		feedbackID, models.FeedbackMessageSenderSystem, "%delivery_notification%").
 		Order("created_at DESC").Limit(1).Find(&messages)
 

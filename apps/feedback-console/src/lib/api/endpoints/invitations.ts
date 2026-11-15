@@ -62,7 +62,7 @@ export const invitationsApi = {
    * 获取项目的邀请列表
    * 注意：后端目前不支持此接口，返回空数组
    */
-  listByProject: async (projectId: string): Promise<ProjectInvitation[]> => {
+  listByProject: async (_projectId: string): Promise<ProjectInvitation[]> => {
     // 后端没有获取邀请列表的接口，返回空数组
     // TODO: 如果后端支持，可以添加此接口
     return []
@@ -99,7 +99,7 @@ export const invitationsApi = {
    * 删除邀请
    * 注意：后端目前不支持此接口
    */
-  delete: async (projectId: string, invitationId: string): Promise<void> => {
+  delete: async (_projectId: string, _invitationId: string): Promise<void> => {
     // 后端没有删除邀请的接口
     // TODO: 如果后端支持，可以添加此接口
     throw new Error('后端不支持删除邀请功能')

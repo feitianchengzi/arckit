@@ -5,9 +5,9 @@ CREATE TABLE IF NOT EXISTS agent_conversations (
   id VARCHAR(128) PRIMARY KEY,
   feedback_id INTEGER NOT NULL,
   project_id INTEGER NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  delete_at TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  delete_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_conversations_feedback_id ON agent_conversations(feedback_id);
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS agent_message_records (
   tool_results JSONB,
   confidence DECIMAL(3,2),
   metadata JSONB,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  delete_at TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  delete_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_message_records_conversation_id ON agent_message_records(conversation_id);

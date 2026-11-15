@@ -3,7 +3,6 @@
  */
 
 import { useQuery } from '@tanstack/react-query'
-import { taskHistoryApi } from '@/lib/api/endpoints/taskHistory'
 
 /**
  * 获取任务的状态变更历史

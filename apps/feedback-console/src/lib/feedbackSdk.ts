@@ -9,7 +9,7 @@ import {
 const DEFAULT_FEEDBACK_FRAME_URL = 'https://workshop.feitianchengzi.com/sdk/index.html?embed=web'
 const FEEDBACK_FRAME_URL = import.meta.env.VITE_FEEDBACK_SDK_URL?.trim() || DEFAULT_FEEDBACK_FRAME_URL
 const FEEDBACK_FRAME_ORIGIN = new URL(FEEDBACK_FRAME_URL).origin
-const FEEDBACK_GATEWAY_URL = 'https://api.feitianchengzi.com'
+const FEEDBACK_GATEWAY_URL = import.meta.env.VITE_FEEDBACK_GATEWAY_URL?.trim() || 'https://api.feitianchengzi.com'
 const FEEDBACK_GUEST_ID_STORAGE = 'feedback_console_guest_user_id'
 export const FEEDBACK_SDK_UNREAD_CHANGED_EVENT = 'feedback-sdk:unread-changed'
 

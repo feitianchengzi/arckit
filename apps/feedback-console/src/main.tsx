@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from './store/authStore'
-import { useThemeStore, initializeTheme } from './store/themeStore'
+import { initializeTheme } from './store/themeStore'
 import { initErrorInterceptor } from './lib/oss/load'
 import { redirectToLogin } from './lib/utils/loginRedirect'
 import { buildAppPath, resolveRouterBase } from './lib/router/base'
@@ -12,7 +12,7 @@ import './globals.css'
 
 // 导入 Token 调试工具（开发环境）
 if (import.meta.env.DEV) {
-  import('./utils/tokenDebug').then(module => {
+  import('./utils/tokenDebug').then(_module => {
     console.log('🔧 Token 调试工具已加载')
     console.log('💡 可用命令：')
     console.log('  - window.debugToken()            查看 Token 状态')
@@ -73,10 +73,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter 
         basename={resolveRouterBase()}
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
       >
         <App />
       </BrowserRouter>

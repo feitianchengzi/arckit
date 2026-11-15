@@ -14,6 +14,7 @@ import (
 )
 
 func TestPostgresMigrationAddsRequiredEventSchemaWithoutChangingExistingData(t *testing.T) {
+	t.Setenv("OPENHANDS_ENABLED", "true")
 	dsn := os.Getenv("WORKSHOP_TEST_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("WORKSHOP_TEST_POSTGRES_DSN is not configured")
@@ -61,6 +62,15 @@ func TestPostgresMigrationAddsRequiredEventSchemaWithoutChangingExistingData(t *
 	}
 	if err := ValidateRuntimeSchema(db); err != nil {
 		t.Fatal(err)
+	}
+	for _, table := range []string{"openhands_agents", "customer_code_repos", "agent_conversations", "agent_message_records"} {
+		var exists bool
+		if err := db.Raw(`SELECT to_regclass(?) IS NOT NULL`, table).Scan(&exists).Error; err != nil {
+			t.Fatal(err)
+		}
+		if !exists {
+			t.Fatalf("OpenHands migration did not create %s", table)
+		}
 	}
 	var count int64
 	if err := db.Model(&models.User{}).Where("id = ?", user.ID).Count(&count).Error; err != nil || count != 1 {

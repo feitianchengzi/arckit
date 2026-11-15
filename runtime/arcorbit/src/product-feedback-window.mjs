@@ -1,5 +1,5 @@
-export const PRODUCT_FEEDBACK_SDK_URL = "https://feedback.feitianchengzi.com/sdk-v2/index.html?embed=web";
-const SDK_ORIGIN = "https://feedback.feitianchengzi.com";
+export const PRODUCT_FEEDBACK_SDK_URL = process.env.ARCORBIT_FEEDBACK_SDK_URL || "https://feedback.feitianchengzi.com/sdk-v2/index.html?embed=web";
+const SDK_ORIGIN = new URL(PRODUCT_FEEDBACK_SDK_URL).origin;
 const TOOLBAR_HEIGHT = 58;
 const READY_ATTEMPTS = 40;
 const READY_INTERVAL_MS = 100;
@@ -229,7 +229,9 @@ export function createProductFeedbackSurface({ BrowserWindow, WebContentsView, s
       sendState({ status: "ready", mode: currentMode, unread_count: count });
       return count;
     } catch {
-      sendState({ status: "error", code: "sdk_unread_failed", mode: currentMode });
+      // unread 计数是辅助能力，失败不得拖累会话状态：不 sendState error（否则 tab 被禁用），
+      // 只回退 0。真正的 SDK 不可用由 configureAndOpen/switchMode 的独立 error 分支处理。
+      onUnreadCount(0);
       return 0;
     }
   }
@@ -241,10 +243,23 @@ export function createProductFeedbackSurface({ BrowserWindow, WebContentsView, s
   return { open, prepare, switchMode, retry, close };
 }
 
+function isAllowedSdkProtocol(url) {
+  // 生产强制 https；本地开发的回环地址允许 http（ARCKORBIT_FEEDBACK_SDK_URL）。
+  return url.protocol === "https:" || (url.protocol === "http:" && isLoopbackHostname(url.hostname));
+}
+
+function isLoopbackHostname(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+}
+
+// SDK 目录前缀（生产 /sdk-v2/、本地 /sdk/），SPA 子路由允许落在该前缀下。
+const SDK_PATH_BASENAME = new URL(PRODUCT_FEEDBACK_SDK_URL).pathname.replace(/\/[^/]*$/, "");
+const SDK_PATH_PREFIX = `${SDK_PATH_BASENAME}/`;
+
 export function isAllowedProductFeedbackUrl(value) {
   try {
     const url = new URL(value);
-    return url.origin === SDK_ORIGIN && url.protocol === "https:";
+    return url.origin === SDK_ORIGIN && isAllowedSdkProtocol(url);
   } catch {
     return false;
   }
@@ -254,8 +269,8 @@ export function isProductFeedbackDocumentUrl(value) {
   try {
     const url = new URL(value);
     return url.origin === SDK_ORIGIN
-      && url.protocol === "https:"
-      && (url.pathname === "/sdk-v2" || url.pathname.startsWith("/sdk-v2/"))
+      && isAllowedSdkProtocol(url)
+      && (url.pathname === SDK_PATH_BASENAME || url.pathname.startsWith(SDK_PATH_PREFIX))
       && url.searchParams.get("embed") === "web";
   } catch {
     return false;

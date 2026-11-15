@@ -16,6 +16,9 @@ NC='\033[0m'
 ENV_FILE=.env.workshop.production
 COMPOSE_FILE=docker-compose.prod.yml
 REMOTE_SCRIPT=remote-deploy.sh
+OPENHANDS_COMPOSE=docker-compose.openhands.yml
+OPENHANDS_CONTROL=openhands-control.sh
+OPENHANDS_ENV_PREP=prepare-openhands-env.sh
 
 usage() {
   echo -e "${BLUE}使用方法:${NC} $0 [--skip-build] [--skip-upload]"
@@ -38,7 +41,7 @@ fi
 source "$ENV_FILE"
 
 IMAGE_NAME=${IMAGE_NAME:-todo-service}
-IMAGE_TAG=${IMAGE_TAG:-latest}
+IMAGE_TAG=${DEPLOY_IMAGE_TAG_OVERRIDE:-${IMAGE_TAG:-latest}}
 SERVER_HOST=${PROD_SERVER_HOST:-${SERVER_HOST:-}}
 SERVER_USER=${PROD_SERVER_SSH_USER:-${SERVER_USER:-}}
 SERVER_PORT=${PROD_SERVER_SSH_PORT:-${SERVER_PORT:-22}}
@@ -62,10 +65,12 @@ FULL_IMAGE_NAME="${IMAGE_NAME}:${IMAGE_TAG}"
 IMAGE_TAR_NAME="${IMAGE_NAME//\//_}-${IMAGE_TAG}.tar"
 IMAGE_TAR="$SCRIPT_DIR/$IMAGE_TAR_NAME"
 APP_ENV_UPLOAD_FILE=$(mktemp "${TMPDIR:-/tmp}/workshop-app-env.XXXXXX")
+RUNTIME_BUILD_CONTEXT=""
 
 cleanup() {
   rm -f -- "$APP_ENV_UPLOAD_FILE"
   if [[ -f $IMAGE_TAR ]]; then rm -f -- "$IMAGE_TAR"; fi
+  if [[ -n $RUNTIME_BUILD_CONTEXT && -d $RUNTIME_BUILD_CONTEXT ]]; then rm -rf -- "$RUNTIME_BUILD_CONTEXT"; fi
 }
 trap cleanup EXIT
 
@@ -98,7 +103,45 @@ echo -e "${BLUE}生产部署: $FULL_IMAGE_NAME -> $remote_target:$remote_dir${NC
 
 if [[ $skip_build == false ]]; then
   echo -e "${YELLOW}[1/4] 构建 linux/amd64 镜像${NC}"
-  docker build --platform linux/amd64 -f "$PROJECT_ROOT/deploy/Dockerfile" -t "$FULL_IMAGE_NAME" "$PROJECT_ROOT"
+  source_commit=$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)
+  source_dirty=false
+  if [[ -n $(git -C "$PROJECT_ROOT" status --porcelain 2>/dev/null) ]]; then source_dirty=true; fi
+  build_mode=${LOCAL_BUILD_MODE:-host}
+  if [[ $build_mode == host ]]; then
+    command -v go >/dev/null 2>&1 || { echo -e "${RED}错误: host 构建模式需要本机 Go${NC}" >&2; exit 1; }
+    RUNTIME_BUILD_CONTEXT=$(mktemp -d "${TMPDIR:-/tmp}/workshop-runtime-build.XXXXXX")
+    echo -e "${YELLOW}使用低内存宿主机交叉编译（不在 Docker 内运行 Go 编译器）${NC}"
+    (
+      cd "$PROJECT_ROOT"
+      CGO_ENABLED=0 \
+      GOOS=linux \
+      GOARCH=amd64 \
+      GOMAXPROCS=${LOCAL_BUILD_GOMAXPROCS:-2} \
+      GOMEMLIMIT=${LOCAL_BUILD_MEMORY_LIMIT:-768MiB} \
+      go build -p "${LOCAL_BUILD_PARALLELISM:-2}" -a -installsuffix cgo -o "$RUNTIME_BUILD_CONTEXT/todo" .
+    )
+    docker build \
+      --platform linux/amd64 \
+      --build-arg "SOURCE_COMMIT=$source_commit" \
+      --build-arg "SOURCE_DIRTY=$source_dirty" \
+      -f "$PROJECT_ROOT/deploy/Dockerfile.runtime" \
+      -t "$FULL_IMAGE_NAME" \
+      "$RUNTIME_BUILD_CONTEXT"
+  elif [[ $build_mode == container ]]; then
+    docker build \
+      --platform linux/amd64 \
+      --build-arg "GO_BUILD_GOMAXPROCS=${LOCAL_BUILD_GOMAXPROCS:-2}" \
+      --build-arg "GO_BUILD_PARALLELISM=${LOCAL_BUILD_PARALLELISM:-2}" \
+      --build-arg "GO_BUILD_MEMORY_LIMIT=${LOCAL_BUILD_MEMORY_LIMIT:-768MiB}" \
+      --build-arg "SOURCE_COMMIT=$source_commit" \
+      --build-arg "SOURCE_DIRTY=$source_dirty" \
+      -f "$PROJECT_ROOT/deploy/Dockerfile" \
+      -t "$FULL_IMAGE_NAME" \
+      "$PROJECT_ROOT"
+  else
+    echo -e "${RED}错误: LOCAL_BUILD_MODE 仅支持 host 或 container${NC}" >&2
+    exit 1
+  fi
 else
   echo -e "${YELLOW}[1/4] 使用现有镜像${NC}"
   docker images --format '{{.Repository}}:{{.Tag}}' | grep -Fxq "$FULL_IMAGE_NAME" || {
@@ -116,7 +159,7 @@ echo -e "${YELLOW}[2/4] 导出镜像${NC}"
 docker save "$FULL_IMAGE_NAME" -o "$IMAGE_TAR"
 
 # 上传给容器的环境文件不携带 SSH、部署目录或镜像控制变量。
-grep -Ev '^(PROD_SERVER_|SERVER_HOST=|SERVER_USER=|SERVER_PORT=|SERVER_DEPLOY_DIR=|SSH_KEY=|IMAGE_NAME=|IMAGE_TAG=|PROJECT_ROOT=)' "$ENV_FILE" > "$APP_ENV_UPLOAD_FILE" || true
+grep -Ev '^(PROD_SERVER_|SERVER_HOST=|SERVER_USER=|SERVER_PORT=|SERVER_DEPLOY_DIR=|SSH_KEY=|IMAGE_NAME=|IMAGE_TAG=|PROJECT_ROOT=|LOCAL_BUILD_)' "$ENV_FILE" > "$APP_ENV_UPLOAD_FILE" || true
 [[ -s $APP_ENV_UPLOAD_FILE ]] || {
   echo -e "${RED}错误: 过滤后的应用环境文件为空${NC}" >&2
   exit 1
@@ -124,8 +167,10 @@ grep -Ev '^(PROD_SERVER_|SERVER_HOST=|SERVER_USER=|SERVER_PORT=|SERVER_DEPLOY_DI
 
 echo -e "${YELLOW}[3/4] 上传镜像、应用配置与受控部署脚本${NC}"
 ssh "${ssh_args[@]}" "$remote_target" "mkdir -p -- '$remote_dir'"
-scp "${scp_args[@]}" "$IMAGE_TAR" "$COMPOSE_FILE" "$REMOTE_SCRIPT" "$remote_target:$remote_dir/"
+scp "${scp_args[@]}" "$IMAGE_TAR" "$COMPOSE_FILE" "$REMOTE_SCRIPT" "$OPENHANDS_COMPOSE" "$OPENHANDS_CONTROL" "$OPENHANDS_ENV_PREP" "$remote_target:$remote_dir/"
 scp "${scp_args[@]}" "$APP_ENV_UPLOAD_FILE" "$remote_target:$remote_dir/$ENV_FILE"
+ssh "${ssh_args[@]}" "$remote_target" \
+  "chmod 700 '$remote_dir/$REMOTE_SCRIPT' '$remote_dir/$OPENHANDS_CONTROL' '$remote_dir/$OPENHANDS_ENV_PREP' && chmod 600 '$remote_dir/$ENV_FILE'"
 
 echo -e "${YELLOW}[4/4] 远端迁移、切换、健康检查与失败回滚${NC}"
 ssh "${ssh_args[@]}" "$remote_target" \

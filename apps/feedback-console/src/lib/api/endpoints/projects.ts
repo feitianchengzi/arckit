@@ -84,7 +84,7 @@ export const projectsApi = {
    * 创建者自动成为项目所有者（owner）
    * 响应格式: { code: 'OK', data: Project }
    */
-  create: async (input: CreateProjectInput, userId?: number): Promise<Project> => {
+  create: async (input: CreateProjectInput, _userId?: number): Promise<Project> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('🆕 创建项目:', input)
     const response = await apiClient.post('/user/projects', input)
@@ -208,9 +208,6 @@ export const projectsApi = {
     console.log('🗑️ [删除成员] 请求体:', JSON.stringify({ target_user_id: targetUserId }))
     
     try {
-      const response = await apiClient.delete(`/user/projects/${projectId}/members`, {
-        data: { target_user_id: targetUserId }, // 请求体
-      })
     } catch (error: any) {
       console.error('❌ [删除成员] 删除失败:', error.message)
       throw error

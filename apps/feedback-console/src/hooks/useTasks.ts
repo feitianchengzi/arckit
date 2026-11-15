@@ -3,7 +3,6 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import { tasksApi, CreateTaskInput, UpdateTaskInput, type TaskListFilters } from '@/lib/api/endpoints/tasks'
 import { tasksToTodos } from '@/lib/utils/taskMapper'
 import { useAuthStore } from '@/store/authStore'
@@ -125,7 +124,7 @@ export function useCreateTask(projectId: string) {
   
   return useMutation({
     mutationFn: (input: CreateTaskInput) => tasksApi.create(input), // 不需要 user_id
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       console.log('✅ 待办创建成功，刷新待办列表')
       // 使待办列表缓存失效并强制刷新
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })

@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui'
 import clsx from 'clsx'
-import { useThemeStore } from '@/store/themeStore'
 
 export interface DateRange {
   startDate: string | null
@@ -123,7 +122,6 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
   const containerRef = useRef<HTMLDivElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
   const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null)
-  const theme = useThemeStore((state) => state.theme)
 
   // 计算弹窗位置
   useEffect(() => {
@@ -359,7 +357,7 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
               清除
             </Button>
             <Button
-              variant="default"
+              variant="primary"
               size="sm"
               onClick={() => setShowPicker(false)}
               className="flex-1 text-xs"

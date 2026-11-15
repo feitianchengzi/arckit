@@ -17,6 +17,7 @@ type Client struct {
 	send      chan outboundMessage
 	closeOnce sync.Once
 	done      chan struct{}
+	filter    func(any) (any, bool)
 }
 
 type outboundMessage struct {
@@ -27,6 +28,10 @@ type outboundMessage struct {
 func NewClient(conn *websocket.Conn, userID uint) *Client {
 	return &Client{conn: conn, userID: userID, send: make(chan outboundMessage, clientQueueSize), done: make(chan struct{})}
 }
+
+// SetFilter must be called before joining a hub. It restricts and projects
+// outbound data for narrow-scope clients, including final/revocation events.
+func (c *Client) SetFilter(filter func(any) (any, bool)) { c.filter = filter }
 
 func (c *Client) UserID() uint { return c.userID }
 
@@ -39,6 +44,13 @@ func (c *Client) SendFinal(v any) bool {
 }
 
 func (c *Client) sendMessage(message outboundMessage) bool {
+	if c.filter != nil {
+		payload, allowed := c.filter(message.payload)
+		if !allowed {
+			return true
+		}
+		message.payload = payload
+	}
 	select {
 	case <-c.done:
 		return false

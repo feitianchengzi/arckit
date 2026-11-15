@@ -265,7 +265,7 @@ docker logs openhands-agent-dev --tail 50
 
 ## 相关文档
 
-- [Feedback SDK 文档](../packages/feedback-sdk-web/README.md)
+- [Feedback SDK 文档](../apps/feedback-sdk-web/README.md)
 - [workshop-api 文档](../services/workshop-api/README.md)
 - [迭代版本文档](../docs/product-space/迭代版本/【1】20260904/)
 

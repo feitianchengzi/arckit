@@ -4,10 +4,9 @@
  */
 
 import { useState, useRef, useEffect, useMemo, Children } from 'react'
-import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog, Avatar } from '@/components/ui'
-import { XIcon, ChevronDownIcon, TrashIcon } from '@/components/ui/icons'
+import { ChevronDownIcon, TrashIcon } from '@/components/ui/icons'
 import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog, CommentSection, TagDisplay } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
@@ -15,7 +14,6 @@ import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { useOrganizationStore } from '@/store/organizationStore'
 import { useOrganizationMembers } from '@/hooks/useOrganizations'
-import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
 import ReactMarkdown from 'react-markdown'
 import { normalizeMarkdown } from '@/lib/utils/markdown'
@@ -73,7 +71,6 @@ export function TaskDetailContent({
   onDelete,
   showHeader = true,
   onClose,
-  parentTaskId,
   onNavigateToSubtask,
   onRequestParentSelect
 }: TaskDetailContentProps) {
@@ -104,7 +101,6 @@ export function TaskDetailContent({
   const { data: members } = useProjectMembers(projectId)
   const { currentOrganizationId } = useOrganizationStore()
   const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
-  const currentUser = useAuthStore((state) => state.user)
   const { getProjectTags } = useTagStore()
   
   // 从成员列表中查找创建者和执行者信息
@@ -121,8 +117,6 @@ export function TaskDetailContent({
   const currentUserId = currentUserMember?.user_id || null
   
   // 检查当前用户是否是任务创建者或执行者（通过 user_id 比较，更可靠）
-  const isCreator = todo?.creatorId !== undefined && todo?.creatorId !== null && currentUserId !== null && todo.creatorId === currentUserId
-  const isAssignee = todo?.assigneeId !== undefined && todo?.assigneeId !== null && currentUserId !== null && todo.assigneeId === currentUserId
   
   // 判断执行者是否未分配（用于显示和提示）
   const isAssigneeUnassignedLocal = !todo?.assigneeId || executorUsername === '未分配'
@@ -367,7 +361,7 @@ export function TaskDetailContent({
     setCreateSubtaskDialogOpen(true)
   }
   
-  const handleCreateSubtaskSuccess = (newTaskId: number) => {
+  const handleCreateSubtaskSuccess = (_newTaskId: number) => {
     // 创建成功后刷新任务详情
     refetch()
     setCreateSubtaskDialogOpen(false)
@@ -1186,13 +1180,6 @@ function RelationIcon({ className }: { className?: string }) {
   )
 }
 
-function ReplaceIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-    </svg>
-  )
-}
 
 function TagIcon({ className }: { className?: string }) {
   return (
@@ -1207,212 +1194,5 @@ function PriorityIcon({ className }: { className?: string }) {
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
     </svg>
-  )
-}
-
-// ==================== 执行人选择器组件 ====================
-
-interface AssigneeSelectorProps {
-  members: any[]
-  value: number | undefined
-  onChange: (value: number | undefined) => void
-  onSave: () => Promise<void>
-  onCancel: () => void
-  error?: string
-  loading?: boolean
-}
-
-function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, loading }: AssigneeSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  const selectedMember = members.find((m: any) => m.user_id === value)
-  const selectedUsername = selectedMember?.username || selectedMember?.user?.username || (value === undefined ? '未分配' : '未知用户')
-
-  // 计算下拉菜单位置
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const buttonRect = buttonRef.current.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const viewportWidth = window.innerWidth
-      const menuHeight = Math.min(320, (members.length + 1) * 48 + 8) // 估算菜单高度
-      const menuWidth = 280
-
-      // 计算垂直位置：优先向下
-      let top = buttonRect.bottom + 4
-      if (top + menuHeight > viewportHeight) {
-        top = buttonRect.top - menuHeight - 4
-      }
-
-      // 计算水平位置：优先左对齐
-      let left = buttonRect.left
-      if (left + menuWidth > viewportWidth) {
-        left = viewportWidth - menuWidth - 8
-      }
-      if (left < 8) {
-        left = 8
-      }
-
-      setMenuPosition({ top, left })
-    } else {
-      setMenuPosition(null)
-    }
-  }, [isOpen, members.length])
-
-  // 点击外部关闭
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
-
-  return (
-    <div className="relative">
-      <div className="flex items-center gap-2">
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 px-2.5 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary min-w-[200px] justify-between h-8"
-        >
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            {value !== undefined ? (
-              <>
-                <Avatar
-                  user={{
-                    username: selectedMember?.username || selectedMember?.user?.username,
-                    avatar: selectedMember?.avatar || selectedMember?.user?.avatar
-                  }}
-                  size="sm"
-                />
-                <span className="truncate">{selectedUsername}</span>
-              </>
-            ) : (
-              <span className="text-foreground-secondary">未分配</span>
-            )}
-          </div>
-          <svg className="w-4 h-4 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={loading}
-          className="p-2 rounded-md bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="保存"
-          title="保存"
-        >
-          {loading ? (
-            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="p-2 rounded-md bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="取消"
-          title="取消"
-        >
-          <XIcon className="w-4 h-4" />
-        </button>
-      </div>
-
-      {error && (
-        <div className="mt-2 bg-error-light border border-error rounded-md p-2">
-          <p className="text-xs text-error">{error}</p>
-        </div>
-      )}
-
-      {isOpen && menuPosition && createPortal(
-        <>
-          <div
-            className="fixed inset-0 z-[100]"
-            onClick={() => setIsOpen(false)}
-          />
-          <div
-            ref={menuRef}
-            className="fixed z-[101] w-[280px] rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
-            style={{
-              top: `${menuPosition.top}px`,
-              left: `${menuPosition.left}px`,
-              backgroundColor: 'var(--color-surface-elevated)'
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                onChange(undefined)
-                setIsOpen(false)
-              }}
-              className={clsx(
-                'w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-surface-hover transition-colors text-sm',
-                value === undefined && 'bg-surface-active',
-                'border-b-0'
-              )}
-              style={{ borderBottom: 'none' }}
-            >
-              <span className="text-sm text-foreground-secondary">未分配</span>
-            </button>
-            {members.map((member: any) => {
-              const memberUsername = member.username || member.user?.username || '未知用户'
-              const isSelected = member.user_id === value
-              return (
-                <button
-                  key={member.user_id}
-                  type="button"
-                  onClick={() => {
-                    onChange(member.user_id)
-                    setIsOpen(false)
-                  }}
-                  className={clsx(
-                    'w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-surface-hover transition-colors text-sm',
-                    isSelected && 'bg-surface-active'
-                  )}
-                  style={{ borderBottom: 'none' }}
-                >
-                  <Avatar
-                    user={{
-                      username: memberUsername,
-                      avatar: member.avatar || member.user?.avatar
-                    }}
-                    size="sm"
-                  />
-                  <span className="text-sm text-foreground flex-1">{memberUsername}</span>
-                  {isSelected && (
-                    <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
   )
 }

@@ -301,3 +301,32 @@ openssl rand -base64 48
 两端还必须配置相同、且与签名密钥不同的 `FEEDBACK_GATEWAY_SHARED_SECRET`（至少 32 字节）。网关在验证 token 后注入它，Workshop 只在该密钥匹配时接受反馈范围 Header，防止绕过网关直连服务端口伪造身份。
 
 还需部署网关对 `feedback` 认证级别的校验逻辑，并检查 OSS Bucket 现有 CORS 已允许 SDK 域名对 bucket endpoint 发起 `POST`。RAM/AccessKey 权限应仅允许服务端签发策略和受限读访问；浏览器不持有可写 AccessKey。
+
+## Multi-turn clarification and customer confirmation
+
+Agent message responses add `clarification` alongside the compatible `structured` summary:
+
+```json
+{
+  "need_collect": true,
+  "clarification": {
+    "status": "collecting",
+    "summary": {"position":"订单列表","phenomenon":"导出无响应","expect":""},
+    "missing_fields": ["expect","reproduction_steps","environment","impact"],
+    "questions": ["你期望得到什么结果？","按什么操作步骤可以重现？"],
+    "ready_to_confirm": false
+  }
+}
+```
+
+The six required fields are `position`, `phenomenon`, `expect`, `reproduction_steps`, `environment`, and `impact`. Core position/phenomenon/expect cannot be waived with unknown placeholders. A customer may explicitly report auxiliary fields as unknown; those keys are retained in `unknown_fields`. Optional `frequency`, `request_type` (`bug`, `feature`, `question`, `other`), `business_goal`, and `workaround` support human requirements assessment. This classification does not decide priority, acceptance, or implementation.
+
+Each model-extracted field includes an `evidence` entry quoting customer text. The server rejects newly extracted fields without attributable customer evidence, merges supported updates into the previous draft, computes readiness itself, and persists the draft in the Agent message metadata. Later rounds and history recovery therefore keep previously collected facts. The server asks at most two deterministic missing-field questions per round; unsupported model claims never fill missing fields. Missing model confidence is treated conservatively as low confidence.
+
+Clients keep the conversation open while collecting, display an editable structured draft, and request explicit confirmation before submission. `ready_to_confirm` is not confirmation. Feedback creation stores the confirmed snapshot in `data.structured` and `data.clarification.confirmed=true`; existing-feedback supplements store the same snapshot in message `metadata`. The server rejects opt-in structured submissions without confirmation or with missing required fields. Legacy free-text feedback remains supported. User-edited values are customer assertions for review, not automatically verified facts. No feedback is created by Agent confidence or a summary alone.
+
+### 新需求澄清
+
+先确认诉求类型，再采用不同的信息完整性规则。故障保留位置、现象、期望、复现步骤、环境、影响的校验。新需求必须明确所属模块、需求描述、期望结果、目标用户、使用场景、业务目标和当前痛点；当前流程、影响、频率、预期收益、替代办法、约束也会询问，允许客户明确标记待确认。新需求不要求故障复现或浏览器环境。
+
+接口新增 `target_users`、`current_workflow`、`pain_points`、`expected_benefit`、`constraints`；`reproduction_steps` 在 feature 类型表示使用场景。结构化提交必须包含有效 `request_type`。类型切换后重新计算缺失项，编辑后重新确认。字段采用客户原话证据跨轮合并；信息齐备仅代表可供核对，不代表需求已受理或已评定合理性。

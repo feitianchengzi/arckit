@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -23,14 +25,20 @@ type AgentMessageRequest struct {
 
 // AgentMessageResponse Agent 消息响应
 type AgentMessageResponse struct {
-	MessageID      uint       `json:"message_id"`
-	ConversationID string     `json:"conversation_id"`
-	Content        string     `json:"content"`
-	SenderType     string     `json:"sender_type"`
-	ToolCalls      []ToolCall `json:"tool_calls,omitempty"`
-	Confidence     float64    `json:"confidence"`
+	CustomerMessageID uint          `json:"customer_message_id"`
+	Sources           []AgentSource `json:"sources,omitempty"`
+	MessageID         uint          `json:"message_id"`
+	ConversationID    string        `json:"conversation_id"`
+	Content           string        `json:"content"`
+	SenderType        string        `json:"sender_type"`
+	ToolCalls         []ToolCall    `json:"tool_calls,omitempty"`
+	Confidence        float64       `json:"confidence"`
 	// NeedCollect 置信度低于阈值（PRD F-03 低置信），提示客户端可升级人工流转。
 	NeedCollect bool `json:"need_collect,omitempty"`
+	// Structured 低置信时由 Agent 总结的问题结构（PRD F-01 三字段），供客户端预填反馈表单。
+	// 解析失败或 Agent 不可用时为 nil，客户端应退回提问原文。
+	Structured    *AgentStructuredSummary `json:"structured,omitempty"`
+	Clarification *AgentClarification     `json:"clarification,omitempty"`
 }
 
 // AgentMessageHandler 处理客户消息，触发 Agent 响应
@@ -61,6 +69,23 @@ func AgentMessageHandler(c *gin.Context) {
 		return
 	}
 	_ = userID
+
+	if isAPIKeyRequest(c) {
+		raw, err := io.ReadAll(io.LimitReader(c.Request.Body, 128*1024))
+		var identity struct {
+			CustomUserID string `json:"custom_user_id"`
+		}
+		if err != nil || json.Unmarshal(raw, &identity) != nil {
+			c.JSON(400, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误", nil))
+			return
+		}
+		if _, ok := requireCustomerFeedbackAccess(c, feedback, identity.CustomUserID); !ok {
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewReader(raw))
+		runBoundAgentMessage(c, middleware.FeedbackSessionScope{ProjectID: projectID, CustomUserID: identity.CustomUserID})
+		return
+	}
 
 	var req AgentMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -101,13 +126,14 @@ func AgentMessageHandler(c *gin.Context) {
 		// Agent 失败时降级为带平台身份的兜底（保留跟进承诺）
 		log.Printf("[agent-message] processWithAgent 失败 project=%d feedback=%d: %v", projectID, feedbackID, err)
 		agentResponse = &AgentResponse{
-			Content:    arcOrbitAgentUnavailableReply(),
-			Confidence: 0,
+			Content:     arcOrbitAgentUnavailableReply(),
+			Confidence:  0,
 			NeedCollect: true,
 		}
 	}
 
 	// 存储 Agent 回复
+	applyClarification(agentResponse, history)
 	agentMsg := &AgentMessageRecord{
 		ConversationID: conv.ID,
 		FeedbackID:     feedbackID,
@@ -132,6 +158,8 @@ func AgentMessageHandler(c *gin.Context) {
 		agentMsg.Metadata = &metaStr
 	}
 	applyAgentMessageUnresolvedMetadata(agentMsg, agentResponse.Confidence, agentResponse.Content)
+	persistClarificationMetadata(agentMsg, agentResponse.Clarification)
+	persistAgentSources(agentMsg, agentResponse.Sources)
 
 	if err := SaveMessage(db, agentMsg); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
@@ -150,22 +178,31 @@ func AgentMessageHandler(c *gin.Context) {
 
 	// 返回响应
 	c.JSON(http.StatusOK, response.NewSuccessResponse(AgentMessageResponse{
-		MessageID:      agentMsg.ID,
-		ConversationID: conv.ID,
-		Content:        agentResponse.Content,
-		SenderType:     "agent",
-		ToolCalls:      agentResponse.ToolCalls,
-		Confidence:     agentResponse.Confidence,
-		NeedCollect:    agentResponse.NeedCollect,
+		MessageID:         agentMsg.ID,
+		CustomerMessageID: customerMsg.ID,
+		ConversationID:    conv.ID,
+		Content:           agentResponse.Content,
+		SenderType:        "agent",
+		ToolCalls:         agentResponse.ToolCalls,
+		Confidence:        agentResponse.Confidence,
+		NeedCollect:       agentResponse.NeedCollect,
+		Structured:        agentResponse.Structured,
+		Clarification:     agentResponse.Clarification,
+		Sources:           agentResponse.Sources,
 	}))
 }
 
 // AgentResponse Agent 响应
 type AgentResponse struct {
-	Content     string     `json:"content"`
-	ToolCalls   []ToolCall `json:"tool_calls,omitempty"`
-	Confidence  float64    `json:"confidence"`
-	NeedCollect bool       `json:"need_collect"`
+	Sources     []AgentSource `json:"sources,omitempty"`
+	Content     string        `json:"content"`
+	ToolCalls   []ToolCall    `json:"tool_calls,omitempty"`
+	Confidence  float64       `json:"confidence"`
+	NeedCollect bool          `json:"need_collect"`
+	Resolution  string        `json:"-"`
+	// Structured 低置信时由 Agent 总结的问题结构，供反馈表单预填。
+	Structured    *AgentStructuredSummary `json:"structured,omitempty"`
+	Clarification *AgentClarification     `json:"clarification,omitempty"`
 	// OHConversationID OpenHands 侧会话 ID，用于持久化映射
 	OHConversationID string `json:"openhands_conversation_id,omitempty"`
 }
@@ -225,44 +262,69 @@ func applyAgentMessageUnresolvedMetadata(msg *AgentMessageRecord, confidence flo
 // 未命中白名单的消息一律放行 OpenHands/LLM，禁止负向启发式截胡。
 func processWithAgent(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, query string, history []AgentMessageRecord, conversationID string, imageUrls []string) (*AgentResponse, error) {
 	// 本地白名单：命中才直接回复（毫秒级），返回 nil 表示放行 Agent
-	if localResp, _ := classifyAndRespond(query); localResp != nil {
-		return localResp, nil
+	// 已进入澄清后必须处理本轮补充；不能把保存的草稿当作新请求匹配固定回复。
+	if len(imageUrls) == 0 && latestClarification(history) == nil {
+		if localResp, _ := classifyAndRespond(query); localResp != nil {
+			return localResp, nil
+		}
 	}
+	if len(imageUrls) > 0 && (!openHandsEnabled() || getAgentServerByProject(db, projectID) == nil || !openHandsLLMConfigured(getAgentServerByProject(db, projectID))) {
+		return nil, fmt.Errorf("图片尚未被模型读取：请配置支持视觉的客服模型")
+	}
+	query = buildClarificationContext(query, history)
 
-	// OPENHANDS_ENABLED 总开关（默认开启）；关闭时降级为本地代码搜索
+	// 推理服务关闭时如实报告不可用，不用检索片段冒充模型答复。
 	if !openHandsEnabled() {
-		return processWithLocalLLM(db, projectID, query, history)
+		return nil, fmt.Errorf("客服推理服务未启用或尚未配置")
 	}
 
 	// 未命中本地白名单 → OpenHands 检索/对话
 	agent := getAgentServerByProject(db, projectID)
 	if agent == nil {
-		return processWithLocalLLM(db, projectID, query, history)
+		return nil, fmt.Errorf("客服推理服务未启用或尚未配置")
 	}
-	return callOpenHandsAgentForChat(c, agent, query, conversationID, history, imageUrls)
+	// 模型密钥缺失时报告不可用，不伪装成知识库未命中。
+	if !openHandsLLMConfigured(agent) {
+		return nil, fmt.Errorf("客服推理服务未启用或尚未配置")
+	}
+	// 按项目解析 OpenHands 工作区（RepoPath > clone 落点 > OH_WORKSPACE_DIR），
+	// 避免不同项目共用同一份代码副本。
+	workingDir := resolveProjectWorkspaceDir(db, projectID)
+	return callOpenHandsAgentForChat(c, agent, query, conversationID, history, imageUrls, workingDir)
 }
 
 // callOpenHandsAgentForChat 调用 OpenHands Agent 进行对话（真实契约）。
 // OpenHands 会话 ID 持久化在本地对话最近一条 agent 消息的 metadata 中，
 // 用于跨请求复用同一 OpenHands 会话。会话过期时将历史上下文注入 query，
 // 确保 Agent 在新会话中仍能记住之前的对话内容。
-func callOpenHandsAgentForChat(c *gin.Context, agent *OpenHandsAgent, query, conversationID string, history []AgentMessageRecord, imageUrls []string) (*AgentResponse, error) {
+func callOpenHandsAgentForChat(c *gin.Context, agent *OpenHandsAgent, query, conversationID string, history []AgentMessageRecord, imageUrls []string, workingDir string) (*AgentResponse, error) {
 	ohConvID := getOpenHandsConversationID(history)
 
 	// 将历史对话注入到 query 中，确保即使 OpenHands 会话过期重建，Agent 仍拥有完整上下文
 	queryWithContext := buildQueryWithHistory(query, history, 20)
 	// 最外层注入 ArcOrbit 人设（身份/体验/严谨性），内层注入置信度自评要求（PRD F-03）。
-	result, err := callOpenHandsAgentSync(agent, buildArcOrbitAgentPrompt(buildAgentQueryWithConfidenceInstruction(queryWithContext)), ohConvID, imageUrls)
+	result, err := callOpenHandsAgentSync(agent, buildArcOrbitAgentPrompt(buildAgentQueryWithConfidenceInstruction(queryWithContext)), ohConvID, imageUrls, workingDir)
 	if err != nil {
 		return nil, err
 	}
 
 	content, confidence := parseAgentConfidence(result.Content)
+	content, resolution := parseAgentResolution(content)
+	content, sources := parseVerifiedAgentSources(content, workingDir)
+	// 低置信时模型会附带 [summary] 结构化问题总结；无论解析与否都要剥离协议残留。
+	structured, content := parseAgentStructuredSummary(content)
+	needCollect := confidence < agentConfidenceLowThreshold
+	if resolution == "unresolved" || resolution == "feedback_requested" {
+		needCollect = true
+	}
 	return &AgentResponse{
-		Content:           content,
-		Confidence:        confidence,
-		NeedCollect:       confidence < agentConfidenceLowThreshold,
-		OHConversationID:  result.ConversationID,
+		Content:          content,
+		Sources:          sources,
+		Confidence:       confidence,
+		NeedCollect:      needCollect,
+		Resolution:       resolution,
+		Structured:       structured,
+		OHConversationID: result.ConversationID,
 	}, nil
 }
 
@@ -293,15 +355,20 @@ func processWithLocalLLM(db *gorm.DB, projectID uint, query string, history []Ag
 
 	if len(results) == 0 {
 		return &AgentResponse{
-			Content:    arcOrbitAgentNoResultReply(),
-			Confidence: 0,
+			Content:     arcOrbitAgentNoResultReply(),
+			Confidence:  0,
 			NeedCollect: true,
 		}, nil
 	}
 
+	// 本地检索有结果：confidence 0.7 低于低置信阈值 0.75，NeedCollect 与 OpenHands 路径
+	// 用同一阈值判定，保持与 shouldMarkAgentMessageUnresolved 的 unresolved 标记一致
+	//（0.7 < 0.75 时后端标 unresolved，前端也应触发 need_collect 引导客户补充）。
+	const localSearchConfidence = 0.7
 	return &AgentResponse{
-		Content:    buildLocalSearchReply(results),
-		Confidence: 0.7,
+		Content:     buildLocalSearchReply(results),
+		Confidence:  localSearchConfidence,
+		NeedCollect: localSearchConfidence < agentConfidenceLowThreshold,
 	}, nil
 }
 
@@ -346,14 +413,9 @@ func GetAgentConversationsHandler(c *gin.Context) {
 }
 
 // GetAgentConversationMessagesHandler 获取对话消息列表
-// GET /feedbacks/:id/agent-conversations/:conversationId/messages
+// GET /agent-conversations/:conversationId/messages
 func GetAgentConversationMessagesHandler(c *gin.Context) {
-	feedbackID, ok := parseFeedbackIDParam(c)
-	if !ok {
-		return
-	}
-
-	conversationID := c.Param("conversationId")
+	conversationID := strings.TrimSpace(c.Param("conversationId"))
 	if conversationID == "" {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "缺少对话ID", nil))
 		return
@@ -365,9 +427,10 @@ func GetAgentConversationMessagesHandler(c *gin.Context) {
 		return
 	}
 
-	// 对话必须归属当前反馈，项目归属从 feedback 取得后再鉴权。
+	// 该路由只包含 conversationId；反馈归属已固化在对话记录中。
+	// 先根据对话取得 project scope，再以项目成员身份做最终授权。
 	var conversation AgentConversation
-	if err := db.Where("id = ? AND feedback_id = ?", conversationID, feedbackID).First(&conversation).Error; err != nil {
+	if err := db.Where("id = ?", conversationID).First(&conversation).Error; err != nil {
 		if gorm.ErrRecordNotFound == err {
 			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeBadRequest, "对话不存在", nil))
 			return
@@ -376,7 +439,7 @@ func GetAgentConversationMessagesHandler(c *gin.Context) {
 		return
 	}
 
-	_, ok = requireFeedbackProjectMember(c, db, conversation.ProjectID, "查看消息")
+	_, ok := requireFeedbackProjectMember(c, db, conversation.ProjectID, "查看消息")
 	if !ok {
 		return
 	}
@@ -413,10 +476,10 @@ func GetFeedbackAgentMessagesHandler(c *gin.Context) {
 	}
 
 	type MessageView struct {
-		ID        uint    `json:"id"`
-		Sender    string  `json:"sender"`
-		Content   string  `json:"content"`
-		CreatedAt string  `json:"created_at"`
+		ID         uint     `json:"id"`
+		Sender     string   `json:"sender"`
+		Content    string   `json:"content"`
+		CreatedAt  string   `json:"created_at"`
 		Confidence *float64 `json:"confidence,omitempty"`
 	}
 
@@ -432,10 +495,10 @@ func GetFeedbackAgentMessagesHandler(c *gin.Context) {
 			sender = m.SenderType
 		}
 		views = append(views, MessageView{
-			ID:        m.ID,
-			Sender:    sender,
-			Content:   m.Content,
-			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ID:         m.ID,
+			Sender:     sender,
+			Content:    m.Content,
+			CreatedAt:  m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			Confidence: m.Confidence,
 		})
 	}
@@ -443,26 +506,28 @@ func GetFeedbackAgentMessagesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(views))
 }
 
-// syncDeveloperReplyToAgentMessages 将开发者回复同步到 agent_message_records，
-// 使 chat-widget 客户端能看到内部人员的回复。
-func syncDeveloperReplyToAgentMessages(db *gorm.DB, feedback models.Feedback, content string) {
-	// 查找该反馈最近的 conversation_id，复用同一个对话
-	var lastRecord AgentMessageRecord
-	conversationID := ""
-	if err := db.Where("feedback_id = ?", feedback.ID).
-		Order("id DESC").First(&lastRecord).Error; err == nil {
-		conversationID = lastRecord.ConversationID
+// syncDeveloperReplyToAgentMessages 将开发者回复写入反馈关联的智能客服会话，
+// 使客户在会话面板能看到客服跟进。会话按 feedback_id 显式查询（P3：替代反查最近消息），
+// 取最新一条；无关联会话时静默跳过——客服回复仍落 feedback_messages，只是不进会话视图。
+func syncDeveloperReplyToAgentMessages(db *gorm.DB, feedback models.Feedback, content string, sourceMessageID ...uint) {
+	convs, err := GetFeedbackConversations(db, feedback.ID)
+	if err != nil || len(convs) == 0 {
+		// 无关联会话：不编造 conversation_id，客服回复保留在 feedback_messages 即可。
+		return
 	}
-	if conversationID == "" {
-		conversationID = fmt.Sprintf("fb-%d", feedback.ID)
-	}
-
+	// GetFeedbackConversations 按 created_at DESC 返回，取最新会话。
+	convID := convs[0].ID
 	agentMsg := &AgentMessageRecord{
-		ConversationID: conversationID,
+		ConversationID: convID,
 		FeedbackID:     feedback.ID,
 		ProjectID:      feedback.ProjectID,
 		SenderType:     "developer",
 		Content:        content,
+	}
+	if len(sourceMessageID) > 0 {
+		raw, _ := json.Marshal(map[string]uint{"feedback_message_id": sourceMessageID[0]})
+		text := string(raw)
+		agentMsg.Metadata = &text
 	}
 	db.Create(agentMsg)
 }

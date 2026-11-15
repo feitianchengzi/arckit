@@ -39,16 +39,18 @@ type CreateFeedbackMessageRequest struct {
 }
 
 type FeedbackMessageAttachmentResponse struct {
-	ID        uint    `json:"id"`
-	MessageID uint    `json:"message_id"`
-	Type      string  `json:"type"`
-	ObjectKey *string `json:"object_key,omitempty"`
-	URL       *string `json:"url,omitempty"`
-	FileName  *string `json:"file_name,omitempty"`
-	MimeType  *string `json:"mime_type,omitempty"`
-	Size      *int64  `json:"size,omitempty"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	ID         uint    `json:"id"`
+	MessageID  uint    `json:"message_id"`
+	Type       string  `json:"type"`
+	ObjectKey  *string `json:"object_key,omitempty"`
+	URL        *string `json:"url,omitempty"`
+	FileName   *string `json:"file_name,omitempty"`
+	MimeType   *string `json:"mime_type,omitempty"`
+	Size       *int64  `json:"size,omitempty"`
+	CreatedAt  string  `json:"created_at"`
+	UpdatedAt  string  `json:"updated_at"`
+	AccessPath string  `json:"access_path,omitempty"`
+	DurationMS int64   `json:"duration_ms,omitempty"`
 }
 
 type FeedbackMessageResponse struct {
@@ -280,7 +282,7 @@ func buildFeedbackMessageAttachment(input FeedbackMessageAttachmentInput, object
 
 func validateFeedbackAttachmentMetadata(attachmentType, mimeType string, size int64) (string, error) {
 	attachmentType = strings.ToLower(strings.TrimSpace(attachmentType))
-	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
+	mimeType = strings.ToLower(strings.TrimSpace(strings.Split(mimeType, ";")[0]))
 	if size <= 0 {
 		return "", fmt.Errorf("附件大小必须大于 0")
 	}
@@ -296,6 +298,12 @@ func validateFeedbackAttachmentMetadata(attachmentType, mimeType string, size in
 		}
 		if !allowed[mimeType] {
 			return "", fmt.Errorf("不支持的图片 MIME 类型")
+		}
+		maxSize = feedbackImageMaxSize
+	case models.FeedbackAttachmentTypeAudio:
+		allowed := map[string]bool{"audio/webm": true, "audio/ogg": true, "audio/mp4": true, "audio/wav": true, "audio/x-wav": true, "audio/mpeg": true}
+		if !allowed[mimeType] {
+			return "", fmt.Errorf("不支持的音频MIME类型")
 		}
 		maxSize = feedbackImageMaxSize
 	case models.FeedbackAttachmentTypeFile:
@@ -480,6 +488,12 @@ func createCustomerMessageWithIdempotency(tx *gorm.DB, feedback models.Feedback,
 		} else if found {
 			return existing, false, nil
 		}
+		// A concurrent retry may win after the lookup. PostgreSQL aborts a
+		// transaction on unique violations, so recover to a savepoint before
+		// reading the winning row instead of querying an aborted transaction.
+		if err := tx.SavePoint("feedback_customer_message_insert").Error; err != nil {
+			return models.FeedbackMessage{}, false, err
+		}
 	}
 
 	message, err := createFeedbackMessageRecord(tx, feedback, models.FeedbackMessageSenderCustomer, nil, customUserID, clientMessageID, models.FeedbackMessageTypeText, content, metadata, attachments)
@@ -487,6 +501,9 @@ func createCustomerMessageWithIdempotency(tx *gorm.DB, feedback models.Feedback,
 		return message, true, nil
 	}
 	if clientMessageID != nil && isUniqueViolation(err, "uniq_feedback_messages_customer_client_active") {
+		if rollbackErr := tx.RollbackTo("feedback_customer_message_insert").Error; rollbackErr != nil {
+			return message, false, rollbackErr
+		}
 		existing, found, findErr := findCustomerMessageByClientID(tx, feedback.ID, *customUserID, *clientMessageID)
 		if findErr != nil {
 			return existing, false, findErr
@@ -555,6 +572,9 @@ func GetFeedbackMessages(c *gin.Context) {
 		Order("created_at ASC").
 		Order("id ASC")
 
+	if isAPIKeyRequest(c) {
+		query = query.Where("state = ?", models.FeedbackMessageStateSent)
+	}
 	var total int64
 	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈消息总数失败: "+err.Error(), nil))
@@ -643,6 +663,11 @@ func CreateFeedbackMessage(c *gin.Context) {
 		return
 	}
 
+	if err := validateFeedbackClarification(metadata); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+
 	objectKeyPrefix := ""
 	if isV2APIKeyRequest(c) && senderCustomUserID != nil {
 		objectKeyPrefix = feedbackAttachmentPrefix(feedback.ProjectID, *senderCustomUserID)
@@ -701,7 +726,7 @@ func CreateFeedbackMessage(c *gin.Context) {
 		notifyFeedbackTaskAttachmentCreated(c, db, feedback.ProjectID, userID, taskComments)
 		// 开发者回复同步到 agent_message_records，供 chat-widget 加载
 		if senderType == models.FeedbackMessageSenderDeveloper && content != "" {
-			syncDeveloperReplyToAgentMessages(db, feedback, content)
+			syncDeveloperReplyToAgentMessages(db, feedback, content, message.ID)
 		}
 		c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 		return
@@ -1519,15 +1544,15 @@ func ConvertFeedbackToTask(c *gin.Context) {
 		}
 
 		task = models.Task{
-			ProjectID:         feedback.ProjectID,
-			FatherID:          req.FatherID,
-			Content:           content,
-			State:             state,
-			CreatorID:         userID,
-			ExecutorID:        req.ExecutorID,
-			Priority:          req.Priority,
-			Tags:              req.Tags,
-			SourceFeedbackID:  &feedbackID,
+			ProjectID:        feedback.ProjectID,
+			FatherID:         req.FatherID,
+			Content:          content,
+			State:            state,
+			CreatorID:        userID,
+			ExecutorID:       req.ExecutorID,
+			Priority:         req.Priority,
+			Tags:             req.Tags,
+			SourceFeedbackID: &feedbackID,
 		}
 		if models.IsDoneState(state) {
 			now := time.Now()

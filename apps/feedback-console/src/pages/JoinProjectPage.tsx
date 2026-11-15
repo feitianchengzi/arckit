@@ -6,11 +6,10 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, LoadingView, ErrorView } from '@/components/ui'
+import { Button, LoadingView } from '@/components/ui'
 import { FirstTimeSetupDialog } from '@/components/features/FirstTimeSetupDialog'
 import { useJoinByInvite } from '@/hooks/useInvitations'
 import { useAuthStore } from '@/store/authStore'
-import { useFirstTimeSetup } from '@/hooks/useAuth'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
 
 export default function JoinProjectPage() {
@@ -21,7 +20,6 @@ export default function JoinProjectPage() {
   const storeIsAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const storeUser = useAuthStore((state) => state.user)
   const joinByInvite = useJoinByInvite()
-  const firstTimeSetup = useFirstTimeSetup()
   
   // 使用 state 避免 hydration 不匹配
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -109,7 +107,6 @@ export default function JoinProjectPage() {
     
     try {
       setShowSetupDialog(false)
-      const updatedUser = await firstTimeSetup.mutateAsync(data)
       console.log('✅ 用户信息设置成功，开始加入项目')
       
       // 重置加入标志，以便重新尝试加入项目

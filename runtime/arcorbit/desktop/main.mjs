@@ -1,3 +1,4 @@
+import "../src/desktop-env.mjs";
 import { tracedIpcHandler } from '../src/desktop/stall-operations.mjs';
 import { createStallMonitor } from '../src/desktop/stall-monitor.mjs';
 import { createTaskConversation } from '../src/task-conversation.mjs';
@@ -14,6 +15,7 @@ import { app, BrowserWindow, dialog, ipcMain, nativeTheme, powerMonitor, session
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createReleaseCoordinator } from "../src/release/release-coordinator.mjs";
 import { createProductCoordinator } from "../src/product-coordinator.mjs";

@@ -35,7 +35,7 @@ export function useFeedbackList(
   const useV2 = isFeedbackV2ProjectEnabled(projectId)
   
   return useQuery({
-    queryKey: ['projects', projectId, 'feedbacks', useV2 ? 'v2' : 'v1', page, pageSize, options?.includeDeleted ?? false],
+    queryKey: ['projects', projectId, 'feedbacks', useV2 ? 'v2' : 'v1', page, pageSize, options?.includeDeleted ?? false, apiOptions],
     queryFn: () =>
       (useV2 ? feedbackV2Client : feedbacksApi).listByProject(projectId, {
         ...apiOptions,

@@ -7,7 +7,6 @@ import { useState, useRef, useCallback } from 'react'
 import { Button, EmptyStateView, RoleSelect, ConfirmDialog, TextField } from '@/components/ui'
 import { Avatar } from '@/components/ui/Avatar'
 import { PlusIcon, CogIcon, XIcon } from '@/components/ui/icons'
-import { useThemeStore } from '@/store/themeStore'
 
 // 复制图标
 function CopyIcon({ className }: { className?: string }) {
@@ -68,15 +67,12 @@ export const ProjectMemberList = ({
   members, 
   projectId, 
   canAddMember = false, 
-  canManage = false,
-  onViewMembers,
   onMemberClick,
   creatorFilter,
   executorFilter,
   className 
 }: ProjectMemberListProps) => {
   const currentUser = useAuthStore((state) => state.user)
-  const theme = useThemeStore((state) => state.theme)
   const [isManaging, setIsManaging] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState<ProjectMember | null>(null)
@@ -541,8 +537,6 @@ export const ProjectMemberList = ({
               // - owner/admin 可以移除其他人（但不能移除 owner）
               const canDeleteSelf = isCurrentUser // 任何人都可以离开
               const canDeleteOthers = isAdmin && member.role !== 'owner' && !isCurrentUser // owner/admin 可以移除其他人
-              const canDelete = canDeleteSelf || canDeleteOthers
-              const deleteButtonLabel = isCurrentUser ? '离开' : '移除'
               
               // 检查该成员是否正在请求中
               const isRoleChanging = roleChangeInProgress.current.has(member.user_id)

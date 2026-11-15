@@ -12,7 +12,7 @@ interface AuthGuardProps {
 export default function AuthGuard({ children }: AuthGuardProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated, checkAuth, user, setUser } = useAuthStore()
+  const { isAuthenticated, checkAuth } = useAuthStore()
   const [isChecking, setIsChecking] = useState(true)
   
   // 使用 ref 防止重复初始化（React 严格模式会导致组件挂载两次）

@@ -68,7 +68,7 @@ export function createProductFeedbackService({
         apiKey: configuredApiKey,
         projectId: configuredProjectId,
         customUserId,
-        gatewayUrl: "https://api.feitianchengzi.com",
+        gatewayUrl: process.env.ARCORBIT_FEEDBACK_GATEWAY_URL || "https://api.feitianchengzi.com",
         theme: "system",
         feedbackV2NotificationsEnabled: true
       }

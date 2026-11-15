@@ -1,6 +1,7 @@
 package database
 
 import (
+	"embed"
 	"fmt"
 	"log"
 	"os"
@@ -16,6 +17,17 @@ import (
 
 var DB *gorm.DB
 var connectionString string
+
+//go:embed migrations/20260917_openhands_config_up.sql migrations/20260918_customer_code_repo_url_up.sql migrations/20260918_agent_conversation_up.sql migrations/20261012_agent_conversation_standalone_up.sql migrations/20261014_openhands_llm_credentials_up.sql
+var openHandsMigrationFS embed.FS
+
+var openHandsMigrationPaths = []string{
+	"migrations/20260917_openhands_config_up.sql",
+	"migrations/20260918_customer_code_repo_url_up.sql",
+	"migrations/20260918_agent_conversation_up.sql",
+	"migrations/20261012_agent_conversation_standalone_up.sql",
+	"migrations/20261014_openhands_llm_credentials_up.sql",
+}
 
 func getEnvInt(key string, def int) int {
 	raw := os.Getenv(key)
@@ -159,6 +171,9 @@ func Migrate(db *gorm.DB) error {
 	}); err != nil {
 		return err
 	}
+	if err := ensureOpenHandsSchema(db); err != nil {
+		return err
+	}
 	return db.AutoMigrate(
 		&models.User{},
 		&models.Organization{},
@@ -177,10 +192,68 @@ func Migrate(db *gorm.DB) error {
 		&models.FeedbackSubscription{},
 		&models.FeedbackEmailDelivery{},
 		&models.FeedbackTaskLink{},
+		&models.SupportTurn{},
+		&models.FeedbackConclusion{},
+		&models.FeedbackConclusionResponse{},
 		&models.ProjectFeedbackAccessKey{},
 		&models.ProjectEvent{},
 		&models.TaskNotificationPreference{},
 	)
+}
+
+// ensureOpenHandsSchema applies the idempotent OpenHands and Agent conversation
+// migrations from the same binary used by remote-deploy.sh. Keeping them inside
+// `./todo migrate` removes the unsafe manual-SQL gap before service cutover.
+func ensureOpenHandsSchema(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`SELECT pg_advisory_xact_lock(1789427142)`).Error; err != nil {
+			return fmt.Errorf("lock OpenHands migration: %w", err)
+		}
+		for _, path := range openHandsMigrationPaths {
+			sql, err := openHandsMigrationFS.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("read OpenHands migration %s: %w", path, err)
+			}
+			for _, raw := range strings.Split(string(sql), ";") {
+				statement := strings.TrimSpace(raw)
+				if statement == "" || strings.EqualFold(statement, "BEGIN") || strings.EqualFold(statement, "COMMIT") {
+					continue
+				}
+				if err := tx.Exec(statement).Error; err != nil {
+					return fmt.Errorf("apply OpenHands migration %s: %w", path, err)
+				}
+			}
+		}
+		return migrateAgentTimestamps(tx)
+	})
+}
+
+// Legacy timestamps contain wall time only. Require an explicit source zone
+// rather than silently shifting historical messages according to the DB zone.
+func migrateAgentTimestamps(db *gorm.DB) error {
+	for _, table := range []string{"agent_conversations", "agent_message_records"} {
+		for _, column := range []string{"created_at", "updated_at", "delete_at"} {
+			var count int64
+			if err := db.Raw(`SELECT count(*) FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND column_name = ? AND data_type = 'timestamp without time zone'`, table, column).Scan(&count).Error; err != nil {
+				return err
+			}
+			if count == 0 {
+				continue
+			}
+			zone := strings.TrimSpace(os.Getenv("LEGACY_AGENT_TIMEZONE"))
+			if zone == "" {
+				return fmt.Errorf("legacy Agent timestamps require LEGACY_AGENT_TIMEZONE (the original writer timezone, e.g. UTC or Asia/Shanghai) before migration")
+			}
+			if _, err := time.LoadLocation(zone); err != nil {
+				return fmt.Errorf("invalid LEGACY_AGENT_TIMEZONE: %w", err)
+			}
+			statement := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s TYPE timestamptz USING %s AT TIME ZONE '%s'`, table, column, column, strings.ReplaceAll(zone, "'", "''"))
+			if err := db.Exec(statement).Error; err != nil {
+				return fmt.Errorf("migrate %s.%s: %w", table, column, err)
+			}
+		}
+	}
+	return nil
 }
 
 // ensureKnowledgeSchema 幂等创建知识库表/索引，并修复历史约束冲突。
@@ -282,6 +355,25 @@ func ValidateRuntimeSchema(db *gorm.DB) error {
 		if !migrator.HasIndex(&models.FeedbackSubscription{}, "uniq_feedback_subscription_project_user") ||
 			!migrator.HasIndex(&models.FeedbackEmailDelivery{}, "uniq_feedback_email_delivery_message_user") {
 			return fmt.Errorf("feedback email notification indexes are missing; run the migrate command before enabling FEEDBACK_EMAIL_NOTIFICATIONS_ENABLED")
+		}
+	}
+	openHandsEnabled, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("OPENHANDS_ENABLED")))
+	if openHandsEnabled {
+		for _, table := range []string{"openhands_agents", "customer_code_repos", "agent_conversations", "agent_message_records"} {
+			if !migrator.HasTable(table) {
+				return fmt.Errorf("OpenHands schema table %s is missing; run the migrate command before enabling OPENHANDS_ENABLED", table)
+			}
+		}
+		for table, columns := range map[string][]string{
+			"openhands_agents":    {"llm_api_key_encrypted", "llm_base_url"},
+			"customer_code_repos": {"repo_url", "repo_path", "auto_sync"},
+			"agent_conversations": {"custom_user_id", "feedback_id", "project_id"},
+		} {
+			for _, column := range columns {
+				if !migrator.HasColumn(table, column) {
+					return fmt.Errorf("OpenHands schema column %s.%s is missing; run the migrate command before enabling OPENHANDS_ENABLED", table, column)
+				}
+			}
 		}
 	}
 	return nil

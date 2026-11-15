@@ -4,6 +4,11 @@ import { ErrorView, LoadingView } from '@/components/ui'
 import { showGlobalToast } from '@/components/ui/Toast'
 import { useProject } from '@/hooks/useProjects'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
+import {
+  feedbackV2Client,
+  type OpenHandsProjectConfig,
+  type ProjectCodeRepo,
+} from '@/lib/api/feedbackV2Client'
 import { getFeedbackProjectSetupStatus, markFeedbackProjectApiKeySetup } from '@/lib/utils/feedbackProjectSetup'
 import { buildFeedbackProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
 import { getAccessToken } from '@/lib/utils/tokenManager'
@@ -12,7 +17,8 @@ import type { ApiKeyInfo } from '@/types/auth'
 type V2AuthMode = 'direct' | 'session'
 type Platform = 'web' | 'ios' | 'android'
 
-const SDK_URL = 'https://feedback.feitianchengzi.com/sdk-v2/index.html?embed=web'
+const SDK_URL = import.meta.env.VITE_FEEDBACK_SDK_URL?.trim()
+  || 'https://feedback.feitianchengzi.com/sdk-v3/index.html?embed=web'
 
 function oneYearLaterISO() {
   const date = new Date()
@@ -30,6 +36,29 @@ function formatDateTime(value?: string): string {
 function formatList(values?: string[]): string {
   if (!values || values.length === 0) return '全部'
   return values.join(', ')
+}
+
+function validateGitHubRepoURL(value: string): string | null {
+  try {
+    const parsed = new URL(value)
+    const pathParts = parsed.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean)
+    if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'github.com' || pathParts.length !== 2) {
+      return '请输入 https://github.com/owner/repository 格式的仓库地址'
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+      return '仓库地址不能包含账号、查询参数或片段'
+    }
+    return null
+  } catch {
+    return '请输入有效的 GitHub 仓库地址'
+  }
+}
+
+function codeRepoStatusLabel(status?: string): string {
+  if (status === 'ready') return '已同步'
+  if (status === 'syncing') return '同步中'
+  if (status === 'error') return '同步失败'
+  return '未配置'
 }
 
 async function copyText(value: string, successMessage = '已复制') {
@@ -227,6 +256,24 @@ export default function FeedbackProjectSettingsPage() {
   const [apiKeysError, setApiKeysError] = useState('')
   const [v2AuthMode, setV2AuthMode] = useState<V2AuthMode>('direct')
   const [platform, setPlatform] = useState<Platform>('web')
+  const [openHandsConfig, setOpenHandsConfig] = useState<OpenHandsProjectConfig | null>(null)
+  const [openHandsLoading, setOpenHandsLoading] = useState(false)
+  const [openHandsSaving, setOpenHandsSaving] = useState(false)
+  const [openHandsError, setOpenHandsError] = useState('')
+  const [llmApiKey, setLLMApiKey] = useState('')
+  const [llmModel, setLLMModel] = useState('deepseek/deepseek-chat')
+  const [llmBaseUrl, setLLMBaseUrl] = useState('https://api.deepseek.com')
+  const [codeRepo, setCodeRepo] = useState<ProjectCodeRepo | null>(null)
+  const [repoUrl, setRepoUrl] = useState('')
+  const [repoBranch, setRepoBranch] = useState('main')
+  const [repoLoading, setRepoLoading] = useState(false)
+  const [repoSaving, setRepoSaving] = useState(false)
+  const [repoError, setRepoError] = useState('')
+
+  // The backend remains authoritative and limits updates to authenticated
+  // project members. Keeping the UI gate membership-based avoids role data
+  // from a stale organization-scoped project list disabling valid users.
+  const canManageOpenHands = Boolean(project)
 
   useEffect(() => {
     if (!projectId) return
@@ -263,6 +310,147 @@ export default function FeedbackProjectSettingsPage() {
   useEffect(() => {
     void loadApiKeys()
   }, [loadApiKeys])
+
+  const loadOpenHandsConfig = useCallback(async () => {
+    if (!projectId || !getAccessToken()) return
+    setOpenHandsLoading(true)
+    setOpenHandsError('')
+    try {
+      const config = await feedbackV2Client.getOpenHandsConfig(projectId)
+      setOpenHandsConfig(config)
+      setLLMModel(config.llm_model || 'deepseek/deepseek-chat')
+      setLLMBaseUrl(config.llm_base_url || 'https://api.deepseek.com')
+    } catch (loadError: any) {
+      setOpenHandsError(
+        loadError?.response?.data?.error?.message || loadError?.message || '加载智能客服配置失败',
+      )
+    } finally {
+      setOpenHandsLoading(false)
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    void loadOpenHandsConfig()
+  }, [loadOpenHandsConfig])
+
+  const loadCodeRepo = useCallback(async () => {
+    if (!projectId || !getAccessToken()) return
+    setRepoLoading(true)
+    setRepoError('')
+    try {
+      const repos = await feedbackV2Client.listProjectCodeRepos(projectId)
+      const repo = repos.find((item) => item.status === 'ready') || repos[0] || null
+      setCodeRepo(repo)
+      if (repo) {
+        setRepoUrl(repo.repo_url || '')
+        setRepoBranch(repo.branch || 'main')
+      } else {
+        setRepoUrl(project?.git_url || '')
+        setRepoBranch('main')
+      }
+    } catch (loadError: any) {
+      setRepoError(
+        loadError?.response?.data?.error?.message || loadError?.message || '加载项目代码仓库失败',
+      )
+    } finally {
+      setRepoLoading(false)
+    }
+  }, [project?.git_url, projectId])
+
+  useEffect(() => {
+    void loadCodeRepo()
+  }, [loadCodeRepo])
+
+  useEffect(() => {
+    if (codeRepo?.status !== 'syncing') return
+    const timer = window.setTimeout(() => void loadCodeRepo(), 2500)
+    return () => window.clearTimeout(timer)
+  }, [codeRepo?.status, loadCodeRepo])
+
+  const saveCodeRepo = async () => {
+    if (!canManageOpenHands) return
+    const normalizedURL = repoUrl.trim()
+    const validationError = validateGitHubRepoURL(normalizedURL)
+    if (validationError) {
+      setRepoError(validationError)
+      return
+    }
+    if (!repoBranch.trim()) {
+      setRepoError('请输入需要同步的分支名称')
+      return
+    }
+
+    setRepoSaving(true)
+    setRepoError('')
+    try {
+      const saved = await feedbackV2Client.saveProjectGitHubRepo(projectId, {
+        repo_url: normalizedURL,
+        branch: repoBranch.trim(),
+      })
+      setCodeRepo(saved)
+      setRepoUrl(saved.repo_url || normalizedURL)
+      setRepoBranch(saved.branch || 'main')
+      void refetch()
+      showGlobalToast('GitHub 仓库已保存，服务器正在同步', 'success', 2600)
+    } catch (saveError: any) {
+      const message = saveError?.response?.data?.error?.message || saveError?.message || '保存代码仓库失败'
+      setRepoError(message)
+      showGlobalToast(message, 'error', 2800)
+    } finally {
+      setRepoSaving(false)
+    }
+  }
+
+  const saveOpenHandsConfig = async () => {
+    if (!canManageOpenHands) return
+    setOpenHandsSaving(true)
+    setOpenHandsError('')
+    try {
+      const key = llmApiKey.trim()
+      const saved = await feedbackV2Client.updateOpenHandsConfig(projectId, {
+        url: openHandsConfig?.url || 'http://openhands-agent:8000',
+        llm_model: llmModel.trim() || 'deepseek/deepseek-chat',
+        llm_base_url: llmBaseUrl.trim(),
+        ...(key ? { llm_api_key: key } : {}),
+      })
+      setOpenHandsConfig(saved)
+      setLLMApiKey('')
+      showGlobalToast(key ? '模型 Key 已加密保存并立即生效' : '智能客服配置已保存', 'success', 2400)
+    } catch (saveError: any) {
+      const message = saveError?.response?.data?.error?.message || saveError?.message || '保存智能客服配置失败'
+      setOpenHandsError(message)
+      showGlobalToast(message, 'error', 2800)
+    } finally {
+      setOpenHandsSaving(false)
+    }
+  }
+
+  const useServerLLMKey = async () => {
+    if (!canManageOpenHands || !openHandsConfig?.project_llm_api_key_configured) return
+    setOpenHandsSaving(true)
+    setOpenHandsError('')
+    try {
+      const saved = await feedbackV2Client.updateOpenHandsConfig(projectId, {
+        url: openHandsConfig.url || 'http://openhands-agent:8000',
+        llm_model: llmModel.trim() || 'deepseek/deepseek-chat',
+        llm_base_url: llmBaseUrl.trim(),
+        clear_llm_api_key: true,
+      })
+      setOpenHandsConfig(saved)
+      setLLMApiKey('')
+      showGlobalToast(
+        saved.llm_api_key_source === 'server' ? '已改用服务器模型 Key' : '项目 Key 已清除，当前等待服务器配置',
+        saved.llm_api_key_source === 'server' ? 'success' : 'warning',
+        2600,
+      )
+    } catch (saveError: any) {
+      const message = saveError?.response?.data?.error?.message || saveError?.message || '切换服务器 Key 失败'
+      setOpenHandsError(message)
+      showGlobalToast(message, 'error', 2800)
+    } finally {
+      setOpenHandsSaving(false)
+    }
+  }
 
   const handleCreateApiKey = async () => {
     if (!getAccessToken()) {
@@ -522,6 +710,186 @@ window.FeedbackSDK.openSubmit()
           </div>
         </details>
       </details>
+
+      <section className="border border-divider bg-surface-elevated p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-bold text-foreground">V3 智能客服（验证版）</h2>
+              <span
+                className={
+                  openHandsConfig?.llm_api_key_configured
+                    ? 'rounded-full bg-success-light px-2.5 py-1 text-xs font-semibold text-success'
+                    : 'rounded-full bg-warning-light px-2.5 py-1 text-xs font-semibold text-warning'
+                }
+              >
+                {openHandsLoading
+                  ? '检查中'
+                  : openHandsConfig?.llm_api_key_source === 'project'
+                    ? '项目 Key 已配置'
+                    : openHandsConfig?.llm_api_key_source === 'server'
+                      ? '使用服务器 Key'
+                      : '等待配置 Key'}
+              </span>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-foreground-secondary">
+              部署时可以不提供模型 Key。项目成员可在演示前于此处保存项目使用的 Key；保存后下一次智能客服请求立即生效，不需要重新部署 SDK 或服务。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadOpenHandsConfig()}
+            disabled={openHandsLoading || openHandsSaving}
+            className="rounded-lg border border-divider bg-surface px-3 py-2 text-xs font-semibold text-foreground hover:bg-surface-hover disabled:opacity-60"
+          >
+            {openHandsLoading ? '刷新中...' : '刷新状态'}
+          </button>
+        </div>
+
+        <div className="mt-4 border-l-2 border-primary px-3 text-xs leading-5 text-foreground-secondary">
+          这里配置的是服务端模型凭据，不是下发给接入应用的 SDK Key。明文仅在本次保存请求中传输，后端加密保存且不会再次回显。
+        </div>
+
+        <div className="mt-5 border border-divider bg-surface p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">GitHub 项目代码仓库</h3>
+                <span
+                  className={
+                    codeRepo?.status === 'ready'
+                      ? 'rounded-full bg-success-light px-2.5 py-1 text-xs font-semibold text-success'
+                      : codeRepo?.status === 'error'
+                        ? 'rounded-full bg-error-lighter px-2.5 py-1 text-xs font-semibold text-error'
+                        : 'rounded-full bg-warning-light px-2.5 py-1 text-xs font-semibold text-warning'
+                  }
+                >
+                  {repoLoading ? '检查中' : codeRepoStatusLabel(codeRepo?.status)}
+                </span>
+              </div>
+              <p className="mt-2 max-w-3xl text-xs leading-5 text-foreground-secondary">
+                每个项目使用独立代码目录。保存后服务器会克隆或拉取仓库，OpenHands 仅以只读方式访问当前项目代码。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadCodeRepo()}
+              disabled={repoLoading || repoSaving}
+              className="rounded-lg border border-divider bg-surface-elevated px-3 py-2 text-xs font-semibold text-foreground hover:bg-surface-hover disabled:opacity-60"
+            >
+              {repoLoading ? '刷新中...' : '刷新状态'}
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
+            <label className="space-y-1.5 text-xs font-semibold text-foreground">
+              GitHub 仓库地址
+              <input
+                value={repoUrl}
+                onChange={(event) => setRepoUrl(event.target.value)}
+                disabled={!canManageOpenHands || repoSaving}
+                placeholder="https://github.com/owner/repository"
+                spellCheck={false}
+                className="w-full rounded-lg border border-divider bg-surface-elevated px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+              />
+            </label>
+            <label className="space-y-1.5 text-xs font-semibold text-foreground">
+              分支
+              <input
+                value={repoBranch}
+                onChange={(event) => setRepoBranch(event.target.value)}
+                disabled={!canManageOpenHands || repoSaving}
+                placeholder="main"
+                spellCheck={false}
+                className="w-full rounded-lg border border-divider bg-surface-elevated px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+              />
+            </label>
+          </div>
+
+          {repoError ? <div className="mt-3 bg-error-lighter px-3 py-2 text-xs text-error">{repoError}</div> : null}
+          {codeRepo?.last_synced_at ? (
+            <p className="mt-3 text-xs text-foreground-tertiary">最近同步：{formatDateTime(codeRepo.last_synced_at)}</p>
+          ) : null}
+          {codeRepo?.status === 'error' ? (
+            <p className="mt-2 text-xs leading-5 text-error">同步失败。请确认仓库为公开仓库、地址和分支正确，然后重新保存同步。</p>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void saveCodeRepo()}
+              disabled={!canManageOpenHands || repoSaving || repoLoading || codeRepo?.status === 'syncing' || !repoUrl.trim() || !repoBranch.trim()}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {repoSaving || codeRepo?.status === 'syncing' ? '同步中...' : codeRepo ? '保存并重新同步' : '保存并同步'}
+            </button>
+            <p className="text-xs text-foreground-tertiary">验证版仅支持公开 GitHub HTTPS 仓库；私有仓库凭据暂不在页面保存。</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="space-y-1.5 text-xs font-semibold text-foreground">
+            模型
+            <input
+              value={llmModel}
+              onChange={(event) => setLLMModel(event.target.value)}
+              disabled={!canManageOpenHands || openHandsSaving}
+              placeholder="deepseek/deepseek-chat"
+              className="w-full rounded-lg border border-divider bg-surface px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+            />
+          </label>
+          <label className="space-y-1.5 text-xs font-semibold text-foreground">
+            API Base URL
+            <input
+              value={llmBaseUrl}
+              onChange={(event) => setLLMBaseUrl(event.target.value)}
+              disabled={!canManageOpenHands || openHandsSaving}
+              placeholder="https://api.deepseek.com"
+              className="w-full rounded-lg border border-divider bg-surface px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+            />
+          </label>
+        </div>
+
+        <label className="mt-4 block space-y-1.5 text-xs font-semibold text-foreground">
+          模型 API Key
+          <input
+            type="password"
+            value={llmApiKey}
+            onChange={(event) => setLLMApiKey(event.target.value)}
+            disabled={!canManageOpenHands || openHandsSaving}
+            autoComplete="new-password"
+            spellCheck={false}
+            placeholder={openHandsConfig?.project_llm_api_key_configured ? '已保存项目 Key；留空表示不更换' : '输入演示账号的模型 Key'}
+            className="w-full rounded-lg border border-divider bg-surface px-3 py-2 text-sm font-normal text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+          />
+        </label>
+
+        {openHandsError ? <div className="mt-3 bg-error-lighter px-3 py-2 text-xs text-error">{openHandsError}</div> : null}
+        {!canManageOpenHands ? (
+          <p className="mt-3 text-xs text-foreground-tertiary">只有项目成员可以更新模型配置。</p>
+        ) : null}
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void saveOpenHandsConfig()}
+            disabled={!canManageOpenHands || openHandsSaving || !llmModel.trim()}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {openHandsSaving ? '保存中...' : llmApiKey.trim() ? '保存并启用项目 Key' : '保存配置'}
+          </button>
+          {openHandsConfig?.project_llm_api_key_configured ? (
+            <button
+              type="button"
+              onClick={() => void useServerLLMKey()}
+              disabled={!canManageOpenHands || openHandsSaving}
+              className="rounded-lg border border-divider bg-surface px-4 py-2 text-sm font-semibold text-foreground-secondary hover:bg-surface-hover disabled:opacity-60"
+            >
+              清除项目 Key，改用服务器兜底
+            </button>
+          ) : null}
+        </div>
+      </section>
 
       <details className="border border-divider bg-surface-elevated p-4">
         <summary className="cursor-pointer text-sm font-semibold text-foreground">V1 历史兼容接入</summary>

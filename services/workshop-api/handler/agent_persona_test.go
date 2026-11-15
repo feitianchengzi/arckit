@@ -73,8 +73,11 @@ func TestFailureFallbacksDeclarePlatform(t *testing.T) {
 		if !strings.Contains(reply, arcOrbitAgentName) {
 			t.Errorf("兜底文案缺少平台身份 %q: %q", arcOrbitAgentName, reply)
 		}
-		if !strings.Contains(reply, "跟进") && !strings.Contains(reply, "转人工") {
-			t.Errorf("兜底文案应给出后续处理路径: %q", reply)
+		if !strings.Contains(reply, "确认") || !strings.Contains(reply, "提交反馈") {
+			t.Errorf("兜底文案应说明用户确认后提交，不应虚报已转交: %q", reply)
+		}
+		if strings.Contains(reply, "已记录") || strings.Contains(reply, "已转交") {
+			t.Errorf("尚未确认时不能声称已记录或转交: %q", reply)
 		}
 		if strings.Contains(reply, "我暂时无法回答您的问题") && !strings.Contains(reply, arcOrbitAgentName) {
 			t.Errorf("旧无身份兜底仍在使用: %q", reply)

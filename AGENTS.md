@@ -15,7 +15,7 @@ directory.
 - `apps/todo-web/`: Todo browser client.
 - `apps/feedback-console/`: Feedback administration console.
 - `services/workshop-api/`: shared Todo and Feedback Go service.
-- `packages/feedback-sdk-web/`: public Feedback web SDK surface.
+- `apps/feedback-sdk-web/`: public Feedback web SDK surface.
 - `examples/feedback-ios/`: public iOS integration example.
 - `docs/workshop/`: public Todo and Feedback product/design documentation.
 - `runtime/arcorbit/`: ArcOrbit Desktop and Runtime product.
