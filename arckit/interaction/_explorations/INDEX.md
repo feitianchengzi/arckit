@@ -27,3 +27,7 @@
   - exploration.md Thing 能力接入依据、三条主路径、连续性与待采纳取舍。
   - options/agent-native/default.html 已采纳的 V4 样本：统一能力/引用入口、同一会话身份与来源区分，对话创建、读写和执行。
   - options/linked-chat/ 旧版表单方案：未采纳，仅保留历史。
+
+- [chat-work-auto](chat-work-auto/default.html)：Chat / 待办同一对象与 Auto 同页接力，三种候选，未采纳。
+
+- chat-work-auto 的 A 三栏已正式采纳至 `../chat-workspace/default.html`；后续维护正式稿，其他候选保留历史。

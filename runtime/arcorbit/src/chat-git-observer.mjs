@@ -10,13 +10,15 @@ export function createChatGitObserver({ repository = createRepositoryService(), 
   const publicState = e => structuredClone({ ...e.state, version: e.version || 0,
     stale: e.state.stale || (e.state.read_at !== null && now() - e.state.read_at > pollMs * 3), remote: e.remote });
   const emit = e => { if (!e.closed) { e.version = (e.version || 0) + 1; for (const listener of e.listeners) listener(publicState(e)); } };
+  function queue(e) {
+    if (e.closed || e.timer) return;
+    e.timer = setTimeout(() => { e.timer = null; void refresh(e); }, debounceMs);
+  }
   function schedule(e) {
     if (e.closed) return;
     e.state.stale = true;
-    if (!e.timer) {
-      emit(e);
-      e.timer = setTimeout(() => { e.timer = null; void refresh(e); }, debounceMs);
-    }
+    if (e.pending) e.again = true;
+    if (!e.timer) { emit(e); queue(e); }
   }
   function watchPaths(e, paths) {
     const wanted = new Set(paths.filter(Boolean));
@@ -34,7 +36,10 @@ export function createChatGitObserver({ repository = createRepositoryService(), 
   }
   async function refresh(e) {
     if (e.closed) return publicState(e);
-    if (e.pending) { e.again = true; return e.pending; }
+    if (e.timer) { clearTimeout(e.timer); e.timer = null; }
+    // Concurrent callers share the in-flight read. Only a filesystem
+    // invalidation may request a trailing refresh through schedule().
+    if (e.pending) return e.pending;
     e.pending = (async () => {
         e.again = false;
         try {
@@ -42,7 +47,7 @@ export function createChatGitObserver({ repository = createRepositoryService(), 
           if (e.closed) return publicState(e);
           const remoteKey = JSON.stringify([value.remote, value.remote_url, value.tracking]);
           if (remoteKey !== e.remoteKey) { e.remote = remoteEmpty(); e.remoteKey = remoteKey; }
-          e.state = { value, read_at: now(), stale: false, error: '', watch_error: '' };
+          e.state = { value, read_at: now(), stale: Boolean(e.again), error: '', watch_error: '' };
           watchPaths(e, [e.root, value.git_dir, value.common]);
         } catch (error) {
           if (e.closed) return publicState(e);
@@ -52,7 +57,10 @@ export function createChatGitObserver({ repository = createRepositoryService(), 
         emit(e);
       return publicState(e);
     })();
-    try { return await e.pending; } finally { e.pending = null; if (e.again) schedule(e); }
+    try { return await e.pending; } finally {
+      e.pending = null;
+      if (e.again) { e.again = false; queue(e); }
+    }
   }
   function dispose(e) {
     e.closed = true; clearTimeout(e.timer); clearInterval(e.poll);

@@ -5,7 +5,7 @@
 ## 默认形态
 
 - 在 `Profile`、`Settings` 或同类用户中心页面默认只增加一个“反馈中心”入口；反馈中心内部用 segmented control、tabs 或同等导航切换“用户反馈”和“我的反馈”。
-- 接入方案由参数 UI 的 `integrationMode` 决定：`sdk-webview` 使用 SDK V2 页面，并继续按 `sdkAuthMode=apiKey|session` 配置；`native-api` 使用独立的原生 SwiftUI 表单和列表，不能自动继承 SDK V2 契约。iOS 26+ SwiftUI 项目优先尝试 `WebView/WebPage`，只有项目最低版本、平台能力、SDK 行为或验证结果不满足时才降级到 `WKWebView` wrapper。
+- 接入方案由参数 UI 的 `integrationMode` 决定：`sdk-webview` 使用 SDK V2 页面，并继续按 `sdkAuthMode=apiKey|session` 配置；`native-api` 使用独立的原生 SwiftUI 表单和列表，按版本与认证选择 HTTP 契约。iOS 26+ SwiftUI 项目优先尝试 `WebView/WebPage`，只有项目最低版本、平台能力、SDK 行为或验证结果不满足时才降级到 `WKWebView` wrapper。
 - 用独立 Feature 或 Platform Adapter 承载反馈实现，不要把 WebKit delegate、JavaScript 拼接或 URLRequest 直接堆进 Profile 页面。
 - 新增 `FeedbackPlatformCredentialProviding` 或同等 provider 边界，让 UI 不直接知道凭证来源。
 - 只有用户明确要求分开、平台限制无法合并、或既有导航规范强制分开时，才在用户中心拆成两个独立入口；拆分时必须说明原因。
@@ -74,10 +74,10 @@ Info.plist 必须同步：
 
 ## 原生 API
 
-- 原生 API 是独立方案。只按 [原生 API 模式](native-api-mode.md) 中已确认的版本实现；平台未给出 V2 对应原生契约时，不推测 endpoint、Session 或未读接口。
+- 按 [原生 API 模式](native-api-mode.md) 默认使用已核验的最新稳定版（当前 V2），再选择 API Key 或 Session；只有用户明确指定或已有项目存在已确认兼容约束时才使用 V1，并说明依据；原生 Session 使用宿主 token provider 和 HTTP 刷新策略，无需 WebView bridge。
 - 用独立 service/client 承载 URLRequest、Authorization、Codable 模型和分页。
 - 提交表单和“我的反馈”列表作为同一个反馈中心内的两个 action/view，使用 ViewModel 管理加载、提交中、成功、失败、空态和重试。
-- `data` 字段按 JSON string 处理，解析失败保留原文。
+- 响应 `data` 字段按 JSON string 处理；创建请求中 V2 Session 发送 JSON 值，API Key 发送 JSON string。用独立 Codable 请求模型避免混淆。
 
 ## Xcode 项目
 

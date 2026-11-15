@@ -1129,6 +1129,52 @@ test("recovery feedback continues the same Agent thread and persists the user me
   coordinator.dispose();
 });
 
+test("output guard failures become a controlled same-thread repair retry", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts);
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await runManager.emitEvent({
+    type: "run.finished",
+    runId: "RUN-OLD",
+    status: "failed",
+    activity: {
+      error: "Codex Agent output was interrupted by ArcOrbit (trailing_whitespace_limit: 65537 > 65536)."
+    },
+    result: {}
+  });
+
+  const recovery = store.automation.recovery_items.at(-1);
+  assert.equal(recovery.type, "thread_history_repair_required");
+  assert.deepEqual(recovery.actions, ["retry_start", "feedback_continue", "mark_blocked"]);
+  assert.equal(recovery.responsibility, "runtime");
+  coordinator.dispose();
+});
+
+test("failed thread history repair does not offer another blind retry", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts);
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await runManager.emitEvent({
+    type: "run.finished",
+    runId: "RUN-OLD",
+    status: "failed",
+    activity: {
+      error: "Unable to repair persisted Codex thread THREAD-1 before turn TURN-BAD: storage unavailable"
+    },
+    result: {}
+  });
+
+  const recovery = store.automation.recovery_items.at(-1);
+  assert.equal(recovery.type, "thread_history_repair_failed");
+  assert.deepEqual(recovery.actions, ["mark_blocked"]);
+  assert.equal(recovery.responsibility, "operator");
+  coordinator.dispose();
+});
+
 test("initial Desktop sync resumes one recoverable in-progress task on its persisted thread", async () => {
   const starts = [];
   const store = recoveryStore({ phase: "recovery" });
@@ -1871,6 +1917,68 @@ test("multi-project automation starts distinct workspace lanes concurrently up t
   coordinator.dispose();
 });
 
+test("a readiness failure freezes only its workspace lane and preserves typed cause evidence", async () => {
+  const store = multiProjectStore(2);
+  const starts = [];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, starts),
+    setupReadinessPreflight: async (projectRoot) => {
+      if (projectRoot === "/workspace/1") {
+        throw Object.assign(new Error("skills are not ready"), {
+          code: "SETUP_NOT_READY",
+          stage: "preflight",
+          readiness_status: "checking"
+        });
+      }
+    }
+  });
+
+  await coordinator.maybeStartNext();
+
+  assert.equal(store.automation.snapshot.tasks.find((item) => item.id === "task-1").state, "pending");
+  assert.equal(store.automation.snapshot.tasks.find((item) => item.id === "task-2").state, "in_progress");
+  assert.deepEqual(starts.map((item) => item.projectId), ["local-2"]);
+  assert.equal(store.automation.recovery_items.length, 1);
+  assert.equal(store.automation.recovery_items[0].type, "readiness_failed");
+  assert.equal(store.automation.recovery_items[0].task_id, "task-1");
+  assert.equal(store.automation.recovery_items[0].freeze_scope, "lane");
+  assert.equal(store.automation.recovery_items[0].workspace_key, "local-1");
+  assert.equal(store.automation.recovery_items[0].cause_code, "SETUP_NOT_READY");
+  assert.equal(store.automation.recovery_items[0].cause_stage, "preflight");
+  assert.equal(store.automation.recovery_items[0].readiness_status, "checking");
+  coordinator.dispose();
+});
+
+test("startup reconciliation clears a legacy readiness recovery only after fresh readiness and claims once", async () => {
+  const store = multiProjectStore(2);
+  store.automation.concurrency_limit = 1;
+  store.automation.recovery_items = [{
+    id: "RECOVERY-readiness_failed-task-1",
+    type: "readiness_failed",
+    task_id: "task-1",
+    project_id: "remote-1",
+    message: "技能环境尚未就绪，请重新检查本地环境。",
+    freeze_scope: "global",
+    actions: ["retry_sync"]
+  }];
+  const starts = [];
+  const readinessRoots = [];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, starts),
+    setupReadinessPreflight: async (projectRoot) => { readinessRoots.push(projectRoot); }
+  });
+
+  await Promise.all([coordinator.maybeStartNext(), coordinator.maybeStartNext()]);
+  await coordinator.maybeStartNext();
+
+  assert.equal(store.automation.recovery_items.length, 0);
+  assert.equal(store.automation.snapshot.tasks.find((item) => item.id === "task-1").state, "in_progress");
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].taskId, "task-1");
+  assert.deepEqual(readinessRoots, ["/workspace/1", "/workspace/1"]);
+  coordinator.dispose();
+});
+
 test("multi-lane Automation snapshot captures one state view and one shared Run index", async () => {
   const store = multiProjectStore(3);
   store.automation.snapshot.tasks.forEach((task) => { task.state = "in_progress"; });
@@ -2008,7 +2116,7 @@ test("startup recovery resumes every persisted workspace lane without creating c
   coordinator.dispose();
 });
 
-test("a persistent claim version conflict becomes one global recovery instead of repeating skills readiness", async () => {
+test("a persistent claim version conflict becomes one lane recovery instead of repeating skills readiness", async () => {
   const store = recoveryStore();
   store.automation.active_task = null;
   store.automation.snapshot.source_status = "healthy";
@@ -2038,7 +2146,7 @@ test("a persistent claim version conflict becomes one global recovery instead of
   assert.deepEqual(readinessRoots, ["/workspace"]);
   assert.equal(store.automation.recovery_items.length, 1);
   assert.equal(store.automation.recovery_items[0].type, "claim_failed");
-  assert.equal(store.automation.recovery_items[0].freeze_scope, "global");
+  assert.equal(store.automation.recovery_items[0].freeze_scope, "lane");
   assert.deepEqual(store.automation.recovery_items[0].actions, ["retry_sync"]);
   coordinator.dispose();
 });

@@ -1,0 +1,330 @@
+.dock-v2 {
+  height: 100dvh;
+  grid-template-columns: 238px minmax(360px, 1fr) 370px;
+}
+.dock-v2.with-preview {
+  height: calc(100dvh - 40px);
+}
+.dock-v2 .sidebar {
+  padding-top: 24px;
+}
+.dock-v2 .top {
+  min-height: 82px;
+  padding: 16px 24px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dock-v2 .top .grow {
+  min-width: 150px;
+}
+.dock-v2 .top .title {
+  font-size: 17px;
+}
+.dock-v2 .top-actions > .pill,
+.dock-v2 .top-actions > [data-act="runs"] {
+  display: none;
+}
+.header-execution .pill {
+  display: inline-flex !important;
+}
+.header-execution button {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+.dock-v2 .top-actions {
+  gap: 4px;
+}
+.dock-v2 .top-actions .secondary-label {
+  display: none;
+}
+.dock-v2 .transcript {
+  padding: 38px 32px;
+}
+.dock-v2 .composer-wrap {
+  padding: 16px 26px 20px;
+}
+.dock-v2 .composer {
+  padding: 12px 14px;
+}
+.dock-v2 .composer textarea {
+  min-height: 100px;
+}
+.inspector {
+  border-left: 1px solid var(--semantic-divider);
+  background: var(--semantic-sidebar);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.inspector-tabs {
+  height: 82px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--semantic-divider);
+}
+.inspector-tabs button {
+  background: transparent;
+  border: 0;
+  color: var(--semantic-muted);
+  padding: 8px 12px;
+  border-radius: 7px;
+}
+.inspector-tabs button.active {
+  background: var(--semantic-nav-selected);
+  color: var(--semantic-text);
+  font-weight: 600;
+}
+.inspector-close {
+  display: none;
+}
+.inspector-content {
+  overflow: auto;
+  flex: 1;
+  padding: 24px;
+}
+.inspector-footer {
+  border-top: 1px solid var(--semantic-divider);
+  font-size: 12px;
+  color: var(--semantic-muted);
+  padding: 10px 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.inspector-content .section {
+  padding: 18px 0;
+}
+.inspector-content .section p {
+  font-size: 14px;
+}
+.inspector-context {
+  margin-bottom: 16px;
+}
+.file-search {
+  width: 100%;
+  border: 1px solid var(--semantic-divider);
+  border-radius: 7px;
+  background: var(--semantic-canvas);
+  padding: 7px 10px;
+  margin-bottom: 16px;
+}
+.file-tree {
+  margin: 0 -10px;
+}
+.tree-folder,
+.tree-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 5px 10px;
+  font-size: 13px;
+  gap: 8px;
+}
+.tree-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-file svg {
+  width: 14px;
+  height: 14px;
+}
+.tree-file small {
+  color: var(--semantic-focus);
+}
+.tree-file.selected,
+.diff-file.selected {
+  background: var(--semantic-nav-selected);
+}
+.file-preview,
+.diff-preview {
+  border-top: 1px solid var(--semantic-divider);
+  margin-top: 24px;
+  padding-top: 18px;
+}
+.file-preview strong,
+.diff-preview strong {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.file-path {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 8px 0;
+}
+.file-preview pre {
+  font: 12px/1.85 var(--typography-family-mono);
+  overflow: auto;
+  white-space: pre;
+  max-height: 480px;
+  background: var(--semantic-canvas);
+  padding: 12px;
+  border: 1px solid var(--semantic-divider);
+  border-radius: 6px;
+}
+.git-branch {
+  font-size: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.git-branch strong {
+  overflow-wrap: anywhere;
+}
+.git-files {
+  margin: 0 -10px;
+}
+.diff-file {
+  display: flex;
+  width: 100%;
+  border: 0;
+  text-align: left;
+  background: transparent;
+  gap: 8px;
+  padding: 12px 10px;
+}
+.diff-file strong {
+  font-size: 13px;
+}
+.diff-file small {
+  display: block;
+  font-size: 12px;
+  color: var(--semantic-muted);
+}
+.add-text {
+  color: var(--colors-success-base);
+  font: 12px var(--typography-family-mono);
+}
+.remove-text {
+  color: var(--colors-danger-base);
+  font: 12px var(--typography-family-mono);
+}
+.code-diff {
+  overflow: auto;
+  border: 1px solid var(--semantic-divider);
+  border-radius: 7px;
+  margin-top: 14px;
+  background: var(--semantic-canvas);
+}
+.diff-line {
+  display: flex;
+  min-width: max-content;
+  font: 12px/1.9 var(--typography-family-mono);
+  padding-right: 12px;
+}
+.diff-line > span {
+  width: 30px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 7px;
+  opacity: 0.65;
+}
+.diff-line code {
+  white-space: pre;
+}
+.diff-line.add {
+  background: var(--colors-success-soft);
+  color: var(--colors-success-base);
+}
+.diff-line.remove {
+  background: var(--colors-danger-soft);
+  color: var(--colors-danger-base);
+}
+.inspector-empty {
+  padding: 25px 0;
+  color: var(--semantic-muted);
+  font-size: 13px;
+}
+.dock-v2 .summary-head small {
+  margin-top: 3px;
+}
+[data-theme="dark"] .add-text {
+  color: #85d5aa;
+}
+[data-theme="dark"] .remove-text {
+  color: #ff9ca6;
+}
+@media (max-width: 1200px) {
+  .dock-v2 {
+    grid-template-columns: 208px minmax(320px, 1fr) 320px;
+  }
+  .dock-v2 .top {
+    padding: 14px 20px;
+  }
+  .dock-v2 .transcript {
+    padding: 30px 24px;
+  }
+  .inspector-content {
+    padding: 20px;
+  }
+  .header-execution .pill {
+    display: none !important;
+  }
+}
+@media (max-width: 1000px) {
+  .dock-v2 {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+  .dock-v2 .inspector {
+    display: none;
+  }
+  .dock-v2 .inspector.is-open {
+    display: flex;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 360px;
+    max-width: 100%;
+    z-index: 7;
+    box-shadow: var(--shadows-large);
+  }
+  .dock-v2.with-preview .inspector.is-open {
+    top: 40px;
+  }
+  .inspector-close {
+    display: block;
+    margin-left: auto;
+  }
+  .inspector-tabs {
+    height: 66px;
+    padding: 0 12px;
+  }
+}
+@media (max-width: 760px) {
+  .dock-v2 {
+    grid-template-columns: 1fr;
+  }
+  .dock-v2 .sidebar {
+    top: 0;
+  }
+  .dock-v2.with-preview .sidebar {
+    top: 40px;
+  }
+  .dock-v2 .top {
+    padding: 12px 14px;
+  }
+  .dock-v2 .transcript {
+    padding: 26px 18px;
+  }
+  .dock-v2 .composer-wrap {
+    padding: 12px 14px;
+  }
+  .dock-v2 .top .grow {
+    min-width: 110px;
+  }
+  .header-execution button {
+    font-size: 12px;
+  }
+  .dock-v2 .inspector.is-open {
+    width: 100%;
+  }
+}

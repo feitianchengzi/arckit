@@ -31,36 +31,14 @@
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
   - interaction.md Today 交互：产品集成员、局部选择与按需初始化、双工作区、当前用户责任收录、Work 完整编辑、验收问题弹出输入与列表原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (243行)
   - product-continuity.html 产品续接：添加 Idea、独立新消息和本机草稿。✅ (5行)
-- chat-workspace/ Chat 文件树与文件 Tab 约定及可操作样本已同步，项目根目录操作收纳为与普通条目一致的更多菜单，树条目采用 28px 紧凑高度与独立 disclosure；目录展开／收起不闪现文字 loading，外部变化主动更新，文件与全部现存祖先目录显示可访问 Git 标记；中央对话使用 64px 固定顶栏，标题保持单行省略与完整提示，项目入口在右侧与会话更多并排且菜单向下展开；项目分组单行 Git 符号计数摘要已完成浏览器及生产 Renderer／真实临时 Git 验证。✅
-  - 既有 Chat 正式交互：会话列表与当前待办详情切换，Work 入口恢复绑定会话；会话创建时间倒序，Agent 当前项目待办读写，“能力与引用”仅选择原生能力/Skill、不提供文件或待办候选；顶栏不展示整理入口或完成/运行状态，保留完整会话、账户和响应式行为。✅
-  - default.html 四组导航、中央对话、会话列表与统一能力引用的完整入口。✅ (36行)
-  - files-model.js / files-ui.js / files.css 完整文件树、动作、编辑 Tab 与状态保护样本；内存目录和 textarea 不代表真实文件或 Monaco。
-  - verify-files.cjs 新增文件路径浏览器验证；ARCORBIT_TEST_OUTPUT 指定 Case 证据目录，默认临时目录。
-  - interaction.md 能力/引用、右侧项目菜单、单行标题、紧凑 Git 摘要、文件树操作、Monaco 文件 Tab、同一 thread 与恢复规则；正式样本已同步。✅ (308行)
-  - README.md 预览、模拟边界、视觉与验证依据。✅ (69行)
-  - model.js 独立本地会话、工作区、草稿、turn 与恢复样本。✅ (56行)
-  - views.js 右侧项目会话分组、可压缩项目标题、中央单行标题/项目入口及菜单长名称完整提示、消息与 Composer。✅ (47行)
-  - app.js 项目与会话菜单、焦点、滚动、输入法、场景与逐段回复。✅ (267行)
-  - chat.css 固定中央顶栏、右侧项目/会话菜单及单行省略选项、阅读宽度、右侧列表与窄窗抽屉。✅ (98行)
-  - markdown.js 受限 Markdown、代码和表格呈现。✅ (102行)
-  - scenarios.html 独立本地异常工具。✅ (4行)
-  - scenario-controls.js 场景工具消息转发。✅ (1行)
-  - states.html 从旧主稿迁移的右侧列表状态辅助说明。✅ (55行)
-  - workspace-setup.html 原位目录绑定与 Setup Readiness 辅助说明。✅ (12行)
-  - verify.cjs 主路径、单行标题/右侧向下菜单、长项目名完整提示、恢复、滚动与响应式浏览器验证。✅ (107行)
-  - verification.json 实际本地交互验证结果。✅ (21行)
-  - maintenance-result.json 本轮文件范围与正式交互事实结果。✅
-  - native-model.js 当前项目待办、绑定、意图与原生回执本地模型。✅ (104行)
-  - native-views.js 会话/待办独立单行列表、标签、对象卡片与正式视图组合。✅ (26行)
-  - native-input.js 仅含原生能力/Skill 的统一选择器、对象进入与异常恢复。✅ (72行)
-  - native.css 消费正式 Token 的能力选择、标签与回执样式。✅ (49行)
-  - verify-native.cjs 正式新增主路径、状态恢复、键盘与响应式验证。✅ (62行)
-  - verification-native.json 新增能力原型的实际本地验证结果。✅ (17行)
-
-  - model-settings.js 当前会话模型/推理级别弹出配置、自动保存与焦点恢复。✅
-  - verify-layout-webkit.swift / verification-layout-webkit.json macOS WebKit 桌面布局复核。✅
-  - verify-layout.cjs / verification-layout.json 顶部入口同排、菜单可用高度与全部候选可达检查。✅
-  - popup-position.js 菜单紧贴各自入口向上展开，处理视口避让与窗口尺寸变化。✅
+- chat-workspace/ 正式一体式工作空间：采纳 A 三栏及窄图标导航、页内对话/待办 Tab、五入口（Chat/项目/团队/工程/设置）与项目分组，Chat/Work 同一身份，Auto 就地接力，项目页容纳 Idea 至反馈的生命周期及产品集维护，团队治理、内置工程能力和分类设置及局部保存。✅（交互原型，不代表生产兑现）
+  - default.html 产品入口：中央标题与对话、全高待办/文件/Git 综合栏。（33 行）
+  - scenarios.html 独立场景目录：空态、离线、失败、外部等待、他人占用、冲突、权限、验收及长内容。（142 行）
+  - interaction.md 正式交互策略、连续性和模拟边界。（120 行）
+  - coverage.md 场景操作、恢复与实际验证口径。（65 行）
+  - unified/ 按模型、视图、项目、综合栏、执行与样式拆分的独立本地原型；不依赖探索目录。
+  - verify-unified.cjs / verify-unified-projects.cjs 可重复的核心与项目协作验证，证据输出临时目录。
+  - legacy-* 与原有根目录脚本保留历史对照；旧独立会话/后关联待办模式不再作为本轮交互入口。
 
 - release-workspace/ Release：真实终端、Git、源码、任务与 Agent 协作。✅
   - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅

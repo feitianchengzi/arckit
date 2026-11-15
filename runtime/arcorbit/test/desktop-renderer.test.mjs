@@ -33,10 +33,11 @@ const conversationSurfacePath = new URL("../desktop/renderer/conversation-surfac
 test('Engineering IPC exposes only built-in snapshot and update to the main renderer', async () => {
   const source=await readFile(desktopMainPath,'utf8'),handlers=new Map(),calls=[];
   const mainWindow={webContents:{}};
-  const start=source.indexOf('function registerIpc() {'),end=source.indexOf('  ipcMain.handle("arckit:release-snapshot"',start);
+  const start=source.indexOf('function registerIpc() {'),end=source.indexOf('  handle("arckit:release-snapshot"',start);
   const guardStart=source.indexOf('function assertMainRenderer(event)'),guardEnd=source.indexOf('\nasync function ',guardStart);
   vm.runInNewContext(source.slice(start,end)+'}\n'+source.slice(guardStart,guardEnd)+'\nregisterIpc();',{
-    mainWindow,ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
+    tracedIpcHandler: (_name, handler) => handler,
+    mainWindow,ipcMain:{handle:(name,handler)=>handlers.set(name,handler),on:()=>{}},
     sceneSkillManager:{snapshot:()=>calls.push('snapshot'),update:()=>calls.push('update')}
   });
   for(const name of ['snapshot','update']) await assert.rejects(async()=>handlers.get(`arckit:engineering-${name}`)({sender:{}},{}),/main ArcOrbit window/);
@@ -717,6 +718,21 @@ test("Chat Renderer separates stream patches from coalesced structural refreshes
   assert.doesNotMatch(eventBranch, /chatConversationSurface\.followLatest/);
 });
 
+test("Chat Git activation avoids focus-wide refresh and batches local status rendering", async () => {
+  const [source, main] = await Promise.all([readFile(rendererPath, "utf8"), readFile(desktopMainPath, "utf8")]);
+  const binding = source.slice(source.indexOf("globalThis.arcorbitChatGit ="), source.indexOf("const workbenchConversationSurface"));
+  const localRender = source.slice(source.indexOf("function scheduleChatGitRender"), source.indexOf("const workbenchConversationSurface"));
+  const createWindow = main.slice(main.indexOf("async function createWindow"), main.indexOf("async function runRendererLoadSmoke"));
+
+  assert.match(binding, /onChange: scheduleChatGitRender/);
+  assert.doesNotMatch(binding, /onChange:[^\n]*renderChat/);
+  assert.match(localRender, /requestAnimationFrame/);
+  assert.match(localRender, /renderChatGitState/);
+  assert.match(localRender, /chatGitSurface\.render\(\)/);
+  assert.doesNotMatch(localRender, /\brenderChat\(\)/);
+  assert.doesNotMatch(createWindow, /on\(['"]focus['"][\s\S]*?chatGit\?\.refreshAll/);
+});
+
 test("Chat navigation renders the cached page before starting its background refresh", async () => {
   const source = await readFile(rendererPath, "utf8");
   const start = source.indexOf("function showPage(page)");
@@ -1303,7 +1319,7 @@ test("Feedback detail scrolls internally and image attachments reuse the managed
   assert.match(main, /createImageViewer/);
   assert.match(main, /input\.source === "feedback-file"/);
   assert.match(main, /input\.source === "feedback-v2"/);
-  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-open"/);
+  assert.match(main, /handle\("arckit:image-viewer-open"/);
   assert.match(styles, /\.feedback-image-preview\.is-loaded img/);
 });
 
@@ -1862,7 +1878,7 @@ test("Work opens allowed Markdown links through a bounded main-process capabilit
     readFile(desktopPreloadPath, "utf8")
   ]);
   assert.match(preload, /openWorkExternalLink: \(value\) => ipcRenderer\.invoke\("arckit:work-external-link-open", value\)/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-external-link-open"/);
+  assert.match(main, /handle\("arckit:work-external-link-open"/);
   assert.match(main, /assertMainRenderer\(event\)/);
   assert.match(main, /requireWorkExternalLinkUrl\(value\)/);
   assert.match(main, /await shell\.openExternal\(url\)/);
@@ -1890,18 +1906,18 @@ test("desktop renders and composes type-preserving TaskAttachment resources thro
   assert.match(preload, /previewWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-preview", input\)/);
   assert.match(preload, /openImageViewer: \(input\) => ipcRenderer\.invoke\("arckit:image-viewer-open", input\)/);
   assert.match(preload, /openWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-open", input\)/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-pick"/);
+  assert.match(main, /handle\("arckit:work-task-attachment-pick"/);
   assert.match(main, /platformCoordinator\.uploadTaskAttachmentResource/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-preview"/);
+  assert.match(main, /handle\("arckit:work-task-attachment-preview"/);
   assert.match(main, /platformCoordinator\.getTaskAttachmentResourceUrl/);
   assert.match(main, /createImageViewer/);
-  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-open"/);
-  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-save"/);
-  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-retry"/);
+  assert.match(main, /handle\("arckit:image-viewer-open"/);
+  assert.match(main, /handle\("arckit:image-viewer-save"/);
+  assert.match(main, /handle\("arckit:image-viewer-retry"/);
   const viewerRenderer = await readFile(imageViewerRendererPath, "utf8");
   assert.match(viewerRenderer, /state\.status === "loading"[\s\S]*clearDisplayedImage\(\)/);
   assert.match(viewerRenderer, /els\.image\.removeAttribute\("src"\)/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-open"/);
+  assert.match(main, /handle\("arckit:work-task-attachment-open"/);
   assert.match(styles, /\.task-comment-images/);
   assert.match(styles, /\.task-comment-pending-resources/);
 });

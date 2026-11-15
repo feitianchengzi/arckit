@@ -120,7 +120,9 @@ list 按层读取目录元数据，不按隐藏名或 Git ignore 过滤；目录
 
 ### 文件树 Git 状态投影
 
-文件树不创建第二个 Git watcher 或重复执行仓库摘要。它消费项目分组现有 `ChatGitObserver` 对同一 canonical workspace 发布的完整状态：文件系统和 Git 元数据 watcher 的 burst 以默认 200ms 合并，读取 single-flight，期间再变化安排一次后续刷新；30 秒轮询负责遗漏事件对账，失败保留最后成功值及原读取时间。当前文件工作区即使没有展开会话分组，也纳入 Chat 可见项目的 Git observe 集合；离开 Chat、账号或根身份变化时沿既有 release 和 canonical workspace 规则失效。
+文件树不创建第二个 Git watcher 或重复执行仓库摘要。它消费项目分组现有 `ChatGitObserver` 对同一 canonical workspace 发布的完整状态：文件系统和 Git 元数据 watcher 的 burst 以默认 200ms 合并，读取 single-flight；并发显式刷新复用同一个在途读取，只有在途期间发生的文件系统失效才安排一次后续刷新。30 秒轮询负责遗漏事件对账，失败保留最后成功值及原读取时间；应用窗口获得焦点不触发全项目 Git 刷新。当前文件工作区即使没有展开会话分组，也纳入 Chat 可见项目的 Git observe 集合；离开 Chat、账号或根身份变化时沿既有 release 和 canonical workspace 规则失效。
+
+Git 状态观察在刷新完成时发布单调 version 和最新读取时间。Renderer 在下一个动画帧合并同一 burst，只原位更新项目 Git 摘要和已打开的 Git 面板，不重建会话列表、transcript 或 Composer；会话完成、工作区身份变化和用户显式刷新仍可请求立即对账。
 
 Renderer 只在 Git `project_id + canonical workspace` 与当前文件会话匹配且 version 不倒退时替换整份 Git 快照，不把不同 revision 的路径变化逐项拼接。它把 summary 的 index/worktree/conflict/rename/delete 状态归一为工作区相对 POSIX 路径；当前存在的新路径投影到文件行，删除路径不制造幽灵行，rename 的旧路径只用于语义和祖先失效。根外、非法或无法归一的路径被拒绝并使该快照进入错误恢复，不授予文件访问权限。
 

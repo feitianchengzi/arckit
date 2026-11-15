@@ -113,6 +113,36 @@ test('readiness lists cleanup without deleting until the reviewed plan is explic
  assert.deepEqual(result.plan.loader_targets,[]);
  await provision.assertReady(f.project);
 });
+nodeTest('readiness preflight waits for an in-flight environment check instead of persisting its transient checking state', async () => {
+ let releaseCheck;
+ let checkStarted;
+ let delayNextCheck = false;
+ const checkGate = new Promise(resolve => { releaseCheck = resolve; });
+ const started = new Promise(resolve => { checkStarted = resolve; });
+ const catalog = {
+  async prepare() {
+   if (delayNextCheck) { checkStarted(); await checkGate; }
+   return {
+    root: '/catalog', version: 'v1', count: 1,
+    installation: { blocking: [], ready: true, needsApply: false, planDigest: 'install', items: [], assets: [] }
+   };
+  },
+  async planMigration() { return { removed: [], preserved: [], errors: [], planDigest: 'cleanup' }; }
+ };
+ const manager = createSceneSkillProvisioningManager({ catalog, codexProbe: async () => ({ available: true }) });
+ await manager.check({ projectRoot: ['/workspace'] });
+ delayNextCheck = true;
+ const checking = manager.check({ projectRoot: ['/workspace'] });
+ await started;
+ assert.equal(manager.getSnapshot().status, 'checking');
+ let preflightSettled = false;
+ const preflight = manager.assertReady('/workspace').finally(() => { preflightSettled = true; });
+ await new Promise(resolve => setImmediate(resolve));
+ assert.equal(preflightSettled, false);
+ releaseCheck();
+ await checking;
+ assert.equal((await preflight).status, 'ready');
+});
 test('native non-Arckit skills remain Codex-owned while same-name core stays shadowed',async()=>{
  const f=await fixture();await skill(path.join(f.home,'.codex/skills/third-party'),'third-party');await skill(path.join(f.home,'.codex/skills/using-arckit'),'using-arckit');
  const s=await f.manager.snapshot();assert.ok(s.skills.every(x=>x.source==='builtin'));assert.equal(s.skills.some(x=>x.name==='third-party'),false);

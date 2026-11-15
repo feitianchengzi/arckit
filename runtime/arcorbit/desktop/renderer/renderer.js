@@ -1,3 +1,4 @@
+import { createStallDiagnostics } from './stall-diagnostics.mjs';
 import { createChatGitSurface, gitSummaryButton, gitSummary, gitSummaryMarkup } from './chat-git-surface.mjs';
 import { createChatGitState } from './chat-git-state.mjs';
 import { taskCreationAutomation } from './task-creation-automation.mjs';
@@ -236,6 +237,9 @@ const state = {
 let platformActionResolver = null;
 let platformActionReturnFocus = null;
 let platformActionBackgroundInert = false;
+let settingsSection = "account";
+let settingsGeneration = 0;
+let settingsReturnFocus = null;
 let platformActionSubmitter = null;
 let activeMemberAddSheet = null;
 let platformActionBusy = false;
@@ -246,21 +250,23 @@ const codexSettingsForm = createCodexSettingsForm({
   api,
   elements: {
     yoloCheckbox: els.codexYoloMode,
+    yoloSaveButton: els.saveCodexPermissionsButton, yoloFeedback: els.codexPermissionsFeedback,
     contexts: {
       chat: {
         model: els.codexChatModel, effort: els.codexChatEffort,
-        modelList: els.codexChatModelOptions, effortList: els.codexChatEffortOptions
+        modelList: els.codexChatModelOptions, effortList: els.codexChatEffortOptions,
+        saveButton: els.saveCodexChatButton, feedback: els.codexChatFeedback
       },
       automation: {
         model: els.codexAutomationModel, effort: els.codexAutomationEffort,
-        modelList: els.codexAutomationModelOptions, effortList: els.codexAutomationEffortOptions
+        modelList: els.codexAutomationModelOptions, effortList: els.codexAutomationEffortOptions,
+        saveButton: els.saveCodexAutomationButton, feedback: els.codexAutomationFeedback
       }
     },
-    refreshButton: els.refreshCodexModelsButton, saveButton: els.saveCodexSettingsButton,
-    feedback: els.codexSettingsFeedback, catalogFeedback: els.codexCatalogFeedback,
-    generalSaveButton: els.saveSettingsButton
+    refreshButton: els.refreshCodexModelsButton,
+    feedback: els.codexSettingsFeedback, catalogFeedback: els.codexCatalogFeedback
   },
-  onSaved: (settings) => { state.settings = normalizeSettings(settings); }
+  onSaved: (settings, patch) => { state.settings = normalizeSettings(patch ? { ...state.settings, codex: { ...state.settings.codex, ...Object.fromEntries(Object.keys(patch.codex).map(key => [key, settings.codex[key]])) } } : settings); }
 });
 let refreshQueued = false;
 let automationRefreshQueued = false;
@@ -434,9 +440,28 @@ globalThis.arcorbitChatFiles=createChatFilesSurface({api,coordinator:chatStateCo
 globalThis.arcorbitChatGit = createChatGitState({ api,
   getContext: () => ({ active: state.page === 'chat', scope: globalScope().key,
     project_ids: chatProjectsInScope().map(p => p.id), selected_project_id: chatState().owner.project_id }),
-  onChange: () => { if (state.page === 'chat') renderChat(); } });
+  onChange: scheduleChatGitRender });
 const chatGitSurface = createChatGitSurface({api,states:globalThis.arcorbitChatGit,host:document.getElementById('chatGitPanel'),getProjects:chatProjectsInScope,getPanel:()=>chatTaskPanelMode,setPanel:setChatTaskPanel});
+let chatGitRenderFrame = null;
+function scheduleChatGitRender() {
+  if (state.page !== 'chat' || chatGitRenderFrame !== null) return;
+  chatGitRenderFrame = requestAnimationFrame(() => {
+    chatGitRenderFrame = null;
+    if (state.page === 'chat') renderChatGitState();
+  });
+}
+function renderChatGitState() {
+  for (const button of els.chatSessionList.querySelectorAll('[data-chat-git-project]')) {
+    const id=button.dataset.chatGitProject, summary=gitSummary(globalThis.arcorbitChatGit?.get(id));
+    button.innerHTML=gitSummaryMarkup(summary);button.title=summary.meaning;
+    button.classList.toggle('is-muted',Boolean(summary.muted));
+    button.setAttribute('aria-label',`${chatProjectsInScope().find(p=>p.id===id)?.name||id} Git：${summary.meaning}`);
+  }
+  chatGitSurface.render();
+}
 const workbenchConversationSurface = createConversationSurface({
+  initialMessageCount: 80,
+  deferOffscreenLayout: true,
   element: els.transcriptList,
   jumpButton: els.jumpToLatestButton,
   formatTime,
@@ -455,6 +480,24 @@ initializeWindowControls({
   maximizeButton: els.windowMaximizeButton,
   dragRegion: els.windowDragRegion,
   onError: (error) => showToast(error.message || "窗口控制失败")
+});
+
+const stallDiagnostics = createStallDiagnostics({
+  root: document.getElementById('stallDiagnostics'), api,
+  projects: () => chatProjectsInScope(),
+  selectedProject: () => defaultChatDraftProject()?.id || '',
+  onAnalyze: async ({text}, projectId) => {
+    if (!chatProjectsInScope().some(p=>p.id === projectId)) throw new Error('所选工作区已不可用，请重新选择');
+    if (chatState().sending) throw new Error('当前消息正在发送，请稍后重试');
+    chatScopeController.capture();
+    await chatStateCoordinator.newDraft(projectId, state.settings.codex.chat);
+    chatStateCoordinator.setDraft(text);
+    chatScopeController.capture();
+    closeSettings();
+    showPage('chat');
+    renderChat();
+    await sendChat();
+  }
 });
 
 function chatState() {
@@ -476,6 +519,7 @@ async function boot() {
   state.setupPresentationRequested = Boolean(setup) && (setup.status !== "ready" || Boolean(setup.first_install));
   renderSetup();
   await refreshSnapshot();
+
   api.onProductFeedbackUnread((count) => {
     state.productFeedback.unread_count = Math.max(0, Math.trunc(Number(count) || 0));
     renderProductFeedbackTrigger();
@@ -577,7 +621,20 @@ async function boot() {
 
 function wireEvents() {
   const legacyButton=document.getElementById('legacyPagesButton'),legacyMenu=document.getElementById('legacyPagesMenu');
-  els.workbenchSyncSettings.addEventListener('click',()=>runAction(async()=>{await api.projectWorkbenchCommand('sync',{});await projectWorkbenchSurface.refresh();showToast('项目与事情已同步');}));
+  els.workbenchSyncSettings.addEventListener('click', async () => {
+    const button = els.workbenchSyncSettings;
+    if (button.disabled) return;
+    button.disabled = true;
+    els.settingsSyncFeedback.textContent = '正在同步项目与事情…';
+    try {
+      await api.projectWorkbenchCommand('sync', {});
+      await projectWorkbenchSurface.refresh();
+      els.settingsSyncFeedback.textContent = '项目与事情已同步。';
+      showToast('项目与事情已同步');
+    } catch {
+      els.settingsSyncFeedback.textContent = '同步失败，已保存的设置保留，请重试。';
+    } finally { button.disabled = false; }
+  });
   els.workbenchFeedbackSettings.addEventListener('click',()=>{els.closeSettingsButton.click();els.productFeedbackButton.click();});
   function closePageNavigation(restoreFocus=false){document.body.classList.remove('page-navigation-open');legacyButton.setAttribute('aria-expanded','false');if(restoreFocus)legacyButton.focus();}
   legacyButton.addEventListener('click',()=>{const opening=!document.body.classList.contains('page-navigation-open');document.body.classList.toggle('page-navigation-open',opening);legacyButton.setAttribute('aria-expanded',String(opening));if(opening)legacyMenu.querySelector('.is-active,button')?.focus();});
@@ -866,12 +923,21 @@ function wireEvents() {
     await refreshSnapshot();
   }));
   els.settingsButton.addEventListener("click", () => runAction(() => openSettings({ loginGate: false })));
-  els.accountButton.addEventListener("click", () => runAction(() => openSettings({ loginGate: false })));
+  els.accountButton.addEventListener("click", () => runAction(() => openSettings({ loginGate: false, section: "account" })));
   els.closeSettingsButton.addEventListener("click", closeSettings);
+  els.settingsOverlay.addEventListener("keydown", event => {
+    if (event.key !== "Tab" || state.loginGate) return;
+    const focusable = [...els.settingsPanel.querySelectorAll('button, input, select, summary, [tabindex="0"]')].filter(node => !node.disabled && node.getClientRects().length);
+    const first = focusable[0], last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  });
   els.settingsOverlay.addEventListener("click", (event) => {
     if (event.target === els.settingsOverlay) closeSettings();
   });
-  els.saveSettingsButton.addEventListener("click", () => runAction(saveSettings));
+  els.saveTaskSourceButton.addEventListener("click", () => saveSettingsSection("task_source"));
+  els.saveProxySettingsButton.addEventListener("click", () => saveSettingsSection("codex_proxy"));
+  document.querySelectorAll("[data-settings-tab]").forEach(button => button.addEventListener("click", () => selectSettingsSection(button.dataset.settingsTab)));
   els.taskSourceAuthMode.addEventListener("change", renderAuthMode);
   document.querySelectorAll("[data-auth-type]").forEach((button) => button.addEventListener("click", () => {
     state.authType = button.dataset.authType;
@@ -1889,12 +1955,7 @@ function renderChat() {
     }));
   }
   // Update status groups in place so a background refresh cannot replace a pressed entry.
-  for (const button of els.chatSessionList.querySelectorAll('[data-chat-git-project]')) {
-    const id=button.dataset.chatGitProject, summary=gitSummary(globalThis.arcorbitChatGit?.get(id));
-    button.innerHTML=gitSummaryMarkup(summary);button.title=summary.meaning;
-    button.classList.toggle('is-muted',Boolean(summary.muted));
-    button.setAttribute('aria-label',`${chatProjectsInScope().find(p=>p.id===id)?.name||id} Git：${summary.meaning}`);
-  }
+  renderChatGitState();
   els.chatTitle.textContent = session?.title || "新对话";
   els.chatTitle.title = els.chatTitle.textContent;
   els.chatTranscript.setAttribute("aria-busy", String(chat.refreshing));
@@ -4624,7 +4685,7 @@ async function createTask(trigger = document.activeElement) {
     fields: [
       `<section class="task-create-settings"><label class="task-create-reuse"><input data-task-create-reuse type="checkbox" role="switch" aria-describedby="taskCreateReuseHelp" ${creationSettings.enabled ? "checked" : ""} ${settingsKey ? "" : "disabled"}><span><strong>沿用上次创建设置</strong><small id="taskCreateReuseHelp">下次新建时保留其他选项，待办内容留空</small></span></label><p data-task-create-settings-status role="status" ${restored.notice ? "" : "hidden"}>${escapeHtml(restored.notice)}</p></section>`,
       platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId, options: projects }),
-      platformField("content", "待办内容", { type: "textarea", required: true }),
+      platformField("content", "待办内容", { type: "textarea", required: true, value: "" }),
       platformField("state", "状态", { type: "select", value: defaults.state, options: taskStateOptions() }),
       taskProjectFields(defaultProjectId, { includeExecutorAutomationHelp: true, taskState: defaults.state }),
       platformField("priority", "优先级", { type: "select", value: defaults.priority, options: taskPriorityOptions(), help: "最高优先处理；无优先级表示创建时不设置该字段。" })
@@ -5928,7 +5989,7 @@ async function openWorkbench(mode = "review", runId = "", context = {}) {
   const opening = state.workbenchOpenRequest = (state.workbenchOpenRequest || 0) + 1;
   const originPage = state.page;
   const selectedRun = runId && state.snapshot.active_run?.id !== runId
-    ? (await api.listRuns({})).find((run) => run.id === runId) || null
+    ? (await api.listRuns({ runId })).find((run) => run.id === runId) || null
     : null;
   if (opening !== state.workbenchOpenRequest || state.page !== originPage) return;
   state.workbenchMode = mode;
@@ -5989,13 +6050,25 @@ async function loadTranscript({ force = false } = {}) {
 }
 
 function scheduleWorkbenchTranscriptRefresh() {
+  if (state.workbenchTranscriptRefreshRunning) {
+    state.workbenchTranscriptRefreshAgain = true;
+    return;
+  }
   if (state.page !== "workbench" || state.workbenchTranscriptRefreshQueued) return;
   state.workbenchTranscriptRefreshQueued = true;
   window.setTimeout(async () => {
     state.workbenchTranscriptRefreshQueued = false;
     if (state.page !== "workbench") return;
+    state.workbenchTranscriptRefreshRunning = true;
     try { await loadTranscript(); if (state.page === "workbench") renderWorkbench(); }
     catch (error) { showToast(error.message); }
+    finally {
+      state.workbenchTranscriptRefreshRunning = false;
+      if (state.workbenchTranscriptRefreshAgain) {
+        state.workbenchTranscriptRefreshAgain = false;
+        scheduleWorkbenchTranscriptRefresh();
+      }
+    }
   }, 120);
 }
 
@@ -6299,7 +6372,9 @@ function showPage(page) {
   render();
 }
 
-async function openSettings({ loginGate = false } = {}) {
+async function openSettings({ loginGate = false, section = settingsSection } = {}) {
+  settingsSection = section;
+  settingsReturnFocus = document.activeElement;
   const [settings, authentication] = await Promise.all([api.getSettings(), api.getAuthStatus()]);
   state.settings = normalizeSettings(settings);
   state.authentication = normalizeAuthentication(authentication);
@@ -6308,15 +6383,17 @@ async function openSettings({ loginGate = false } = {}) {
   renderSettingsForm();
   renderSettingsSurface();
   els.settingsOverlay.classList.remove("hidden");
-  if (!state.loginGate) void codexSettingsForm.refresh();
+  if (!state.loginGate) { selectSettingsSection(settingsSection); els.closeSettingsButton.focus(); }
   document.body.classList.remove("auth-pending");
 }
 
 function closeSettings({ force = false } = {}) {
   if (state.loginGate && !force) return;
+  if (els.settingsOverlay.classList.contains("hidden")) return;
   els.settingsOverlay.classList.add("hidden");
   els.settingsOverlay.classList.remove("login-gate");
   state.loginGate = false;
+  settingsReturnFocus?.focus?.();
 }
 
 function routeAuthentication() {
@@ -6339,6 +6416,7 @@ function showLoginGate() {
 
 function renderSettingsSurface() {
   els.settingsOverlay.classList.toggle("login-gate", state.loginGate);
+  selectSettingsSection(state.loginGate ? "account" : settingsSection, { load: false });
   if (state.loginGate) {
     els.settingsPanel.removeAttribute("role");
     els.settingsPanel.removeAttribute("aria-modal");
@@ -6347,11 +6425,15 @@ function renderSettingsSurface() {
     els.settingsPanel.setAttribute("aria-modal", "true");
   }
   els.settingsEyebrow.textContent = state.loginGate ? "WORKSHOP ACCOUNT" : "DESKTOP SETTINGS";
-  els.settingsTitle.textContent = state.loginGate ? "登录 Workshop" : "账户与 Runtime";
-  els.settingsLead.textContent = state.loginGate ? "登录后同步你的项目与待办，并启动自动化队列。" : "管理 Workshop 账户、任务源与本地 Runtime。";
+  els.settingsTitle.textContent = state.loginGate ? "登录 Workshop" : "设置";
+  els.settingsLead.textContent = state.loginGate ? "登录后同步你的项目与待办，并启动自动化队列。" : "按分类管理此设备与账户。每项配置独立保存。";
 }
 
 function renderSettingsForm() {
+  settingsGeneration += 1;
+  for (const id of ['settings-source', 'settings-network']) document.getElementById(id).querySelectorAll('input, select, button').forEach(control => { control.disabled = false; });
+  els.taskSourceSettingsFeedback.textContent = '';
+  els.proxySettingsFeedback.textContent = '';
   const settings = state.settings;
   els.taskSourceEnabled.checked = settings.task_source.enabled;
   els.taskSourceBaseUrl.value = settings.task_source.base_url;
@@ -6493,39 +6575,51 @@ function startVerificationCooldown() {
   }, 1000);
 }
 
-async function saveSettings() {
-  const codex = codexSettingsForm.read();
-  const unlockSave = codexSettingsForm.lockSave();
+function selectSettingsSection(section, { load = true } = {}) {
+  if (!state.loginGate) settingsSection = section;
+  document.querySelectorAll("[data-settings-tab]").forEach(button => {
+    button.classList.toggle("is-active", button.dataset.settingsTab === section);
+    button.setAttribute("aria-current", button.dataset.settingsTab === section ? "page" : "false");
+  });
+  document.querySelectorAll("[data-settings-page]").forEach(page => { page.hidden = page.dataset.settingsPage !== section; });
+  if (load && !state.loginGate) {
+    if (section === "runtime") void codexSettingsForm.refresh();
+    if (section === "diagnostics") void stallDiagnostics.refresh();
+  }
+}
+
+async function saveSettingsSection(section) {
+  const generation = settingsGeneration;
+  const source = section === "task_source";
+  const button = source ? els.saveTaskSourceButton : els.saveProxySettingsButton;
+  if (button.disabled) return;
+  const feedback = source ? els.taskSourceSettingsFeedback : els.proxySettingsFeedback;
+  const page = document.getElementById(source ? "settings-source" : "settings-network");
+  const controls = [...page.querySelectorAll("input, select, button")];
+  const patch = source ? {
+    enabled: els.taskSourceEnabled.checked, base_url: els.taskSourceBaseUrl.value,
+    service_name: els.taskSourceServiceName.value, auth_mode: els.taskSourceAuthMode.value,
+    access_token: els.taskSourceToken.value, user_id: els.taskSourceUserId.value,
+    username: els.taskSourceUsername.value, app_id: els.taskSourceAppId.value, session_id: els.taskSourceSessionId.value
+  } : { enabled: els.codexProxyEnabled.checked, url: els.codexProxyUrl.value };
+  const disabled = controls.map(control => control.disabled);
+  controls.forEach(control => { control.disabled = true; });
+  feedback.textContent = "正在保存…";
   try {
-    state.settings = normalizeSettings(await api.updateSettings({
-      codex,
-      task_source: {
-        enabled: els.taskSourceEnabled.checked,
-        base_url: els.taskSourceBaseUrl.value,
-        service_name: els.taskSourceServiceName.value,
-        auth_mode: els.taskSourceAuthMode.value,
-        access_token: els.taskSourceToken.value,
-        user_id: els.taskSourceUserId.value,
-        username: els.taskSourceUsername.value,
-        app_id: els.taskSourceAppId.value,
-        session_id: els.taskSourceSessionId.value
-      },
-      codex_proxy: {
-        enabled: els.codexProxyEnabled.checked,
-        url: els.codexProxyUrl.value
-      }
-    }));
-    state.authentication = normalizeAuthentication(await api.getAuthStatus());
-    closeSettings();
-    await api.syncWork();
-    await refreshSnapshot();
-    showToast(!state.authentication.authenticated
-      ? "设置已保存，请登录 Workshop 后同步。"
-      : ["healthy", "degraded"].includes(state.snapshot.source_status)
-        ? "设置已保存并完成同步。"
-        : "设置已保存，但任务同步未完成。");
+    const saved = await api.updateSettings({ [section]: patch });
+    if (generation !== settingsGeneration) return;
+    state.settings = normalizeSettings({ ...state.settings, [section]: saved[section] });
+    feedback.textContent = source ? "任务源已保存。可前往“同步与反馈”主动同步。" : "代理已保存，后续启动的 Codex 使用此配置。";
+    if (source) {
+      els.taskSourceToken.value = "";
+      els.taskSourceToken.placeholder = state.settings.task_source.access_token_configured ? "已配置；保留为空不修改" : "输入访问令牌";
+      try { state.authentication = normalizeAuthentication(await api.getAuthStatus()); renderAuthPanel(); }
+      catch { feedback.textContent += " 账户状态读取失败，请重新打开设置查看。"; }
+    }
+  } catch {
+    if (generation === settingsGeneration) feedback.textContent = "保存失败，当前输入已保留，请重试。";
   } finally {
-    unlockSave();
+    if (generation === settingsGeneration) controls.forEach((control, index) => { control.disabled = disabled[index]; });
   }
 }
 

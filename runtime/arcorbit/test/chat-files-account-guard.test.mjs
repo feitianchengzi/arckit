@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 const main=readFileSync(new URL('../desktop/main.mjs',import.meta.url),'utf8');
-const source=main.slice(main.indexOf('  ipcMain.handle("arckit:auth-login"'),main.indexOf('  ipcMain.handle("arckit:automation-snapshot"'));
-function fixture(allowed){const handlers=new Map(),calls=[];const context={ipcMain:{handle:(key,fn)=>handlers.set(key,fn)},chatFilesLeave:{request:async()=>{calls.push('file-guard');return allowed;}},chatFiles:{close:()=>calls.push('files-close')},chatGit:{close:()=>calls.push('git-close')},
+const source=main.slice(main.indexOf('  handle("arckit:auth-login"'),main.indexOf('  handle("arckit:automation-snapshot"'));
+function fixture(allowed){const handlers=new Map(),calls=[];const context={handle:(key,fn)=>handlers.set(key,fn),chatFilesLeave:{request:async()=>{calls.push('file-guard');return allowed;}},chatFiles:{close:()=>calls.push('files-close')},chatGit:{close:()=>calls.push('git-close')},
  workshopService:{loginWithCode:async()=>{calls.push('login');return {};},logout:async()=>{calls.push('logout');return {};},getAuthStatus:async()=>({})},
  workSyncCoordinator:{reconcile:async()=>{},clearSession:async()=>{}},productFeedbackService:{refreshUnread:async()=>{},resetSession:()=>{}},
  automationCoordinator:{getSnapshot:async()=>({active_executions:[{id:'run'}]}),stopAll:async()=>calls.push('stop'),clearRemoteSession:async()=>{}},releaseCoordinator:{closeScope:async()=>calls.push('release-close')},projectWorkbench:{close:async()=>calls.push('workbench-close')}};
@@ -17,9 +17,9 @@ test('actual quit handler asks before stopping runtime and only cleans up after 
  const registration=source.slice(0,source.indexOf('\n});')+4);
  for(const allowed of [false,true]){
   let handler;const calls=[];
-  const context={quitAfterCleanup:false,runManager:{abortActiveRuns:async()=>calls.push('abort')},chatFilesLeave:{request:async()=>{calls.push('guard');return allowed;}},chatFiles:{close:()=>calls.push('files-close')},chatGit:{close:()=>calls.push('git-close')},app:{on:(_name,fn)=>handler=fn,quit:()=>calls.push('quit')},powerMonitor:{removeListener:()=>{}},handleSystemResume:()=>{},console};
+  const context={quitAfterCleanup:false,stallMonitor:{close:async()=>calls.push('stall-close')},runManager:{abortActiveRuns:async()=>calls.push('abort')},chatFilesLeave:{request:async()=>{calls.push('guard');return allowed;}},chatFiles:{close:()=>calls.push('files-close')},chatGit:{close:()=>calls.push('git-close')},app:{on:(_name,fn)=>handler=fn,quit:()=>calls.push('quit')},powerMonitor:{removeListener:()=>{}},handleSystemResume:()=>{},console};
   for(const name of ['syncTimer','realtimeSubscriptionTimer','productFeedbackUnreadTimer','workshopRealtimeAdapter','automationCoordinator','chatCoordinator','chatNative','projectWorkbench','workbenchAgentBridge','releaseCoordinator','productCoordinator','productFeedbackService','imageViewer','skillProvisioningManager','codexSetupManager'])context[name]=null;
   vm.createContext(context);vm.runInContext(registration,context);await handler({preventDefault:()=>calls.push('prevent')});
-  assert.deepEqual(calls,allowed?['prevent','guard','files-close','git-close','abort','quit']:['prevent','guard']);assert.equal(context.quitAfterCleanup,allowed);
+  assert.deepEqual(calls,allowed?['prevent','guard','stall-close','files-close','git-close','abort','quit']:['prevent','guard']);assert.equal(context.quitAfterCleanup,allowed);
  }
 });

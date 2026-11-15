@@ -1,3 +1,5 @@
+import { tracedIpcHandler } from '../src/desktop/stall-operations.mjs';
+import { createStallMonitor } from '../src/desktop/stall-monitor.mjs';
 import { createTaskConversation } from '../src/task-conversation.mjs';
 import { createChatNative } from '../src/chat-native.mjs';
 import { createChatFiles } from '../src/chat-files.mjs';
@@ -85,6 +87,7 @@ let productCoordinator;
 let releaseCoordinator;
 let platformCoordinator;
 let workshopService;
+let stallMonitor;
 let skillProvisioningManager;
 let sceneSkillManager;
 let codexSetupManager;
@@ -100,6 +103,12 @@ let automationStarted = false;
 let stopObservingMainWindowState = () => {};
 
 app.whenReady().then(async () => {
+  stallMonitor = createStallMonitor({
+    directory: join(app.getPath("userData"), "diagnostics", "stalls"),
+    version: app.getVersion(), getMetrics: () => app.getAppMetrics()
+  });
+  powerMonitor.on('suspend', () => stallMonitor?.suspend());
+  powerMonitor.on('resume', () => stallMonitor?.resume());
   appearance = await createAppearance({ path: join(app.getPath("userData"), "appearance.json"), nativeTheme });
   appearance.subscribe(snapshot => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -122,6 +131,8 @@ app.whenReady().then(async () => {
     resolveSceneSkills: (scene, projectRoot) => sceneSkillManager.resolveScene(scene, projectRoot),
     getCodexExecutable: () => codexExecutableResolver.getResolved()
   });
+  // Warm legacy ownership metadata off the main thread before a history click.
+  void runManager.warmConversationIndex().catch(() => {});
   workshopService = createWorkshopTaskSource({
     readSettings: () => runManager.getTaskSourceSettings(),
     saveSettings: (settings) => runManager.replaceTaskSourceSettings(settings)
@@ -447,6 +458,7 @@ app.on("before-quit", async (event) => {
       clearInterval(productFeedbackUnreadTimer);
       productFeedbackUnreadTimer = null;
     }
+    await stallMonitor?.close();
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
     chatFiles?.close();
@@ -495,8 +507,11 @@ async function createWindow({ show = true } = {}) {
     }
   });
 
+  mainWindow.on('hide', () => stallMonitor?.rendererReset());
+  mainWindow.on('minimize', () => stallMonitor?.rendererReset());
+  mainWindow.webContents.on('did-start-loading', () => stallMonitor?.rendererReset());
+  mainWindow.on('closed', () => stallMonitor?.rendererReset());
   chatFilesLeave.install(mainWindow, {isQuitting: () => quitAfterCleanup, resumeQuit: () => app.quit()});
-  mainWindow.on('focus', () => { void chatGit?.refreshAll(); });
   mainWindow.webContents.on('did-start-loading', () => { chatFiles?.close(); chatGit?.close(); });
   mainWindow.on('closed', () => { chatFiles?.close(); chatGit?.close(); });
   const rendererEntry = join(desktopDir, "renderer/index.html");
@@ -559,42 +574,52 @@ function combinedSetupReadiness(
 }
 
 function registerIpc() {
-  ipcMain.handle('arckit:workspace-surface', (event,surface) => {
+  const handle = (name, handler) => ipcMain.handle(name, name.startsWith('arckit:stall-') ? handler : tracedIpcHandler(name, handler));
+  ipcMain.on('arckit:stall-heartbeat', (event, active) => {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) return;
+    stallMonitor?.rendererBeat(active === true && mainWindow.isVisible() && !mainWindow.isMinimized());
+  });
+  handle('arckit:stall-overview', (event, range) => { assertMainRenderer(event); return stallMonitor.overview(range); });
+  handle('arckit:stall-analysis', (event, range) => { assertMainRenderer(event); return stallMonitor.analysis(range); });
+  handle('arckit:stall-prompt', event => { assertMainRenderer(event); return stallMonitor.promptSettings(); });
+  handle('arckit:stall-prompt-save', (event, template) => { assertMainRenderer(event); return stallMonitor.savePrompt(template); });
+  handle('arckit:stall-clear', (event, tokens) => { assertMainRenderer(event); return stallMonitor.clear(tokens); });
+  handle('arckit:workspace-surface', (event,surface) => {
     assertMainRenderer(event);if(!['workbench','chat','legacy'].includes(surface))throw new Error('Unknown workspace surface.');
     const minimum=surface!=='legacy'?[390,640]:[1100,720];mainWindow.setMinimumSize(...minimum);
     const [width,height]=mainWindow.getSize();if(width<minimum[0]||height<minimum[1])mainWindow.setSize(Math.max(width,minimum[0]),Math.max(height,minimum[1]));
   });
-  ipcMain.handle('arckit:project-workbench-snapshot', event => { assertMainRenderer(event); return projectWorkbench.snapshot(); });
-  ipcMain.handle('arckit:project-workbench-detail', (event,id) => { assertMainRenderer(event); return projectWorkbench.detail(String(id)); });
-  ipcMain.handle('arckit:project-workbench-command', (event,action,input) => { assertMainRenderer(event); return projectWorkbench.command(action,input); });
-  ipcMain.handle('arckit:engineering-snapshot', event => { assertMainRenderer(event); return sceneSkillManager.snapshot(); });
-  ipcMain.handle('arckit:engineering-update', (event, input) => { assertMainRenderer(event); return sceneSkillManager.update(input); });
-  ipcMain.handle("arckit:release-snapshot", async event => { assertMainRenderer(event); return releaseCoordinator.snapshot(); });
-  ipcMain.handle("arckit:release-detail", async (event, id) => { assertMainRenderer(event); return releaseCoordinator.detail(String(id)); });
-  ipcMain.handle("arckit:release-command", async (event, action, input = {}) => { assertMainRenderer(event); return releaseCoordinator.command(action, input); });
-  ipcMain.handle("arckit:release-chat", async (event, input) => { assertMainRenderer(event); return releaseCoordinator.chatAction(input); });
-  ipcMain.handle("arckit:window-state", async (event) => {
+  handle('arckit:project-workbench-snapshot', event => { assertMainRenderer(event); return projectWorkbench.snapshot(); });
+  handle('arckit:project-workbench-detail', (event,id) => { assertMainRenderer(event); return projectWorkbench.detail(String(id)); });
+  handle('arckit:project-workbench-command', (event,action,input) => { assertMainRenderer(event); return projectWorkbench.command(action,input); });
+  handle('arckit:engineering-snapshot', event => { assertMainRenderer(event); return sceneSkillManager.snapshot(); });
+  handle('arckit:engineering-update', (event, input) => { assertMainRenderer(event); return sceneSkillManager.update(input); });
+  handle("arckit:release-snapshot", async event => { assertMainRenderer(event); return releaseCoordinator.snapshot(); });
+  handle("arckit:release-detail", async (event, id) => { assertMainRenderer(event); return releaseCoordinator.detail(String(id)); });
+  handle("arckit:release-command", async (event, action, input = {}) => { assertMainRenderer(event); return releaseCoordinator.command(action, input); });
+  handle("arckit:release-chat", async (event, input) => { assertMainRenderer(event); return releaseCoordinator.chatAction(input); });
+  handle("arckit:window-state", async (event) => {
     assertMainRenderer(event);
     return mainWindowState(mainWindow);
   });
-  ipcMain.handle("arckit:window-minimize", async (event) => {
+  handle("arckit:window-minimize", async (event) => {
     assertMainRenderer(event);
     return performMainWindowAction(mainWindow, "minimize");
   });
-  ipcMain.handle("arckit:window-toggle-maximize", async (event) => {
+  handle("arckit:window-toggle-maximize", async (event) => {
     assertMainRenderer(event);
     return performMainWindowAction(mainWindow, "toggle-maximize");
   });
-  ipcMain.handle("arckit:window-close", async (event) => {
+  handle("arckit:window-close", async (event) => {
     assertMainRenderer(event);
     return performMainWindowAction(mainWindow, "close");
   });
-  ipcMain.handle("arckit:setup-status", async () => combinedSetupReadiness());
-  ipcMain.handle("arckit:setup-check", async (_event, input) => checkCombinedSetupReadiness(input));
-  ipcMain.handle("arckit:setup-apply", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.apply(input)));
-  ipcMain.handle("arckit:setup-recover-upgrade", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.recoverSourceUpgrade(input)));
-  ipcMain.handle("arckit:setup-removal-plan", async (_event, managedPaths) => skillProvisioningManager.planManagedRemoval(managedPaths));
-  ipcMain.handle("arckit:setup-remove", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.removeManaged(input)));
+  handle("arckit:setup-status", async () => combinedSetupReadiness());
+  handle("arckit:setup-check", async (_event, input) => checkCombinedSetupReadiness(input));
+  handle("arckit:setup-apply", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.apply(input)));
+  handle("arckit:setup-recover-upgrade", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.recoverSourceUpgrade(input)));
+  handle("arckit:setup-removal-plan", async (_event, managedPaths) => skillProvisioningManager.planManagedRemoval(managedPaths));
+  handle("arckit:setup-remove", async (_event, input) => combinedSetupReadiness(await skillProvisioningManager.removeManaged(input)));
   registerCodexSetupIpc({
     ipcMain,
     codexSetupManager,
@@ -604,13 +629,13 @@ function registerIpc() {
     authorizeSender: assertMainRenderer,
     confirmAction: confirmCodexSetupAction
   });
-  ipcMain.handle("arckit:setup-continue", async () => {
+  handle("arckit:setup-continue", async () => {
     const readiness = combinedSetupReadiness();
     if (readiness.status !== "ready") throw new Error("Arckit Setup Readiness is not ready.");
     startAutomation();
     return readiness;
   });
-  ipcMain.handle("arckit:pick-project", async () => {
+  handle("arckit:pick-project", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ["openDirectory"],
       title: "Select a local project"
@@ -621,93 +646,93 @@ function registerIpc() {
     return runManager.addProject(result.filePaths[0]);
   });
 
-  ipcMain.handle("arckit:list-runs", async (_event, filter) => runManager.listRuns(filter));
-  ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => sessionId ? chatCoordinator.readConversation(projectId, sessionId) : runManager.listMessages(projectId, sessionId));
-  ipcMain.handle("arckit:product-snapshot", async (event, input = {}) => {
+  handle("arckit:list-runs", async (_event, filter) => runManager.listRuns(filter));
+  handle("arckit:list-messages", async (_event, projectId, sessionId) => sessionId ? chatCoordinator.readConversation(projectId, sessionId) : runManager.listMessages(projectId, sessionId));
+  handle("arckit:product-snapshot", async (event, input = {}) => {
     assertMainRenderer(event);
     return input.refresh ? productCoordinator.refresh() : productCoordinator.snapshot();
   });
-  ipcMain.handle("arckit:product-detail", async (event, id) => {
+  handle("arckit:product-detail", async (event, id) => {
     assertMainRenderer(event); return productCoordinator.detail(String(id));
   });
-  ipcMain.handle("arckit:product-command", async (event, action, input = {}) => {
+  handle("arckit:product-command", async (event, action, input = {}) => {
     assertMainRenderer(event);
     // Renderer never supplies filesystem grants; native dialogs own those.
     if (input.material_path || input.workspace || input.scope) throw new Error("不允许指定产品工作环境。");
     return productCoordinator.command(action, input);
   });
-  ipcMain.handle("arckit:product-pick-material", async (event, input = {}) => {
+  handle("arckit:product-pick-material", async (event, input = {}) => {
     assertMainRenderer(event);
     const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"], title: input.copy ? "选择复制材料的父目录" : "选择 Idea 材料目录" });
     if (result.canceled || !result.filePaths[0]) return null;
     if (input.copy) return productCoordinator.copyMaterial(String(input.id), result.filePaths[0]);
     return input.id ? productCoordinator.chooseMaterial(String(input.id), result.filePaths[0]) : productCoordinator.command("create", {material_path:result.filePaths[0]});
   });
-  ipcMain.handle("arckit:product-pick-workspace", async (event, input = {}) => {
+  handle("arckit:product-pick-workspace", async (event, input = {}) => {
     assertMainRenderer(event);
     const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"], title: "选择正式 Git 工作目录（空文件夹或对应仓库）" });
     if (result.canceled || !result.filePaths[0]) return null;
     return productCoordinator.chooseWorkspace(String(input.id), result.filePaths[0]);
   });
-  ipcMain.handle("arckit:product-open-asset", async (event, input) => {
+  handle("arckit:product-open-asset", async (event, input) => {
     assertMainRenderer(event);
     const path = await productCoordinator.assetLocation(String(input.id), String(input.path));
     const error = await shell.openPath(path); if (error) throw new Error(error);
     return { opened: true };
   });
-  ipcMain.handle("arckit:product-chat", async (event, input) => {
+  handle("arckit:product-chat", async (event, input) => {
     assertMainRenderer(event); return productCoordinator.chatAction(input);
   });
-  ipcMain.handle("arckit:chat-native-catalog", async (event,input) => {assertMainRenderer(event);return chatNative.catalog(input || {});});
+  handle("arckit:chat-native-catalog", async (event,input) => {assertMainRenderer(event);return chatNative.catalog(input || {});});
   registerChatFilesIpc({ipcMain,assertMainRenderer,files:chatFiles});
-  ipcMain.handle('arckit:chat-git', (event, action, input) => {
+  handle('arckit:chat-git', (event, action, input) => {
     assertMainRenderer(event); return chatGit.command(action, input || {});
   });
-  ipcMain.handle("arckit:chat-native-open", async (event,input) => {assertMainRenderer(event);return chatNative.openTask(input || {});});
-  ipcMain.handle("arckit:chat-snapshot", async (event, input) => {
+  handle("arckit:chat-native-open", async (event,input) => {assertMainRenderer(event);return chatNative.openTask(input || {});});
+  handle("arckit:chat-snapshot", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.getSnapshot(input);
   });
-  ipcMain.handle("arckit:chat-create", async (event, input) => {
+  handle("arckit:chat-create", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.createDraft(input);
   });
-  ipcMain.handle("arckit:chat-select", async (event, input) => {
+  handle("arckit:chat-select", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.select(input);
   });
-  ipcMain.handle("arckit:chat-rename", async (event, input) => {
+  handle("arckit:chat-rename", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.rename(input);
   });
-  ipcMain.handle("arckit:chat-delete", async (event, input) => {
+  handle("arckit:chat-delete", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.delete(input);
   });
-  ipcMain.handle("arckit:chat-send", async (event, input) => {
+  handle("arckit:chat-send", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.send(input);
   });
-  ipcMain.handle("arckit:chat-interrupt", async (event, input) => {
+  handle("arckit:chat-interrupt", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.interrupt(input);
   });
-  ipcMain.handle("arckit:chat-approval-decision", async (event, input) => {
+  handle("arckit:chat-approval-decision", async (event, input) => {
     assertMainRenderer(event);
     return chatCoordinator.decideApproval(input);
   });
-  ipcMain.handle("arckit:get-settings", async () => runManager.getSettings());
-  ipcMain.handle("arckit:list-codex-models", async () => runManager.listCodexModels());
-  ipcMain.handle("arckit:update-settings", async (_event, input) => runManager.updateSettings(input));
-  ipcMain.handle("arckit:product-feedback-status", async () => productFeedbackService.getStatus());
-  ipcMain.handle("arckit:product-feedback-open", async (_event, mode) => productFeedbackService.open(mode));
-  ipcMain.handle("arckit:product-feedback-refresh-unread", async () => productFeedbackService.refreshUnread());
-  ipcMain.handle("arckit:product-feedback-mode", async (_event, mode) => productFeedbackService.switchMode(mode));
-  ipcMain.handle("arckit:product-feedback-retry", async () => productFeedbackService.retry());
-  ipcMain.handle("arckit:product-feedback-close", async () => productFeedbackService.close());
-  ipcMain.handle("arckit:auth-status", async () => workshopService.getAuthStatus());
-  ipcMain.handle("arckit:auth-send-verification", async (_event, input) => workshopService.sendVerification(input));
-  ipcMain.handle("arckit:auth-login", async (_event, input) => {
+  handle("arckit:get-settings", async () => runManager.getSettings());
+  handle("arckit:list-codex-models", async () => runManager.listCodexModels());
+  handle("arckit:update-settings", async (_event, input) => runManager.updateSettings(input));
+  handle("arckit:product-feedback-status", async () => productFeedbackService.getStatus());
+  handle("arckit:product-feedback-open", async (_event, mode) => productFeedbackService.open(mode));
+  handle("arckit:product-feedback-refresh-unread", async () => productFeedbackService.refreshUnread());
+  handle("arckit:product-feedback-mode", async (_event, mode) => productFeedbackService.switchMode(mode));
+  handle("arckit:product-feedback-retry", async () => productFeedbackService.retry());
+  handle("arckit:product-feedback-close", async () => productFeedbackService.close());
+  handle("arckit:auth-status", async () => workshopService.getAuthStatus());
+  handle("arckit:auth-send-verification", async (_event, input) => workshopService.sendVerification(input));
+  handle("arckit:auth-login", async (_event, input) => {
     if (!await chatFilesLeave.request()) throw new Error("已取消账号切换，文件草稿保留。");
     const authentication = await workshopService.loginWithCode(input);
     chatFiles?.close();
@@ -716,7 +741,7 @@ function registerIpc() {
     productFeedbackService.refreshUnread().catch(() => {});
     return authentication;
   });
-  ipcMain.handle("arckit:auth-logout", async (_event, input = {}) => {
+  handle("arckit:auth-logout", async (_event, input = {}) => {
     const snapshot = await automationCoordinator.getSnapshot();
     if (snapshot.active_executions?.length && !input.confirm_active_task) {
       return {
@@ -740,82 +765,82 @@ function registerIpc() {
     await automationCoordinator.clearRemoteSession();
     return { requires_confirmation: false, authentication };
   });
-  ipcMain.handle("arckit:automation-snapshot", async (_event, filter) => automationCoordinator.getSnapshot(filter));
-  ipcMain.handle("arckit:run-activity-snapshot", async (_event, runId) => runManager.getRunActivitySnapshot(runId));
-  ipcMain.handle("arckit:automation-select-execution", async (_event, executionId) => automationCoordinator.selectExecution(executionId));
-  ipcMain.handle("arckit:automation-sync", async () => {
+  handle("arckit:automation-snapshot", async (_event, filter) => automationCoordinator.getSnapshot(filter));
+  handle("arckit:run-activity-snapshot", async (_event, runId) => runManager.getRunActivitySnapshot(runId));
+  handle("arckit:automation-select-execution", async (_event, executionId) => automationCoordinator.selectExecution(executionId));
+  handle("arckit:automation-sync", async () => {
     await workSyncCoordinator.reconcile({ dispatch: false, reason: "explicit-sync" });
     await reconcileRealtimeSubscriptions();
     await automationCoordinator.maybeStartNext();
     return automationCoordinator.getSnapshot();
   });
-  ipcMain.handle("arckit:work-sync", async () => workSyncCoordinator.reconcile({ reason: "explicit-work-sync" }));
-  ipcMain.handle("arckit:automation-enabled", async (_event, enabled) => automationCoordinator.setEnabled(enabled));
-  ipcMain.handle("arckit:automation-pause", async (_event, paused) => automationCoordinator.setQueuePaused(paused));
-  ipcMain.handle("arckit:automation-bind-project", async (_event, remoteProjectId, localProjectId) => (
+  handle("arckit:work-sync", async () => workSyncCoordinator.reconcile({ reason: "explicit-work-sync" }));
+  handle("arckit:automation-enabled", async (_event, enabled) => automationCoordinator.setEnabled(enabled));
+  handle("arckit:automation-pause", async (_event, paused) => automationCoordinator.setQueuePaused(paused));
+  handle("arckit:automation-bind-project", async (_event, remoteProjectId, localProjectId) => (
     automationCoordinator.bindProject(remoteProjectId, localProjectId)
   ));
-  ipcMain.handle("arckit:automation-project-participation", async (_event, remoteProjectId, participating) => (
+  handle("arckit:automation-project-participation", async (_event, remoteProjectId, participating) => (
     automationCoordinator.setProjectParticipation(remoteProjectId, participating)
   ));
-  ipcMain.handle("arckit:automation-task-state", async (_event, input) => automationCoordinator.updateTaskState(input));
-  ipcMain.handle("arckit:automation-intervene", async (_event, input) => automationCoordinator.submitIntervention(input));
-  ipcMain.handle("arckit:automation-acceptance-feedback", async (_event, input) => automationCoordinator.submitAcceptanceFeedback(input));
-  ipcMain.handle("arckit:automation-stop", async (_event, input) => automationCoordinator.stopCurrent(input));
-  ipcMain.handle("arckit:automation-handoff-cli", async (_event, input) => automationCoordinator.handoffToCodexCli(input));
-  ipcMain.handle("arckit:automation-reopen-cli", async (_event, input) => automationCoordinator.reopenCodexCli(input));
-  ipcMain.handle("arckit:automation-resume-runtime", async (_event, input) => automationCoordinator.resumeRuntimeFromCodexCli(input));
-  ipcMain.handle("arckit:automation-confirm-external-dependency", async (_event, input) => automationCoordinator.confirmExternalDependency(input));
-  ipcMain.handle("arckit:automation-execution-manage", async (_event, input) => automationCoordinator.manageExecution(input));
-  ipcMain.handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
-  ipcMain.handle("arckit:platform-snapshot", async (_event, input) => platformCoordinator.getSnapshot(input));
-  ipcMain.handle("arckit:platform-work-query", async (_event, input) => platformCoordinator.queryWork(input));
-  ipcMain.handle("arckit:platform-workset-create", async (_event, input) => platformCoordinator.createWorkset(input));
-  ipcMain.handle("arckit:platform-workset-update", async (_event, input) => platformCoordinator.updateWorkset(input));
-  ipcMain.handle("arckit:platform-workset-delete", async (_event, worksetId) => platformCoordinator.deleteWorkset(worksetId));
-  ipcMain.handle("arckit:platform-workset-active", async (_event, worksetId) => platformCoordinator.setActiveWorkset(worksetId));
-  ipcMain.handle("arckit:platform-today-projects", async (_event, projectIds) => platformCoordinator.setTodayProjects(projectIds));
-  ipcMain.handle("arckit:platform-today-preference", async (_event, input) => platformCoordinator.setTodayPreference(input));
-  ipcMain.handle("arckit:platform-workspace-preference", async (_event, projectId, input) => (
+  handle("arckit:automation-task-state", async (_event, input) => automationCoordinator.updateTaskState(input));
+  handle("arckit:automation-intervene", async (_event, input) => automationCoordinator.submitIntervention(input));
+  handle("arckit:automation-acceptance-feedback", async (_event, input) => automationCoordinator.submitAcceptanceFeedback(input));
+  handle("arckit:automation-stop", async (_event, input) => automationCoordinator.stopCurrent(input));
+  handle("arckit:automation-handoff-cli", async (_event, input) => automationCoordinator.handoffToCodexCli(input));
+  handle("arckit:automation-reopen-cli", async (_event, input) => automationCoordinator.reopenCodexCli(input));
+  handle("arckit:automation-resume-runtime", async (_event, input) => automationCoordinator.resumeRuntimeFromCodexCli(input));
+  handle("arckit:automation-confirm-external-dependency", async (_event, input) => automationCoordinator.confirmExternalDependency(input));
+  handle("arckit:automation-execution-manage", async (_event, input) => automationCoordinator.manageExecution(input));
+  handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
+  handle("arckit:platform-snapshot", async (_event, input) => platformCoordinator.getSnapshot(input));
+  handle("arckit:platform-work-query", async (_event, input) => platformCoordinator.queryWork(input));
+  handle("arckit:platform-workset-create", async (_event, input) => platformCoordinator.createWorkset(input));
+  handle("arckit:platform-workset-update", async (_event, input) => platformCoordinator.updateWorkset(input));
+  handle("arckit:platform-workset-delete", async (_event, worksetId) => platformCoordinator.deleteWorkset(worksetId));
+  handle("arckit:platform-workset-active", async (_event, worksetId) => platformCoordinator.setActiveWorkset(worksetId));
+  handle("arckit:platform-today-projects", async (_event, projectIds) => platformCoordinator.setTodayProjects(projectIds));
+  handle("arckit:platform-today-preference", async (_event, input) => platformCoordinator.setTodayPreference(input));
+  handle("arckit:platform-workspace-preference", async (_event, projectId, input) => (
     platformCoordinator.setWorkspacePreference(projectId, input)
   ));
-  ipcMain.handle("arckit:platform-work-inspector-width", async (_event, widthPx) => (
+  handle("arckit:platform-work-inspector-width", async (_event, widthPx) => (
     platformCoordinator.setWorkInspectorWidth(widthPx)
   ));
-  ipcMain.handle("arckit:platform-action", async (_event, command, input) => platformCoordinator.executeAction(command, input));
-  ipcMain.handle("arckit:feedback-v2-messages", async (event, input) => {
+  handle("arckit:platform-action", async (_event, command, input) => platformCoordinator.executeAction(command, input));
+  handle("arckit:feedback-v2-messages", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.getFeedbackV2Messages(input));
   });
-  ipcMain.handle("arckit:feedback-v2-reply", async (event, input) => {
+  handle("arckit:feedback-v2-reply", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.sendFeedbackV2Reply(input));
   });
-  ipcMain.handle("arckit:feedback-v2-read", async (event, input) => {
+  handle("arckit:feedback-v2-read", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.markFeedbackV2Read(input));
   });
-  ipcMain.handle("arckit:feedback-v2-ignore", async (event, input) => {
+  handle("arckit:feedback-v2-ignore", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.ignoreFeedbackV2(input));
   });
-  ipcMain.handle("arckit:feedback-v2-restore", async (event, input) => {
+  handle("arckit:feedback-v2-restore", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.restoreFeedbackV2(input));
   });
-  ipcMain.handle("arckit:feedback-v2-update", async (event, input) => {
+  handle("arckit:feedback-v2-update", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.updateFeedbackV2(input));
   });
-  ipcMain.handle("arckit:feedback-v2-delete", async (event, input) => {
+  handle("arckit:feedback-v2-delete", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.deleteFeedbackV2(input));
   });
-  ipcMain.handle("arckit:feedback-v2-convert", async (event, input) => {
+  handle("arckit:feedback-v2-convert", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.convertFeedbackV2ToTask(input));
   });
-  ipcMain.handle("arckit:feedback-v2-attachment-open", async (event, input) => {
+  handle("arckit:feedback-v2-attachment-open", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(async () => {
       const url = requireFeedbackAttachmentUrl(await platformCoordinator.getFeedbackV2AttachmentUrl(input));
@@ -824,63 +849,63 @@ function registerIpc() {
     });
   });
   // 智能客服 — 检索（OpenHands Agent 调用）
-  ipcMain.handle("arckit:feedback-retrieve", async (event, input) => {
+  handle("arckit:feedback-retrieve", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.retrieveFeedback(input));
   });
   // 智能客服 — AI 分诊初判（后端写入 feedback.data.triage）
-  ipcMain.handle("arckit:feedback-triage", async (event, input) => {
+  handle("arckit:feedback-triage", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.runFeedbackTriage(input));
   });
   // 智能客服 — 草稿确认/驳回/创建
-  ipcMain.handle("arckit:feedback-draft-confirm", async (event, input) => {
+  handle("arckit:feedback-draft-confirm", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.confirmFeedbackDraft(input));
   });
-  ipcMain.handle("arckit:feedback-draft-reject", async (event, input) => {
+  handle("arckit:feedback-draft-reject", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.rejectFeedbackDraft(input));
   });
-  ipcMain.handle("arckit:feedback-draft-create", async (event, input) => {
+  handle("arckit:feedback-draft-create", async (event, input) => {
     assertMainRenderer(event);
     return settleFeedbackV2Ipc(() => platformCoordinator.createFeedbackDraft(input));
   });
   // 客户代码仓库管理
-  ipcMain.handle("arckit:customer-code-repos-list", async (event, projectId) => {
+  handle("arckit:customer-code-repos-list", async (event, projectId) => {
     assertMainRenderer(event);
     return platformCoordinator.listCustomerCodeRepos(projectId);
   });
-  ipcMain.handle("arckit:customer-code-repo-create", async (event, input) => {
+  handle("arckit:customer-code-repo-create", async (event, input) => {
     assertMainRenderer(event);
     return platformCoordinator.createCustomerCodeRepo(input);
   });
-  ipcMain.handle("arckit:customer-code-repo-sync", async (event, input) => {
+  handle("arckit:customer-code-repo-sync", async (event, input) => {
     assertMainRenderer(event);
     return platformCoordinator.syncCustomerCodeRepo(input);
   });
-  ipcMain.handle("arckit:customer-code-repo-delete", async (event, input) => {
+  handle("arckit:customer-code-repo-delete", async (event, input) => {
     assertMainRenderer(event);
     return platformCoordinator.deleteCustomerCodeRepo(input);
   });
   // 知识库 — 检索测试（直查项目索引）
-  ipcMain.handle("arckit:knowledge-search-code", async (event, input) => {
+  handle("arckit:knowledge-search-code", async (event, input) => {
     assertMainRenderer(event);
     return platformCoordinator.searchProjectKnowledgeCode(input);
   });
-  ipcMain.handle("arckit:feedback-attachment-open", async (event, value) => {
+  handle("arckit:feedback-attachment-open", async (event, value) => {
     assertMainRenderer(event);
     const url = requireFeedbackAttachmentUrl(value);
     await shell.openExternal(url);
     return { opened: true };
   });
-  ipcMain.handle("arckit:work-external-link-open", async (event, value) => {
+  handle("arckit:work-external-link-open", async (event, value) => {
     assertMainRenderer(event);
     const url = requireWorkExternalLinkUrl(value);
     await shell.openExternal(url);
     return { opened: true };
   });
-  ipcMain.handle("arckit:work-task-attachment-pick", async (event, input) => {
+  handle("arckit:work-task-attachment-pick", async (event, input) => {
     assertMainRenderer(event);
     const kind = input?.kind === "image" ? "image" : input?.kind === "file" ? "file" : "";
     if (!kind) throw new TypeError("评论资源类型无效。");
@@ -904,33 +929,33 @@ function registerIpc() {
       file: { file_name: fileName, mime_type: mimeType, size: bytes.byteLength, bytes }
     });
   });
-  ipcMain.handle("arckit:work-task-attachment-preview", async (event, input) => {
+  handle("arckit:work-task-attachment-preview", async (event, input) => {
     assertMainRenderer(event);
     const image = await loadImageResource({ ...input, source: "work-task" });
     return { data_url: image.data_url };
   });
-  ipcMain.handle("arckit:image-preview", async (event, input) => {
+  handle("arckit:image-preview", async (event, input) => {
     assertMainRenderer(event);
     const image = await loadImageResource(input);
     return { data_url: image.data_url };
   });
-  ipcMain.handle("arckit:image-viewer-open", async (event, input) => {
+  handle("arckit:image-viewer-open", async (event, input) => {
     assertMainRenderer(event);
     return imageViewer.open(input);
   });
-  ipcMain.handle("arckit:image-viewer-save", async (event) => {
+  handle("arckit:image-viewer-save", async (event) => {
     if (!imageViewer.owns(event.sender)) throw new Error("Image save is only available from the managed ArcOrbit image viewer.");
     return imageViewer.save(event.sender);
   });
-  ipcMain.handle("arckit:image-viewer-close", (event) => {
+  handle("arckit:image-viewer-close", (event) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error("Image close is only available from the viewer main frame.");
     return imageViewer.requestClose(event.sender);
   });
-  ipcMain.handle("arckit:image-viewer-retry", async (event) => {
+  handle("arckit:image-viewer-retry", async (event) => {
     if (!imageViewer.owns(event.sender)) throw new Error("Image retry is only available from the managed ArcOrbit image viewer.");
     return imageViewer.retry(event.sender);
   });
-  ipcMain.handle("arckit:work-task-attachment-open", async (event, input) => {
+  handle("arckit:work-task-attachment-open", async (event, input) => {
     assertMainRenderer(event);
     const url = requireTrustedResourceUrl(await platformCoordinator.getTaskAttachmentResourceUrl({ ...input, download: true }));
     await shell.openExternal(url);

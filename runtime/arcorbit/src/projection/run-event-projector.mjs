@@ -194,6 +194,25 @@ function applyRunEvent(run, { parsed }) {
         message: `Persisted thread ${event.missing_thread_id || ""} was unavailable; Runtime created ${event.thread_id || ""}.`, evidence: event.reason || ""
       });
       break;
+    case "codex.thread.history.repaired":
+      activity.thread_id = event.thread_id || activity.thread_id;
+      addUsageWarning(activity, {
+        id: `thread-history-repaired-${event.removed_from_turn_id || Date.now()}`,
+        type: "thread_history_repaired",
+        lane: "agent",
+        message: `Removed unhealthy Codex history before turn ${event.removed_from_turn_id || "unknown"}.`,
+        evidence: `${event.reason || "unsafe_text"}: ${Number(event.observed_length || 0)} > ${Number(event.limit || 0)}`
+      });
+      break;
+    case "codex.output_guard.triggered":
+      addUsageWarning(activity, {
+        id: `agent-output-guard-${event.turn_id || Date.now()}`,
+        type: "agent_output_guard",
+        lane: "agent",
+        message: "ArcOrbit interrupted unhealthy Codex output before it could poison the next retry.",
+        evidence: `${event.reason || "unsafe_text"}: ${Number(event.observed_length || 0)} > ${Number(event.limit || 0)}`
+      });
+      break;
     case "codex.turn.start.completed":
     case "codex.turn.started":
       if (event.turn_id && event.turn_id !== activity.turn_id) {
@@ -632,7 +651,7 @@ function projectCompletedItem(activity, event) {
   if (item.type === "agentMessage") {
     const id = agentOutputMessageId(activity, item.id, event.turn_id || activity.turn_id);
     const existing = activity.messages.find((message) => message.id === id);
-    const text = String(item.text || existing?.content || activity.agent_text || "");
+    const text = truncate(String(item.text || existing?.content || activity.agent_text || ""), 256_000);
     activity.agent_text = text;
     projectAgentOutput(activity, {
       text,

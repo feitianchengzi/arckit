@@ -1,4 +1,142 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat 原型场景工具</title>
-<style>body{margin:0;font:14px system-ui}header{padding:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}iframe{width:100%;height:calc(100dvh - 95px);border:0}select,button{font:inherit;padding:8px}</style></head>
-<body><header><strong>本地模拟 · 不连接 Codex 或业务服务</strong><select id="scenario"><option value="empty">无历史会话</option><option value="offline">离线</option><option value="failure">下次提交失败</option><option value="permission">权限请求</option><option value="failed">运行失败</option><option value="no-workspace">没有可用工作区</option><option value="long">长消息与代码</option><option value="catalog">模型清单不可用</option><option value="native-failure">下次原生写入失败</option><option value="native-conflict">当前待办版本变化</option><option value="native-occupied">当前待办执行占用</option><option value="native-unavailable">当前待办失权</option><option value="native-reset">恢复待办访问与写入</option><option value="files-save-failure">文件保存失败</option><option value="files-delete-failure">移入废纸篓失败</option><option value="files-read-failure">文件读取失败</option><option value="files-conflict">磁盘版本变化</option><option value="files-deleted">磁盘文件被删除</option><option value="files-slow">文件读取延迟</option><option value="files-recover">恢复文件权限和操作</option><option value="recover">恢复</option><option value="reset">重置</option><option value="auto-running">Auto 同一会话执行</option><option value="auto-unknown">补充送达未确认</option><option value="auto-recover">恢复补充接收</option></select><button id="apply">应用场景</button></header><iframe title="Chat 完整原型" src="default.html?scenarioTools=on"></iframe><script src="scenario-controls.js"></script></body></html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ArcOrbit · 交互场景</title>
+    <link rel="stylesheet" href="../../visual/_library/generated-tokens.css" />
+    <style>
+      body {
+        font: 15px/1.7 system-ui;
+        background: var(--semantic-canvas);
+        color: var(--semantic-text);
+        margin: 40px auto;
+        padding: 0 24px;
+        max-width: 960px;
+      }
+      h1 {
+        font-size: 26px;
+      }
+      a {
+        color: inherit;
+      }
+      main {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 16px;
+      }
+      article {
+        border: 1px solid var(--semantic-divider);
+        border-radius: 12px;
+        padding: 18px;
+      }
+      article a {
+        display: block;
+        font-weight: 600;
+      }
+      p {
+        color: var(--semantic-muted);
+      }
+      header {
+        margin-bottom: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ArcOrbit 交互场景</h1>
+      <p>
+        正式三栏设计 · 本地模拟。不会执行真实
+        Agent、Git、邀请或用户回复。场景入口会重置这套正式原型的演示数据；旧探索数据独立保留。
+      </p>
+      <a href="default.html">继续上次工作 →</a> ·
+      <a href="interaction.md">交互说明</a>
+    </header>
+    <main>
+      <article>
+        <a href="default.html?preview=1&scenario=baseline&reset=1"
+          >完整主路径</a
+        >
+        <p>
+          讨论 → 有效信息 → Auto → 决策 → 检查 → 验收。用“推进一轮”控制时间。
+        </p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=empty&reset=1"
+          >空项目与首次 Chat</a
+        >
+        <p>发送首条消息建立同一工作；也可直接创建无对话待办。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=offline&reset=1"
+          >离线与草稿恢复</a
+        >
+        <p>发送失败保留文本；重新连接后重试，不重复创建。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=failure&reset=1"
+          >Auto 执行失败</a
+        >
+        <p>推进一轮触发连接失败，检查后恢复，再明确启动。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=waiting&reset=1"
+          >外部条件等待</a
+        >
+        <p>等待管理员提供测试访问；条件恢复不自动启动。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=occupied&reset=1"
+          >其他成员正在执行</a
+        >
+        <p>查看运行和补充消息；直接修改及控制被阻止。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=conflict&reset=1"
+          >编辑版本冲突</a
+        >
+        <p>编辑工作并保存，查看最新版本，保留草稿后人工合并。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=readonly&reset=1">只读成员</a>
+        <p>浏览对话、待办、资料、反馈；写入有明确权限提示。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=member&reset=1"
+          >普通项目成员</a
+        >
+        <p>参与工作与反馈，团队邀请和角色管理需管理员。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=done&reset=1"
+          >验收、调整与归档</a
+        >
+        <p>成果检查、退回调整、重新打开；归档后从列表恢复。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=load-error&reset=1"
+          >刷新失败</a
+        >
+        <p>保留上次内容，重试读取，避免误显示最新状态。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=file-error&reset=1"
+          >文件读取失败</a
+        >
+        <p>右侧文件栏局部恢复，不丢失对话与工作。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=long&reset=1"
+          >长内容与窄窗口</a
+        >
+        <p>长标题省略，正文在各自区域滚动；主题可切换。</p>
+      </article>
+      <article>
+        <a href="default.html?preview=1&scenario=baseline&reset=1"
+          >项目与团队闭环</a
+        >
+        <p>Idea 创建项目、项目切换、独立待办、反馈转工作、回复和邀请。</p>
+      </article>
+    </main>
+  </body>
+</html>

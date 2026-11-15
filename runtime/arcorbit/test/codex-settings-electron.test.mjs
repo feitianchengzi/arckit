@@ -20,18 +20,17 @@ test("real settings page offers model-specific suggestions, saves in place and r
   assert.deepEqual(result.levels, ["low", "max"]);
   assert.equal(result.retainedLevel, "high");
   assert.equal(result.savedInPlace, true);
-  assert.match(result.saveFeedback, /新对话使用 Chat 默认值/);
+  assert.match(result.saveFeedback, /应用于新建对话/);
   assert.deepEqual(result.restored, ["test-model", "max", "automation-model", "low"]);
   assert.match(result.manualFallback, /手动输入/);
   assert.equal(result.failedDraft, "future-model");
   assert.deepEqual(result.saves.at(-1)[1], { codex: {
-    yolo_mode: true,
-    chat: { model: "future-model", reasoning_effort: "max" },
-    automation: { model: "automation-model", reasoning_effort: "low" }
+    chat: { model: "future-model", reasoning_effort: "max" }
   } });
   assert.deepEqual(result.composerDefaults, ["future-model", "max"]);
   assert.deepEqual(result.composerModels, ["future-model", "gpt-6-astra", "test-model"]);
   assert.deepEqual(result.composerDrafts.at(-1)[1], {
+    response: "ack",
     session_id: "",
     project_id: "local-11",
     text: "",

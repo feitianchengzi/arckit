@@ -62,10 +62,12 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
 
   async function getSnapshot(input = {}) {
     const sections = normalizeSections(input.sections);
+    const stateView = runManager.captureDesktopStateView
+      ? await runManager.captureDesktopStateView() : null;
     const [store, automation, workProjection, organizationsResult, participatingProjectsResult] = await Promise.all([
-      runManager.readDesktopStore(),
-      automationCoordinator.getSnapshot({}),
-      workSync.getSnapshot(),
+      stateView?.state || runManager.readDesktopStore(),
+      automationCoordinator.getSnapshot({}, stateView),
+      workSync.getSnapshot({}, stateView),
       capture("organizations", () => platformSource.listOrganizations()),
       capture("projects", () => platformSource.listProjects())
     ]);
@@ -279,9 +281,11 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     const taskState = TASK_STATES.includes(String(input.state)) ? String(input.state) : "pending";
     const offset = Math.max(0, Math.trunc(Number(input.offset) || 0));
     const limit = Math.min(200, Math.max(1, Math.trunc(Number(input.limit) || 80)));
+    const stateView = runManager.captureDesktopStateView
+      ? await runManager.captureDesktopStateView() : null;
     const [store, workProjection] = await Promise.all([
-      runManager.readDesktopStore(),
-      workSync.getSnapshot()
+      stateView?.state || runManager.readDesktopStore(),
+      workSync.getSnapshot({}, stateView)
     ]);
     const platform = store.platform;
     const worksetId = String(input.workset_id || platform.active_workset_id || "");

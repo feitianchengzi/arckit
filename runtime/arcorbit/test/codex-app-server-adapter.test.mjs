@@ -247,6 +247,88 @@ test("terminal app-server errors reject an Agent turn instead of creating a retr
   assert.equal(client.requests.filter(({ method }) => method === "turn/start").length, 1);
 });
 
+test("Responses oversized history errors retain repair metadata", async () => {
+  const client = new OversizedHistoryErrorClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  try {
+    await assert.rejects(
+      collect(adapter.runTurn({
+        projectRoot: "/workspace/project",
+        prompt: "resume poisoned history",
+        options: { resultKind: "agent-loop-result", threadKey: "agent-loop:TASK-1" }
+      })),
+      (error) => {
+        assert.equal(error.name, "CodexTurnError");
+        assert.equal(error.code, "codex_history_item_too_large");
+        assert.equal(error.history_repair_required, true);
+        assert.equal(error.input_index, 147);
+        assert.equal(error.content_index, 0);
+        assert.equal(error.max_length, 10_485_760);
+        assert.equal(error.actual_length, 12_445_612);
+        return true;
+      }
+    );
+  } finally {
+    adapter.close();
+  }
+});
+
+test("runaway structured output is interrupted before it reaches the Responses text limit", async () => {
+  const client = new RunawayOutputClient();
+  const adapter = createCodexAppServerAdapter({
+    clientFactory: () => client,
+    agentOutputMaxChars: 128,
+    agentOutputMaxTrailingWhitespaceChars: 32
+  });
+  try {
+    await assert.rejects(
+      collect(adapter.runTurn({
+        projectRoot: "/workspace/project",
+        prompt: "produce structured output",
+        options: { resultKind: "agent-loop-result", threadKey: "agent-loop:TASK-1" }
+      })),
+      (error) => {
+        assert.equal(error.code, "codex_agent_output_limit_exceeded");
+        assert.equal(error.reason, "trailing_whitespace_limit");
+        assert.equal(error.history_repair_required, true);
+        return true;
+      }
+    );
+    assert.equal(client.requests.filter(({ method }) => method === "turn/interrupt").length, 1);
+  } finally {
+    adapter.close();
+  }
+});
+
+test("persisted unhealthy output is reverted on the same thread before retry starts", async () => {
+  const client = new UnhealthyHistoryClient();
+  const adapter = createCodexAppServerAdapter({
+    clientFactory: () => client,
+    historyTextMaxChars: 1024,
+    agentOutputMaxTrailingWhitespaceChars: 32
+  });
+  try {
+    const events = await collect(adapter.runTurn({
+      projectRoot: "/workspace/project",
+      prompt: "retry after repair",
+      options: {
+        resultKind: "agent-loop-result",
+        threadKey: "agent-loop:TASK-1",
+        threadId: "THREAD-PERSISTED"
+      }
+    }));
+    const methods = client.requests.map(({ method }) => method);
+    assert.ok(methods.indexOf("thread/resume") < methods.indexOf("thread/read"));
+    assert.ok(methods.indexOf("thread/revert") < methods.indexOf("turn/start"));
+    assert.equal(client.requests.find(({ method }) => method === "thread/revert").params.beforeTurnId, "TURN-BAD");
+    assert.equal(client.requests.find(({ method }) => method === "turn/start").params.threadId, "THREAD-PERSISTED");
+    assert.equal(events.some(({ type }) => type === "codex.thread.history.repaired"), true);
+    assert.deepEqual(client.turns.map(({ id }) => id), ["TURN-GOOD"]);
+  } finally {
+    adapter.close();
+  }
+});
+
 test("retryable app-server errors retain retry metadata and allow a Chat turn to complete", async () => {
   const client = new RetryableErrorClient();
   const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
@@ -313,6 +395,7 @@ class FakeClient {
     if (method === "initialize") return { server: "fake" };
     if (method === "thread/start") return { thread: { id: `THREAD-${++this.threadCount}` } };
     if (method === "thread/resume") return { thread: { id: params.threadId } };
+    if (method === "thread/read") return { thread: { id: params.threadId, turns: [] } };
     if (method === "thread/compact/start") {
       const turn = { id: `COMPACT-${++this.turnCount}` };
       queueMicrotask(() => this.emit("turn/completed", { threadId: params.threadId, turn }));
@@ -464,6 +547,72 @@ class RetryableErrorClient extends FakeClient {
       this.emit("turn/completed", { threadId: params.threadId, turn: { ...turn, status: "completed" } });
     });
     return { turn };
+  }
+}
+
+class OversizedHistoryErrorClient extends FakeClient {
+  async request(method, params) {
+    if (method !== "turn/start") return super.request(method, params);
+    this.requests.push({ method, params });
+    const turn = { id: `TURN-${++this.turnCount}` };
+    queueMicrotask(() => {
+      this.emit("turn/started", { threadId: params.threadId, turn });
+      this.emit("error", {
+        willRetry: false,
+        error: {
+          message: "Invalid response.create payload: Invalid 'input[147].content[0].text': string too long. Expected a string with maximum length 10485760, but got a string with length 12445612 instead."
+        }
+      });
+      this.emit("turn/completed", { threadId: params.threadId, turn });
+    });
+    return { turn };
+  }
+}
+
+class RunawayOutputClient extends FakeClient {
+  async request(method, params) {
+    if (method === "turn/interrupt") {
+      this.requests.push({ method, params });
+      queueMicrotask(() => this.emit("turn/completed", {
+        threadId: params.threadId,
+        turn: { id: params.turnId, status: "interrupted" }
+      }));
+      return {};
+    }
+    if (method !== "turn/start") return super.request(method, params);
+    this.requests.push({ method, params });
+    const turn = { id: `TURN-${++this.turnCount}` };
+    queueMicrotask(() => {
+      this.emit("turn/started", { threadId: params.threadId, turn });
+      this.emit("item/agentMessage/delta", { itemId: "RUNAWAY", delta: '{"schema_version":"arckit-agent-loop-result/v2"' });
+      this.emit("item/agentMessage/delta", { itemId: "RUNAWAY", delta: " ".repeat(33) });
+    });
+    return { turn };
+  }
+}
+
+class UnhealthyHistoryClient extends FakeClient {
+  constructor() {
+    super();
+    this.turns = [
+      { id: "TURN-GOOD", status: "completed", items: [{ type: "agentMessage", text: "healthy" }] },
+      { id: "TURN-BAD", status: "failed", items: [{ type: "agentMessage", text: `{"partial":true}${" ".repeat(33)}` }] },
+      { id: "TURN-RETRY", status: "failed", items: [] }
+    ];
+  }
+
+  async request(method, params) {
+    if (method === "thread/read") {
+      this.requests.push({ method, params });
+      return { thread: { id: params.threadId, turns: structuredClone(this.turns) } };
+    }
+    if (method === "thread/revert") {
+      this.requests.push({ method, params });
+      const index = this.turns.findIndex(({ id }) => id === params.beforeTurnId);
+      this.turns = index < 0 ? this.turns : this.turns.slice(0, index);
+      return { thread: { id: params.threadId, turns: structuredClone(this.turns) } };
+    }
+    return super.request(method, params);
   }
 }
 

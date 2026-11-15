@@ -10,6 +10,12 @@ import { assertCodexOutputSchema } from "../src/codex-output-schema.mjs";
 import { configureCodexSceneSkills } from "../src/codex-scene-skills.mjs";
 import { endLifecycleSpan, startLifecycleSpan } from "../src/observability/lifecycle-trace.mjs";
 
+const RESPONSES_TEXT_LIMIT = 10 * 1024 * 1024;
+const DEFAULT_AGENT_TEXT_LIMIT = 8 * 1024 * 1024;
+const DEFAULT_STRUCTURED_AGENT_TEXT_LIMIT = 1024 * 1024;
+const DEFAULT_TRAILING_WHITESPACE_LIMIT = 64 * 1024;
+const DEFAULT_PROJECTION_TEXT_LIMIT = 256_000;
+
 export function createCodexAppServerAdapter(adapterOptions = {}) {
   let client = null;
   let stopRequested = false;
@@ -84,7 +90,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         turnStarted: false,
         resultKind: "runtime-result",
         turnSpan: null,
-        itemSpans: new Map()
+        itemSpans: new Map(),
+        outputGuardError: null,
+        outputGuardInterrupt: null,
+        outputMetrics: { total_chars: 0, trailing_whitespace_chars: 0 },
+        outputLimits: null
       };
       activeTurn = { queue, state, options: tracedOptions };
 
@@ -98,6 +108,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             if (activeTurn) {
               handleNotification({
                 message,
+                client,
                 queue: activeTurn.queue,
                 state: activeTurn.state,
                 options: activeTurn.options,
@@ -159,6 +170,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           tracedOptions.dynamicTools = effectiveOptions.dynamicTools;
         }
         state.resultKind = effectiveOptions.resultKind || "runtime-result";
+        state.outputLimits = resolveAgentOutputLimits(effectiveOptions, state.resultKind);
         queue.push({ type: "codex.initialize.completed", result: initializeResult });
 
         const threadKey = String(effectiveOptions.threadKey || "").trim();
@@ -269,6 +281,24 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             thread_key: threadKey || null,
             thread: threadStartResult?.thread || null
           });
+        }
+
+        if (threadWasReused && isStructuredAutomationResultKind(state.resultKind)) {
+          const repair = await repairUnhealthyThreadHistory({
+            client,
+            threadId: state.threadId,
+            limits: state.outputLimits
+          });
+          if (repair) {
+            queue.push({
+              type: "codex.thread.history.repaired",
+              thread_id: state.threadId,
+              removed_from_turn_id: repair.before_turn_id,
+              reason: repair.reason,
+              observed_length: repair.observed_length,
+              limit: repair.limit
+            });
+          }
         }
 
         if (typeof effectiveOptions.onThreadBound === "function") {
@@ -415,6 +445,200 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
     }
   };
   return adapter;
+}
+
+function isStructuredAutomationResultKind(resultKind) {
+  return ["agent-loop-result", "task-closeout-result"].includes(String(resultKind || ""));
+}
+
+function resolveAgentOutputLimits(options, resultKind) {
+  const structured = isStructuredAutomationResultKind(resultKind);
+  return {
+    agent_text_limit: positiveLimit(
+      options.agentOutputMaxChars,
+      structured ? DEFAULT_STRUCTURED_AGENT_TEXT_LIMIT : DEFAULT_AGENT_TEXT_LIMIT
+    ),
+    history_text_limit: positiveLimit(options.historyTextMaxChars, DEFAULT_AGENT_TEXT_LIMIT),
+    trailing_whitespace_limit: positiveLimit(options.agentOutputMaxTrailingWhitespaceChars, DEFAULT_TRAILING_WHITESPACE_LIMIT),
+    projection_text_limit: positiveLimit(options.projectionTextMaxChars, DEFAULT_PROJECTION_TEXT_LIMIT)
+  };
+}
+
+function positiveLimit(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), RESPONSES_TEXT_LIMIT - 1) : fallback;
+}
+
+function observeOutputNotification(message, state) {
+  if (state.outputGuardError) return null;
+  const limits = state.outputLimits || resolveAgentOutputLimits({}, state.resultKind);
+  if (message.method === "item/agentMessage/delta") {
+    const delta = String(message.params?.delta || "");
+    state.outputMetrics.total_chars += delta.length;
+    state.outputMetrics.trailing_whitespace_chars = trailingWhitespaceAfterDelta(
+      state.outputMetrics.trailing_whitespace_chars,
+      delta
+    );
+    if (state.outputMetrics.trailing_whitespace_chars > limits.trailing_whitespace_limit) {
+      return {
+        reason: "trailing_whitespace_limit",
+        observed_length: state.outputMetrics.trailing_whitespace_chars,
+        limit: limits.trailing_whitespace_limit
+      };
+    }
+    if (state.outputMetrics.total_chars > limits.agent_text_limit) {
+      return {
+        reason: "agent_text_limit",
+        observed_length: state.outputMetrics.total_chars,
+        limit: limits.agent_text_limit
+      };
+    }
+    return null;
+  }
+  if (message.method !== "item/completed") return null;
+  const item = message.params?.item || {};
+  if (item.type === "agentMessage") {
+    const text = String(item.text || "");
+    const trailing = trailingWhitespaceLength(text);
+    state.outputMetrics.total_chars = Math.max(state.outputMetrics.total_chars, text.length);
+    state.outputMetrics.trailing_whitespace_chars = Math.max(state.outputMetrics.trailing_whitespace_chars, trailing);
+    if (trailing > limits.trailing_whitespace_limit) {
+      return { reason: "trailing_whitespace_limit", observed_length: trailing, limit: limits.trailing_whitespace_limit };
+    }
+    if (text.length > limits.agent_text_limit) {
+      return { reason: "agent_text_limit", observed_length: text.length, limit: limits.agent_text_limit };
+    }
+  }
+  const unsafe = findUnhealthyText(item, limits, "item");
+  return unsafe ? {
+    reason: unsafe.reason,
+    observed_length: unsafe.observed_length,
+    limit: unsafe.limit,
+    path: unsafe.path
+  } : null;
+}
+
+function trailingWhitespaceAfterDelta(previousLength, delta) {
+  if (!delta) return previousLength;
+  const trailing = trailingWhitespaceLength(delta);
+  return trailing === delta.length ? previousLength + trailing : trailing;
+}
+
+function trailingWhitespaceLength(value) {
+  const text = String(value || "");
+  return text.length - text.trimEnd().length;
+}
+
+function createAgentOutputGuardError(observation, state) {
+  const error = new Error(
+    `Codex Agent output was interrupted by ArcOrbit (${observation.reason}: ${observation.observed_length} > ${observation.limit}).`
+  );
+  error.name = "CodexAgentOutputGuardError";
+  error.code = "codex_agent_output_limit_exceeded";
+  error.retryable = false;
+  error.history_repair_required = true;
+  error.thread_id = state.threadId || "";
+  error.turn_id = state.turnId || "";
+  error.reason = observation.reason;
+  error.observed_length = observation.observed_length;
+  error.limit = observation.limit;
+  if (observation.path) error.item_path = observation.path;
+  return error;
+}
+
+async function repairUnhealthyThreadHistory({ client, threadId, limits }) {
+  let before;
+  try {
+    before = await client.request("thread/read", { threadId, includeTurns: true });
+  } catch (cause) {
+    throw createThreadHistoryError("codex_thread_history_preflight_failed", `Unable to inspect persisted Codex thread ${threadId}: ${cause.message}`, cause);
+  }
+  const thread = before?.thread || before || {};
+  const unhealthy = findUnhealthyTurn(thread.turns, limits);
+  if (!unhealthy) return null;
+  try {
+    await client.request("thread/revert", { threadId, beforeTurnId: unhealthy.turn_id });
+    const verified = await client.request("thread/read", { threadId, includeTurns: true });
+    const remaining = findUnhealthyTurn((verified?.thread || verified || {}).turns, limits);
+    if (remaining) {
+      throw new Error(`unhealthy text remains in turn ${remaining.turn_id}`);
+    }
+  } catch (cause) {
+    throw createThreadHistoryError(
+      "codex_thread_history_repair_failed",
+      `Unable to repair persisted Codex thread ${threadId} before turn ${unhealthy.turn_id}: ${cause.message}`,
+      cause
+    );
+  }
+  return {
+    before_turn_id: unhealthy.turn_id,
+    reason: unhealthy.reason,
+    observed_length: unhealthy.observed_length,
+    limit: unhealthy.limit
+  };
+}
+
+function findUnhealthyTurn(turns, limits) {
+  for (const turn of Array.isArray(turns) ? turns : []) {
+    const unhealthy = findUnhealthyText(turn, limits, "turn");
+    if (unhealthy) return { ...unhealthy, turn_id: String(turn?.id || "") };
+  }
+  return null;
+}
+
+function findUnhealthyText(value, limits, path, seen = new Set()) {
+  if (typeof value === "string") {
+    if (value.length > limits.history_text_limit) {
+      return { reason: "history_text_limit", observed_length: value.length, limit: limits.history_text_limit, path };
+    }
+    const trailing = trailingWhitespaceLength(value);
+    if (trailing > limits.trailing_whitespace_limit) {
+      return { reason: "trailing_whitespace_limit", observed_length: trailing, limit: limits.trailing_whitespace_limit, path };
+    }
+    return null;
+  }
+  if (!value || typeof value !== "object" || seen.has(value)) return null;
+  seen.add(value);
+  const entries = Array.isArray(value) ? value.entries() : Object.entries(value);
+  for (const [key, child] of entries) {
+    const unhealthy = findUnhealthyText(child, limits, `${path}.${key}`, seen);
+    if (unhealthy) return unhealthy;
+  }
+  return null;
+}
+
+function createThreadHistoryError(code, message, cause) {
+  const error = new Error(message, { cause });
+  error.name = "CodexThreadHistoryError";
+  error.code = code;
+  error.retryable = false;
+  return error;
+}
+
+function sanitizeNotificationForProjection(message, limit = DEFAULT_PROJECTION_TEXT_LIMIT) {
+  const sanitized = sanitizeProjectionValue(message, limit);
+  if (message?.method !== "item/completed" || message.params?.item?.type !== "agentMessage") return sanitized;
+  const originalText = String(message.params.item.text || "");
+  if (originalText.length <= limit) return sanitized;
+  sanitized.params.item.textTruncated = true;
+  sanitized.params.item.originalTextLength = originalText.length;
+  return sanitized;
+}
+
+function sanitizeProjectionValue(value, limit, seen = new Map()) {
+  if (typeof value === "string") return truncateProjectionText(value, limit);
+  if (!value || typeof value !== "object") return value;
+  if (seen.has(value)) return seen.get(value);
+  const copy = Array.isArray(value) ? [] : {};
+  seen.set(value, copy);
+  for (const [key, child] of Object.entries(value)) copy[key] = sanitizeProjectionValue(child, limit, seen);
+  return copy;
+}
+
+function truncateProjectionText(value, limit) {
+  if (value.length <= limit) return value;
+  const marker = `\n…[truncated ${value.length - limit} chars]`;
+  return `${value.slice(0, Math.max(0, limit - marker.length))}${marker}`;
 }
 
 function rememberTokenUsage(message, latestUsageByThread) {
@@ -658,9 +882,30 @@ async function initializeClient(client) {
   return result;
 }
 
-function handleNotification({ message, queue, state, options, activeCommands, commandItems }) {
-  const event = normalizeNotification(message);
-  queue.push(event);
+function handleNotification({ message, client, queue, state, options, activeCommands, commandItems }) {
+  const outputObservation = observeOutputNotification(message, state);
+  queue.push(normalizeNotification(sanitizeNotificationForProjection(message, state.outputLimits?.projection_text_limit)));
+  if (outputObservation && !state.outputGuardError) {
+    state.outputGuardError = createAgentOutputGuardError(outputObservation, state);
+    queue.push({
+      type: "codex.output_guard.triggered",
+      thread_id: state.threadId,
+      turn_id: state.turnId,
+      reason: outputObservation.reason,
+      observed_length: outputObservation.observed_length,
+      limit: outputObservation.limit,
+      total_chars: state.outputMetrics.total_chars,
+      trailing_whitespace_chars: state.outputMetrics.trailing_whitespace_chars
+    });
+    if (state.threadId && state.turnId && !state.outputGuardInterrupt) {
+      state.outputGuardInterrupt = client.request("turn/interrupt", {
+        threadId: state.threadId,
+        turnId: state.turnId
+      }).catch((error) => {
+        state.outputGuardError.interrupt_error = String(error?.message || error);
+      });
+    }
+  }
 
   if (message.method === "item/started") {
     const item = message.params?.item || {};
@@ -692,10 +937,10 @@ function handleNotification({ message, queue, state, options, activeCommands, co
     state.turnStarted = true;
   }
   if (message.method === "item/agentMessage/delta") {
-    state.agentText += message.params?.delta || "";
+    if (!state.outputGuardError) state.agentText += message.params?.delta || "";
   }
   if (message.method === "item/completed" && message.params?.item?.type === "agentMessage") {
-    state.lastCompletedAgentText = message.params.item.text || state.lastCompletedAgentText;
+    if (!state.outputGuardError) state.lastCompletedAgentText = message.params.item.text || state.lastCompletedAgentText;
   }
   if (message.method === "item/completed") {
     const item = message.params?.item || {};
@@ -722,6 +967,23 @@ function handleNotification({ message, queue, state, options, activeCommands, co
     state.lastError = null;
   }
   if (message.method === "turn/completed") {
+    if (state.outputGuardError) {
+      state.turnStarted = false;
+      state.completed = true;
+      for (const span of state.itemSpans.values()) {
+        endLifecycleSpan(options, span, { status: "error", error: state.outputGuardError });
+      }
+      state.itemSpans.clear();
+      endLifecycleSpan(options, state.turnSpan, {
+        status: "error",
+        attributes: { turn_id: state.turnId || "", reason: "agent_output_guard" },
+        error: state.outputGuardError
+      });
+      activeCommands?.clear();
+      commandItems?.clear();
+      queue.fail(state.outputGuardError);
+      return;
+    }
     if (message.params?.turn?.status === 'interrupted' && ['agent-loop-result', 'task-closeout-result'].includes(state.resultKind)) {
       state.completed = true;
       queue.fail(executionStopError('operator_stop'));
@@ -1039,11 +1301,33 @@ function codexErrorMessage(error) {
 }
 
 function createTerminalCodexTurnError(error) {
-  const failure = new Error(`Codex Agent turn failed before returning arckit-agent-loop-result/v2: ${codexErrorMessage(error)}`);
+  const message = codexErrorMessage(error);
+  const oversized = parseOversizedInputTextError(message);
+  const failure = new Error(`Codex Agent turn failed before returning arckit-agent-loop-result/v2: ${message}`);
   failure.name = "CodexTurnError";
-  failure.code = codexErrorCode(error) || "codex_turn_failed";
+  failure.code = oversized ? "codex_history_item_too_large" : codexErrorCode(error) || "codex_turn_failed";
   failure.retryable = false;
+  if (oversized) {
+    failure.history_repair_required = true;
+    failure.input_index = oversized.input_index;
+    failure.content_index = oversized.content_index;
+    failure.max_length = oversized.max_length;
+    failure.actual_length = oversized.actual_length;
+  }
   return failure;
+}
+
+function parseOversizedInputTextError(message) {
+  const match = String(message || "").match(
+    /Invalid 'input\[(\d+)]\.content\[(\d+)]\.text': string too long\. Expected a string with maximum length (\d+), but got a string with length (\d+) instead\./
+  );
+  if (!match) return null;
+  return {
+    input_index: Number(match[1]),
+    content_index: Number(match[2]),
+    max_length: Number(match[3]),
+    actual_length: Number(match[4])
+  };
 }
 
 function codexErrorCode(error) {

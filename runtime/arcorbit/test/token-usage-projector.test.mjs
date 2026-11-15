@@ -339,6 +339,49 @@ test("non-command Codex tools update one stable transcript item from started to 
   assert.equal(messages[0].revision, 2);
 });
 
+test("completed Agent messages cannot overwrite the bounded streaming projection", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  const text = "x".repeat(300_000);
+  applyRunEvent(run, wrapped({
+    type: "codex.item.completed",
+    thread_id: "THREAD-1",
+    turn_id: "TURN-1",
+    params: { item: { id: "MESSAGE-LARGE", type: "agentMessage", text } }
+  }));
+
+  const message = run.activity.messages.find((item) => item.item_id === "MESSAGE-LARGE");
+  assert.equal(run.activity.agent_text.length, 256_000);
+  assert.equal(message.content.length, 256_000);
+  assert.equal(message.content.endsWith("…"), true);
+});
+
+test("thread repair and output guard events remain visible without retaining raw output", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped({
+    type: "codex.thread.history.repaired",
+    thread_id: "THREAD-1",
+    removed_from_turn_id: "TURN-BAD",
+    reason: "history_text_limit",
+    observed_length: 12_445_612,
+    limit: 8_388_608
+  }));
+  applyRunEvent(run, wrapped({
+    type: "codex.output_guard.triggered",
+    thread_id: "THREAD-1",
+    turn_id: "TURN-NEW",
+    reason: "trailing_whitespace_limit",
+    observed_length: 65_537,
+    limit: 65_536
+  }));
+
+  assert.deepEqual(run.activity.usage_warnings.map(({ type }) => type), [
+    "thread_history_repaired",
+    "agent_output_guard"
+  ]);
+});
+
 test("context compaction is recorded against the source turn on the same thread", () => {
   const run = runtimeRun();
   run.activity = createRunActivity(run);

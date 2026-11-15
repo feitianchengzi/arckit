@@ -181,6 +181,55 @@ test('overlapping refreshes finish instead of starving under frequent invalidati
   assert.ok(reads <= 2); handle.release();
 });
 
+test('overlapping explicit refreshes share one summary without scheduling a trailing read', async t => {
+  let reads = 0, finish;
+  const observer = createChatGitObserver({ watchFs: () => { throw Error('no-watch'); }, pollMs: 50000, debounceMs: 5,
+    repository: { summary: async () => { reads++; await new Promise(r => { finish = r; }); return { kind: 'not_repository' }; } } });
+  t.after(() => observer.close());
+  const handle = observer.observe({ key: 'repo', root: '/repo' }, () => {});
+  await until(() => Boolean(finish));
+  const overlapping = Array.from({ length: 5 }, () => handle.refresh());
+  finish(); await Promise.all([handle.ready, ...overlapping]);
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(reads, 1); handle.release();
+});
+
+test('six-workspace refresh bursts perform one summary per workspace', async t => {
+  const reads = new Map();
+  const observer = createChatGitObserver({ watchFs: () => { throw Error('no-watch'); }, pollMs: 50000,
+    repository: { summary: async root => {
+      reads.set(root, (reads.get(root) || 0) + 1);
+      return { kind: 'not_repository' };
+    } } });
+  t.after(() => observer.close());
+  const handles = Array.from({ length: 6 }, (_, index) => observer.observe({ key: `repo-${index}`, root: `/repo-${index}` }, () => {}));
+  await Promise.all(handles.map(handle => handle.ready)); reads.clear();
+  await Promise.all(Array.from({ length: 5 }, () => observer.refreshAll()));
+  assert.equal([...reads.values()].reduce((total, count) => total + count, 0), 6);
+  assert.deepEqual([...reads.values()], [1, 1, 1, 1, 1, 1]);
+  for (const handle of handles) handle.release();
+});
+
+test('filesystem invalidation during a summary schedules exactly one trailing read', async t => {
+  let reads = 0, events = 0, finish, changed;
+  const observer = createChatGitObserver({ watchFs: (_path, _options, listener) => {
+      changed = listener; return Object.assign(new EventEmitter(), { close() {} });
+    }, pollMs: 50000, debounceMs: 5,
+    repository: { summary: async () => {
+      reads++;
+      if (reads === 1) await new Promise(r => { finish = r; });
+      return { kind: 'not_repository' };
+    } } });
+  t.after(() => observer.close());
+  const handle = observer.observe({ key: 'repo', root: '/repo' }, () => { events++; });
+  await until(() => Boolean(finish)); changed(); changed();
+  assert.equal(events, 1, 'a filesystem burst publishes one stale notification');
+  finish();
+  await handle.ready; await until(() => reads === 2);
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(reads, 2); handle.release();
+});
+
 test('renderer lifecycle ignores stale scope responses and workspace events, releases on leave, refreshes on switch', async () => {
   let listener, resolveFirst;
   let context = { active: true, project_ids: ['a'], scope: 'one', selected_project_id: 'a' };
