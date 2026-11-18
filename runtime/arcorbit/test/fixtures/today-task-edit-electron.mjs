@@ -44,6 +44,7 @@ app.whenReady().then(async () => {
       if (!editButtonVisible) throw new Error('Missing Today task edit button: ' + document.querySelector('#todayOperator').textContent);
       document.querySelector('[data-today-edit-task="W-COMPLETED"]').click();
       await wait();
+      const fieldNames = [...document.querySelectorAll('#platformActionForm [name]')].map((field) => field.name);
       const initialDraft = document.querySelector('#platformActionForm [name="content"]').value;
       document.querySelector('#platformActionForm [name="content"]').value = 'Corrected in Today';
       await window.arckitDesktop.failNextTestTaskUpdate('Fixture version conflict');
@@ -60,9 +61,11 @@ app.whenReady().then(async () => {
       const selectedAfterSuccess = document.querySelector('#todayResponsibilityList .today-responsibility-row.is-active')?.dataset.todayItem || '';
       const detailAfterSuccess = document.querySelector('#todayOperator').textContent;
       const calls = await window.arckitDesktop.getTestCalls();
-      return { displayFacts, selectedBefore, editButtonVisible, initialDraft, failureSheetVisible, failureStatus, failureDraft, selectedAfterFailure, successSheetClosed, selectedAfterSuccess, detailAfterSuccess, calls };
+      return { displayFacts, selectedBefore, editButtonVisible, fieldNames, initialDraft, failureSheetVisible, failureStatus, failureDraft, selectedAfterFailure, successSheetClosed, selectedAfterSuccess, detailAfterSuccess, calls };
     })()`);
     if (process.env.ARCORBIT_TEST_OUTPUT_DIR) {
+      await window.webContents.executeJavaScript(`document.querySelector('[data-today-edit-task="W-COMPLETED"]').click()`);
+      await new Promise(resolve => setTimeout(resolve, 120));
       await mkdir(process.env.ARCORBIT_TEST_OUTPUT_DIR, { recursive: true });
       for (const width of [1440, 1000]) {
         window.setSize(width, 900);

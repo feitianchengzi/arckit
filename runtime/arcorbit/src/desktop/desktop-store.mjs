@@ -1,3 +1,4 @@
+import { beginStallOperation, traceStallOperation } from './stall-operations.mjs';
 import { normalizeChatContext } from '../chat-context.mjs';
 import { normalizeCodexSettings } from "../codex-model-settings.mjs";
 import { createHash } from "node:crypto";
@@ -13,6 +14,7 @@ export const DESKTOP_STORE_VERSION = 18;
 const TASK_REHYDRATION_VERSION = 16;
 const PARTITION_MANIFEST_VERSION = "desktop-state-partitions/v1";
 const MESSAGE_PARTITION_VERSION = "desktop-session-messages/v1";
+const MESSAGE_INDEX_VERSION = "desktop-session-message-index/v1";
 const TASK_PARTITION_VERSION = "desktop-task-projection/v1";
 
 export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
@@ -21,6 +23,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
   let messageLoadPromise = null;
   let currentStore = null;
   let currentMessages = null;
+  let messageIndex = null;
   let partitionRefs = null;
   let stateRevision = 0;
   const readStoreJson = io.readJson || readJsonWithRetry;
@@ -77,7 +80,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
     if (!loadPromise) {
       loadPromise = readStoreFile()
         .then((store) => {
-          currentStore = store;
+          currentStore = freezeState(store);
           stateRevision = 1;
           return store;
         })
@@ -91,6 +94,12 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
   async function readControlStore() {
     await storeQueue;
     return structuredClone(await ensureLoaded());
+  }
+
+  // Project before copying. Selectors receive a committed, immutable revision.
+  async function queryControlStore(select) {
+    const view = await captureStateView();
+    return structuredClone(select(view.state));
   }
 
   async function readStore() {
@@ -159,6 +168,62 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
 
   const updateStoreWithMessages = updateStore;
 
+  // High-frequency message commits own one session, not every conversation.
+  // The index and control pointer commit last; failed writes never publish a draft.
+  async function updateChatSession(sessionId, mutation) {
+    const operation = storeQueue.catch(() => {}).then(async () => {
+      const state = await ensureLoaded();
+      const messages = await ensureMessagesLoaded();
+      const located = findSessionById(state, sessionId);
+      if (!located) throw new Error(`Unknown Chat session: ${sessionId}`);
+      const session = structuredClone(located.session);
+      const draft = { sessions: { [located.project_id]: [session] },
+        messages: { [sessionId]: structuredClone(messages[sessionId] || []) } };
+      await mutation(session, draft);
+      const next = { ...state, sessions: { ...state.sessions, [located.project_id]:
+        state.sessions[located.project_id].map(item => item.id === sessionId
+          ? normalizeDesktopSession(session, located.project_id) : item) } };
+      const changed = !isDeepStrictEqual(messages[sessionId] || [], draft.messages[sessionId]);
+      const generation = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      let refs = partitionRefs;
+      let index = messageIndex;
+      const written = [];
+      try {
+        if (changed) {
+          const file = `desktop-session-messages.${generation}-session.json`;
+          await writeStoreJson(partitionPath(file), { schema_version: MESSAGE_PARTITION_VERSION,
+            messages: { [sessionId]: draft.messages[sessionId] } });
+          written.push(file);
+          index = { schema_version: MESSAGE_INDEX_VERSION,
+            base_file: messageIndex?.base_file || partitionRefs.message_file,
+            session_files: { ...messageIndex?.session_files, [sessionId]: file } };
+          const indexFile = `desktop-session-messages.${generation}-index.json`;
+          await writeStoreJson(partitionPath(indexFile), index);
+          written.push(indexFile);
+          refs = { ...partitionRefs, generation, message_file: indexFile };
+        }
+        await writeStoreJson(storePath, controlSnapshot(next, refs));
+      } catch (error) {
+        await Promise.all(written.map(file => rm(partitionPath(file), { force: true }).catch(() => {})));
+        throw error;
+      }
+      const previousRefs = partitionRefs;
+      const previousIndex = messageIndex;
+      currentStore = freezeState(next);
+      partitionRefs = refs;
+      messageIndex = index;
+      if (changed) currentMessages = { ...messages, [sessionId]: draft.messages[sessionId] };
+      stateRevision += 1;
+      if (changed && previousIndex) {
+        await cleanupReplacedPartition(previousRefs.message_file, refs.message_file);
+        await cleanupReplacedPartition(previousIndex.session_files[sessionId], index.session_files[sessionId]);
+      }
+      return structuredClone(session);
+    });
+    storeQueue = operation.then(() => {}, () => {});
+    return operation;
+  }
+
   // Chat drafts change only session/chat metadata. Keep the same serialization
   // queue and atomic control-file commit without traversing unrelated task data.
   async function updateChatMetadata(updater) {
@@ -171,7 +236,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
       ]));
       const next = { ...state, sessions, chat: normalizeChatState(updated.chat) };
       await writeStoreJson(storePath, controlSnapshot(next, partitionRefs));
-      currentStore = next;
+      currentStore = freezeState(next);
       stateRevision += 1;
       return structuredClone({ sessions, chat: next.chat });
     });
@@ -189,10 +254,11 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
       const persistedMessages = includeMessages ? persisted.messages : null;
       await persistStore(persisted, {
         messages: persistedMessages,
-        writeMessages: includeMessages
+        writeMessages: includeMessages,
+        normalizedInput: true
       });
       persisted.messages = {};
-      currentStore = persisted;
+      currentStore = freezeState(persisted);
       if (includeMessages) currentMessages = persistedMessages;
       stateRevision += 1;
       return includeMessages
@@ -203,11 +269,74 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
     return operation;
   }
 
+  // Work Sync owns this branch. Existing task bodies stay immutable and shared;
+  // the mutator may replace tasks or change project metadata, never edit a task.
+  async function updateTaskSync(mutator) {
+    const operation = storeQueue.catch(() => {}).then(async () => {
+      const state = await ensureLoaded();
+      const previous = state.platform.task_sync;
+      const draft = {
+        ...previous,
+        errors: [...previous.errors],
+        task_replacements: { ...previous.task_replacements },
+        projects: Object.fromEntries(Object.entries(previous.projects).map(([id, project]) =>
+          [id, { ...project }]))
+      };
+      await mutator(draft, state);
+      // Normalize only metadata and changed task objects. No traversal of old bodies.
+      const metadata = normalizeTaskSyncState({ ...draft, projects: {} });
+      const projects = Object.fromEntries(Object.entries(draft.projects).map(([id, project]) => {
+        const old = previous.projects[id];
+        const header = normalizeTaskSyncProject({ ...project, tasks: [], tags: [] }, id);
+        const tasks = project.tasks === old?.tasks ? old.tasks
+          : (Array.isArray(project.tasks) ? project.tasks : [])
+            .map(task => normalizeStoredTask(structuredClone(task))).filter(Boolean);
+        return [id, { ...header, project: project.project === old?.project ? old.project : structuredClone(header.project),
+          tasks, tags: project.tags === old?.tags ? old.tags
+            : structuredClone(Array.isArray(project.tags) ? project.tags.filter(tag => tag && typeof tag === "object") : []) }];
+      }));
+      const sync = freezeState({ ...structuredClone(metadata), projects });
+      const next = { ...state, platform: { ...state.platform, task_sync: sync } };
+      const generation = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const refs = { ...partitionRefs, generation, task_projection_file: `desktop-task-projection.${generation}.json` };
+      try {
+        await writeStoreJson(partitionPath(refs.task_projection_file), {
+          schema_version: TASK_PARTITION_VERSION, generation, task_sync: sync
+        });
+        await writeStoreJson(storePath, controlSnapshot(next, refs));
+      } catch (error) {
+        await rm(partitionPath(refs.task_projection_file), { force: true }).catch(() => {});
+        throw error;
+      }
+      const previousFile = partitionRefs.task_projection_file;
+      partitionRefs = refs;
+      currentStore = freezeState(next);
+      stateRevision += 1;
+      await cleanupReplacedPartition(previousFile, refs.task_projection_file);
+      return { revision: stateRevision };
+    });
+    storeQueue = operation.then(() => {}, () => {});
+    return operation;
+  }
+
   async function ensureMessagesLoaded() {
     if (currentMessages) return currentMessages;
     if (!messageLoadPromise) {
       messageLoadPromise = readStoreJson(partitionPath(partitionRefs.message_file))
-        .then((partition) => {
+        .then(async (partition) => {
+          if (partition?.schema_version === MESSAGE_INDEX_VERSION) {
+            const base = await readStoreJson(partitionPath(partition.base_file));
+            if (base?.schema_version !== MESSAGE_PARTITION_VERSION) throw new Error("Unsupported message index base");
+            const messages = { ...base.messages };
+            for (const [id, file] of Object.entries(partition.session_files || {})) {
+              const entry = await readStoreJson(partitionPath(file));
+              if (entry?.schema_version !== MESSAGE_PARTITION_VERSION || !Array.isArray(entry.messages?.[id])) throw new Error("Invalid session message partition");
+              messages[id] = entry.messages[id];
+            }
+            messageIndex = partition;
+            currentMessages = messages;
+            return messages;
+          }
           if (partition?.schema_version !== MESSAGE_PARTITION_VERSION) {
             throw new Error(`Unsupported Desktop Session Message partition: ${partition?.schema_version || "<missing>"}`);
           }
@@ -221,8 +350,8 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
     return messageLoadPromise;
   }
 
-  async function persistStore(store, { messages = null, writeMessages = false, forceTaskProjection = false } = {}) {
-    const normalized = normalizeStore(store);
+  async function persistStore(store, { messages = null, writeMessages = false, forceTaskProjection = false, normalizedInput = false } = {}) {
+    const normalized = normalizedInput ? store : normalizeStore(store);
     const previousRefs = partitionRefs;
     const nextRefs = previousRefs ? { ...previousRefs } : {
       schema_version: PARTITION_MANIFEST_VERSION,
@@ -268,6 +397,11 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
     partitionRefs = nextRefs;
     await cleanupReplacedPartition(previousRefs?.task_projection_file, nextRefs.task_projection_file);
     await cleanupReplacedPartition(previousRefs?.message_file, nextRefs.message_file);
+    if (messagePartitionChanged && messageIndex) {
+      await Promise.all([messageIndex.base_file, ...Object.values(messageIndex.session_files)]
+        .map(file => cleanupReplacedPartition(file, nextRefs.message_file)));
+      messageIndex = null;
+    }
     return normalized;
   }
 
@@ -288,6 +422,8 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
     ensureStore,
     readStore,
     readControlStore,
+    queryControlStore,
+    updateTaskSync,
     readStoreWithMessages,
     readChatSnapshotStore,
     readChatMetadata,
@@ -295,6 +431,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath, io = {} }) {
     updateStore,
     updateControlStore,
     updateChatMetadata,
+    updateChatSession,
     updateStoreWithMessages
   };
 }
@@ -333,8 +470,8 @@ export function normalizeStore(store) {
     version: DESKTOP_STORE_VERSION,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
-    sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
-    messages: store.messages && typeof store.messages === "object" ? store.messages : {},
+    sessions: store.sessions && typeof store.sessions === "object" ? { ...store.sessions } : {},
+    messages: store.messages && typeof store.messages === "object" ? { ...store.messages } : {},
     settings: normalizeSettings(store.settings || {}),
     automation,
     platform: normalizePlatformState(store.platform || {}, automation, store.automation || {}, { requiresTaskRehydration }),
@@ -1023,7 +1160,11 @@ export async function writeJson(path, value) {
   await mkdir(dirname(path), { recursive: true });
   const tempPath = `${path}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
   try {
-    await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    const endSerialize = beginStallOperation('store.json.stringify');
+    let serialized;
+    try { serialized = `${JSON.stringify(value, null, 2)}\n`; endSerialize('ok', { chars: serialized.length }); }
+    catch (error) { endSerialize('error'); throw error; }
+    await traceStallOperation('store.file.write', () => writeFile(tempPath, serialized, "utf8"), { chars: serialized.length });
     await rename(tempPath, path);
   } catch (error) {
     await rm(tempPath, { force: true }).catch(() => {});
@@ -1044,7 +1185,11 @@ async function readJsonWithRetry(path) {
   let lastError;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      return JSON.parse(await readFile(path, "utf8"));
+      const endRead = beginStallOperation('store.file.read');
+      let text;
+      try { text = await readFile(path, "utf8"); endRead('ok', { chars: text.length }); }
+      catch (error) { endRead('error'); throw error; }
+      return traceStallOperation('store.json.parse', () => JSON.parse(text), { chars: text.length });
     } catch (error) {
       lastError = error;
       if (!(error instanceof SyntaxError) || attempt === 3) {
@@ -1117,4 +1262,14 @@ function normalizeAutomationError(value) {
     project_id: String(value.project_id || ""),
     section: String(value.section || "")
   };
+}
+
+// Only objects traversed here are trusted as deeply frozen. Object.freeze alone
+// on an external object does not establish the same guarantee for its children.
+const frozenStateObjects = new WeakSet();
+function freezeState(value) {
+  if (!value || typeof value !== "object" || frozenStateObjects.has(value)) return value;
+  frozenStateObjects.add(value);
+  for (const child of Object.values(value)) freezeState(child);
+  return Object.freeze(value);
 }

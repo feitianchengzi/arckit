@@ -3,22 +3,22 @@
 const M=ChatModel,V=ChatViews,P=ChatPrototype;
 const $=s=>document.querySelector(s);
 const states = {
-  dirty: ['4 个文件未提交 · ↑2', '4 个文件未提交；缓存中有 2 个待推送提交', 2, 0],
-  clean: ['Git · 本地干净', '工作区与暂存区没有修改；不代表实时远端已同步', 0, 0],
-  ahead: ['↑2 待推送', '本地干净，缓存中有 2 个待推送提交', 2, 0],
-  behind: ['↓3 待拉取', '本地干净，缓存中有 3 个待拉取提交', 0, 3],
-  diverged: ['↑2 · ↓3 分歧', '本地与远端跟踪分支各有新增提交', 2, 3],
-  conflict: ['1 个冲突 · 4 个文件未提交', '存在未解决冲突', 0, 0],
-  unknown: ['Git · 读取中', '本地状态尚未读取成功', 0, 0],
-  stale: ['Git · 状态过期', '上次结果：4 个文件未提交；当前结果尚未确认', 2, 0],
-  error: ['Git · 读取失败', '读取失败；保留上次结果：4 个文件未提交', 2, 0],
-  fetcherror: ['Git · 远端获取失败', '本地干净；上次获取失败，远端状态未确认', 0, 0],
-  norepo: ['无 Git 仓库', '绑定目录不是 Git 仓库', 0, 0],
-  unbound: ['未绑定工作区', '项目没有绑定本地工作区', 0, 0],
+  dirty: {groups:[['+',1],['M',2],['?',1],['↑',2]],meaning:'已暂存 1，未暂存修改 2，未跟踪 1；缓存中待推送 2',ahead:2,behind:0},
+  clean: {groups:[['✓',0]],meaning:'0 项本地变更；不代表实时远端已同步',ahead:0,behind:0},
+  ahead: {groups:[['✓',0],['↑',2]],meaning:'0 项本地变更；缓存中待推送 2',ahead:2,behind:0},
+  behind: {groups:[['✓',0],['↓',3]],meaning:'0 项本地变更；缓存中待拉取 3',ahead:0,behind:3},
+  diverged: {groups:[['✓',0],['↑',2],['↓',3]],meaning:'0 项本地变更；缓存中待推送 2、待拉取 3',ahead:2,behind:3},
+  conflict: {groups:[['!',1],['+',1],['M',2],['?',1]],meaning:'冲突 1，已暂存 1，未暂存修改 2，未跟踪 1',ahead:0,behind:0},
+  unknown: {groups:[['…',null]],meaning:'本地状态正在读取，数量尚不可确认',ahead:0,behind:0},
+  stale: {groups:[['◷',null],['+',1],['M',2],['?',1],['↑',2]],meaning:'状态已过期；上次已知已暂存 1、未暂存修改 2、未跟踪 1、待推送 2',ahead:2,behind:0},
+  error: {groups:[['×',null],['+',1],['M',2],['?',1],['↑',2]],meaning:'本地状态读取失败；保留上次可信数字',ahead:2,behind:0},
+  fetcherror: {groups:[['⇅×',null],['✓',0]],meaning:'0 项本地变更；远端获取失败，远端状态未确认',ahead:0,behind:0},
+  norepo: {groups:[['⊘',null]],meaning:'绑定目录不是 Git 仓库',ahead:0,behind:0},
+  unbound: {groups:[['◇',null]],meaning:'项目没有绑定本地工作区',ahead:0,behind:0},
 };
 let scenario='dirty',current=null,checked=null,detailView='overview';
 function detail() {
- const [summary,meaning,ahead,behind]=states[scenario];
+ const {meaning,ahead,behind}=states[scenario];
  const b=(action,label)=>`<button data-git-action="${action}">${label}</button>`;
  let content=`<p>${meaning}</p>`;
  if(detailView==='overview') {
@@ -36,7 +36,10 @@ function paint() {
  document.querySelectorAll('.session-project').forEach(title=>{
   if(title.parentElement.classList.contains('git-group-head'))return;
   const wrap=document.createElement('div');wrap.className='git-group-head';title.before(wrap);wrap.append(title);
-  const summary=document.createElement('button');summary.dataset.gitProject=title.dataset.project;summary.className='git-summary'+(scenario==='clean'?' muted':'');summary.textContent=states[scenario][0];summary.title=states[scenario][1];summary.setAttribute('aria-label',`${M.project(title.dataset.project)?.name} Git：${states[scenario][1]}`);wrap.append(summary);
+  const state=states[scenario];
+  const summary=document.createElement('button');summary.dataset.gitProject=title.dataset.project;summary.className='git-summary'+(scenario==='clean'?' muted':'');
+  summary.innerHTML=state.groups.map(([icon,count])=>`<span class="git-status-group" aria-hidden="true"><span class="git-status-icon">${V.esc(icon)}</span>${count===null?'':`<span>${count}</span>`}</span>`).join('');
+  summary.title=state.meaning;summary.setAttribute('aria-label',`${M.project(title.dataset.project)?.name} Git：${state.meaning}`);wrap.append(summary);
  });
  const side=$('.chat-sessions');
  if(M.state.detailPanel==='git'&&current) {

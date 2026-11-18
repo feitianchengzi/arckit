@@ -583,3 +583,47 @@ test("empty projects and deletion of the last session survive persistence and re
     assert.deepEqual((await createDesktopStore(options).readStore()).sessions.P, []);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('scoped message commits isolate history, survive restart and compact safely', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arcorbit-scoped-store-'));
+  const storePath = join(root, 'desktop-store.json');
+  const writes = [];
+  let failControl = false;
+  const options = { dataDir: root, runsDir: join(root, 'runs'), storePath };
+  try {
+    const store = createDesktopStore({ ...options, io: { async writeJson(path, value) {
+      if (failControl && path === storePath) throw new Error('disk full');
+      const text = JSON.stringify(value);
+      writes.push({ path, bytes: Buffer.byteLength(text) });
+      await writeFile(path, text);
+    } } });
+    await store.updateStore(s => {
+      s.projects.push({ id: 'p', name: 'p', path: root });
+      s.sessions.p = ['a', 'b'].map(id => ({ id, project_id: 'p', kind: 'chat', status: 'draft' }));
+      s.messages = { a: [{ id: 'a1', content: 'first' }], b: [{ id: 'b1', content: 'x'.repeat(8 * 1024 * 1024) }] };
+    });
+    writes.length = 0;
+    const before = await store.captureStateView();
+    await Promise.all(['second', 'third'].map(content => store.updateChatSession('a', (s, draft) => {
+      draft.messages.a.push({ id: content, content }); s.status = 'completed';
+    })));
+    assert.ok(writes.every(w => w.bytes < 32_000), JSON.stringify(writes));
+    assert.equal(before.state.sessions.p[0].status, 'draft');
+    let reopened = createDesktopStore(options);
+    assert.deepEqual((await reopened.readStore()).messages.a.map(m => m.content), ['first', 'second', 'third']);
+    assert.equal((await reopened.readStore()).messages.b[0].content.length, 8 * 1024 * 1024);
+    failControl = true;
+    await assert.rejects(store.updateChatSession('a', (s, draft) => { s.status = 'failed'; draft.messages.a.length = 0; }), /disk full/);
+    assert.equal((await store.readStore()).messages.a.length, 3);
+    assert.equal((await createDesktopStore(options).readStore()).messages.a.length, 3);
+    failControl = false;
+    await store.updateChatSession('a', s => { s.status = 'running'; });
+    // A general update can delete sessions and collapse overlays without resurrection.
+    await store.updateStore(s => { deleteProjectSession(s, 'p', 'a'); });
+    reopened = createDesktopStore(options);
+    const final = await reopened.readStore();
+    assert.equal(final.messages.a, undefined);
+    assert.equal(final.messages.b[0].content.length, 8 * 1024 * 1024);
+    assert.equal((await readdir(root)).filter(f => f.startsWith('desktop-session-messages.')).length, 1);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

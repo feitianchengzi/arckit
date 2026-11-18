@@ -7,6 +7,12 @@ struct FeedbackConfigResult: Codable {
     let integrationMode: String
     let sdkAuthMode: String?
     let notificationsEnabled: Bool
+    let nativeApiVersion: String?
+    let nativeAuthMode: String?
+    let nativeNotificationsEnabled: Bool
+    let gatewayUrl: String
+    let sessionEndpoint: String?
+    let versionSelectionReason: String?
     let credentialStrategy: String
     let projectId: Int?
     let apiKeyStatus: String
@@ -88,7 +94,7 @@ enum Collector {
             case .sdkWebView:
                 return "加载反馈平台 SDK 页面，调用 openSubmit/openStatus。"
             case .nativeAPI:
-                return "直接调用 apikey/feedbacks 提交和查询接口，自定义原生 UI。"
+                return "默认 V2，支持提交、消息、附件和通知；V1 仅用于明确的兼容需求。"
             }
         }
     }
@@ -137,8 +143,8 @@ enum Collector {
         let app = NSApplication.shared
         app.setActivationPolicy(.regular)
 
+        let form = ConfigFormView()
         while true {
-            let form = ConfigFormView()
             let alert = NSAlert()
             alert.messageText = "反馈平台接入参数"
             alert.informativeText = "请选择接入方案、凭证策略并填写平台参数。API Key 不会写入 stdout。"
@@ -154,6 +160,12 @@ enum Collector {
                     integrationMode: form.integrationMode.rawValue,
                     sdkAuthMode: form.sdkAuthMode,
                     notificationsEnabled: form.notificationsEnabled,
+                    nativeApiVersion: form.nativeApiVersion,
+                    nativeAuthMode: form.nativeAuthMode,
+                    nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                    gatewayUrl: form.gatewayUrl,
+                    sessionEndpoint: form.sessionEndpoint,
+                    versionSelectionReason: form.versionSelectionReason,
                     credentialStrategy: form.credentialStrategy.rawValue,
                     projectId: nil,
                     apiKeyStatus: "cancelled",
@@ -164,6 +176,11 @@ enum Collector {
                     configuredByUser: false,
                     message: "User cancelled feedback platform configuration."
                 )
+            }
+
+            if let error = form.validationError {
+                showValidationError(error)
+                continue
             }
 
             let projectIdText = form.projectIdField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -185,17 +202,15 @@ enum Collector {
                 continue
             }
 
-            if form.integrationMode == .sdkWebView,
-               form.sdkAuthMode == Collector.SDKAuthMode.session.rawValue,
+            if form.isSession,
                strategy != .backendRuntime {
-                showValidationError("SDK Session 模式必须使用宿主服务运行时配置。")
+                showValidationError("Session 模式必须使用宿主服务运行时配置。")
                 continue
             }
 
-            if form.integrationMode == .sdkWebView,
-               form.sdkAuthMode == Collector.SDKAuthMode.apiKey.rawValue,
+            if !form.isSession,
                strategy == .backendRuntime {
-                showValidationError("SDK 客户端直连请选择源码、本地忽略配置或 secret store；宿主服务请改选 Session 模式。")
+                showValidationError("客户端直连请选择源码、本地忽略配置或 secret store；宿主服务请改选 Session 模式。")
                 continue
             }
 
@@ -211,12 +226,24 @@ enum Collector {
                         integrationMode: form.integrationMode.rawValue,
                         sdkAuthMode: form.sdkAuthMode,
                         notificationsEnabled: form.notificationsEnabled,
+                        nativeApiVersion: form.nativeApiVersion,
+                        nativeAuthMode: form.nativeAuthMode,
+                        nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                        gatewayUrl: form.gatewayUrl,
+                        sessionEndpoint: form.sessionEndpoint,
+                        versionSelectionReason: form.versionSelectionReason,
                         to: outputPath
                     )
                     return FeedbackConfigResult(
                         integrationMode: form.integrationMode.rawValue,
                         sdkAuthMode: form.sdkAuthMode,
                         notificationsEnabled: form.notificationsEnabled,
+                        nativeApiVersion: form.nativeApiVersion,
+                        nativeAuthMode: form.nativeAuthMode,
+                        nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                        gatewayUrl: form.gatewayUrl,
+                        sessionEndpoint: form.sessionEndpoint,
+                        versionSelectionReason: form.versionSelectionReason,
                         credentialStrategy: strategy.rawValue,
                         projectId: projectId,
                         apiKeyStatus: "written",
@@ -232,6 +259,12 @@ enum Collector {
                         integrationMode: form.integrationMode.rawValue,
                         sdkAuthMode: form.sdkAuthMode,
                         notificationsEnabled: form.notificationsEnabled,
+                        nativeApiVersion: form.nativeApiVersion,
+                        nativeAuthMode: form.nativeAuthMode,
+                        nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                        gatewayUrl: form.gatewayUrl,
+                        sessionEndpoint: form.sessionEndpoint,
+                        versionSelectionReason: form.versionSelectionReason,
                         credentialStrategy: strategy.rawValue,
                         projectId: projectId,
                         apiKeyStatus: "invalid",
@@ -255,12 +288,24 @@ enum Collector {
                         integrationMode: form.integrationMode.rawValue,
                         sdkAuthMode: form.sdkAuthMode,
                         notificationsEnabled: form.notificationsEnabled,
+                        nativeApiVersion: form.nativeApiVersion,
+                        nativeAuthMode: form.nativeAuthMode,
+                        nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                        gatewayUrl: form.gatewayUrl,
+                        sessionEndpoint: form.sessionEndpoint,
+                        versionSelectionReason: form.versionSelectionReason,
                         to: outputPath
                     )
                     return FeedbackConfigResult(
                         integrationMode: form.integrationMode.rawValue,
                         sdkAuthMode: form.sdkAuthMode,
                         notificationsEnabled: form.notificationsEnabled,
+                        nativeApiVersion: form.nativeApiVersion,
+                        nativeAuthMode: form.nativeAuthMode,
+                        nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                        gatewayUrl: form.gatewayUrl,
+                        sessionEndpoint: form.sessionEndpoint,
+                        versionSelectionReason: form.versionSelectionReason,
                         credentialStrategy: strategy.rawValue,
                         projectId: projectId,
                         apiKeyStatus: "written",
@@ -276,6 +321,12 @@ enum Collector {
                         integrationMode: form.integrationMode.rawValue,
                         sdkAuthMode: form.sdkAuthMode,
                         notificationsEnabled: form.notificationsEnabled,
+                        nativeApiVersion: form.nativeApiVersion,
+                        nativeAuthMode: form.nativeAuthMode,
+                        nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                        gatewayUrl: form.gatewayUrl,
+                        sessionEndpoint: form.sessionEndpoint,
+                        versionSelectionReason: form.versionSelectionReason,
                         credentialStrategy: strategy.rawValue,
                         projectId: projectId,
                         apiKeyStatus: "invalid",
@@ -300,6 +351,12 @@ enum Collector {
                         integrationMode: form.integrationMode.rawValue,
                         sdkAuthMode: form.sdkAuthMode,
                         notificationsEnabled: form.notificationsEnabled,
+                        nativeApiVersion: form.nativeApiVersion,
+                        nativeAuthMode: form.nativeAuthMode,
+                        nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                        gatewayUrl: form.gatewayUrl,
+                        sessionEndpoint: form.sessionEndpoint,
+                        versionSelectionReason: form.versionSelectionReason,
                         credentialStrategy: strategy.rawValue,
                         projectId: projectId,
                         apiKeyStatus: "invalid",
@@ -316,6 +373,12 @@ enum Collector {
                     integrationMode: form.integrationMode.rawValue,
                     sdkAuthMode: form.sdkAuthMode,
                     notificationsEnabled: form.notificationsEnabled,
+                    nativeApiVersion: form.nativeApiVersion,
+                    nativeAuthMode: form.nativeAuthMode,
+                    nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                    gatewayUrl: form.gatewayUrl,
+                    sessionEndpoint: form.sessionEndpoint,
+                    versionSelectionReason: form.versionSelectionReason,
                     credentialStrategy: strategy.rawValue,
                     projectId: projectId,
                     apiKeyStatus: "stored",
@@ -332,6 +395,12 @@ enum Collector {
                     integrationMode: form.integrationMode.rawValue,
                     sdkAuthMode: form.sdkAuthMode,
                     notificationsEnabled: form.notificationsEnabled,
+                    nativeApiVersion: form.nativeApiVersion,
+                    nativeAuthMode: form.nativeAuthMode,
+                    nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+                    gatewayUrl: form.gatewayUrl,
+                    sessionEndpoint: form.sessionEndpoint,
+                    versionSelectionReason: form.versionSelectionReason,
                     credentialStrategy: strategy.rawValue,
                     projectId: projectId,
                     apiKeyStatus: "not-collected",
@@ -365,6 +434,12 @@ enum Collector {
             integrationMode: form.integrationMode.rawValue,
             sdkAuthMode: form.sdkAuthMode,
             notificationsEnabled: form.notificationsEnabled,
+            nativeApiVersion: form.nativeApiVersion,
+            nativeAuthMode: form.nativeAuthMode,
+            nativeNotificationsEnabled: form.nativeNotificationsEnabled,
+            gatewayUrl: form.gatewayUrl,
+            sessionEndpoint: form.sessionEndpoint,
+            versionSelectionReason: form.versionSelectionReason,
             credentialStrategy: strategy.rawValue,
             projectId: projectId,
             apiKeyStatus: "missing-output",
@@ -383,6 +458,12 @@ enum Collector {
         integrationMode: String,
         sdkAuthMode: String?,
         notificationsEnabled: Bool,
+        nativeApiVersion: String?,
+        nativeAuthMode: String?,
+        nativeNotificationsEnabled: Bool,
+        gatewayUrl: String,
+        sessionEndpoint: String?,
+        versionSelectionReason: String?,
         to path: String
     ) throws {
         let url = URL(fileURLWithPath: path)
@@ -400,6 +481,12 @@ enum Collector {
             static let preferredIntegrationMode = "\(swiftEscaped(integrationMode))"
             static let sdkAuthMode: String? = \(sdkAuthModeLiteral)
             static let notificationsEnabled = \(notificationsEnabled)
+            static let nativeApiVersion: String? = \(nativeApiVersion.map { "\"\(swiftEscaped($0))\"" } ?? "nil")
+            static let nativeAuthMode: String? = \(nativeAuthMode.map { "\"\(swiftEscaped($0))\"" } ?? "nil")
+            static let nativeNotificationsEnabled = \(nativeNotificationsEnabled)
+            static let gatewayUrl = "\(swiftEscaped(gatewayUrl))"
+            static let sessionEndpoint: String? = \(sessionEndpoint.map { "\"\(swiftEscaped($0))\"" } ?? "nil")
+            static let versionSelectionReason: String? = \(versionSelectionReason.map { "\"\(swiftEscaped($0))\"" } ?? "nil")
             static let projectId = \(projectId)
             static let apiKey = "\(swiftEscaped(apiKey))"
         }
@@ -422,6 +509,12 @@ enum Collector {
         integrationMode: String,
         sdkAuthMode: String?,
         notificationsEnabled: Bool,
+        nativeApiVersion: String?,
+        nativeAuthMode: String?,
+        nativeNotificationsEnabled: Bool,
+        gatewayUrl: String,
+        sessionEndpoint: String?,
+        versionSelectionReason: String?,
         to path: String
     ) throws {
         let url = URL(fileURLWithPath: path)
@@ -438,6 +531,12 @@ enum Collector {
         if let sdkAuthMode {
             payload["sdkAuthMode"] = sdkAuthMode
         }
+        payload["nativeApiVersion"] = nativeApiVersion
+        payload["nativeAuthMode"] = nativeAuthMode
+        payload["nativeNotificationsEnabled"] = nativeNotificationsEnabled
+        payload["gatewayUrl"] = gatewayUrl
+        payload["sessionEndpoint"] = sessionEndpoint
+        payload["versionSelectionReason"] = versionSelectionReason
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: url, options: [.atomic])
     }
@@ -491,7 +590,11 @@ enum Collector {
 final class ConfigFormView: NSStackView {
     private let integrationPopup = NSPopUpButton()
     private let authModePopup = NSPopUpButton()
-    private let notificationsCheckbox = NSButton(checkboxWithTitle: "启用 SDK V2 未读角标", target: nil, action: nil)
+    private let nativeVersionPopup = NSPopUpButton()
+    private let versionReasonField = NSTextField()
+    private let gatewayField = NSTextField(string: "https://api.feitianchengzi.com")
+    private let sessionEndpointField = NSTextField()
+    private let notificationsCheckbox = NSButton(checkboxWithTitle: "启用 V2 未读角标", target: nil, action: nil)
     private let strategyPopup = NSPopUpButton()
     let projectIdField = NSTextField()
     let apiKeyField = NSSecureTextField()
@@ -536,15 +639,47 @@ final class ConfigFormView: NSStackView {
         integrationMode == .sdkWebView && notificationsCheckbox.state == .on
     }
 
-    var requiresAPIKey: Bool {
-        if integrationMode == .sdkWebView && sdkAuthMode == Collector.SDKAuthMode.session.rawValue {
-            return false
-        }
-        return credentialStrategy.requiresAPIKey
+    var nativeApiVersion: String? {
+        integrationMode == .nativeAPI ? (nativeVersionPopup.indexOfSelectedItem == 0 ? "v2" : "v1") : nil
     }
 
-    var requiresProjectId: Bool {
-        integrationMode == .sdkWebView || credentialStrategy != .backendRuntime
+    var nativeAuthMode: String? {
+        guard integrationMode == .nativeAPI else { return nil }
+        return nativeApiVersion == "v1" ? "apiKey" : (authModePopup.indexOfSelectedItem == 0 ? "apiKey" : "session")
+    }
+
+    var nativeNotificationsEnabled: Bool {
+        nativeApiVersion == "v2" && notificationsCheckbox.state == .on
+    }
+
+    var isSession: Bool { (sdkAuthMode ?? nativeAuthMode) == "session" }
+    var gatewayUrl: String {
+        let value = gatewayField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.hasSuffix("/") ? String(value.dropLast()) : value
+    }
+    var sessionEndpoint: String? {
+        isSession ? sessionEndpointField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+    }
+    var versionSelectionReason: String? {
+        nativeApiVersion == "v1" ? versionReasonField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+    }
+    var requiresAPIKey: Bool { !isSession }
+    var requiresProjectId: Bool { !isSession }
+
+    // Configuration addresses must not contain credentials, query strings or fragments.
+    static func validAddress(_ value: String, gateway: Bool) -> Bool {
+        guard let url = URLComponents(string: value),
+              let host = url.host, !host.isEmpty,
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+              url.scheme == "https" || (url.scheme == "http" && ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host)) else { return false }
+        return !gateway || url.path.isEmpty || url.path == "/"
+    }
+
+    var validationError: String? {
+        if !Self.validAddress(gatewayUrl, gateway: true) { return "网关必须是 HTTPS 域名（本机允许 HTTP），不能含路径、凭证、查询或片段。" }
+        if isSession && !Self.validAddress(sessionEndpoint ?? "", gateway: false) { return "请填写宿主 Session 接口的完整 HTTPS 地址（本机允许 HTTP），不能含凭证、查询或片段。" }
+        if nativeApiVersion == "v1" && (versionSelectionReason ?? "").isEmpty { return "使用 V1 必须填写用户明确指定或已确认兼容约束的依据。" }
+        return nil
     }
 
     var customUserIdMode: String {
@@ -557,7 +692,7 @@ final class ConfigFormView: NSStackView {
     }
 
     var customUserIdSource: String {
-        if integrationMode == .sdkWebView && sdkAuthMode == Collector.SDKAuthMode.session.rawValue {
+        if isSession {
             return "server-authenticated-user"
         }
         switch modePopup.indexOfSelectedItem {
@@ -569,7 +704,7 @@ final class ConfigFormView: NSStackView {
     }
 
     init() {
-        super.init(frame: NSRect(x: 0, y: 0, width: 460, height: 320))
+        super.init(frame: NSRect(x: 0, y: 0, width: 460, height: 560))
         orientation = .vertical
         alignment = .leading
         spacing = 10
@@ -588,6 +723,12 @@ final class ConfigFormView: NSStackView {
         ])
         authModePopup.target = self
         authModePopup.action = #selector(authModeChanged)
+
+        nativeVersionPopup.addItems(withTitles: ["V2（默认）", "V1（兼容）"])
+        nativeVersionPopup.target = self
+        nativeVersionPopup.action = #selector(integrationChanged)
+        versionReasonField.placeholderString = "用户明确指定或已确认的兼容约束"
+        sessionEndpointField.placeholderString = "https://your-app.example.com/api/feedback/session"
 
         strategyPopup.addItems(withTitles: [
             Collector.CredentialStrategy.sourceStatic.title,
@@ -619,11 +760,15 @@ final class ConfigFormView: NSStackView {
 
         addArrangedSubview(row(label: "接入方案", control: integrationPopup))
         addArrangedSubview(integrationHelpLabel)
-        addArrangedSubview(row(label: "SDK V2 认证", control: authModePopup))
+        addArrangedSubview(row(label: "原生 API 版本", control: nativeVersionPopup))
+        addArrangedSubview(row(label: "V1 使用依据", control: versionReasonField))
+        addArrangedSubview(row(label: "认证方式", control: authModePopup))
         addArrangedSubview(authModeHelpLabel)
         addArrangedSubview(row(label: "通知能力", control: notificationsCheckbox))
         addArrangedSubview(row(label: "凭证策略", control: strategyPopup))
         addArrangedSubview(strategyHelpLabel)
+        addArrangedSubview(row(label: "网关地址", control: gatewayField))
+        addArrangedSubview(row(label: "Session 接口", control: sessionEndpointField))
         addArrangedSubview(row(label: "Project ID", control: projectIdField))
         addArrangedSubview(row(label: "API Key", control: apiKeyField))
         addArrangedSubview(row(label: "用户 ID 模式", control: modePopup))
@@ -650,24 +795,19 @@ final class ConfigFormView: NSStackView {
 
     private func updateForSelectedIntegration() {
         integrationHelpLabel.stringValue = integrationMode.description
-        let isSDK = integrationMode == .sdkWebView
-        authModePopup.isEnabled = isSDK
-        notificationsCheckbox.isEnabled = isSDK
-        if !isSDK {
+        nativeVersionPopup.isEnabled = integrationMode == .nativeAPI
+        versionReasonField.isEnabled = nativeApiVersion == "v1"
+        let supportsV2 = nativeApiVersion != "v1"
+        authModePopup.isEnabled = supportsV2
+        notificationsCheckbox.isEnabled = supportsV2
+        if !supportsV2 {
+            authModePopup.selectItem(at: 0)
             notificationsCheckbox.state = .off
         }
         updateForSelectedAuthMode()
     }
 
     private func updateForSelectedAuthMode() {
-        guard integrationMode == .sdkWebView else {
-            authModeHelpLabel.stringValue = "原生 API 使用独立接口契约，不继承 SDK V2 认证或通知。"
-            strategyPopup.isEnabled = true
-            modePopup.isEnabled = true
-            updateForSelectedStrategy()
-            return
-        }
-
         let mode: Collector.SDKAuthMode = authModePopup.indexOfSelectedItem == 0 ? .apiKey : .session
         authModeHelpLabel.stringValue = mode.description
         if mode == .session {
@@ -682,6 +822,8 @@ final class ConfigFormView: NSStackView {
             strategyPopup.isEnabled = true
             modePopup.isEnabled = true
         }
+        sessionEndpointField.isEnabled = isSession
+        projectIdField.placeholderString = isSession ? "可留空，由宿主服务管理" : "例如 1（必填）"
         updateForSelectedStrategy()
     }
 

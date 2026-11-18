@@ -197,7 +197,7 @@ export function createChatCoordinator({
 
   async function rename(input = {}) {
     await ensureInitialized();
-    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
+    if(input.session_id){const located=findSessionById(await readChatMetadata(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
     const title = String(input.title || "").trim().slice(0, 80);
     if (!title) throw new Error("Conversation title cannot be empty.");
@@ -211,7 +211,7 @@ export function createChatCoordinator({
 
   async function send(input = {}) {
     await ensureInitialized();
-    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
+    if(input.session_id){const located=findSessionById(await readChatMetadata(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const nativeContext=normalizeChatContext(input.native_context);
     const text = String(input.text || (nativeContext.capability ? `请调用 ${nativeContext.capability.label}` : nativeContext.refs.length ? "请分析引用的上下文。" : "")).trim();
     if (!text) throw new Error("Enter a message before sending.");
@@ -333,7 +333,7 @@ export function createChatCoordinator({
     try {
       await setupReadinessPreflight(resolve(project.path));
       if (owner.cancelled) return;
-      const store = await readChatStore();
+      const store = await readChatMetadata();
       const located = findSessionById(store, sessionId);
       if (!located || !accepts(located.session)) throw new Error("Chat session disappeared before the turn started.");
       const executable = normalizeExecutable(getCodexExecutable());
@@ -395,12 +395,12 @@ export function createChatCoordinator({
 
   async function interrupt(input = {}) {
     await ensureInitialized();
-    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
+    if(input.session_id){const located=findSessionById(await readChatMetadata(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
     if (conversation && await conversation.interrupt(sessionId)) return getSnapshot({ session_id: sessionId });
     const owner = owners.get(sessionId);
     if (!owner?.completion) throw new Error("This conversation has no active turn.");
-    const currentStore = await readChatStore();
+    const currentStore = await readChatMetadata();
     const current = findSessionById(currentStore, sessionId);
     if (!current || !accepts(current.session)) throw new Error("Unknown Chat session.");
     if (!ACTIVE_STATUSES.has(current.session.status)) return getSnapshot({ session_id: sessionId });
@@ -433,7 +433,7 @@ export function createChatCoordinator({
 
   async function decideApproval(input = {}) {
     await ensureInitialized();
-    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
+    if(input.session_id){const located=findSessionById(await readChatMetadata(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
     const requestId = requireId(input.request_id, "request_id");
     const pending = pendingApprovals.get(approvalKey(sessionId, requestId));
@@ -445,7 +445,7 @@ export function createChatCoordinator({
 
   async function remove(input = {}) {
     await ensureInitialized();
-    if(input.session_id){const located=findSessionById(await readChatStore(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
+    if(input.session_id){const located=findSessionById(await readChatMetadata(),String(input.session_id));if(located && !await authorizeSession(located.session))throw new Error("该会话属于其他账号或不可访问的项目。");}
     const sessionId = requireId(input.session_id, "session_id");
     const owner = owners.get(sessionId);
     if (owner?.completion) {
@@ -686,6 +686,10 @@ export function createChatCoordinator({
   }
 
   async function mutateChatSession(sessionId, mutation) {
+    if (runManager.updateDesktopChatSession) return runManager.updateDesktopChatSession(sessionId, (session, store) => {
+      if (!accepts(session)) throw new Error(`Unknown Chat session: ${sessionId}`);
+      return mutation(session, store);
+    });
     return updateChatStore((store) => {
       const located = findSessionById(store, sessionId);
       if (!located || !accepts(located.session)) throw new Error(`Unknown Chat session: ${sessionId}`);

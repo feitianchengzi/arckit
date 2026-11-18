@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"net/http"
@@ -15,6 +18,20 @@ func applyFeedbackSearch(c *gin.Context, query *gorm.DB) (*gorm.DB, bool) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
 		return query, false
+	}
+	// request_type is an Agent classification stored inside data; filter stays
+	// server-side so pagination counts remain correct. "none" selects cards the
+	// model never classified (raw/manual submissions awaiting analysis).
+	if requestType := strings.TrimSpace(c.Query("request_type")); requestType != "" {
+		switch requestType {
+		case "bug", "feature", "question", "other":
+			query = query.Where(`feedbacks.data LIKE ?`, fmt.Sprintf(`%%"request_type":"%s"%%`, requestType))
+		case "none":
+			query = query.Where(`feedbacks.data IS NULL OR feedbacks.data NOT LIKE '%"request_type":"%'`)
+		default:
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "request_type 仅可为 bug/feature/question/other/none", nil))
+			return query, false
+		}
 	}
 	if f.Query != "" {
 		p := f.Pattern()

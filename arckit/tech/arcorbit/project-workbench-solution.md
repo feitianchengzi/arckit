@@ -102,7 +102,31 @@ Chat 文件树与编辑器使用独立受限 IPC，主进程从已验证的 sess
 
 文件命令集合为 list、read、save、create-file、create-directory、rename、trash、reveal；复制和输入引用由 Renderer 的剪贴板及既有 Composer 草稿通道完成。根目录不能 rename/trash。新建名称和重命名名称均为单个目录项，拒绝空名称、点路径、分隔符和 NUL；目标存在时拒绝覆盖。文件正文及路径均作为数据，不进入 HTML 或命令执行。
 
-list 按层读取目录元数据，不按隐藏名或 Git ignore 过滤；目录优先、名称稳定排序，响应携带 entries 与明确的分页终点/继续标识。客户端提供加载更多，刷新使旧分页失效并重新读取，不能静默遗漏超过 1000 项的目录。entries 区分目录、普通文件、符号链接和特殊节点；链接可见但不递归、不读写目标内容。reveal 定位原始链接本身，trash 移除原始链接本身，不跟随目标。
+list 按层读取目录元数据，不按隐藏名或 Git ignore 过滤；目录优先、名称稳定排序，响应携带 entries、目录 revision 与明确的分页终点/继续标识。客户端提供加载更多，刷新使旧分页失效并重新读取，不能静默遗漏超过 1000 项的目录。entries 区分目录、普通文件、符号链接和特殊节点；链接可见但不递归、不读写目标内容。reveal 定位原始链接本身，trash 移除原始链接本身，不跟随目标。
+
+### 目录观察与缓存对账
+
+目录树是 Renderer 保存的工作区级投影，主进程目录列表是权威快照，文件系统事件只充当失效提示。文件命令与 Git owner resolver 使用同一工作区身份函数，由账号、local project id、项目绑定路径、canonical root 与根目录身份生成 canonical workspace token，替代两个服务各自散落的哈希。独立的文件观察器复用该 owner 解析；Renderer 通过受限 IPC 提交 project/session、expected workspace 与工作区内相对目录集合，不提交根目录。主进程重新解析身份后才建立观察，并向 Preload 事件通道发布 `{workspace, version, invalidated, stale, watch_error}`。事件不携带可直接合并成树的目录项。
+
+观察范围始终包含当前文件工作区根目录，并包含已经物化且处于展开状态的普通目录；不递归预扫描整个项目，也不跟随符号链接。展开集合变化时主进程复核相对路径后增减目录 watcher。收起立即改变本地展开状态并停止不再需要的后代观察，但保留最后一次可信子树并标记下次展开需要对账；重新展开先显示缓存，再后台 list，不进入阻塞 loading。父目录 rename/delete 使父快照失效，重读后同步关闭已经消失或身份改变的后代 watcher。
+
+同一 canonical workspace 组成一个观察 generation；同一 generation 共享 watcher 和单调 version。切换侧栏模式不释放当前 Chat 工作区观察，因此回到文件面板直接消费持续更新的投影。切换 Chat 工作区、账号、根绑定，离开 Chat 页面、Renderer reload 或窗口关闭时释放旧订阅并关闭无订阅 watcher；页面或应用从暂停状态恢复时，先对根目录和仍展开目录执行一次对账，再继续增量观察。任何旧 workspace、旧 generation 或倒退 version 的事件和 list 结果均被丢弃。
+
+每个 watcher 的连续变更在短窗口内合并，默认 200ms；有文件名时使其父目录失效，文件名缺失、rename 语义不完整或 watcher 溢出时使该 watcher 对应目录失效。Renderer 按相对目录去重失效集合，每个目录最多一个在途 list；在途期间再次失效只登记一次后续对账。一个 burst 不按事件次数重复读取，后续对账不会被持续事件饿死。
+
+目录对账从 offset 0 获取新 revision，并继续读取到旧投影已经可见的数量或新目录终点；后续页必须携带同一新 revision。整轮成功后原子替换该目录的 materialized range、total 与 next offset，绝不把新 revision 页追加到旧 revision。对账期间保留旧 entries、选择、焦点、滚动和展开集合；目录初次没有可信快照时才允许在该目录子级显示延迟出现的非阻塞进度。读取失败保留旧快照并标记 stale/error，不能用空数组冒充目录已空。
+
+文件观察器启动失败、运行期 error、事件信息不完整或平台漏报都进入可恢复降级：保留最后成功投影，暴露 watch_error，并以可注入的有界轮询核对根和当前展开目录，活动文件面板默认 5 秒，Chat 活动但文件面板隐藏时最长 30 秒；重新显示、恢复可见、显式刷新和文件命令成功回执均立即触发相关目录对账。成功重建 watcher 且完成一次对账后才清除 stale/watch_error。显式刷新是恢复入口而非日常新鲜度前提。
+
+### 文件树 Git 状态投影
+
+文件树不创建第二个 Git watcher 或重复执行仓库摘要。它消费项目分组现有 `ChatGitObserver` 对同一 canonical workspace 发布的完整状态：文件系统和 Git 元数据 watcher 的 burst 以默认 200ms 合并，读取 single-flight；并发显式刷新复用同一个在途读取，只有在途期间发生的文件系统失效才安排一次后续刷新。30 秒轮询负责遗漏事件对账，失败保留最后成功值及原读取时间；应用窗口获得焦点不触发全项目 Git 刷新。当前文件工作区即使没有展开会话分组，也纳入 Chat 可见项目的 Git observe 集合；离开 Chat、账号或根身份变化时沿既有 release 和 canonical workspace 规则失效。
+
+Git 状态观察在刷新完成时发布单调 version 和最新读取时间。Renderer 在下一个动画帧合并同一 burst，只原位更新项目 Git 摘要和已打开的 Git 面板，不重建会话列表、transcript 或 Composer；会话完成、工作区身份变化和用户显式刷新仍可请求立即对账。
+
+Renderer 只在 Git `project_id + canonical workspace` 与当前文件会话匹配且 version 不倒退时替换整份 Git 快照，不把不同 revision 的路径变化逐项拼接。它把 summary 的 index/worktree/conflict/rename/delete 状态归一为工作区相对 POSIX 路径；当前存在的新路径投影到文件行，删除路径不制造幽灵行，rename 的旧路径只用于语义和祖先失效。根外、非法或无法归一的路径被拒绝并使该快照进入错误恢复，不授予文件访问权限。
+
+每份成功快照建立一次路径状态表和祖先前缀聚合：文件保留 index/worktree 组合，目录聚合所有变化后代的类别与去重路径数，优先级为冲突、已跟踪变化、仅未跟踪，并覆盖从直接父目录到工作区根的全部现存祖先。目录展开/收起只读取该投影，不触发 Git 刷新。干净、被忽略、非仓库和无可信结果分别保持无标记、无标记、明确非仓库、未知；stale/error 时保留最后可信标记并附带面板级状态，绝不把旧项目标记短暂贴到新工作区。
 
 所有路径拒绝绝对路径、上级穿越和根外 realpath；新建检查真实父目录。内容读写拒绝任一路径段的符号链接，普通文件使用 no-follow 打开并复核文件身份；变更串行化到真实工作区，在执行前重新确认归属和路径。列举的完整性不授予跨工作区权限。不能检查的身份变化以冲突结束，不声称 Node 路径检查可以消除任意恶意外部进程的所有 TOCTOU 风险。
 
@@ -114,8 +138,8 @@ Monaco 复用已有本地 vendor、通用 worker、CSS 和许可证构建；选�
 
 文件会话是独立于 Chat transcript/Composer 的 Renderer 状态，不创建 Codex session、thread 或 Automation 执行。跨会话与页内导航保留当前窗口文件状态；窗口退出、重载和账号切换通过脏状态拦截完成保存/放弃/取消。根绑定变化隔离旧草稿并禁用保存，避免对新工作区写入。当前约定不提供崩溃或跨设备文件草稿恢复。
 
-异步列表、文件加载和保存结果绑定账号、工作区 generation 与文件身份；过期结果不能恢复旧项目内容。保存捕获请求时文本与本地编辑版本，成功只推进相应基线，后续输入继续 dirty。重新激活文件、窗口恢复焦点和显式刷新检查磁盘版本；冲突保留草稿，用户明确放弃后才重新载入。后台 Chat 消息更新不能重建编辑器，隐藏 Chat 仍持续消费会话事件。
+异步列表、观察事件、Git 状态、文件加载和保存结果绑定账号、工作区 generation 与文件身份；过期结果不能恢复旧项目内容。保存捕获请求时文本与本地编辑版本，成功只推进相应基线，后续输入继续 dirty。已打开文件由目录/Git 变化提示及重新激活检查磁盘版本；冲突保留草稿，用户明确放弃后才重新载入。窗口恢复、观察恢复和显式刷新执行对账但不替代持续观察。后台 Chat 消息更新不能重建编辑器，隐藏 Chat 仍持续消费会话事件。
 
-验证边界包括 main 身份和路径校验、全部目录项可达、UTF-8/大小/链接限制、版本冲突和变更失败，以及真实 Electron 中 vendor/worker 加载、Tab/model 释放、脏内容保护、项目隔离和 Chat 连续性。原型只证明模拟交互，不能替代这些生产验证。
+验证边界包括 main 身份和路径校验、全部目录项可达、UTF-8/大小/链接限制、版本冲突和变更失败；观察器单测覆盖 burst 合并、单飞后续对账、缺失文件名、watcher error/轮询恢复、订阅释放和迟到 generation；Renderer 单测覆盖缓存展开、分页原子替换、选择/焦点保持、旧 workspace/version 拒绝及 Git 文件/祖先聚合。真实 Electron 使用临时工作区覆盖外部创建、删除、重命名、展开/收起无 loading、侧栏返回、账号/根切换、非仓库和 Git staged/unstaged/untracked/conflict/rename/delete，并检查 watcher 无泄漏、Monaco 草稿不丢和 Chat 连续性。原型只证明模拟交互，不能替代这些生产验证。
 
 待办对话统一边界见 [Desktop 执行方案](desktop-execution-solution.md#待办统一会话与执行接力)。事情台仅保留任务控制和对话导航；打开、定位执行历史、留言交给 Agent 都进入同一 Chat，带入的留言保留为草稿。

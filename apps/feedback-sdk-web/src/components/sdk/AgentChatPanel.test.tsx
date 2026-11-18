@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 
 // 屏蔽 v2 模块的真实网络调用，仅关心渲染产物。
@@ -306,4 +306,34 @@ it('requests a new server conversation only for the first successful turn after 
   fireEvent.click(screen.getByRole('button', { name: '发送' }))
   await waitFor(() => expect(api.sendStandaloneAgentMessage).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: 'new-server' })))
   expect(vi.mocked(api.sendStandaloneAgentMessage).mock.calls.at(-1)?.[0].newConversation).not.toBe(true)
+})
+
+it('imperative ref send reuses the active standalone conversation (no parallel session)', async () => {
+  const v2 = await import('@/lib/feedback/v2')
+  vi.mocked(v2.getStandaloneAgentConversations).mockResolvedValue([
+    { id: 'conv-s1', feedback_id: 0, project_id: 11, created_at: '2026-10-12T00:00:00Z', updated_at: '2026-10-12T00:00:00Z' },
+  ])
+  vi.mocked(v2.getStandaloneAgentMessages).mockResolvedValue([
+    { id: 1, conversation_id: 'conv-s1', feedback_id: 0, project_id: 11, sender_type: 'agent', content: '历史', created_at: '2026-10-12T00:00:00Z' },
+  ])
+  vi.mocked(v2.sendStandaloneAgentMessage).mockResolvedValue({
+    message_id: 2,
+    conversation_id: 'conv-s1',
+    content: '整理结果',
+    sender_type: 'agent',
+    confidence: 0.9,
+    need_collect: true,
+    structured: { request_type: 'bug', position: '导出页', phenomenon: '403', expect: '导出成功' },
+  })
+  const needCollect = vi.fn()
+  const ref = { current: null as any }
+  render(<AgentChatPanel standalone ref={ref} onNeedCollect={needCollect} />)
+  await waitFor(() => expect(screen.getByText('历史')).toBeInTheDocument())
+  await act(async () => { await ref.current.send('单框整理的原文') })
+  expect(v2.sendStandaloneAgentMessage).toHaveBeenCalledWith(
+    expect.objectContaining({ content: '单框整理的原文', conversationId: 'conv-s1' }),
+  )
+  const params = vi.mocked(v2.sendStandaloneAgentMessage).mock.calls[0][0]
+  expect(params.newConversation ?? false).toBe(false)
+  expect(needCollect).toHaveBeenCalledWith(expect.objectContaining({ question: '单框整理的原文', structured: expect.objectContaining({ request_type: 'bug' }) }))
 })

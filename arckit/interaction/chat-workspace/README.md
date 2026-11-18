@@ -1,69 +1,27 @@
-# ArcOrbit · Chat 正式交互原型
+# ArcOrbit 正式交互原型
 
-[打开完整页面](default.html) · [正式交互说明](interaction.md) · [异常场景工具](scenarios.html)
+打开 [default.html](default.html) 使用产品视图；打开 [scenarios.html](scenarios.html) 逐项体验正常、失败、恢复、权限和冲突场景。
 
-直接用浏览器打开 default.html，无需业务服务。页面保留现有全局范围、分类导航、“模型能力”弹出配置、个人中心、右侧列表调宽、输入调高、会话历史、Markdown、工具/权限、停止和恢复行为。
+采用真实 Logo 与五个入口：Chat、项目、团队、工程、设置。Chat 保留项目分组列表 / 对话 / 综合资料栏；其他页面采用左侧选择 / 中央工作区 / 右侧上下文。产品集在项目页维护，不在 Chat 常驻。
 
-## 推荐试用
+本地演示不会调用真实业务。每个场景入口重置本套原型数据；“继续上次工作”保留数据。正式原型独立使用 `arcorbit-formal-workspace-v1:dock`，不读取旧探索数据。
 
-1. 在已有会话点击“整理为待办”，待完成后从右侧“待办”重新进入，仍为同一会话。
-2. 点击输入框“能力与引用”→“创建待办”，输入“给 Chat 增加会话搜索”后发送。创建当前项目的另一条待办，留在原讨论；卡片显示创建来源。
-3. 点击新待办卡片打开对应 Chat，从标题“创建于…”返回来源。两个入口不会复制同一待办的 thread。
-4. 输入 `/` 选择“问题诊断”，输入 `@` 选择文件或待办，再输入问题发送。引用对象不改变当前主待办。
-5. 打开已有待办，输入“补充完成标准”，等待写回，再点“查看最新内容”。输入“继续执行”体验沿同一 thread 的执行请求。
-6. 输入“看看有没有遗漏的旁支事项”，收到建议后回复“记成另一个待办”。Agent 回复不附预设快捷按钮。
-7. 在异常工具选择“下次原生写入失败”，发起创建；失败后回复“重试刚才的操作”。版本冲突在修改进行中注入；占用、失权作用于当前主待办。
-
-输入框左侧保留“能力与引用”和“模型能力”入口，发送/停止靠右。Model 和 Level 在模型能力菜单调整并自动保存；技能设置从能力与引用菜单底部进入。
-
-统一选择器中的标签先留在草稿，发送后才调用。一个显式能力、多个去重引用随各自会话保存；取消选择和移除标签都保留正文。右侧“会话”保持项目分组和五条递增，“待办”只显示当前项目。窄窗通过列表抽屉操作。
-
-## 正式依据和模拟边界
-
-正式预期在 interaction.md。2026-09-19 采纳关系记录于 `../_explorations/chat-todo/exploration.md`；正式入口不加载任何探索脚本、样式或存储。
-
-样式消费 `../../visual/_library/generated-tokens.css`、正式 brief、ConversationSurface 及 light/dark 主题。新增选择器、标签与对象卡片由既有视觉角色组合；工程细节与 thread 标识不进入正常产品流。
-
-正文、工具活动、审批展示来自既有 Chat 原型基础；当前项目待办能力、统一输入选择器、引用标签与回执卡片表达正式新增预期。全部使用本地样本，没有真实 Agent、Skill 读取、项目文件读取、待办 API 或业务执行。输入识别为预设短语与显式能力的确定性模拟，不声称完成通用语义理解。
-
-默认每 900ms 推进一步；`?autoplay=off` 时通过 ChatPrototype.tick() 手动推进。停止只阻止未提交模拟写入。真实幂等、结果未知、部分成功绑定恢复、跨进程/设备 thread、读写授权、原生桌面控件和辅助技术完整检查未由原型证明。
-
-普通原型沿用独立 `arcorbit-interaction-chat-v1` 存储，原生能力样本用 nativeVersion 初始化；场景工具使用 `-scenarios` 后缀，与探索和 Thing 样本隔离。刷新不重放活动原生写入；删除本地会话不删除待办或任务所属的持久 thread 身份。
-
-## 文件和验证
-
-基础文件 model.js / views.js / app.js / chat.css / markdown.js 保留原 Chat 能力。native-model.js 管理待办、消息意图与工具回执样本，native-views.js 组合正式视图，native-input.js 管理选择器、标签、对象导航和异常入口，native.css 使用正式 Token；model-settings.js 管理当前会话的模型/推理级别弹出菜单。全部低于 500 行，按职责拆分；default.html 始终是完整入口。
-
-从仓库根运行：
+从仓库根目录运行：
 
 ```sh
-runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify.cjs
-runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-native.cjs
-runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-layout.cjs
-swift arckit/interaction/chat-workspace/verify-layout-webkit.swift "$PWD"
+python3 -m http.server 8765 --bind 127.0.0.1
+node runtime/arcorbit/node_modules/electron/cli.js arckit/interaction/chat-workspace/verify-suite.cjs
 ```
 
-基础脚本旧结果在 verification.json；verify-native.cjs 新运行输出由 ARCORBIT_TEST_OUTPUT 指定，默认临时目录，写入 verification-native.json。前者覆盖原有会话、模型、草稿、滚动、权限、失败、工作区、账户与布局；后者覆盖同一 thread、能力/引用标签、待办创建与来源、读写、冲突、占用、失权、停止、恢复、输入法、暗色及 390–1500px/200% 缩放。
+预览地址：`http://127.0.0.1:8765/arckit/interaction/chat-workspace/default.html`。
 
-本地截图位于 previews/native-*.png。states.html 与 workspace-setup.html 为专项辅助稿；新增原生能力以完整入口和正式说明为准。
+验证脚本默认输出临时目录，支持 `ARCORBIT_TEST_OUTPUT`。Electron 隐藏窗口实际点击表单、菜单和状态，断言交互结果；不访问生产数据。
 
-菜单以各自入口为锚点向上展开，并随窗口尺寸调整。共享顶部栏按生产 renderer 的现有布局校准；产品集管理仅修改原型本地样本。
+- `interaction.md`：完整策略与模拟边界。
+- `suite-coverage.md`：本次五个入口的能力对应与实际复核范围。
+- `coverage.md`：此前核心工作流的场景记录。
+- `unified/`：正式原型专属资源，不依赖探索目录。
+- `maintenance-result.json`：本轮文件范围、采纳依据与结果。
+- `legacy-default.html`、`legacy-interaction.md`、`legacy-README.md`、`legacy-scenarios.html` 和根目录原有脚本：旧独立会话形态的历史对照，不作为本轮入口及验收依据。`verify-unified*`、`verify-navigation`、`verify-worksets` 保留此前版本验证记录，其旧导航选择器不适用于本次五入口；当前运行 `verify-suite.cjs`。
 
-verification-layout.json 专门检查顶部入口同排、菜单高度、固定搜索/技能设置，以及逐个滚动到候选后真实命中点击区域；覆盖 390–1500px 宽、640–1000px 高。
-
-verify-layout-webkit.swift 使用 macOS WKWebView 复核 1500×800 桌面布局；本次结果记录在 verification-layout-webkit.json。
-
-Work 的 `../task-browser/default.html` 提供待办“打开 Chat”路径；Chat 右栏支持“会话列表 / 待办详情”切换。两页的详情样本通过 `../_shared/work-chat-detail.js` 呈现。该样本仅模拟入口、绑定和详情切换，完整业务字段与权限以 interaction.md 及生产共享详情渲染器为准。
-
-## 项目文件与编辑 Tab
-
-右栏“文件”显示完整项目目录样本（包括隐藏/忽略条目和符号链接），逐层展开并分页加载；右键或 Shift+F10 打开文件操作菜单，可把相对路径插入 Chat 光标处。点击文件进入中央多 Tab，Chat 保留，文件用 × 关闭。新建、重命名、模拟废纸篓、未保存关闭、保存失败、磁盘冲突、重新读取与项目切换均可操作。场景页提供文件故障、外部改动和慢响应入口。
-
-files-model.js 管理隔离内存目录；files-ui.js 保持编辑草稿、光标与后台 Chat 的独立性；files.css 使用既有明暗主题 Tokens。编辑区 textarea 仅表达交互，不是 Monaco。真实目录权限、IPC、Monaco 模型与 Worker、系统废纸篓、账户/重绑定/退出保存保护由生产验证；样本只用 beforeunload 提示刷新丢失。内存文件不跨刷新持久化。
-
-```sh
-env -u ELECTRON_RUN_AS_NODE ARCORBIT_TEST_OUTPUT="$PWD/arckit/cases/evidence/CASE-20260922-006/files-prototype-final" runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-files.cjs
-env -u ELECTRON_RUN_AS_NODE ARCORBIT_TEST_OUTPUT="$PWD/arckit/cases/evidence/CASE-20260922-006/files-native-regression" runtime/arcorbit/node_modules/.bin/electron arckit/interaction/chat-workspace/verify-native.cjs
-```
-
-每次复测使用新的输出目录保留历史。最新文件行为证据为 `../../cases/evidence/CASE-20260922-006/files-prototype-final/verification.json`；既有 Chat 原生路径回归见 `../../cases/evidence/CASE-20260922-006/files-native-regression/verification-native.json`。前几次失败和修复后的中间截图仍保存在相邻 run 目录中，不作为最终通过依据。
+本轮只维护交互域。Spec、Tech、Visual 及生产实现保持原样，不能从原型推断跨域契约已同步。

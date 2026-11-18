@@ -10,6 +10,7 @@
   }
   function seed() {
     const disk = new Map();
+    const git = new Map();
     const add = (path, kind, text = '', extra = {}) => disk.set(path, {path, kind, text, revision: 1, ...extra});
     for (const p of ['.git', 'node_modules', 'src', 'src/nested', 'many', 'restricted']) add(p, 'directory');
     add('restricted', 'directory', '', {denied: true});
@@ -25,7 +26,13 @@
     add('legacy.txt', 'file', '', {unsupported: '文件不是有效 UTF-8 文本。'});
     add('linked', 'link', '', {target: '../outside'});
     for (let i = 0; i < 125; i++) add(`many/file-${String(i).padStart(3, '0')}.txt`, 'file', `${i}\n`);
-    return {disk, tabs: [], active: '', selected: '', expanded: new Set(), limits: new Map(), error: '', fail: '', trash: [], loading: '', epoch: 0};
+    git.set('.env', {marker: '!', meaning: '存在冲突'});
+    git.set('README.md', {marker: 'A', meaning: '已暂存新增'});
+    git.set('src/app.js', {marker: 'M', meaning: '未暂存修改'});
+    git.set('src/nested/app.js', {marker: '?', meaning: '未跟踪'});
+    git.set('src/removed.js', {marker: 'D', meaning: '已删除'});
+    git.set('空 格`文件.md', {marker: 'R', meaning: '已暂存重命名'});
+    return {disk, git, gitFreshness: 'fresh', tabs: [], active: '', selected: '', expanded: new Set(), limits: new Map(), error: '', fail: '', trash: [], loading: '', epoch: 0};
   }
   function current() {
     const id = key();
@@ -46,6 +53,20 @@
     if (s.disk.get(path)?.denied) throw Error('没有读取此目录的权限。');
     return [...s.disk.values()].filter(e => parent(e.path) === path)
       .sort((a, b) => Number(b.kind === 'directory') - Number(a.kind === 'directory') || name(a.path).localeCompare(name(b.path)));
+  }
+  function gitStatus(s, path) {
+    const direct = s.git.get(path);
+    if (direct && s.disk.has(path)) return {...direct, direct: true};
+    const prefix = path ? path + '/' : '';
+    const entries = [...s.git].filter(([candidate]) => candidate.startsWith(prefix));
+    if (!entries.length) return null;
+    const conflict = entries.filter(([, value]) => value.marker.includes('!')).length;
+    const untracked = entries.filter(([, value]) => value.marker === '?').length;
+    const deleted = entries.filter(([, value]) => value.marker.includes('D')).length;
+    const renamed = entries.filter(([, value]) => value.marker.includes('R')).length;
+    const tracked = entries.length - conflict - untracked - deleted - renamed;
+    const parts = [conflict && `冲突 ${conflict}`, tracked && `已跟踪变化 ${tracked}`, renamed && `重命名 ${renamed}`, deleted && `删除 ${deleted}`, untracked && `未跟踪 ${untracked}`].filter(Boolean);
+    return {marker: conflict ? '!' : (tracked || renamed || deleted) ? 'M' : '?', meaning: `包含 Git 变化：${parts.join('，')}，共 ${entries.length} 个路径`, direct: false};
   }
   async function open(s, path) {
     const epoch = ++s.epoch;
@@ -108,6 +129,7 @@
     const path = [directory, validName(value)].filter(Boolean).join('/');
     if (s.disk.has(path)) throw Error('同名项目已存在，不会覆盖。');
     s.disk.set(path, {path, kind, text: '', revision: 1});
+    if (kind === 'file') s.git.set(path, {marker: '?', meaning: '未跟踪'});
     s.expanded.add(directory); s.selected = path;
     return path;
   }
@@ -119,6 +141,7 @@
     if (s.disk.has(next)) throw Error('同名项目已存在，不会覆盖。');
     const remap = p => p === path || p.startsWith(path + '/') ? next + p.slice(path.length) : p;
     for (const [p, e] of [...s.disk]) if (remap(p) !== p) { s.disk.delete(p); e.path = remap(p); s.disk.set(e.path, e); }
+    for (const [p, status] of [...s.git]) if (remap(p) !== p) { s.git.delete(p); s.git.set(remap(p), {...status, marker: 'R', meaning: '已重命名'}); }
     s.tabs.forEach(t => t.path = remap(t.path)); s.active = remap(s.active); s.selected = next;
     s.expanded = new Set([...s.expanded].map(remap));
   }
@@ -128,8 +151,25 @@
     if (!path || !s.disk.has(path)) throw Error('目标已失效，不能删除。');
     const entries = [...s.disk].filter(([p]) => p === path || p.startsWith(path + '/'));
     s.trash.push(entries); entries.forEach(([p]) => s.disk.delete(p));
+    for (const [p, status] of [...s.git]) if (p === path || p.startsWith(path + '/')) {
+      if (status.marker === '?') s.git.delete(p);
+      else s.git.set(p, {marker: 'D', meaning: '已删除'});
+    }
     affected(s, path).forEach(t => close(s, t)); s.selected = '';
   }
-  window.ChatFilesModel = {sessions, key, current, parent, name, children, dirty, tab, open, save, close, reload, create, rename, trash, affected, assertCurrent, check,
+  function externalChange(s, action) {
+    assertCurrent(s);
+    if (action === 'create') {
+      s.disk.set('src/external-note.js', {path: 'src/external-note.js', kind: 'file', text: 'external\n', revision: 1});
+      s.git.set('src/external-note.js', {marker: '?', meaning: '未跟踪'});
+    } else if (action === 'rename') {
+      const entry = s.disk.get('src/external-note.js');
+      if (entry) { s.disk.delete(entry.path); entry.path = 'src/external-renamed.js'; s.disk.set(entry.path, entry); }
+      s.git.delete('src/external-note.js'); s.git.set('src/external-renamed.js', {marker: 'R', meaning: '外部重命名'});
+    } else if (action === 'delete') {
+      s.disk.delete('src/external-renamed.js'); s.git.set('src/external-renamed.js', {marker: 'D', meaning: '外部删除'});
+    }
+  }
+  window.ChatFilesModel = {sessions, key, current, parent, name, children, gitStatus, externalChange, dirty, tab, open, save, close, reload, create, rename, trash, affected, assertCurrent, check,
     setAccount(value) { account = value; }};
 })();

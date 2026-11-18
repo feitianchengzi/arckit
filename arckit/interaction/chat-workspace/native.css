@@ -9,7 +9,6 @@
 .native-card>span:first-child{min-width:0;flex:1}
 .native-card strong,.native-card small{display:block}
 .native-card small{font-size:var(--typography-caption-size);color:var(--semantic-muted);margin-top:var(--spacing-2)}
-.chat-heading p button{font-size:var(--typography-label-size);border:0;background:transparent;padding:0 var(--spacing-2)}
 #native-picker{position:fixed;top:auto;margin:0;padding:var(--spacing-4);width:min(380px,calc(100vw - 24px));height:640px;max-height:640px;overflow:hidden;border:1px solid var(--semantic-control-border);border-radius:var(--corner-radius-medium);background:var(--semantic-elevated);color:var(--semantic-text)}
 #native-picker::backdrop{background:var(--semantic-scrim)}
 .native-picker-heading{display:flex;justify-content:space-between;align-items:center;gap:var(--spacing-3);margin-bottom:var(--spacing-3)}
@@ -20,7 +19,7 @@
 .native-option small{display:block;font-size:var(--typography-caption-size);color:var(--semantic-muted)}
 .native-picker-note{font-size:var(--typography-caption-size);color:var(--semantic-muted);margin-top:var(--spacing-3)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
-@media(max-width:760px){.chat-heading-actions{flex-wrap:wrap}.native-card{align-items:flex-start}.native-card>span:last-child{max-width:75px}}
+@media(max-width:760px){.native-card{align-items:flex-start}.native-card>span:last-child{max-width:75px}}
 .chat-compose-controls{display:flex;align-items:center;flex-wrap:nowrap}
 .chat-compose-controls>button[type=submit],.chat-compose-controls>[data-chat-action=stop]{margin-left:auto;flex-shrink:0}
 .chat-compose-controls>[data-native-action]{min-width:0;white-space:nowrap;font-size:var(--typography-label-size)}
@@ -44,6 +43,7 @@
 .chat-sessions>[hidden]{display:none}
 .sample-task-detail{min-height:0;overflow:auto;overflow-wrap:anywhere}
 .sample-task-detail section{border-bottom:1px solid var(--semantic-divider);padding:12px 0}
+.sample-task-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .sample-task-detail textarea{width:100%;box-sizing:border-box}
 .chat-sessions header h2{display:flex;gap:4px}
 .chat-sessions header [aria-pressed="true"]{background:var(--semantic-nav-selected)}

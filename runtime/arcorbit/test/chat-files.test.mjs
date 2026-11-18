@@ -77,6 +77,7 @@ test('binary, invalid UTF-8, large files and symlinks stay visible without edita
 
 test('create, rename and trash do not overwrite; links are revealed and removed as entries; trash failure never deletes', async t => {
   const f = await fixture(t);
+  await f.call('reveal', { path: '' }); assert.equal(f.revealed[0], await realpath(f.root));
   await f.call('create-directory', { path: '', name: 'dir' });
   await f.call('create-file', { path: 'dir', name: '空 格`文件.md' });
   await assert.rejects(f.call('create-file', { path: 'dir', name: '空 格`文件.md' }), /EEXIST/);
@@ -86,7 +87,7 @@ test('create, rename and trash do not overwrite; links are revealed and removed 
   assert.equal(await readFile(join(f.root, 'renamed', '空 格`文件.md'), 'utf8'), '');
   f.setTrashFails(true); await assert.rejects(f.call('trash', { path: 'renamed' }), /废纸篓失败/); assert.ok((await lstat(join(f.root, 'renamed'))).isDirectory());
   f.setTrashFails(false); await f.call('trash', { path: 'renamed' }); assert.ok((await lstat(join(f.base, 'trash', 'renamed'))).isDirectory());
-  await symlink('../other', join(f.root, 'link')); await f.call('reveal', { path: 'link' }); assert.equal(f.revealed[0], join(await realpath(f.root), 'link'));
+  await symlink('../other', join(f.root, 'link')); await f.call('reveal', { path: 'link' }); assert.equal(f.revealed[1], join(await realpath(f.root), 'link'));
   await f.call('trash', { path: 'link' }); assert.ok((await lstat(join(f.base, 'trash', 'link'))).isSymbolicLink()); assert.ok((await lstat(join(f.base, 'other'))).isDirectory());
 });
 

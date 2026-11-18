@@ -109,7 +109,10 @@ app.whenReady().then(async () => {
       };
 
       click("[data-kb-dismiss]");
-      await wait(180);
+      // The close event is queued asynchronously and hidden windows may throttle it.
+      // Wait for removal rather than assuming the event arrives within 180 ms.
+      const closeDeadline = performance.now() + 3000;
+      while (dialog() && performance.now() < closeDeadline) await wait(50);
       const closed = {
         dialogGone: !document.querySelector("dialog.knowledge-dialog"),
         lockedProjectId

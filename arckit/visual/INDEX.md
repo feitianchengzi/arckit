@@ -7,12 +7,12 @@
   - brief.md 明暗事情台、内容层级、色彩、字体、密度和无标题栏原生窗口。✅ (69行)
   - reference-research.md Codex、Cursor、Claude 官方依据与适配边界。✅ (22行)
   - design-tokens.yaml 基础颜色、语义角色、字体、尺度与主题映射。✅ (126行)
-  - component-catalog.yaml 21 个组件的四组聚合入口。✅ (11行)
+  - component-catalog.yaml 22 个组件的四组聚合入口。✅ (11行)
   - state-contract.md 通用组件状态、七业务状态与验证约束。✅ (52行)
   - components/ 按职责拆分的组件视觉规格。✅
     - foundation.yaml 无标题栏应用壳、导航、图标、按钮与状态。✅ (79行)
     - workbench.yaml 事情行、输入、运行概况、成果和上下文。✅ (69行)
-    - conversation.yaml 对话阅读面、登录与账号。✅ (49行)
+    - conversation.yaml 对话阅读面、Chat 文件树、登录与账号。✅
     - execution.yaml 队列、运行事实、人工事项、恢复与记录。✅ (78行)
   - style-preview.html 可直接打开的组件与主题预览入口。✅ (26行)
   - preview.css 消费生成 CSS 变量的组件样张样式。✅ (8行)

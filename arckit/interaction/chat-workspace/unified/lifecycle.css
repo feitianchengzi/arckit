@@ -1,0 +1,75 @@
+.work-more {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+.section p {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.dock-v2 .top .grow {
+  min-width: 0;
+}
+.dock-v2 .top {
+  flex-wrap: nowrap;
+}
+.dock-v2 .top-actions {
+  flex-shrink: 0;
+}
+.header-execution {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.dock-v2 .top .title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.management,
+.feedback-detail,
+.member-row,
+.grow {
+  min-width: 0;
+}
+.member-row strong {
+  overflow-wrap: anywhere;
+}
+.composer-footer {
+  flex-wrap: wrap;
+}
+.composer-footer .small {
+  font-size: 12px;
+}
+.work-more button {
+  font-size: 13px;
+}
+.inspector-tabs button:focus-visible {
+  outline: 2px solid var(--semantic-focus);
+  outline-offset: 2px;
+}
+@media (max-width: 760px) {
+  .header-execution .pill {
+    display: none !important;
+  }
+  .header-execution button {
+    max-width: 110px;
+  }
+  .dock-v2 .top .title {
+    font-size: 15px;
+  }
+  .dock-v2 .top-actions {
+    max-width: 170px;
+  }
+  .dock-v2 .top {
+    gap: 6px;
+  }
+  .composer-footer .grow {
+    flex-basis: 40%;
+  }
+}

@@ -2,10 +2,10 @@
 
 ## 先按接入方式分流
 
-SDK WebView V2 与原生 API 的凭证契约彼此独立：
+先区分 WebView 配置字段与原生 HTTP 认证：
 
 - `integrationMode=sdk-webview`：继续选择 `sdkAuthMode=apiKey|session`。
-- `integrationMode=native-api`：只遵循已确认的原生 API 契约。不要把 SDK V2 的 `feedbackSessionToken`、通知协议或会话换取接口套到原生请求。
+- `integrationMode=native-api`：默认 `nativeApiVersion=v2`（当前已核验最新稳定版），按主流程的 V1 例外规则确定版本后选择 `nativeAuthMode`；V2 Session 使用下述宿主换取机制及 HTTP Bearer token，原生 client 自行刷新，不使用 SDK bridge 事件。
 
 ## SDK V2 客户端直连
 
@@ -39,11 +39,9 @@ SDK WebView V2 与原生 API 的凭证契约彼此独立：
 
 ## 原生 API 凭证边界
 
-原生 API 是独立方案。当前 reference 记录哪个版本的接口，就只按该版本实现和汇报。若平台尚未提供与 SDK V2 对应的原生 API 文档：
+按 [原生 API 模式](native-api-mode.md) 配置：V1 仅 API Key，V2 可选 API Key 或 Session。原生 Session 使用相同的服务端交换 endpoint，但客户端不需要 `configure`、`feedbackSessionToken` 字段或 iframe 通知。上面的 Key 风险、宿主身份派生、token 内存存储及账号切换规则同样适用。
 
-- 不推测 endpoint、认证头、请求体、会话 token、通知或未读接口。
-- 不把 SDK V2 的 `/workshop/v2/apikey/feedback-sessions` 当成原生反馈 CRUD 接口。
-- 把“V2 原生 API 契约待平台提供”列为产品缺口；需要的最小信息包括 endpoint、认证、请求/响应 schema、附件、会话/消息和未读语义。
+使用“项目专用 Key”是运营隔离建议，不保证网关 Key 本身只有单项目权限；当前服务仍校验 Key 所属用户的项目成员身份。直连 customUserId 可由持 Key 的客户端填写，不应宣称为可信登录隔离；需要认证身份保证时使用宿主 Session。
 
 ## customUserId
 

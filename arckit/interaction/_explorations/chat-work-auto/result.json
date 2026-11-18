@@ -1,0 +1,83 @@
+{
+  "document_scope": {
+    "scope_kind": "change",
+    "root": "arckit/interaction/",
+    "created": [
+      {
+        "path": "_explorations/chat-work-auto/projects.js",
+        "source_basis": "用户要求在 A 基础上接入五项能力",
+        "summary": "项目导航、Idea、待办、反馈与团队本地原型"
+      },
+      {
+        "path": "_explorations/chat-work-auto/projects.css",
+        "source_basis": "用户要求在 A 基础上接入五项能力",
+        "summary": "项目导航、Idea、待办、反馈与团队本地原型"
+      }
+    ],
+    "updated": [
+      {
+        "path": "_explorations/chat-work-auto/app.js",
+        "source_basis": "五项能力的探索授权",
+        "summary": "入口、项目成员归属、说明与验证同步"
+      },
+      {
+        "path": "_explorations/chat-work-auto/options/dock/default.html",
+        "source_basis": "五项能力的探索授权",
+        "summary": "入口、项目成员归属、说明与验证同步"
+      },
+      {
+        "path": "_explorations/chat-work-auto/default.html",
+        "source_basis": "五项能力的探索授权",
+        "summary": "入口、项目成员归属、说明与验证同步"
+      },
+      {
+        "path": "_explorations/chat-work-auto/exploration.md",
+        "source_basis": "五项能力的探索授权",
+        "summary": "入口、项目成员归属、说明与验证同步"
+      },
+      {
+        "path": "_explorations/chat-work-auto/options/dock/interaction.md",
+        "source_basis": "五项能力的探索授权",
+        "summary": "入口、项目成员归属、说明与验证同步"
+      },
+      {
+        "path": "_explorations/chat-work-auto/verification-notes.md",
+        "source_basis": "五项能力的探索授权",
+        "summary": "入口、项目成员归属、说明与验证同步"
+      },
+      {
+        "path": "_explorations/chat-work-auto/result.json",
+        "source_basis": "五项能力的探索授权",
+        "summary": "入口、项目成员归属、说明与验证同步"
+      }
+    ]
+  },
+  "fact_result": null,
+  "exploration_result": {
+    "mode": "standalone",
+    "case_id": null,
+    "gap_id": null,
+    "objective": "在 A 三栏中容纳 Idea、多项目、待办列表、反馈与团队",
+    "artifact_status": "complete",
+    "formal_fact_effect": "none",
+    "artifacts": [
+      {
+        "path": "arckit/interaction/_explorations/chat-work-auto/options/dock/default.html",
+        "status": "候选",
+        "basis_refs": [
+          "arckit/interaction/chat-workspace/interaction.md",
+          "arckit/interaction/project-workbench/interaction.md"
+        ],
+        "baseline": "27021f543c0a7d095fd97d6d34156b96934e2046，新建 Chat 自动待办依据用户本轮要求",
+        "evidence": "项目隔离、草稿、反馈关联与验收门禁、成员与邀请、Idea 创建和四视图四档宽度通过；见 verification-notes.md"
+      }
+    ],
+    "decision": {
+      "required_for_current_objective": false,
+      "question": "A 继续深化的后续反馈",
+      "basis": "本轮仅制作比较候选"
+    },
+    "adoption": [],
+    "remaining_work": []
+  }
+}

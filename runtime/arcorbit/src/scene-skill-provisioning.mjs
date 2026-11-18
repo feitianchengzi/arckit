@@ -45,7 +45,16 @@ export function createSceneSkillProvisioningManager(options) {
     }
   });
   return { catalog, check, apply, getSnapshot: () => structuredClone(state), onEvent: listener => { listeners.add(listener); return () => listeners.delete(listener); }, waitForIdle: () => operation,
-    async assertReady(projectRoot) { if (!projectRoot || state.status !== 'ready' || !projectRoots.includes(projectRoot)) throw new Error('技能环境尚未就绪，请重新检查本地环境。'); return structuredClone(state); },
+    assertReady: projectRoot => exclusive(() => {
+      if (!projectRoot || state.status !== 'ready' || !projectRoots.includes(projectRoot)) {
+        const error = new Error('技能环境尚未就绪，请重新检查本地环境。');
+        error.code = 'SETUP_NOT_READY';
+        error.stage = 'preflight';
+        error.readiness_status = state.status;
+        throw error;
+      }
+      return structuredClone(state);
+    }),
     recoverSourceUpgrade: () => check({ quiet: true }),
     planManagedRemoval: async () => { throw new Error('请重新检查环境并查看旧技能清理清单。'); },
     removeManaged: async () => { throw new Error('请使用清理清单中的明确确认操作。'); } };

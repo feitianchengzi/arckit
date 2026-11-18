@@ -20,7 +20,7 @@ await git('init','--bare',join(temp,'remote.git'));await git('remote','add','ori
 await git('-c','commit.gpgsign=false','commit','--allow-empty','-m','local commit');
 await writeFile(join(root,'file.txt'),'staged\n');await git('add','file.txt');await writeFile(join(root,'file.txt'),'worktree\n');
 await writeFile(join(root,'<unsafe>.txt'),'<script>unsafe</script>');
-const service=createChatGit({runManager:{readDesktopChatMetadata:async()=>({projects:[{id:'local-11',path:root},{id:'local-12',path:join(temp,'empty')}],sessions:{chat:[{id:'CHAT-A',project_id:'local-11'}]}})},getAccountScope:async()=> 'fixture',authorizeSession:async()=>true});
+const service=createChatGit({runManager:{readDesktopChatMetadata:async()=>({projects:[{id:'local-11',name:'A very long project name that must yield before Git status',path:root},{id:'local-12',name:'Empty repository sample',path:join(temp,'empty')}],sessions:{chat:[{id:'CHAT-A',project_id:'local-11'}]}})},getAccountScope:async()=> 'fixture',authorizeSession:async()=>true});
 process.env.ARCORBIT_CHAT_GIT_TEST='1';process.env.ARCORBIT_CHAT_STREAM_PERFORMANCE_FIXTURE='1';
 await app.whenReady();
 const w=new BrowserWindow({show:false,width:1440,height:960,webPreferences:{preload:join(here,'organization-center-preload.cjs'),contextIsolation:true,sandbox:false}});
@@ -31,7 +31,9 @@ const until=async s=>{for(let i=0;i<150;i++){if(await run(s))return;await sleep(
 const click=sel=>run(`document.querySelector(${JSON.stringify(sel)}).click()`);
 try {
  await w.loadFile(join(here,'../../desktop/renderer/index.html'));await sleep(300);
- await click('[data-page="chat"]');await until(`document.querySelector('[data-chat-git-project]')?.textContent.includes('2 个文件')`);
+ await click('[data-page="chat"]');await until(`document.querySelectorAll('[data-chat-git-project="local-11"] .chat-git-status-group').length===4`);
+ assert.deepEqual(await run(`[...document.querySelectorAll('[data-chat-git-project="local-11"] .chat-git-status-group')].map(e=>e.textContent)`),['+1','M1','?1','↑1']);
+ assert.ok(await run(`!/本地干净|个文件未提交|待推送|分歧/.test(document.querySelector('[data-chat-git-project="local-11"]').textContent)`));
  await run(`const e=document.querySelector('#chatInput');e.value='保留未发送草稿';e.dispatchEvent(new Event('input',{bubbles:true}))`);
  const title=await run('document.querySelector("#chatTitle").textContent');
  await click('[data-chat-project-toggle]');assert.equal(await run(`document.querySelector('[data-chat-project-toggle]').getAttribute('aria-expanded')`),'false');
@@ -52,15 +54,20 @@ try {
  checks.push('multi-project no-repository detail preserves current conversation');
  checks.push('real Git: collapsed summary, staged/worktree/untracked paths, escaped content, commit list and detail, return focus and draft');
  await run(`window.savedGitEntry=document.querySelector('[data-chat-git-project="local-11"]')`);
- await writeFile(join(root,'external.txt'),'external');await until(`document.querySelector('[data-chat-git-project]')?.textContent.includes('3 个文件')`);
+ await writeFile(join(root,'external.txt'),'external');await until(`document.querySelector('[data-chat-git-project="local-11"]')?.textContent.includes('?2')`);
  assert.ok(await run(`savedGitEntry===document.querySelector('[data-chat-git-project="local-11"]')`));
- await git('add','.');await git('-c','commit.gpgsign=false','commit','-m','external commit');await until(`document.querySelector('[data-chat-git-project]')?.textContent.includes('↑2') && !document.querySelector('[data-chat-git-project]').textContent.includes('文件')`);
+ await git('add','.');await git('-c','commit.gpgsign=false','commit','-m','external commit');await until(`document.querySelector('[data-chat-git-project="local-11"]')?.textContent.includes('✓0↑2')`);
  checks.push('external filesystem edit, stage and commit update production summary');
  await git('remote','set-url','origin',join(temp,'missing.git'));await click('[data-chat-git-project]');await click('[data-git-action="fetch"]');await until(`document.querySelector('#chatGitPanel').textContent.includes('获取失败')`);checks.push('manual Fetch failure remains distinct from local clean state');await click('[data-git-action="commits"][data-direction="ahead"]');await until(`!!document.querySelector('[data-git-action="commit"]')`);await click('[data-git-action="commit"]');await until(`!!document.querySelector('[data-git-action="file"]')`);await click('[data-git-action="file"]');await until(`document.querySelector('#chatGitPanel pre')?.textContent.includes('diff --git')`);
  checks.push('real related commit file diff reachable');
  await click('[data-git-action="close"]');
  await run(`document.querySelector('#chatView .chat-workspace').style.setProperty('--chat-sidebar-width','220px')`).catch(()=>{});
- await sleep(100);await writeFile(join(output,'summary.png'),(await w.webContents.capturePage()).toPNG());
+ await run(`document.querySelector('[data-chat-project-group="local-11"] .chat-project-group-head strong').textContent='A very long project name that must yield before Git status'`);
+ await sleep(100);
+ const narrowHeader=await run(`(()=>{const heading=document.querySelector('[data-chat-project-group="local-11"] .chat-project-heading'),title=heading.querySelector('strong'),status=heading.querySelector('.chat-git-summary'),a=title.getBoundingClientRect(),b=status.getBoundingClientRect();return {headingWrap:getComputedStyle(heading).flexWrap,titleOverflow:getComputedStyle(title).textOverflow,titleClipped:title.scrollWidth>title.clientWidth,statusShrink:getComputedStyle(status).flexShrink,statusWhiteSpace:getComputedStyle(status).whiteSpace,sameRow:Math.abs((a.top+a.height/2)-(b.top+b.height/2))<2};})()`);
+ assert.deepEqual(narrowHeader,{headingWrap:'nowrap',titleOverflow:'ellipsis',titleClipped:true,statusShrink:'0',statusWhiteSpace:'nowrap',sameRow:true});
+ checks.push('220px drawer keeps project name and Git groups on one row, with project name clipped first');
+ await writeFile(join(output,'summary.png'),(await w.webContents.capturePage()).toPNG());
  await click('[data-chat-git-project]');await run(`document.documentElement.dataset.theme='dark'`);await sleep(100);await writeFile(join(output,'dark-detail.png'),(await w.webContents.capturePage()).toPNG());
  w.setSize(390,844);if(!await run(`document.body.classList.contains('chat-sessions-open')`))await click('#chatSessionsToggle');await sleep(200);assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));assert.ok(await run(`document.querySelector('#chatGitPanel').getBoundingClientRect().width>100`));
  await writeFile(join(output,'narrow.png'),(await w.webContents.capturePage()).toPNG());

@@ -16,6 +16,7 @@ const config = {
   appId: "com.feitianchengzi.arckit.runtime",
   productName: "ArcOrbit",
   executableName: "arcorbit",
+  icon: "build/icon.png",
   artifactName: `ArcOrbit-${lock.runtime.packageVersion}-${lock.runtime.channel}-${lock.runtime.buildLabel}-${"${os}"}-${"${arch}"}.${"${ext}"}`,
   directories: { output: "release", buildResources: "build" },
   asar: true,

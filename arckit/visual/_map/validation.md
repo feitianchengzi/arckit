@@ -113,3 +113,15 @@ fact_result:
 - `runtime/arcorbit/node_modules/.bin/electron arckit/interaction/_shared/verify-appearance.cjs`：三选项、系统变化/显式覆盖、重新加载、非法值回退、失败恢复、草稿/焦点/任务样本保留通过；全部 15 个共享设置消费者加载和打开外观正常。组件三主题和 Thing 设置在 1440/760/390px 无页面溢出，控制台错误 0。
 - 已实际查看 `dark-mode/components-dark.png` 和 `dark-mode/settings-dark.png`；记录见 `dark-mode/verification.json`。截图是规范投影证据，不代表用户审美认可。
 - 未验证生产持久化、主进程原生主题、首次窗口显示、生产页面和真实服务；共享消费者仅检查加载及设置入口，未穷尽业务状态。生产接入由 CASE-20260918-004 的实现 Gap 承接。
+
+## Chat 文件树密度与 disclosure（2026-10-09）
+
+Chat 右栏文件树采用专用 28px 单行高度，不改变表单、普通数据行和其他共享控件密度。可展开目录使用独立 16px、2px 轮廓 chevron，收起向右、展开向下，并以 `aria-expanded` 保留非颜色状态语义。生产样式显式覆盖共享控件的 36px 最小高度，只作用于文件名称与行尾更多按钮。
+
+- `python3 arckit/visual/_library/build-preview.py --check`：22 个组件、三主题共 75 项对比度检查通过，生成投影与 YAML 来源一致。
+- `runtime/arcorbit/scripts/sync-visual-tokens.mjs --check`：生产随包 Token 与视觉来源一致。
+- 生产 Electron fixture 通过完整文件表面回归，计算样式确认条目、名称按钮和更多按钮均为 28px，disclosure 画布为 16px，展开后 transform 与收起状态不同；报告与截图见 `../../cases/evidence/CASE-20261009-001/file-tree-visual-production-v4/result.json` 和 `../../cases/evidence/CASE-20261009-001/file-tree-visual-production-v4/file-tree-density.png`。
+- 交互原型复测通过文件、编辑、键盘、1500/760/390px、暗色与 200% 缩放场景；报告与截图见 `../../cases/evidence/CASE-20261009-001/file-tree-visual-prototype-v2/verification.json` 和 `../../cases/evidence/CASE-20261009-001/file-tree-visual-prototype-v2/file-tree-density.png`。
+- 已实际查看两张 `file-tree-density.png`：生产与原型均在同一树中呈现清晰的向下展开图标和向右收起图标；行距紧凑，名称与行尾更多入口仍无裁切或重叠。
+
+边界：上述证据使用隔离文件系统和内存原型，不代表用户真实项目、读屏软件、系统强制颜色模式或安装包验收；视觉事实不声明用户完成主观审美批准。

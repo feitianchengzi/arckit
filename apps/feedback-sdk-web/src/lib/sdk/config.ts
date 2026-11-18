@@ -36,6 +36,8 @@ export interface FeedbackSDKConfig {
   parentOrigins?: string[]
   theme?: FeedbackSDKTheme
   hostContext?: FeedbackSDKHostContext
+  /** 单框直接反馈能力位：开启时以 DirectFeedbackBox 替换手填表单（D5）。 */
+  directBox?: boolean
 }
 
 function trimValue(value?: string | null): string {
@@ -133,6 +135,9 @@ export function configureFeedbackSDK(config: FeedbackSDKConfig) {
   if (theme) {
     runtimeConfig.theme = theme
     applyFeedbackSDKTheme(theme)
+  }
+  if (typeof config.directBox === 'boolean') {
+    runtimeConfig.directBox = config.directBox
   }
 }
 

@@ -11,39 +11,81 @@ app.setPath('userData',join(base,'user'));app.disableHardwareAcceleration();
 // Cleanup must finish before explicit success/failure exit, including after the last window closes.
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
-let preload=(await readFile(join(here,'organization-center-preload.cjs'),'utf8')).replace('const testChatSnapshotValue =', 'const layoutDrafts = new Map(); const testChatSnapshotValue =').replace('text: "" }\n});','text: layoutDrafts.get(requested) || "" }\n});').replace('calls.push(["createChat", input]);', 'calls.push(["createChat", input]); layoutDrafts.set(input.session_id || "", input.text);');
+let preload=(await readFile(join(here,'organization-center-preload.cjs'),'utf8')).replace('const testChatSnapshotValue =', 'const layoutDrafts = new Map(); let rejectNextLayoutCreateChat = false; const testChatSnapshotValue =').replace("text: process.env.ARCORBIT_CHAT_FILES_FIXTURE === '1' ? fileNavigationDrafts.get(requested) || '' : ''","text: layoutDrafts.get(requested) || ''").replace('calls.push(["createChat", input]);', 'calls.push(["createChat", input]); layoutDrafts.set(input.session_id || "", input.text); if (rejectNextLayoutCreateChat) { rejectNextLayoutCreateChat = false; throw new Error("Fixture workspace change failed"); }');
+preload=preload.replace('return codexSettingsFixture ? testChatSnapshotValue("") : {};','return testChatSnapshotValue("");');
+preload=preload.replace('deleteChat: noOp, renameChat: noOp,','deleteChat: async input => { calls.push(["deleteChat", input]); return { snapshot: testChatSnapshotValue(input.session_id) }; }, renameChat: async input => { calls.push(["renameChat", input]); return testChatSnapshotValue(input.session_id); },');
+preload=preload.replace('getTestCalls: async () => calls,','getTestCalls: async () => calls, setTestChatCreateFailure: async () => { rejectNextLayoutCreateChat = true; },');
+preload=preload.replace('{ id: "local-11", name: "ArcOrbit Local" }, ...(process.env.ARCORBIT_CHAT_GIT_TEST', '{ id: "local-11", name: "ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容" }, ...(process.env.ARCORBIT_CHAT_GIT_TEST');
 preload=preload.replace("files:[{id:'README.md'", "files:[{id:'src',path:'src',kind:'file',label:'src',directory:true},{id:'README.md'");
 await writeFile(join(base,'preload.cjs'),preload.replace('const testChatSnapshotValue =', `chatSessions.push(...Array.from({length:10},(_,i)=>({id:'HISTORY-'+i,project_id:'local-11',title:'历史会话 '+i,status:'completed',created_at:'2026-09-'+String(i+1).padStart(2,'0'),updated_at:'2026-09-01'}))); const testChatSnapshotValue =`));
 const win=new BrowserWindow({show:false,width:1440,height:960,webPreferences:{preload:join(base,'preload.cjs'),contextIsolation:true,sandbox:false}});
 const errors=[],checks=[],sizes=[];
 let exitStatus=0;
-win.webContents.on('console-message',(_event,level,message)=>{if(level>=3)errors.push(message);});
+win.webContents.on('console-message',(_event,level,message,lineNumber,sourceId)=>{if(level>=3)errors.push(`${message} @ ${sourceId}:${lineNumber}`);});
 const js=async code=>{try{return await win.webContents.executeJavaScript(code)}catch(error){throw new Error(`Renderer check failed: ${code}\n${errors.join('\n')}`,{cause:error})}};
 const pause=()=>new Promise(r=>setTimeout(r,250));
 try {
  if(process.argv.includes("--force-failure")) assert.fail("Forced assertion verifies the Electron runner exit status.");
  await mkdir(out,{recursive:true});await win.loadFile(join(here,'../../desktop/renderer/index.html'));await pause();
  await js(`document.querySelector('[data-page=chat]').click()`);await pause();
+ await js(`document.querySelector('#chatTitle').textContent='这是一个用于验证 ArcOrbit Chat 顶栏单行省略与完整悬浮提示的超长会话标题 '.repeat(8);document.querySelector('#chatTitle').title=document.querySelector('#chatTitle').textContent`);
  for(const width of [1440,1000,760,390]){
   win.setSize(width,960);await pause();
-  const result=await js(`(()=>{const q=s=>document.querySelector(s),r=s=>q(s).getBoundingClientRect();return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,main:r('.chat-main').toJSON(),sidebar:r('.chat-sidebar').toJSON(),composer:r('#chatView .chat-composer').toJSON(),drawer:getComputedStyle(q('.chat-sidebar')).display==='none'};})()`);
+  const result=await js(`(()=>{const q=s=>document.querySelector(s),r=s=>q(s).getBoundingClientRect(),title=q('#chatTitle'),project=r('#chatWorkspaceLabel'),more=r('#chatSessionMenuButton');return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,main:r('.chat-main').toJSON(),sidebar:r('.chat-sidebar').toJSON(),header:r('.chat-header').toJSON(),composer:r('#chatView .chat-composer').toJSON(),drawer:getComputedStyle(q('.chat-sidebar')).display==='none',titleClipped:title.scrollWidth>title.clientWidth,titleTooltip:title.title===title.textContent,titleWhiteSpace:getComputedStyle(title).whiteSpace,projectBeforeMore:project.right<=more.left,projectSameRow:Math.abs(project.y+project.height/2-more.y-more.height/2)<2,fixedProjectVisible:!q('#chatWorkspaceLabel').hidden&&q('#chatProjectMenuButton').hidden};})()`);
   assert.ok(result.main.width>300 && result.main.height>300);assert.equal(result.overflow,false);assert.ok(Math.abs(result.composer.x+result.composer.width/2-result.main.x-result.main.width/2)<2);
+  assert.equal(result.header.height,64);assert.equal(result.titleWhiteSpace,'nowrap');assert.equal(result.titleClipped,true);assert.equal(result.titleTooltip,true);
+  assert.equal(result.projectBeforeMore,true);assert.equal(result.projectSameRow,true);assert.equal(result.fixedProjectVisible,true);
+  assert.equal(await js(`document.querySelector('#chatStatusText')`),null);assert.equal(await js(`document.querySelector('.chat-header').textContent.includes('整理为待办')`),false);
   if(width>760)assert.ok(result.sidebar.x>=result.main.right-1);else assert.equal(result.drawer,true);
   sizes.push(result);await writeFile(join(out,`chat-${width}.png`),(await win.webContents.capturePage()).toPNG());
  }
+ await js(`document.querySelector('#newChatButton').click()`);await pause();
+ assert.equal(await js(`!document.querySelector('#chatProjectMenuButton').hidden&&document.querySelector('#chatWorkspaceLabel').hidden&&document.querySelector('#chatSessionMenuButton').hidden`),true);
+ await js(`document.querySelector('#chatProjectMenuButton').focus();document.querySelector('#chatProjectMenuButton').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);
+ const projectMenuOpen=await js(`({ok:!document.querySelector('#chatProjectMenu').hidden&&document.activeElement.matches('[data-chat-project-option]'),hidden:document.querySelector('#chatProjectMenu').hidden,active:document.activeElement.id||document.activeElement.tagName,options:document.querySelectorAll('[data-chat-project-option]').length,disabled:document.querySelector('#chatProjectMenuButton').disabled})`);
+ assert.equal(projectMenuOpen.ok,true,JSON.stringify(projectMenuOpen));
+ assert.equal(await js(`(()=>{const menu=document.querySelector('#chatProjectMenu').getBoundingClientRect(),trigger=document.querySelector('#chatProjectMenuButton').getBoundingClientRect();return menu.top>=trigger.bottom+5&&menu.right<=innerWidth-11})()`),true);
+ assert.deepEqual(await js(`(()=>{const option=document.querySelector('[data-chat-project-option="local-11"]'),label=option.querySelector('.chat-project-label');return {clipped:label.scrollWidth>label.clientWidth,title:option.title,fullName:label.textContent}})()`),{clipped:true,title:'ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容',fullName:'ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容'});
+ await writeFile(join(out,'chat-project-menu-390.png'),(await win.webContents.capturePage()).toPNG());
+ await js(`document.querySelector('#chatProjectMenu').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+ assert.equal(await js(`document.querySelector('#chatProjectMenu').hidden&&document.activeElement.id==='chatProjectMenuButton'`),true);
+ await js(`(async()=>{await window.arckitDesktop.setTestChatCreateFailure();document.querySelector('#chatProjectMenuButton').click();document.querySelector('[data-chat-project-option]').click()})()`);await pause();
+ assert.equal(await js(`document.querySelector('#chatProjectMenu').hidden&&document.activeElement.id==='chatProjectMenuButton'&&document.querySelector('#toast').textContent.includes('Fixture workspace change failed')`),true);
+ const expectedWorkspaceFailure=errors.findIndex(error=>error.includes('Fixture workspace change failed'));
+ assert.notEqual(expectedWorkspaceFailure,-1);errors.splice(expectedWorkspaceFailure,1);
+ await js(`document.querySelector('#chatProjectMenuButton').click();document.querySelector('[data-chat-project-option]').click()`);await pause();
+ assert.equal(await js(`document.querySelector('#chatProjectMenu').hidden&&document.activeElement.id==='chatProjectMenuButton'&&document.querySelector('#chatProjectMenuLabel').textContent==='ArcOrbit 超长项目名称 · 用于验证菜单省略后仍可悬浮读取完整内容'`),true);
+ await js(`document.querySelector('[data-chat-session-id]').click()`);await pause();
+ checks.push('Project control stays immediately before session more; draft listbox opens downward at 390px, ellipsizes a long project while retaining its complete title prompt, restores trigger focus after Escape, success and rejected workspace changes, and changes only draft ownership; persisted session project stays fixed.');
+ await js(`document.querySelector('#chatSessionMenuButton').focus();document.querySelector('#chatSessionMenuButton').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);
+ assert.equal(await js(`!document.querySelector('#chatSessionMenu').hidden && document.activeElement.id==='renameChatButton'`),true);
+ await js(`document.querySelector('#chatSessionMenu').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))`);
+ assert.equal(await js(`document.activeElement.id`),'deleteChatButton');
+ await writeFile(join(out,'chat-session-menu.png'),(await win.webContents.capturePage()).toPNG());
+ await js(`document.querySelector('#chatSessionMenu').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+ assert.equal(await js(`document.querySelector('#chatSessionMenu').hidden && document.activeElement.id==='chatSessionMenuButton'`),true);
+ assert.deepEqual(await js(`[...document.querySelectorAll('#chatSessionMenu [role="menuitem"]')].map(button=>button.textContent)`),['重命名','删除会话']);
+ await js(`window.prompt=()=> '通过菜单重命名';document.querySelector('#chatSessionMenuButton').click();document.querySelector('#renameChatButton').click()`);await pause();
+ assert.equal(await js(`window.arckitDesktop.getTestCalls().then(calls=>calls.some(([name,input])=>name==='renameChat'&&input.title==='通过菜单重命名'))`),true);
+ await js(`window.__chatDeleteConfirmed=false;window.confirm=()=>{window.__chatDeleteConfirmed=true;return true};document.querySelector('#chatSessionMenuButton').click();document.querySelector('#deleteChatButton').click()`);await pause();
+ assert.equal(await js(`window.__chatDeleteConfirmed && window.arckitDesktop.getTestCalls().then(calls=>calls.some(([name])=>name==='deleteChat'))`),true);
+ checks.push('Header stays 64px at 1440/1000/760/390; session menu exposes only rename/delete, restores keyboard focus, invokes rename/delete IPC, and preserves delete confirmation.');
  // Exercise native menus against the real renderer DOM at desktop and compact widths.
  for(const width of [1440,760,390]){
   win.setSize(width,960);await pause();await js(`document.querySelector('#chatNativeInvoke').click()`);await pause();
   const menu=await js(`(()=>{const p=document.querySelector('.chat-capability-menu').getBoundingClientRect(),b=document.querySelector('#chatNativeInvoke').getBoundingClientRect(),l=document.querySelector('.chat-native-options'),f=document.querySelector('.chat-capability-menu footer').getBoundingClientRect();return {height:p.height,top:p.top,bottom:p.bottom,anchor:b.top,list:l.clientHeight,footer:f.bottom,count:l.querySelectorAll('[data-pick]').length}})()`);
-  assert.ok(menu.height>500&&menu.list>300&&menu.top>=11&&Math.abs(menu.anchor-menu.bottom-8)<2&&menu.footer<=menu.bottom,JSON.stringify(menu));assert.equal(menu.count,5);
-  assert.equal(await js(`!!document.querySelector('[data-pick="file:src"],[data-up]')`),false);
+  assert.ok(menu.height>500&&menu.list>300&&menu.top>=11&&Math.abs(menu.anchor-menu.bottom-8)<2&&menu.footer<=menu.bottom,JSON.stringify(menu));assert.equal(menu.count,3);
+  assert.equal(await js(`!!document.querySelector('[data-pick^="file:"],[data-pick^="task:"],[data-up]')`),false);
+  assert.equal(await js(`document.querySelector('.chat-capability-menu input').placeholder`),'搜索能力或 Skill');
   await writeFile(join(out,`native-menu-${width}.png`),(await win.webContents.capturePage()).toPNG());
   await js(`document.querySelector('[data-pick="native:create"]').click()`);assert.equal(await js(`document.querySelector('.chat-native-chips').textContent.includes('创建待办')`),true);
   await js(`document.querySelector('[data-remove]').click()`);await js(`document.querySelector('#chatModelSettings').click()`);await pause();
   assert.ok(await js(`(()=>{const p=document.querySelector('.chat-model-menu').getBoundingClientRect(),a=document.querySelector('#chatModelSettings').getBoundingClientRect();return Math.abs(a.top-p.bottom-8)<2&&p.right<=innerWidth})()`));
   await js(`document.querySelector('.chat-model-menu').close()`);
  }
- checks.push('Capability and model menus anchor above own trigger; candidates/footer visible; removable capability chips at 1440/760/390.');
+ await js(`document.querySelector('#chatInput').value='@';document.querySelector('#chatInput').dispatchEvent(new Event('input',{bubbles:true}))`);
+ assert.equal(await js(`document.querySelector('.chat-capability-menu').open`),false);
+ checks.push('Capability picker exposes only native abilities and Skills, treats @ as ordinary input, and both native/model menus stay anchored with visible footer at 1440/760/390.');
  checks.push('Right sessions and centered composer at 1440/1000; no overflow at 760/390.');
  if(process.argv.includes('--native-picker-only')){
   assert.deepEqual(errors,[]);
@@ -64,8 +106,9 @@ try {
  assert.equal(await js(`document.querySelectorAll('[data-chat-session-id]').length`),5);
  assert.deepEqual(await js(`[...document.querySelectorAll('[data-chat-session-id]')].map(e=>e.dataset.chatSessionId)`),['HISTORY-9','HISTORY-8','HISTORY-7','HISTORY-6','HISTORY-5']);
  assert.equal(await js(`document.querySelectorAll('.chat-native-tabs,.chat-native-task-list,.chat-task-filter-dialog').length`),0);
- assert.equal(await js(`document.querySelector('.chat-sidebar-head h2').textContent`),'会话');
- assert.ok(await js(`document.querySelector('#chatNativeInvoke') && document.querySelector('.chat-native-identity button')`));
+ assert.equal(await js(`document.querySelector('#chatSidebarSessions').textContent`),'会话列表');
+ assert.ok(await js(`document.querySelector('#chatNativeInvoke') && document.querySelector('[data-pick="native:summarize"]')`));
+ assert.equal(await js(`document.querySelector('[data-convert]')`),null);
  assert.equal(await js(`document.querySelectorAll('.chat-session-relation').length`),0);
  assert.ok(await js(`[...document.querySelectorAll('.chat-session')].every(e=>e.querySelector('.chat-session-status'))`));
  await js(`document.querySelector('[data-chat-history-project-id]').click();document.querySelector('[data-chat-history-project-id]').click()`);
@@ -117,8 +160,12 @@ try {
  await js(`document.querySelector('#chatSessionsToggle').click();document.querySelector('[data-chat-session-id="CHAT-B"]').click()`);await pause();
  assert.equal(await js(`document.querySelector('#chatInput').value`),'保留这个草稿');
  checks.push('Drawer selection closes and restores input; per-session draft survives switching.');
- await js(`document.querySelector('#chatSessionsToggle').click();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+ await js(`document.querySelector('#chatSessionsToggle').click();document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
  assert.equal(await js(`document.activeElement.id==='chatSessionsToggle' && !document.querySelector('.chat-main').inert`),true);
+ await js(`document.querySelector('#newChatButton').click()`);await pause();
+ assert.equal(await js(`document.querySelector('.chat-header').getBoundingClientRect().height`),64);
+ assert.equal(await js(`!document.querySelector('#chatProjectMenuButton').hidden && document.querySelector('#chatSessionMenuButton').hidden`),true);
+ checks.push('Temporary draft keeps the 64px header and compact project listbox trigger; existing sessions were verified separately with the fixed project and action menu.');
  await js(`document.querySelector('#legacyPagesButton').click()`);
  assert.equal(await js(`getComputedStyle(document.querySelector('.sidebar')).display`),'flex');
  await js(`document.querySelector('#accountButton').click()`);await pause();

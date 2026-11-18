@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { newClientRequestId, validateMedia } from '@/domain/feedback'
+import { buildManualSubmit, newClientRequestId, validateMedia } from '@/domain/feedback'
 import { uploadFeedbackFileV2 } from '@/lib/feedback/upload'
-import { submitFeedbackV2, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
+import { submitFeedbackV2, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 
 interface Draft { position: string; phenomenon: string; expect: string; attachments: FeedbackV2Attachment[]; requestId: string }
 const blank = (): Draft => ({ position: '', phenomenon: '', expect: '', attachments: [], requestId: newClientRequestId() })
@@ -33,7 +33,7 @@ export function ManualFeedbackForm({ scopeKey, conversationId, onCancel, onCreat
   const submit = async () => {
     if (locked.current || uploading || !confirmed || !draft.position.trim() || !draft.phenomenon.trim() || !draft.expect.trim()) return
     locked.current = true; setPending(true); setError('')
-    const structured: AgentStructuredSummary = { request_type: 'other', position: draft.position.trim(), phenomenon: draft.phenomenon.trim(), expect: draft.expect.trim(), unknown_fields: ['reproduction_steps', 'environment', 'impact'] }
+    const structured = buildManualSubmit(draft)
     try {
       const result = await submitFeedbackV2({ content: `位置：${structured.position}\n现象：${structured.phenomenon}\n期望：${structured.expect}`, structured, attachments: draft.attachments, conversationId, clientRequestId: draft.requestId })
       if (!alive.current) return
@@ -43,7 +43,7 @@ export function ManualFeedbackForm({ scopeKey, conversationId, onCancel, onCreat
     finally { locked.current = false; if (alive.current) setPending(false) }
   }
   return <section className="sdk-collection space-y-3" aria-label="直接反馈"><h3 className="font-semibold">直接反馈</h3><p className="text-xs text-foreground-secondary">无需等待客服回答。请描述实际情况，提交后由处理团队分析；不会自动判定为故障或需求。</p>
-    {([['position', '问题位置'], ['phenomenon', '实际现象'], ['expect', '期望结果']] as const).map(([key, label]) => <label key={key} className="block text-xs">{label}<textarea className="sdk-input mt-1" value={draft[key]} maxLength={8000} disabled={pending || uploading} rows={2} onChange={(event) => update({ [key]: event.target.value })} /></label>)}
+    {([['position', '在哪里遇到的？', '例如：项目列表页，点导出按钮时'], ['phenomenon', '你看到了什么？', '例如：页面提示 403，下载失败'], ['expect', '你本来想做什么？', '例如：正常导出月度报表']] as const).map(([key, label, hint]) => <label key={key} className="block text-xs">{label}<textarea className="sdk-input mt-1" placeholder={hint} value={draft[key]} maxLength={8000} disabled={pending || uploading} rows={2} onChange={(event) => update({ [key]: event.target.value })} /></label>)}
     <label className="sdk-button">添加说明图片<input aria-label="直接反馈图片" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={pending || uploading} onChange={(event) => { void upload([...(event.target.files || [])]); event.target.value = '' }} /></label>
     {uploading && <p role="status">正在上传图片…</p>}{draft.attachments.map((attachment, index) => <div key={attachment.object_key || index} className="text-xs">{attachment.file_name || `图片 ${index + 1}`} · 已上传 <button type="button" disabled={pending || uploading} onClick={() => update({ attachments: draft.attachments.filter((_, i) => i !== index) })}>移除</button></div>)}
     <label className="flex gap-2 text-xs"><input type="checkbox" checked={confirmed} disabled={pending || uploading} onChange={(event) => setConfirmed(event.target.checked)} />我已核对以上事实，确认提交给处理团队</label>

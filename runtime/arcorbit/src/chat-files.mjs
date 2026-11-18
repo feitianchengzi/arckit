@@ -1,10 +1,13 @@
-import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { findSessionById } from './desktop/desktop-store.mjs';
-import { chatRoot, performChatFile } from './chat-workspace-files.mjs';
+import { chatDirectory, chatRoot, chatWorkspaceToken, performChatFile } from './chat-workspace-files.mjs';
+import { createChatFilesObserver } from './chat-files-observer.mjs';
 
-const actions = new Set(['context', 'list', 'read', 'save', 'create-file', 'create-directory', 'rename', 'trash', 'reveal']);
-export function createChatFiles({ runManager, getAccountScope, authorizeSession, trashItem, revealItem }) {
-  const queues = new Map();
+const actions = new Set(['context', 'observe', 'release', 'list', 'read', 'save', 'create-file', 'create-directory', 'rename', 'trash', 'reveal']);
+export function createChatFiles({ runManager, getAccountScope, authorizeSession, trashItem, revealItem,
+  observer = createChatFilesObserver() }) {
+  const queues = new Map(), events = new EventEmitter();
+  let binding = null;
   async function context(input) {
     const [store, account] = await Promise.all([runManager.readDesktopChatMetadata?.() || runManager.readDesktopStore(), getAccountScope()]);
     const session = input.session_id ? findSessionById(store, String(input.session_id))?.session : null;
@@ -14,14 +17,33 @@ export function createChatFiles({ runManager, getAccountScope, authorizeSession,
     const project = store.projects.find(p => p.id === (session?.project_id || input.project_id));
     if (!project) throw Error('请选择可用的本地工作区。');
     const root = await chatRoot(project.path);
-    const workspace = createHash('sha256').update(JSON.stringify([account || 'local', project.id, project.path, root.path, root.identity])).digest('hex');
+    const workspace = chatWorkspaceToken({ account, projectId: project.id, projectPath: project.path, root });
     return { workspace, project_id: project.id, name: project.name, root: root.path };
+  }
+  function release() { binding?.handle.release(); binding = null; }
+  async function observe(input, initial) {
+    if (!Array.isArray(input.paths) || input.paths.length > 500 || input.paths.some(path => typeof path !== 'string')) throw Error('观察目录列表无效。');
+    const paths = new Map();
+    for (const path of new Set(['', ...input.paths])) {
+      try { paths.set(path, await chatDirectory(initial.root, path)); }
+      catch (error) { if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error; }
+    }
+    if (binding?.workspace !== initial.workspace) release();
+    if (!binding) {
+      binding = { workspace: initial.workspace, project_id: initial.project_id };
+      binding.handle = observer.observe({ key: initial.workspace, root: initial.root }, state => {
+        if (binding?.workspace === initial.workspace) events.emit('event', { project_id: initial.project_id, ...state });
+      });
+    }
+    return { project_id: initial.project_id, ...binding.handle.update(paths), workspace: initial.workspace };
   }
   async function command(action, input = {}) {
     if (!actions.has(action)) throw Error('不支持的文件操作。');
+    if (action === 'release') { release(); return { released: true }; }
     const initial = await context(input);
     if (action === 'context') { const { root, ...result } = initial; return result; }
     if (!input.expected_workspace || input.expected_workspace !== initial.workspace) throw Error('工作区或账号已变化，请重新打开文件工作区。');
+    if (action === 'observe') return observe(input, initial);
     const assertCurrent = async () => { if ((await context(input)).workspace !== initial.workspace) throw Error('工作区或账号已变化，操作已取消。'); };
     // Serialize all requests per real root, including callers from different sessions.
     const pending = (queues.get(initial.root) || Promise.resolve()).catch(() => {}).then(async () => {
@@ -32,5 +54,6 @@ export function createChatFiles({ runManager, getAccountScope, authorizeSession,
     queues.set(initial.root, pending);
     try { return await pending; } finally { if (queues.get(initial.root) === pending) queues.delete(initial.root); }
   }
-  return { command };
+  return { command, close() { release(); observer.close(); },
+    onEvent(listener) { events.on('event', listener); return () => events.off('event', listener); } };
 }

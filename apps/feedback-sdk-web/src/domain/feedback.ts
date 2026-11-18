@@ -43,3 +43,38 @@ export function validateMedia(file: File, current: Pick<FeedbackV2Attachment, 't
 export function newClientRequestId(): string {
   return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `sdk_${Date.now()}_${Math.random().toString(36).slice(2)}`
 }
+
+const DIRECT_BOX_MAX_LENGTH = 8000
+
+/** Single-box direct feedback accepts free text; core facts stay mandatory server-side. */
+export function validateDirectBox(text: string): string {
+  if (!text.trim()) return '请先描述你的反馈'
+  if (text.length > DIRECT_BOX_MAX_LENGTH) return `描述不能超过${DIRECT_BOX_MAX_LENGTH}字`
+  return ''
+}
+
+/** Raw submit asserts nothing about classification: no structured payload. */
+export function buildRawSubmit(text: string): { content: string } {
+  return { content: text.trim() }
+}
+
+/** Manual fallback keeps request_type as team-pending analysis input, never a customer choice. */
+export function buildManualSubmit(facts: { position: string; phenomenon: string; expect: string }): AgentStructuredSummary {
+  return {
+    request_type: 'other',
+    position: facts.position.trim(),
+    phenomenon: facts.phenomenon.trim(),
+    expect: facts.expect.trim(),
+    unknown_fields: ['reproduction_steps', 'environment', 'impact'],
+  }
+}
+
+export function typeLabel(requestType: string | undefined): string {
+  switch (requestType) {
+    case 'feature': return '需求'
+    case 'bug': return 'Bug'
+    case 'question': return '问题'
+    case 'other': return '一般反馈'
+    default: return '待分析'
+  }
+}

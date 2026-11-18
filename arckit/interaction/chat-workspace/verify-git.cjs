@@ -15,6 +15,9 @@ app.whenReady().then(async()=>{
   await w.loadFile(path.join(__dirname,'default.html'));
   const owner=await run('ChatModel.state.selected');
   const draft=await run('document.querySelector("#chat-input").value');
+  assert.equal(await run('document.querySelector(`[data-git-project="atlas"]`).textContent.replace(/\\s/g,"")'),'+1M2?1↑2');
+  assert.equal(await run('document.querySelector(`[data-git-project="atlas"]`).textContent.includes("文件未提交")'),false);
+  assert.equal(await run('document.querySelector(`[data-git-project="atlas"]`).textContent.includes("本地干净")'),false);
   await click('[data-chat-action="project"][data-project="atlas"]');
   assert.equal(await run('ChatModel.state.collapsed.atlas'),true);
   await click('[data-git-project="atlas"]');
@@ -35,19 +38,29 @@ app.whenReady().then(async()=>{
   assert.equal(await run('!!document.querySelector(".chat-git-detail")'),false);
   await click('[data-detail-mode="sessions"]');
   checks.push('其他项目详情不切换会话；待办详情与会话列表导航正常');
-  for(const name of ['clean','ahead','behind','diverged','conflict','unknown','stale','error','fetcherror','norepo','unbound']) {
-   await run(`ChatGitPrototype.scenario(${JSON.stringify(name)})`);await click('[data-git-project="atlas"]');
+  const summaries={clean:'✓0',ahead:'✓0↑2',behind:'✓0↓3',diverged:'✓0↑2↓3',conflict:'!1+1M2?1',unknown:'…',stale:'◷+1M2?1↑2',error:'×+1M2?1↑2',fetcherror:'⇅×✓0',norepo:'⊘',unbound:'◇'};
+  for(const [name,visible] of Object.entries(summaries)) {
+   await run(`ChatGitPrototype.scenario(${JSON.stringify(name)})`);
+   assert.equal(await run('document.querySelector(`[data-git-project="atlas"]`).textContent.replace(/\\s/g,"")'),visible);
+   assert.equal(await run('document.querySelector(`[data-git-project="atlas"]`).textContent.includes("文件未提交")'),false);
+   assert.equal(await run('document.querySelector(`[data-git-project="atlas"]`).textContent.includes("本地干净")'),false);
+   await click('[data-git-project="atlas"]');
    assert.ok(await run('document.querySelector(".chat-git-detail").textContent.length>25'));
    await click('[data-git-action="close"]');
   }
   await run('ChatGitPrototype.scenario("error")');await click('[data-git-project="atlas"]');await click('[data-git-action="refresh"]');
-  assert.match(await run('document.querySelector(".chat-git-detail").textContent'),/4 个文件未提交/);
+  assert.match(await run('document.querySelector(".chat-git-detail").textContent'),/已暂存 1，未暂存修改 2，未跟踪 1/);
   await run('ChatGitPrototype.scenario("fetcherror")');await click('[data-git-action="fetch"]');
   assert.match(await run('document.querySelector(".chat-git-detail").textContent'),/最近获取/);
-  checks.push('本地状态异常、远端失败恢复及其余状态路径可达（模拟）');
+  checks.push('全部 Git 场景使用既定符号计数组，描述性摘要已移除；异常、远端失败及详情恢复路径可达（模拟）');
   await click('[data-git-action="close"]');
-  await run('ChatModel.state.sidebarWidth=220;ChatGitPrototype.scenario("diverged")');
+  await run('ChatModel.state.sidebarWidth=220;ChatModel.state.projects.find(project=>project.id==="atlas").name="ArcOrbit 超长项目名称用于验证优先压缩";ChatGitPrototype.scenario("diverged")');
   await new Promise(r=>setTimeout(r,150));
+  assert.equal(await run('getComputedStyle(document.querySelector(".git-group-head")).flexWrap'),'nowrap');
+  assert.equal(await run('getComputedStyle(document.querySelector(".git-group-head .session-project strong")).textOverflow'),'ellipsis');
+  assert.ok(await run('document.querySelector(".git-group-head .session-project strong").scrollWidth>document.querySelector(".git-group-head .session-project strong").clientWidth'));
+  assert.equal(await run('getComputedStyle(document.querySelector(".git-summary")).flexShrink'),'0');
+  assert.equal(await run('document.querySelector(".git-group-head").getBoundingClientRect().height<=document.querySelector(".git-summary").getBoundingClientRect().height+1'),true);
   fs.writeFileSync(path.join(output,'narrow-sidebar.png'),(await w.webContents.capturePage()).toPNG());
   await click('[data-git-project="atlas"]');
   await run('document.documentElement.dataset.theme="dark"');await new Promise(r=>setTimeout(r,150));
@@ -55,7 +68,7 @@ app.whenReady().then(async()=>{
   w.setSize(390,844);await run('ChatModel.state.listOpen=true;ChatPrototype.render()');await new Promise(r=>setTimeout(r,150));
   assert.ok(await run('document.documentElement.scrollWidth<=innerWidth'));
   fs.writeFileSync(path.join(output,'narrow-window.png'),(await w.webContents.capturePage()).toPNG());
-  checks.push('220px 分组摘要与 390px 抽屉检查；主题截图保留供核验');
+  checks.push('220px 侧栏中长项目名优先省略、Git 组不收缩且整组同排；390px 抽屉无页面横向溢出；主题截图保留供核验');
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,checks,errors,limits:['本地完整 Chat 原型；未连接真实 Git、远端、Agent','分页、二进制及根身份失效等生产契约未由样本证明']},null,2));
  }catch(error){fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:false,checks,errors,error:String(error)},null,2));process.exitCode=1;}

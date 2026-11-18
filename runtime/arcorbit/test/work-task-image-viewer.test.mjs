@@ -337,12 +337,12 @@ test("Escape runs actual Renderer and preload through the actual close IPC handl
   window.webContents.mainFrame = mainFrame;
   let senderEvent = { sender: window.webContents, senderFrame: mainFrame };
   const main = await readFile(new URL("../desktop/main.mjs", import.meta.url), "utf8");
-  const start = main.indexOf('  ipcMain.handle("arckit:image-viewer-close",');
+  const start = main.indexOf('  handle("arckit:image-viewer-close",');
   const end = main.indexOf('\n  });', start);
   assert.ok(start >= 0 && end > start);
   let closeHandler;
   vm.runInNewContext(main.slice(start, end + '\n  });'.length), {
-    ipcMain: { handle(channel, handler) { assert.equal(channel, "arckit:image-viewer-close"); closeHandler = handler; } },
+    handle(channel, handler) { assert.equal(channel, "arckit:image-viewer-close"); closeHandler = handler; },
     imageViewer: viewer
   });
   assert.throws(() => closeHandler({ ...senderEvent, senderFrame: {} }), /main frame/);

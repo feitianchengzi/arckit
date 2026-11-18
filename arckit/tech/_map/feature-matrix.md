@@ -23,4 +23,4 @@ Engineering / Chat skills：✅ 已实现；技术源为 `arcorbit/scene-skills-
 
 - Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../arcorbit/project-workbench-solution.md`。
 
-- Chat 项目文件工作区：行为及接入约定已定义，原型与生产实现未验收；全部目录项、常见文件操作、相对路径引用、Monaco 文件 Tab 及状态恢复，参见 `../arcorbit/project-workbench-solution.md`。
+- Chat 项目文件工作区：行为、实时交互原型与技术接入约定已建立；共享 workspace 身份、目录观察/失效对账、既有 Git 状态到文件及祖先的投影、全部目录项、常见文件操作、相对路径引用和 Monaco 状态恢复见 `../arcorbit/project-workbench-solution.md`。生产目录观察、缓存对账及真实 Electron 外部创建／重命名／删除、隐藏侧栏、项目切换验收已完成，证据见 `arckit/cases/evidence/CASE-20261010-002/file-tree-live-production/`；文件与祖先 Git 状态投影仍待实现和验收。

@@ -1,5 +1,12 @@
 # Interaction Relations
 
+## 当前核心原型：一体式工作空间
+
+`chat-workspace/default.html` 采纳用户选择的 A 三栏与窄图标主导航；页内对话/待办 Tab 只切换同一批工作的列表视角，溢出标题悬停/聚焦往返滚动。主导航为 Chat、项目、团队、工程及底部设置；产品集仅在项目页维护，Chat 列表按项目分组，新建入口位于项目标题行。Idea 创建项目与首件工作；工作切换恢复项目上下文而不收窄产品集；待办列表打开同一工作；反馈转工作保留来源，验收后人工关闭反馈；团队提供分配、邀请与成员交接。Chat 和 Auto 不再跨页面搬运上下文。右侧全高资料栏承载待办、文件与 Git Diff。
+
+本节是本轮核心交互入口，具体覆盖见 `chat-workspace/coverage.md`。下方旧页面导航关系保留为领域历史参考，不要求新原型恢复分散主导航。未修改 Spec/Tech/Visual；旧页面中的真实服务契约不能被本地模拟覆盖或视为实现完成。
+
+
 ## Platform Workspace
 
 `platform-workspace/interaction.md` 定义登录后的三组一级信息架构：Personal 下的 Today、Chat；Product Lifecycle 下的 Idea、Work、Automation、Release、Operations、Feedback；Organization 下的 Organization、Engineering。它与 `task-browser/interaction.md` 共同约束 Work/Feedback 的主工作区骨架：全局产品栏之后只保留一条页面控制轨，列表与详情取得剩余高度并独立滚动。`default.html` 投影应用壳、Feedback 主工作台和完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系、项目上下文直接添加入口、邀请和项目连接缺口；`member-add.html` 投影同组织成员单选、提交确认与权限/网络恢复；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
@@ -112,13 +119,13 @@ Chat 的会话列表稳定定位、五条递增与折叠重置，以及双向尺
 
 ## Chat 原生待办能力与统一输入
 
-chat-workspace/interaction.md 定义当前项目待办与会话同一 thread、创建来源独立呈现、Agent 原生读写及统一能力/Skill/上下文选择。default.html 组合旧有 Chat 会话、账户和布局原型与 native-model.js、native-views.js、native-input.js；正式运行不引用 _explorations/。
+chat-workspace/interaction.md 定义当前项目待办与会话同一 thread、创建来源独立呈现、Agent 原生读写，以及“能力与引用”只选择原生能力/Skill、不再提供文件或待办候选。中央对话顶栏固定为 64px，左侧标题保持单行省略与完整提示，右侧项目入口同会话更多并排且菜单向下展开；重命名/删除收纳到会话菜单，待办整理、状态和关联身份留在 Composer、右栏或对象卡片。default.html 组合旧有 Chat 会话、账户和布局原型与 native-model.js、native-views.js、native-input.js；正式运行不引用 _explorations/。
 
-Chat 会话标签以 session 为准，待办标签以 task 为准；关联身份在当前会话与卡片展示，关联对象进入同一 Chat。任务身份与能力机制参考 project-workbench；Work 继续承担完整属性与验收，Engineering 继续管理技能配置。选择某条 Skill 只作用于本条输入，不变更全局配置。原型样本数据库分别隔离，不作为生产任务/thread 分叉的设计要求。
+Chat 会话标签以 session 为准，待办标签以 task 为准；关联身份在右栏待办详情与卡片展示，关联对象进入同一 Chat。任务身份与能力机制参考 project-workbench；Work 继续承担完整属性与验收，Engineering 继续管理技能配置。选择某条 Skill 只作用于本条输入，不变更全局配置。原型样本数据库分别隔离，不作为生产任务/thread 分叉的设计要求。
 
 采纳来源：_explorations/chat-todo/exploration.md（2026-09-19）。验证：chat-workspace/verification.json、verification-native.json。spec/agentic-software-development/arcorbit-planned-workspaces.md 与 tech/arcorbit/project-workbench-solution.md 的能力边界需依正式交互同步；本轮未宣称生产实现完成。visual 组件目录可进一步登记能力选择器/上下文标签/回执卡片，现页面消费既有正式 Token 和通用组件规则。
 
-Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保留关联、整理、引用与读写待办能力。
+Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保留关联、整理与读写待办能力，但 Composer 选择器不再提供待办引用。
 
 - Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../chat-workspace/interaction.md`。
 
@@ -128,6 +135,8 @@ Chat 仅展示会话列表，待办浏览与筛选由 Work 承担；Chat 仍保�
 
 ## Chat 项目文件工作区
 
-`arckit/interaction/chat-workspace/interaction.md` 定义文件树、常见操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能通过 files-model.js / files-ui.js / files.css 接入完整原型；浏览器验证记录在 arckit/cases/evidence/CASE-20260922-006/files-prototype-final/，生产兑现待验证。
+`arckit/interaction/chat-workspace/interaction.md` 定义文件树、项目根目录单一更多菜单、普通条目操作、相对路径引用与中央文件 Tab；并定义展开／收起不闪现文字 loading、外部文件变化主动同步、文件 Git 标记与全部现存祖先目录聚合。`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护，以及 watcher、缓存失效、合并、释放与降级策略。根目录菜单与普通条目共用容器、键盘和焦点恢复语义，只保留适用于根的刷新、新建和系统显示。文件树消费 visual FileTree 的 28px 专用紧凑行与独立 16px disclosure，路径状态复用既有 Chat Git 符号语义、视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能通过 files-model.js / files-ui.js / files.css 接入完整原型；实时目录与 Git 标记样本证据见 `arckit/cases/evidence/CASE-20261010-002/file-tree-live-expectations/`，生产目录观察、缓存对账与外部变化验收见 `arckit/cases/evidence/CASE-20261010-002/file-tree-live-production/`，文件与祖先 Git 状态投影仍待生产实现；当前根菜单原型与生产验证见 `arckit/cases/evidence/CASE-20261009-001/root-menu-prototype-v3/` 和 `root-menu-production-v3/`。
 
-Chat Git：项目分组摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表；正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。
+Chat Git：项目名称与紧凑 Git 符号计数组保持单行，空间不足时优先省略项目名称；摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表。正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。
+
+设置分类与保存边界由 `chat-workspace/interaction.md` 和 `../../spec/arcorbit-distribution.md` 共同定义；Automation 与项目事情台复用，原型不连接真实同步。

@@ -144,6 +144,33 @@ test('Chat owner guard rejects old tokens and late replies after rebinding or ac
   const [missing] = await service.command('observe', { project_ids: ['missing'] }); assert.equal(missing.unavailable, true);
 });
 
+test('Chat entry performs one initial summary and re-entry reads fresh state after release', async t => {
+  const { root } = await fixture(t);
+  let reads = 0, dirty = false;
+  const observer = createChatGitObserver({ watchFs: () => { throw Error('no-watch'); }, pollMs: 50000,
+    repository: { summary: async () => { reads++; return { kind: 'repository', dirty }; } } });
+  const service = createChatGit({ observer,
+    runManager: { readDesktopChatMetadata: async () => ({ projects: [{ id: 'p', path: root }], sessions: {} }) },
+    getAccountScope: async () => 'account', authorizeSession: async () => true });
+  t.after(() => service.close());
+  const api = { chatGit: (action, input) => service.command(action, input), onChatGitEvent: listener => service.onEvent(listener) };
+  const context = { active: true, project_ids: ['p'], scope: 'chat', selected_project_id: 'p' };
+  const state = createChatGitState({ api, getContext: () => context, document: null });
+  t.after(() => state.destroy());
+
+  await state.sync();
+  assert.equal(reads, 1, 'a new observation uses its ready summary without a duplicate refresh');
+  assert.equal(state.get('p').value.dirty, false);
+
+  context.active = false; await state.sync();
+  dirty = true; context.active = true; await state.sync();
+  assert.equal(reads, 2, 're-entry creates one fresh observation after release');
+  assert.equal(state.get('p').value.dirty, true);
+
+  context.selected_project_id = ''; await state.sync();
+  assert.equal(reads, 3, 'an existing observation still refreshes when its visible scope changes');
+});
+
 test('overlapping refreshes finish instead of starving under frequent invalidation', async t => {
   let reads = 0;
   const observer = createChatGitObserver({ watchFs: () => { throw Error('no-watch'); }, pollMs: 10, debounceMs: 5,
@@ -152,6 +179,55 @@ test('overlapping refreshes finish instead of starving under frequent invalidati
   const handle = observer.observe({ key: 'slow', root: '/slow' }, () => {});
   await Promise.race([handle.ready, new Promise((_, reject) => { const timer = setTimeout(() => reject(Error('starved')), 1000); timer.unref(); })]);
   assert.ok(reads <= 2); handle.release();
+});
+
+test('overlapping explicit refreshes share one summary without scheduling a trailing read', async t => {
+  let reads = 0, finish;
+  const observer = createChatGitObserver({ watchFs: () => { throw Error('no-watch'); }, pollMs: 50000, debounceMs: 5,
+    repository: { summary: async () => { reads++; await new Promise(r => { finish = r; }); return { kind: 'not_repository' }; } } });
+  t.after(() => observer.close());
+  const handle = observer.observe({ key: 'repo', root: '/repo' }, () => {});
+  await until(() => Boolean(finish));
+  const overlapping = Array.from({ length: 5 }, () => handle.refresh());
+  finish(); await Promise.all([handle.ready, ...overlapping]);
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(reads, 1); handle.release();
+});
+
+test('six-workspace refresh bursts perform one summary per workspace', async t => {
+  const reads = new Map();
+  const observer = createChatGitObserver({ watchFs: () => { throw Error('no-watch'); }, pollMs: 50000,
+    repository: { summary: async root => {
+      reads.set(root, (reads.get(root) || 0) + 1);
+      return { kind: 'not_repository' };
+    } } });
+  t.after(() => observer.close());
+  const handles = Array.from({ length: 6 }, (_, index) => observer.observe({ key: `repo-${index}`, root: `/repo-${index}` }, () => {}));
+  await Promise.all(handles.map(handle => handle.ready)); reads.clear();
+  await Promise.all(Array.from({ length: 5 }, () => observer.refreshAll()));
+  assert.equal([...reads.values()].reduce((total, count) => total + count, 0), 6);
+  assert.deepEqual([...reads.values()], [1, 1, 1, 1, 1, 1]);
+  for (const handle of handles) handle.release();
+});
+
+test('filesystem invalidation during a summary schedules exactly one trailing read', async t => {
+  let reads = 0, events = 0, finish, changed;
+  const observer = createChatGitObserver({ watchFs: (_path, _options, listener) => {
+      changed = listener; return Object.assign(new EventEmitter(), { close() {} });
+    }, pollMs: 50000, debounceMs: 5,
+    repository: { summary: async () => {
+      reads++;
+      if (reads === 1) await new Promise(r => { finish = r; });
+      return { kind: 'not_repository' };
+    } } });
+  t.after(() => observer.close());
+  const handle = observer.observe({ key: 'repo', root: '/repo' }, () => { events++; });
+  await until(() => Boolean(finish)); changed(); changed();
+  assert.equal(events, 1, 'a filesystem burst publishes one stale notification');
+  finish();
+  await handle.ready; await until(() => reads === 2);
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(reads, 2); handle.release();
 });
 
 test('renderer lifecycle ignores stale scope responses and workspace events, releases on leave, refreshes on switch', async () => {
@@ -203,19 +279,30 @@ test('on-demand Git details: staged/worktree, literal filenames, paged commits a
   await assert.rejects(details.read(root,'commits',{direction:'ahead',offset:40,range:one.range}),/分支已变化/);
 });
 
-test('summary states never equate unknown or cached remote data with clean synchronization', async () => {
-  const {gitSummary}=await import('../desktop/renderer/chat-git-surface.mjs');
+test('summary uses compact independent Git groups without descriptive visible copy', async () => {
+  const {gitSummary,gitSummaryButton}=await import('../desktop/renderer/chat-git-surface.mjs');
   const value={kind:'repository',files:[],conflicted:[],tracking:'origin/main',ahead:0,behind:0};
-  assert.match(gitSummary().label,/读取中/);
-  assert.match(gitSummary({value,stale:true}).label,/过期/);
-  assert.match(gitSummary({value,error:'failed'}).label,/失败/);
+  assert.equal(gitSummary().label,'…');
+  assert.equal(gitSummary({unavailable:true,error:'unbound'}).label,'◇');
+  assert.equal(gitSummary({value:{kind:'not_repository'}}).label,'⊘');
+  assert.equal(gitSummary({value,stale:true}).label,'◷ ✓0');
+  assert.equal(gitSummary({value,error:'failed'}).label,'× ✓0');
   assert.match(gitSummary({value}).meaning,/尚未获取远端/);
-  assert.match(gitSummary({value:{...value,ahead:2}}).label,/↑2/);
-  assert.match(gitSummary({value:{...value,ahead:2,behind:3}}).label,/分歧/);
-  assert.match(gitSummary({value:{...value,conflicted:['a'],files:[{path:'a'},{path:'a'}]}}).label,/1 个冲突 · 1 个文件/);
+  assert.equal(gitSummary({value:{...value,ahead:2}}).label,'✓0 ↑2');
+  assert.equal(gitSummary({value:{...value,ahead:2,behind:3}}).label,'✓0 ↑2 ↓3');
+  const mixed={...value,conflicted:['conflict','conflict'],files:[
+    {path:'both',index:'M',working_dir:'M'}, {path:'new',index:'?',working_dir:'?'},
+    {path:'conflict',index:'U',working_dir:'U'}, {path:'both',index:'M',working_dir:'M'}
+  ]};
+  assert.equal(gitSummary({value:mixed}).label,'!1 +2 M2 ?1');
   assert.match(gitSummary({value:{...value,comparison_available:false,ahead:2}}).meaning,/未设置可比较/);
   assert.doesNotMatch(gitSummary({value:{...value,comparison_available:false,ahead:2}}).label,/↑2/);
-  assert.match(gitSummary({value,remote:{error:'offline'}}).label,/远端获取失败/);
+  assert.equal(gitSummary({value:{...value,ahead:2},remote:{error:'offline'}}).label,'⇅× ✓0');
+  const html=gitSummaryButton('p','Project',{value:mixed});
+  const visible=html.match(/>(.*)<\/button>$/s)[1];
+  assert.match(html,/chat-git-status-group/);
+  assert.doesNotMatch(visible,/本地干净|个文件未提交|待推送|分歧/);
+  assert.match(html,/aria-label="Project Git：冲突 1，已暂存 2/);
 });
 
 test('detail response is rejected if project binding changes during the read', async t => {

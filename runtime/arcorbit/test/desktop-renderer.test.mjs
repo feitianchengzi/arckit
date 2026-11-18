@@ -33,10 +33,11 @@ const conversationSurfacePath = new URL("../desktop/renderer/conversation-surfac
 test('Engineering IPC exposes only built-in snapshot and update to the main renderer', async () => {
   const source=await readFile(desktopMainPath,'utf8'),handlers=new Map(),calls=[];
   const mainWindow={webContents:{}};
-  const start=source.indexOf('function registerIpc() {'),end=source.indexOf('  ipcMain.handle("arckit:release-snapshot"',start);
+  const start=source.indexOf('function registerIpc() {'),end=source.indexOf('  handle("arckit:release-snapshot"',start);
   const guardStart=source.indexOf('function assertMainRenderer(event)'),guardEnd=source.indexOf('\nasync function ',guardStart);
   vm.runInNewContext(source.slice(start,end)+'}\n'+source.slice(guardStart,guardEnd)+'\nregisterIpc();',{
-    mainWindow,ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
+    tracedIpcHandler: (_name, handler) => handler,
+    mainWindow,ipcMain:{handle:(name,handler)=>handlers.set(name,handler),on:()=>{}},
     sceneSkillManager:{snapshot:()=>calls.push('snapshot'),update:()=>calls.push('update')}
   });
   for(const name of ['snapshot','update']) await assert.rejects(async()=>handlers.get(`arckit:engineering-${name}`)({sender:{}},{}),/main ArcOrbit window/);
@@ -717,6 +718,21 @@ test("Chat Renderer separates stream patches from coalesced structural refreshes
   assert.doesNotMatch(eventBranch, /chatConversationSurface\.followLatest/);
 });
 
+test("Chat Git activation avoids focus-wide refresh and batches local status rendering", async () => {
+  const [source, main] = await Promise.all([readFile(rendererPath, "utf8"), readFile(desktopMainPath, "utf8")]);
+  const binding = source.slice(source.indexOf("globalThis.arcorbitChatGit ="), source.indexOf("const workbenchConversationSurface"));
+  const localRender = source.slice(source.indexOf("function scheduleChatGitRender"), source.indexOf("const workbenchConversationSurface"));
+  const createWindow = main.slice(main.indexOf("async function createWindow"), main.indexOf("async function runRendererLoadSmoke"));
+
+  assert.match(binding, /onChange: scheduleChatGitRender/);
+  assert.doesNotMatch(binding, /onChange:[^\n]*renderChat/);
+  assert.match(localRender, /requestAnimationFrame/);
+  assert.match(localRender, /renderChatGitState/);
+  assert.match(localRender, /chatGitSurface\.render\(\)/);
+  assert.doesNotMatch(localRender, /\brenderChat\(\)/);
+  assert.doesNotMatch(createWindow, /on\(['"]focus['"][\s\S]*?chatGit\?\.refreshAll/);
+});
+
 test("Chat navigation renders the cached page before starting its background refresh", async () => {
   const source = await readFile(rendererPath, "utf8");
   const start = source.indexOf("function showPage(page)");
@@ -725,7 +741,8 @@ test("Chat navigation renders the cached page before starting its background ref
 
   assert.ok(chatBranch.indexOf("renderPageVisibility();") < chatBranch.indexOf("refreshChat()"));
   assert.ok(chatBranch.indexOf("renderChat();") < chatBranch.indexOf("refreshChat()"));
-  assert.match(source, /chat\.refreshing \? " · 正在同步"/);
+  assert.doesNotMatch(source, /els\.chatStatusText/);
+  assert.doesNotMatch(await readFile(rendererHtmlPath, "utf8"), /id="chatStatusText"/);
   assert.match(source, /setAttribute\("aria-busy", String\(chat\.refreshing\)\)/);
 });
 
@@ -743,20 +760,47 @@ test("Chat Renderer delegates all owner, epoch, projection, retry, send and pers
   assert.doesNotMatch(source, /keepSelection|preserveDraftOnSelectionAdoption|\.begin\(\)|\.observe\(\)|\.invalidate\(\)/);
 });
 
-test("Chat project selector changes only the new draft owner and persisted session ownership stays fixed", async () => {
+test("Chat project menu changes only the new draft owner and persisted session ownership stays fixed", async () => {
   const [source, html] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8")
   ]);
 
-  assert.match(source, /els\.chatProjectSelect\.disabled = Boolean\(session\) \|\| chatProjectsInScope\(\)\.length === 0;/);
+  assert.match(source, /els\.chatProjectMenuButton\.hidden = Boolean\(session\)/);
+  assert.match(source, /role=\"option\" data-chat-project-option/);
+  assert.match(source, /aria-selected=\"\$\{item\.id === project\?\.id\}\" title=\"\$\{escapeHtml\(item\.name\)\}\"/);
   assert.match(source, /chatStateCoordinator\.changeDraftWorkspace\(projectId\)/);
+  assert.match(source, /setChatProjectMenuOpen\(false, \{ restoreFocus: true \}\);\s*await chatStateCoordinator\.changeDraftWorkspace\(projectId\)/);
   assert.match(source, /const projectId = defaultChatDraftProject\(\)\?\.id \|\| ""/);
   assert.match(source, /projects.find\(p=>p.id===chat.owner.project_id\)/);
-  assert.match(source, /session\.project_id\)}（不可用）/);
-  assert.match(source, /els\.chatWorkspacePickerLabel\.textContent = session \? "固定归属" : "新对话属于"/);
-  assert.match(html, /id="chatWorkspacePickerLabel">新对话属于/);
-  assert.ok(html.indexOf('id="chatProjectSelect"') > html.indexOf('<header class="chat-header">'));
+  assert.match(source, /session\?\.project_id \? `\$\{session\.project_id\} · 不可用`/);
+  assert.match(source, /function handleChatProjectMenuKeydown/);
+  assert.match(source, /setChatProjectMenuOpen\(false, \{ restoreFocus: true \}\)/);
+  assert.match(html, /id="chatProjectMenuButton"[^>]+aria-haspopup="listbox"/);
+  assert.match(html, /id="chatProjectMenu"[^>]+role="listbox"[^>]+hidden/);
+  assert.doesNotMatch(html, /id="chatProjectSelect"/);
+  assert.ok(html.indexOf('id="chatProjectMenuButton"') > html.indexOf('class="chat-header-actions"'));
+  assert.ok(html.indexOf('id="chatProjectMenuButton"') < html.indexOf('id="chatSessionMenuButton"'));
+});
+
+test("Chat header keeps secondary session management behind one accessible menu", async () => {
+  const [source, html, layout] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8"),
+    readFile(new URL("../desktop/renderer/chat-layout.css", import.meta.url), "utf8")
+  ]);
+
+  assert.match(html, /id="chatSessionMenuButton"[^>]+aria-label="会话操作"[^>]+aria-haspopup="menu"/);
+  assert.match(html, /id="chatSessionMenu"[^>]+role="menu"[^>]+hidden/);
+  assert.match(html, /id="renameChatButton"[^>]+role="menuitem">重命名/);
+  assert.match(html, /id="deleteChatButton"[^>]+role="menuitem">删除会话/);
+  assert.doesNotMatch(html, /id="chatStatusText"|data-convert/);
+  assert.match(layout, /height:64px; min-height:64px/);
+  assert.match(layout, /text-overflow:ellipsis; white-space:nowrap/);
+  assert.match(layout, /\.chat-project-menu-popover \{ position:absolute; top:calc\(100% \+ 6px\); right:0/);
+  assert.match(source, /function handleChatSessionMenuKeydown/);
+  assert.match(source, /\['ArrowDown', 'ArrowUp', 'Home', 'End'\]/);
+  assert.match(source, /setChatSessionMenuOpen\(false, \{ restoreFocus: true \}\)/);
 });
 
 test("Chat Renderer groups scoped sessions by Product Workspace with bounded inline history", async () => {
@@ -1011,7 +1055,7 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
   assert.match(html, /class="commandbar"/);
-  for (const id of ["chatProjectSelect", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
+  for (const id of ["chatProjectMenuButton", "chatProjectMenu", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
   assert.match(source, /api\.chatSnapshot/);
@@ -1275,7 +1319,7 @@ test("Feedback detail scrolls internally and image attachments reuse the managed
   assert.match(main, /createImageViewer/);
   assert.match(main, /input\.source === "feedback-file"/);
   assert.match(main, /input\.source === "feedback-v2"/);
-  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-open"/);
+  assert.match(main, /handle\("arckit:image-viewer-open"/);
   assert.match(styles, /\.feedback-image-preview\.is-loaded img/);
 });
 
@@ -1795,6 +1839,7 @@ test("Today directly renders acceptance issue progress and preserves valid selec
   const todayRender = source.slice(source.indexOf("function renderToday()"), source.indexOf("\nfunction renderTodayResult"));
   const todayOperator = source.slice(source.indexOf("function renderTodayOperator(item, view)"), source.indexOf("\nfunction renderTodaySourceContext"));
   const sourceContext = source.slice(source.indexOf("function renderTodaySourceContext(item)"), source.indexOf("\nfunction todayFactRows"));
+  const acceptanceSheet = source.slice(source.indexOf("async function openTodayAcceptanceIssue(item)"), source.indexOf("\nfunction todayPreference"));
   const actionFlow = source.slice(source.indexOf("async function performTodayAction(item, action)"), source.indexOf("\nasync function performTodayProjectSetupAction"));
   const editFlow = source.slice(source.indexOf("async function editTodayTaskContent(item)"), source.indexOf("\nasync function submitTaskEdit"));
   const manageRule = source.slice(source.indexOf("function canManagePlatformTask(task)"), source.indexOf("\nfunction servicePriority"));
@@ -1802,7 +1847,8 @@ test("Today directly renders acceptance issue progress and preserves valid selec
   assert.match(source, /createKeyedDetailSurface/);
   assert.match(todayRender, /todayDetailSurface\.render\(\{[\s\S]+contextId: `\$\{view\.mode\}:\$\{view\.selected_item\?\.id \|\| "empty"\}`/);
   assert.doesNotMatch(todayRender, /els\.todayOperator\.innerHTML\s*=/);
-  assert.match(source, /data-today-draft data-detail-focus-key="draft"/);
+  assert.match(todayOperator, /const needsDraft = item\.source === "automation"/);
+  assert.doesNotMatch(todayOperator, /验收问题或补充说明/);
   assert.match(sourceContext, /验收问题与进展/);
   assert.match(sourceContext, /class="acceptance-feedback-list"/);
   assert.match(sourceContext, /issue\.original_feedback/);
@@ -1811,12 +1857,18 @@ test("Today directly renders acceptance issue progress and preserves valid selec
   assert.doesNotMatch(sourceContext, /<details|today-context-disclosure/);
   assert.match(actionFlow, /await api\.submitAcceptanceFeedback\([^\n]+\n\s+await refreshSnapshot\(\{ quiet: true, afterMutation: true \}\)/);
   assert.match(actionFlow, /if \(action !== "raise_acceptance_issue"\) state\.todaySelectedItemId = ""/);
+  assert.match(todayOperator, /data-today-acceptance-issue/);
+  assert.match(todayOperator, /\$\{acceptanceIssueButton\}\$\{editTaskButton\}/);
+  assert.match(todayOperator, /filter\(\(action\) => action !== "raise_acceptance_issue"\)/);
+  assert.match(acceptanceSheet, /openPlatformAction\(\{[\s\S]+title: "提出验收问题"/);
+  assert.match(acceptanceSheet, /platformField\("message", "验收问题", \{[\s\S]+type: "textarea"/);
+  assert.match(acceptanceSheet, /await performTodayAction\(item, "raise_acceptance_issue"\)/);
+  assert.match(acceptanceSheet, /querySelector\("\[data-today-acceptance-issue\]"\)[\s\S]+focus/);
   assert.match(todayOperator, /item\.source === "work" && canManagePlatformTask\(item\)/);
   assert.match(todayOperator, /data-today-edit-task/);
   assert.match(todayRender, /editTodayTaskContent\(view\.selected_item\)/);
-  assert.match(editFlow, /platformField\("content", "待办内容", \{ type: "textarea", required: true, value: item\.content \?\? "" \}\)/);
-  assert.match(editFlow, /executeManagedAction\("task\.update", \{ task_id: taskId, expected_state: expectedState, content \}/);
-  assert.doesNotMatch(editFlow, /platformField\("(?:project_id|state|executor_id|father_id|priority|tag_ids)"/);
+  assert.match(editFlow, /await editTask\(taskId\)/);
+  assert.doesNotMatch(editFlow, /openPlatformAction|platformField|executeManagedAction/);
   assert.match(manageRule, /if \(task\.state !== "in_progress"\) return true;[\s\S]+findWorkspace\(task\.project_id\)/);
 });
 
@@ -1826,7 +1878,7 @@ test("Work opens allowed Markdown links through a bounded main-process capabilit
     readFile(desktopPreloadPath, "utf8")
   ]);
   assert.match(preload, /openWorkExternalLink: \(value\) => ipcRenderer\.invoke\("arckit:work-external-link-open", value\)/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-external-link-open"/);
+  assert.match(main, /handle\("arckit:work-external-link-open"/);
   assert.match(main, /assertMainRenderer\(event\)/);
   assert.match(main, /requireWorkExternalLinkUrl\(value\)/);
   assert.match(main, /await shell\.openExternal\(url\)/);
@@ -1854,18 +1906,18 @@ test("desktop renders and composes type-preserving TaskAttachment resources thro
   assert.match(preload, /previewWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-preview", input\)/);
   assert.match(preload, /openImageViewer: \(input\) => ipcRenderer\.invoke\("arckit:image-viewer-open", input\)/);
   assert.match(preload, /openWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-open", input\)/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-pick"/);
+  assert.match(main, /handle\("arckit:work-task-attachment-pick"/);
   assert.match(main, /platformCoordinator\.uploadTaskAttachmentResource/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-preview"/);
+  assert.match(main, /handle\("arckit:work-task-attachment-preview"/);
   assert.match(main, /platformCoordinator\.getTaskAttachmentResourceUrl/);
   assert.match(main, /createImageViewer/);
-  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-open"/);
-  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-save"/);
-  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-retry"/);
+  assert.match(main, /handle\("arckit:image-viewer-open"/);
+  assert.match(main, /handle\("arckit:image-viewer-save"/);
+  assert.match(main, /handle\("arckit:image-viewer-retry"/);
   const viewerRenderer = await readFile(imageViewerRendererPath, "utf8");
   assert.match(viewerRenderer, /state\.status === "loading"[\s\S]*clearDisplayedImage\(\)/);
   assert.match(viewerRenderer, /els\.image\.removeAttribute\("src"\)/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-open"/);
+  assert.match(main, /handle\("arckit:work-task-attachment-open"/);
   assert.match(styles, /\.task-comment-images/);
   assert.match(styles, /\.task-comment-pending-resources/);
 });

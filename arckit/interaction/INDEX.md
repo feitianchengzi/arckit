@@ -23,44 +23,22 @@
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
   - interaction.md 平台交互：四组导航、产品范围/治理解耦、组织项目连接引导与 Feedback 单行控制轨、会话自动/手动刷新、已读边界、剩余高度双栏、同记录恢复、共享图片查看和流转。✅ (199行)
   - member-add.html 直接添加成员状态：加载、单选、空态、提交、确认和权限/网络恢复。✅ (70行)
-- today-workspace/ Today 人工责任工作台：以项目栏、需要你处理/项目配置双工作区和操作台管理多项目配置、跨来源人工介入及 Work 内容纠偏。🟡
+- today-workspace/ Today 人工责任工作台：以项目栏、需要你处理/项目配置双工作区和操作台管理多项目配置、跨来源人工介入、Work 待办完整编辑及验收问题弹出输入。🟡
   - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
   - page-states.html Today 主线框：真实三组主导航、跨项目责任、项目配置、零责任和来源未知。🟡 (21行)
   - readiness-details.html 新用户子视图：前置门、项目目录、多项目并行检查、目录/Setup/本机参与和 Work 交接。🟡 (20行)
-  - action-details.html 来源操作台：Chat 权限、Automation 人工决策与外部等待分离、Work 内容纠偏与失败保留、状态门、验收问题原位直显及部分成功收口。🟡 (26行)
+  - action-details.html 来源操作台：Chat 权限、Automation 人工决策与外部等待分离、Work 完整编辑与失败保留、状态门、验收问题弹出输入与列表原位直显及部分成功收口。🟡 (26行)
   - action-continuity.html 连续操作子视图：草稿、提交、即时来源确认、版本冲突、责任变化与重启恢复。🟡 (18行)
-  - interaction.md Today 交互：产品集成员、局部选择与按需初始化、双工作区、当前用户责任收录、Work 内容纠偏、验收问题原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (241行)
+  - interaction.md Today 交互：产品集成员、局部选择与按需初始化、双工作区、当前用户责任收录、Work 完整编辑、验收问题弹出输入与列表原位直显、身份感知阅读连续性、直接操作与人机接力状态机。🟡 (243行)
   - product-continuity.html 产品续接：添加 Idea、独立新消息和本机草稿。✅ (5行)
-- chat-workspace/ Chat 文件树与文件 Tab 约定及可操作样本已同步；浏览器路径已验证，生产兑现待验证。✅
-  - 既有 Chat 正式交互：会话列表与当前待办详情切换，Work 入口恢复绑定会话；会话创建时间倒序，Agent 当前项目待办读写与统一能力/Skill/上下文选择；保留完整会话、账户和响应式行为。✅
-  - default.html 四组导航、中央对话、会话列表与统一能力引用的完整入口。✅ (31行)
-  - files-model.js / files-ui.js / files.css 完整文件树、动作、编辑 Tab 与状态保护样本；内存目录和 textarea 不代表真实文件或 Monaco。
-  - verify-files.cjs 新增文件路径浏览器验证；ARCORBIT_TEST_OUTPUT 指定 Case 证据目录，默认临时目录。
-  - interaction.md 能力/引用、文件树操作、Monaco 文件 Tab、同一 thread 与恢复规则；文件功能样本已同步。✅ (261行)
-  - README.md 预览、模拟边界、视觉与验证依据。✅ (54行)
-  - model.js 独立本地会话、工作区、草稿、turn 与恢复样本。✅ (56行)
-  - views.js 右侧项目会话分组、中央消息与 Composer。✅ (40行)
-  - app.js 会话操作、焦点、滚动、输入法、场景与逐段回复。✅ (194行)
-  - chat.css 中央阅读宽度、右侧列表与窄窗抽屉。✅ (80行)
-  - markdown.js 受限 Markdown、代码和表格呈现。✅ (102行)
-  - scenarios.html 独立本地异常工具。✅ (4行)
-  - scenario-controls.js 场景工具消息转发。✅ (1行)
-  - states.html 从旧主稿迁移的右侧列表状态辅助说明。✅ (55行)
-  - workspace-setup.html 原位目录绑定与 Setup Readiness 辅助说明。✅ (12行)
-  - verify.cjs 主路径、恢复、滚动与响应式浏览器验证。✅ (62行)
-  - verification.json 实际本地交互验证结果。✅ (21行)
-  - maintenance-result.json 本轮文件范围与正式交互事实结果。✅
-  - native-model.js 当前项目待办、绑定、意图与原生回执本地模型。✅ (104行)
-  - native-views.js 会话/待办独立单行列表、标签、对象卡片与正式视图组合。✅ (29行)
-  - native-input.js 统一能力/引用选择器、对象进入与异常恢复。✅ (75行)
-  - native.css 消费正式 Token 的能力选择、标签与回执样式。✅ (49行)
-  - verify-native.cjs 正式新增主路径、状态恢复、键盘与响应式验证。✅ (61行)
-  - verification-native.json 新增能力原型的实际本地验证结果。✅ (17行)
-
-  - model-settings.js 当前会话模型/推理级别弹出配置、自动保存与焦点恢复。✅
-  - verify-layout-webkit.swift / verification-layout-webkit.json macOS WebKit 桌面布局复核。✅
-  - verify-layout.cjs / verification-layout.json 顶部入口同排、菜单可用高度与全部候选可达检查。✅
-  - popup-position.js 菜单紧贴各自入口向上展开，处理视口避让与窗口尺寸变化。✅
+- chat-workspace/ 正式一体式工作空间：采纳 A 三栏及窄图标导航、页内对话/待办 Tab、五入口（Chat/项目/团队/工程/设置）与项目分组，Chat/Work 同一身份，Auto 就地接力，项目页容纳 Idea 至反馈的生命周期及产品集维护，团队治理、内置工程能力和分类设置及局部保存。✅（交互原型，不代表生产兑现）
+  - default.html 产品入口：中央标题与对话、全高待办/文件/Git 综合栏。（33 行）
+  - scenarios.html 独立场景目录：空态、离线、失败、外部等待、他人占用、冲突、权限、验收及长内容。（142 行）
+  - interaction.md 正式交互策略、连续性和模拟边界。（120 行）
+  - coverage.md 场景操作、恢复与实际验证口径。（65 行）
+  - unified/ 按模型、视图、项目、综合栏、执行与样式拆分的独立本地原型；不依赖探索目录。
+  - verify-unified.cjs / verify-unified-projects.cjs 可重复的核心与项目协作验证，证据输出临时目录。
+  - legacy-* 与原有根目录脚本保留历史对照；旧独立会话/后关联待办模式不再作为本轮交互入口。
 
 - release-workspace/ Release：真实终端、Git、源码、任务与 Agent 协作。✅
   - default.html 统一顶部与范围内对象的可操作入口：范围切换、草稿恢复及本地模拟。✅
@@ -154,4 +132,4 @@
 
   - verify-global-create.cjs 全局创建的跨页、失败恢复、键盘与窄窗原型验证；输出目录由环境指定。
 
-- chat-workspace/git-ui.js / git.css 项目分组 Git 摘要、右栏详情和只读差异模拟；正式行为见同目录 interaction.md。
+- chat-workspace/git-ui.js / git.css 项目分组单行 Git 符号计数摘要、项目名优先压缩、右栏详情和只读差异模拟；正式行为见同目录 interaction.md。

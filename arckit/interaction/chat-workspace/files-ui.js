@@ -2,6 +2,14 @@
 (() => {
   const F = ChatFilesModel, M = ChatModel, V = ChatViews, P = ChatPrototype, {esc} = V;
   const button = (action, label, path = '', extra = '') => `<button type="button" data-file-action="${action}" data-path="${esc(path)}" ${extra}>${label}</button>`;
+  const treeIcon = kind => kind === 'directory'
+    ? '<span class="file-disclosure" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m5.5 3.5 4.5 4.5-4.5 4.5"/></svg></span>'
+    : `<span class="file-entry-icon" aria-hidden="true">${kind === 'link' ? '↗' : '·'}</span>`;
+  const gitBadge = (s, path) => {
+    if (s.gitFreshness === 'unknown') return '';
+    const status = F.gitStatus(s, path);
+    return status ? `<span class="file-git-status" aria-label="Git：${esc(status.meaning)}" title="Git：${esc(status.meaning)}">${esc(status.marker)}</span>` : '';
+  };
   const notice = text => { document.getElementById('chat-notice').textContent = text; };
   const dialog = document.createElement('dialog'); dialog.id = 'file-dialog'; dialog.setAttribute('aria-label', '文件操作'); document.body.append(dialog);
   const menu = document.createElement('div'); menu.id = 'file-menu'; menu.role = 'menu'; menu.hidden = true; document.body.append(menu);
@@ -9,7 +17,10 @@
   let retainedPane, retainedKey, retainedTab;
   function closeMenu(restore = true) {
     menu.hidden = true;
-    if (restore) focusRow(menuReturn);
+    if (restore) {
+      if (menuReturn?.isConnected) menuReturn.focus({preventScroll: true});
+      else focusRow(menuPath);
+    }
   }
   function focusRow(path) {
     const row = [...document.querySelectorAll('[data-file-row]')].find(n => n.dataset.fileRow === path);
@@ -49,15 +60,17 @@
     const limit = s.limits.get(dir) || 50;
     return entries.slice(0, limit).map(e => {
       const directory = e.kind === 'directory', expanded = s.expanded.has(e.path);
-      return `<div role="treeitem" tabindex="${s.selected === e.path ? 0 : -1}" aria-level="${depth}" ${directory ? `aria-expanded="${expanded}"` : ''} aria-selected="${s.selected === e.path}" data-file-row="${esc(e.path)}" class="file-row" style="--depth:${depth}" title="${esc(e.path)}">
-        ${button('open', `${directory ? (expanded ? '▾' : '▸') : e.kind === 'link' ? '↗' : '·'} <span>${esc(F.name(e.path))}</span>${e.kind === 'link' ? '<small>链接</small>' : ''}`,e.path,'tabindex="-1" class="file-name"')}
-        ${button('menu','⋯',e.path,`aria-label="${esc(F.name(e.path))} 更多操作" class="file-more" tabindex="-1"`)}</div>${directory && expanded ? `<div role="group">${renderTree(s,e.path,depth+1)}</div>` : ''}`;
+      const status = s.gitFreshness === 'unknown' ? null : F.gitStatus(s, e.path), statusText = status ? `；Git：${status.meaning}` : '';
+      return `<div role="treeitem" tabindex="${s.selected === e.path ? 0 : -1}" aria-level="${depth}" ${directory ? `aria-expanded="${expanded}"` : ''} aria-selected="${s.selected === e.path}" aria-label="${esc(F.name(e.path) + statusText)}" data-file-row="${esc(e.path)}" class="file-row" style="--depth:${depth}" title="${esc(e.path + statusText)}">
+        ${button('open', `${treeIcon(e.kind)}<span>${esc(F.name(e.path))}</span>${e.kind === 'link' ? '<small>链接</small>' : ''}`,e.path,'tabindex="-1" class="file-name"')}
+        ${gitBadge(s, e.path)}${button('menu','⋯',e.path,`aria-label="${esc(F.name(e.path))} 更多操作" class="file-more" tabindex="-1"`)}</div>${directory && expanded ? `<div role="group">${renderTree(s,e.path,depth+1)}</div>` : ''}`;
     }).join('') + (entries.length > limit ? button('more', `加载更多（剩余 ${entries.length-limit} 项）`, dir) : entries.length ? '' : '<p class="file-empty">空文件夹</p>');
   }
   function tree(s) {
     if (!s) return '<p role="status">请选择可用工作区；文件草稿不会写入其他项目。</p>';
-    return `<div class="file-tools"><strong title="${esc(M.project(M.owner().project)?.path)}">${esc(M.project(M.owner().project)?.name)}</strong>${button('refresh','刷新')}${button('new-file','新建文件')}${button('new-directory','新建文件夹')}</div>
-      ${s.error ? `<p role="alert">${esc(s.error)}</p>` : ''}<div class="file-tree" role="tree" aria-label="项目文件">${renderTree(s)}</div>`;
+    const freshness = s.gitFreshness === 'stale' ? 'Git 状态可能已过期；保留上次可信标记。' : s.gitFreshness === 'error' ? 'Git 状态刷新失败；保留上次可信标记，可使用刷新重试。' : s.gitFreshness === 'unknown' ? 'Git 状态尚无可信结果；目录仍可浏览。' : '';
+    return `<div class="file-tools"><strong title="${esc(M.project(M.owner().project)?.path)}">${esc(M.project(M.owner().project)?.name)}</strong>${gitBadge(s, '')}${button('menu','⋯','',`class="file-root-menu" data-root-menu="true" aria-label="${esc(M.project(M.owner().project)?.name)} 项目根目录更多操作"`)}</div>
+      ${freshness ? `<p class="file-tree-git-state" role="status">${esc(freshness)}</p>` : ''}${s.error ? `<p role="alert">${esc(s.error)}</p>` : ''}<div class="file-tree" role="tree" aria-label="项目文件">${renderTree(s)}</div>`;
   }
   function pane(s, t) {
     const host = document.createElement('section'); host.className = 'file-editor-pane'; host.setAttribute('aria-label', '文件内容');
@@ -109,6 +122,7 @@
   V.render = function() {
     capturePane();
     const activeElement = document.activeElement, editorFocused = activeElement?.classList.contains('file-text');
+    const focusedTreePath = activeElement?.closest?.('[data-file-row]')?.dataset.fileRow || '';
     const treeScroll = document.querySelector('.file-tree')?.scrollTop || 0;
     if (retainedPane?.isConnected) retainedPane.remove();
     base();
@@ -122,6 +136,10 @@
       const first = sidebar.querySelector('[data-file-row]');
       if (!sidebar.querySelector('[data-file-row][tabindex="0"]') && first) first.tabIndex=0;
       const treeNode = sidebar.querySelector('.file-tree'); if (treeNode) treeNode.scrollTop=treeScroll;
+      if (focusedTreePath) {
+        const next = sidebar.querySelector(`[data-file-row="${CSS.escape(focusedTreePath)}"]`) || sidebar.querySelector(`[data-file-row="${CSS.escape(F.parent(focusedTreePath))}"]`);
+        next?.focus({preventScroll:true});
+      }
     }
     const center=document.querySelector('.chat-center'), t=F.tab(s);
     if(s?.tabs.length) {
@@ -149,9 +167,12 @@
     if(!opened||token!==generation)return;
     M.state.listOpen=false;render();document.querySelector('.file-text')?.focus();
   }
-  function openMenu(s,path,anchor) {
-    s.selected=path;menuOwner=s;menuPath=path;menuReturn=path;
-    menu.innerHTML=button('open','打开 / 展开',path)+button('new-file','新建文件',path)+button('new-directory','新建文件夹',path)+button('rename','重命名',path)+button('trash','删除到废纸篓',path)+button('copy-path','复制相对路径',path)+button('reference','添加相对路径引用到 Chat',path)+button('reveal','在系统中显示',path);
+  function openMenu(s,path,anchor,rootMenu=false) {
+    if (!rootMenu) s.selected=path;
+    menuOwner=s;menuPath=path;menuReturn=anchor;
+    menu.innerHTML=rootMenu
+      ? button('refresh','刷新',path)+button('new-file-root','新建文件',path)+button('new-directory-root','新建文件夹',path)+button('reveal-root','在系统中显示',path)
+      : button('open','打开 / 展开',path)+button('new-file','新建文件',path)+button('new-directory','新建文件夹',path)+button('rename','重命名',path)+button('trash','删除到废纸篓',path)+button('copy-path','复制相对路径',path)+button('reference','添加相对路径引用到 Chat',path)+button('reveal','在系统中显示',path);
     menu.querySelectorAll('button').forEach(b=>b.role='menuitem');
     menu.hidden=false;const r=anchor.getBoundingClientRect();
     menu.style.left=Math.max(8,Math.min(r.left,innerWidth-menu.offsetWidth-8))+'px';
@@ -183,10 +204,11 @@
       const input=document.getElementById('chat-input');input.focus();input.setSelectionRange(prefix.length+insert.length,prefix.length+insert.length);return;
     }
     if(name==='copy-path'||name==='copy-draft'){try{await navigator.clipboard.writeText(name==='copy-path'?path:t.text||'');notice('已复制。');}catch{notice('无法访问剪贴板，请选择文本后复制。');}return;}
-    if(name==='reveal'){notice('本地样本：将在系统中定位 '+path+'；原型未调用系统文件管理器。');return;}
-    if(name==='new-file'||name==='new-directory') {
-      const selected=path||s.selected,dir=s.disk.get(selected)?.kind==='directory'?selected:F.parent(selected);
-      showDialog(name==='new-file'?'新建文件':'新建文件夹',`<p>${esc(dir||'工作区根目录')}</p><label>名称<input name="name" required autocomplete="off"></label>`,'创建',async data=>{const p=F.create(s,dir,data.get('name'),name==='new-file'?'file':'directory');if(name==='new-file')await F.open(s,p);});return;
+    if(name==='reveal'||name==='reveal-root'){notice('本地样本：将在系统中定位 '+(name==='reveal-root'?'工作区根目录':path)+'；原型未调用系统文件管理器。');return;}
+    if(name==='new-file'||name==='new-directory'||name==='new-file-root'||name==='new-directory-root') {
+      const rootCreate=name.endsWith('-root'),createAction=rootCreate?name.slice(0,-5):name;
+      const selected=rootCreate?'':path||s.selected,dir=rootCreate?'':s.disk.get(selected)?.kind==='directory'?selected:F.parent(selected);
+      showDialog(createAction==='new-file'?'新建文件':'新建文件夹',`<p>${esc(dir||'工作区根目录')}</p><label>名称<input name="name" required autocomplete="off"></label>`,'创建',async data=>{const p=F.create(s,dir,data.get('name'),createAction==='new-file'?'file':'directory');if(createAction==='new-file')await F.open(s,p);});return;
     }
     if(name==='rename') {
       showDialog('重命名',`<p>${esc(path)}</p><label>名称<input name="name" required value="${esc(F.name(path))}"></label>`,'保存',data=>F.rename(s,path,data.get('name')));return;
@@ -204,7 +226,7 @@
     if(b.dataset.fileAction==='alternate')return;
     const s=menu.contains(b)?menuOwner:F.current(),path=b.dataset.path;
     if(!s)return;
-    if(b.dataset.fileAction==='menu'){openMenu(s,path,b);return;}
+    if(b.dataset.fileAction==='menu'){openMenu(s,path,b,b.dataset.rootMenu==='true');return;}
     closeMenu(false);
     Promise.resolve().then(()=>action(b.dataset.fileAction,path,s)).catch(error=>{s.error=error.message;notice(error.message);render();});
   });
@@ -220,6 +242,7 @@
     const row=e.target.closest('[data-file-row]'),s=F.current();
     if(row){
       const path=row.dataset.fileRow,rows=[...document.querySelectorAll('[data-file-row]')],i=rows.indexOf(row),entry=s.disk.get(path);
+      if(e.key==='Escape'&&s.selected){e.preventDefault();const selected=rows.find(item=>item.dataset.fileRow===s.selected);s.selected='';selected?.setAttribute('aria-selected','false');}
       if(['ArrowDown','ArrowUp','Home','End','ArrowRight','ArrowLeft','Enter','F2','ContextMenu'].includes(e.key)||(e.shiftKey&&e.key==='F10'))e.preventDefault();
       if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){const next=rows[e.key==='Home'?0:e.key==='End'?rows.length-1:Math.max(0,Math.min(rows.length-1,i+(e.key==='ArrowDown'?1:-1)))];s.selected=next.dataset.fileRow;rows.forEach(r=>{r.tabIndex=r===next?0:-1;r.setAttribute('aria-selected',String(r===next));});next.focus();}
       if(e.key==='ArrowRight'&&entry.kind==='directory'){s.expanded.add(path);render();focusRow(path);}
@@ -241,6 +264,13 @@
     if(name==='files-deleted'){const t=F.tab(s);if(t){s.disk.delete(t.path);F.check(s,t);}}
     if(name==='files-recover'){s.slow=false;s.fail='';s.error='';s.disk.get('restricted').denied=false;}
     if(name==='files-slow')s.slow=true;
+    if(name==='files-external-create')F.externalChange(s,'create');
+    if(name==='files-external-rename')F.externalChange(s,'rename');
+    if(name==='files-external-delete')F.externalChange(s,'delete');
+    if(name==='files-git-stale')s.gitFreshness='stale';
+    if(name==='files-git-error')s.gitFreshness='error';
+    if(name==='files-git-unknown')s.gitFreshness='unknown';
+    if(name==='files-git-fresh')s.gitFreshness='fresh';
     render();
   }
   window.addEventListener('message',e=>{if(new URLSearchParams(location.search).get('scenarioTools')==='on'&&e.source===parent&&e.data?.type==='chat-files-scenario')scenario(e.data.name);});

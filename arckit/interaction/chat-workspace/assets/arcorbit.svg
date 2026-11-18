@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 36 36" role="img" aria-labelledby="title description">
+  <title id="title">ArcOrbit</title>
+  <desc id="description">The ArcOrbit orbit mark used in the application sidebar.</desc>
+  <rect x="1" y="1" width="34" height="34" rx="8" fill="#F7F8FA" stroke="#E4E7EC" stroke-width="0.75"/>
+  <g fill="none" stroke="#121722" stroke-width="1.65" stroke-linecap="round">
+    <path d="M25.5 8.5a12 12 0 1 0 3.8 14.8"/>
+    <ellipse cx="18" cy="18" rx="17" ry="6.5" transform="rotate(-35 18 18)" stroke="#F4B77D" stroke-width="1.35"/>
+    <circle cx="18" cy="18" r="3" fill="#121722" stroke="none"/>
+    <circle cx="27" cy="10" r="2.5" fill="#F4B77D" stroke="#F7F8FA" stroke-width="1.5"/>
+  </g>
+</svg>

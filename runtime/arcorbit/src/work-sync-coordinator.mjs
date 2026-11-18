@@ -26,8 +26,12 @@ export function createWorkSyncCoordinator({
   const pendingReconcileReasons = new Set();
   let sessionEpoch = 0;
 
-  async function getSnapshot({ automationOnly = false } = {}) {
-    return snapshotFromStore(await runManager.readDesktopStore(), { automationOnly });
+  const readState = async () => runManager.captureDesktopStateView
+    ? (await runManager.captureDesktopStateView()).state : runManager.readDesktopStore();
+
+  async function getSnapshot({ automationOnly = false } = {}, stateView = null) {
+    // Public results remain caller-owned; the shared query view never escapes.
+    return structuredClone(snapshotFromStore(stateView?.state || await readState(), { automationOnly }));
   }
 
   function attachLocalProjection(store) {
@@ -102,7 +106,7 @@ export function createWorkSyncCoordinator({
           taskSource.listProjects()
         ]);
         if (epoch !== sessionEpoch) return getSnapshot();
-        const store = await runManager.readDesktopStore();
+        const store = await readState();
         const accessibleProjectIds = new Set(projects.map((project) => String(project.id)));
         const projectIds = allProjects ? [...accessibleProjectIds]
           : [...new Set([...demandedProjectIds(store, projects), ...additionalProjectIds])].filter((id) => accessibleProjectIds.has(id));
@@ -163,7 +167,7 @@ export function createWorkSyncCoordinator({
     if (projectRefreshes.has(id)) return projectRefreshes.get(id);
     const promise = (async () => {
       const epoch = sessionEpoch;
-      const store = await runManager.readDesktopStore();
+      const store = await readState();
       const sync = store.platform.task_sync;
       const project = sync.project_catalog.find((item) => String(item.id) === id)
         || sync.projects[id]?.project;
@@ -247,11 +251,11 @@ export function createWorkSyncCoordinator({
       // The remote create already succeeded. Work keeps the response projection and
       // its degraded sync state instead of inviting a duplicate create retry.
     }
-    return findLocalTask(await runManager.readDesktopStore(), created?.id ?? created?.task_id) || created;
+    return structuredClone(findLocalTask(await readState(), created?.id ?? created?.task_id) || created);
   }
 
   async function replaceTaskProject(input = {}) {
-    const store = await runManager.readDesktopStore();
+    const store = await readState();
     const sourceTask = findLocalTask(store, input.source_task_id);
     if (!sourceTask) throw new TaskSourceError(`Unknown local task: ${input.source_task_id}`, { code: "not_found" });
     const targetProjectId = requiredId(input.target_project_id, "Target project");
@@ -310,7 +314,7 @@ export function createWorkSyncCoordinator({
   }
 
   async function deleteReplacementSource(replacementId) {
-    const store = await runManager.readDesktopStore();
+    const store = await readState();
     const replacement = store.platform.task_sync.task_replacements?.[replacementId];
     if (!replacement) throw new TaskSourceError(`Unknown task replacement: ${replacementId}`, { code: "not_found" });
     const sourceTask = findLocalTask(store, replacement.source_task_id);
@@ -359,7 +363,7 @@ export function createWorkSyncCoordinator({
   }
 
   async function mutateTask(taskId, input, { expectedState = "", responseReason, refreshReason }) {
-    const store = await runManager.readDesktopStore();
+    const store = await readState();
     const stateMutation = input.state !== undefined;
     const task = findLocalTask(store, taskId, { trustedOnly: stateMutation || Boolean(expectedState) });
     if (!task) throw new TaskSourceError(`Unknown local task: ${taskId}`, { code: "not_found" });
@@ -376,15 +380,15 @@ export function createWorkSyncCoordinator({
       await recordMutationFailure(task.project_id, error);
       throw error;
     }
-    const confirmed = findLocalTask(await runManager.readDesktopStore(), task.id, { trustedOnly: stateMutation });
+    const confirmed = findLocalTask(await readState(), task.id, { trustedOnly: stateMutation });
     if (stateMutation && (!confirmed || confirmed.state !== input.state)) {
       throw new TaskSourceError(`Work Sync did not observe task ${task.id} in ${input.state}.`, { code: "conflict" });
     }
-    return confirmed || response;
+    return structuredClone(confirmed || response);
   }
 
   async function deleteTask(taskId) {
-    const store = await runManager.readDesktopStore();
+    const store = await readState();
     const task = findLocalTask(store, taskId);
     if (!task) throw new TaskSourceError(`Unknown local task: ${taskId}`, { code: "not_found" });
     try {
@@ -409,8 +413,8 @@ export function createWorkSyncCoordinator({
   }
 
   async function getRealtimeProjectState(projectId) {
-    const store = await runManager.readDesktopStore();
-    return store.platform.task_sync.projects[String(projectId)] || {};
+    const store = await readState();
+    return structuredClone(store.platform.task_sync.projects[String(projectId)] || {});
   }
 
   async function updateRealtimeProjectState(projectId, update) {
@@ -439,7 +443,7 @@ export function createWorkSyncCoordinator({
   }
 
   async function realtimeProjectIds() {
-    const store = await runManager.readDesktopStore();
+    const store = await readState();
     return demandedProjectIds(store, store.platform.task_sync.project_catalog);
   }
 
@@ -465,8 +469,9 @@ export function createWorkSyncCoordinator({
       const project = sync.projects[String(task.project_id)];
       if (!project) return;
       const index = project.tasks.findIndex((item) => String(item.id) === String(task.id));
-      if (index >= 0) project.tasks[index] = task;
-      else project.tasks.push(task);
+      project.tasks = index >= 0
+        ? project.tasks.map((item, position) => position === index ? task : item)
+        : [...project.tasks, task];
       project.revision += 1;
       project.synced_at = now();
       project.last_refreshed_at = project.synced_at;
@@ -484,6 +489,7 @@ export function createWorkSyncCoordinator({
   }
 
   async function patchTaskSync(mutator) {
+    if (runManager.updateDesktopTaskSync) return runManager.updateDesktopTaskSync(mutator);
     return runManager.updateDesktopStore((store) => {
       mutator(store.platform.task_sync, store);
       return store;

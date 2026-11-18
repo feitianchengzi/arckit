@@ -1,7 +1,7 @@
 import { normalizeCodexSettings, validateCodexSettingsPatch } from "../../src/codex-model-settings.mjs";
 
 export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
-  const { contexts, refreshButton, saveButton, feedback, catalogFeedback, generalSaveButton, yoloCheckbox } = elements;
+  const { contexts, refreshButton, saveButton, feedback, catalogFeedback, generalSaveButton, yoloCheckbox, yoloSaveButton, yoloFeedback } = elements;
   const fields = Object.values(contexts);
   let generation = 0;
   let queryRevision = 0;
@@ -21,7 +21,8 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
   }
   function busy(value) {
     for (const field of fields) field.model.disabled = field.effort.disabled = value;
-    saveButton.disabled = generalSaveButton.disabled = value;
+    if (saveButton) saveButton.disabled = value;
+    if (generalSaveButton) generalSaveButton.disabled = value;
     if (yoloCheckbox) yoloCheckbox.disabled = value;
   }
   function read() {
@@ -46,6 +47,9 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
       updateEfforts(context);
     }
     feedback.textContent = "";
+    for (const field of fields) { if (field.feedback) field.feedback.textContent = ""; if (field.saveButton) field.saveButton.disabled = false; }
+    if (yoloFeedback) yoloFeedback.textContent = "";
+    if (yoloSaveButton) yoloSaveButton.disabled = false;
     catalogFeedback.textContent = "可手动输入 Model 和 Level。";
     refreshButton.disabled = false;
     busy(false);
@@ -107,7 +111,36 @@ export function createCodexSettingsForm({ elements, api, onSaved = () => {} }) {
   }
   yoloCheckbox?.addEventListener("change", () => { feedback.textContent = ""; });
   refreshButton.addEventListener("click", refresh);
-  saveButton.addEventListener("click", save);
+  saveButton?.addEventListener("click", save);
+  async function savePart(key) {
+    const current = generation;
+    const context = contexts[key];
+    const button = context?.saveButton || yoloSaveButton;
+    const status = context?.feedback || yoloFeedback;
+    if (button.disabled) return;
+    const controls = context ? [context.model, context.effort, button] : [yoloCheckbox, button];
+    try {
+      const codex = context ? { [key]: { model: context.model.value, reasoning_effort: context.effort.value } } : { yolo_mode: yoloCheckbox.checked };
+      validateCodexSettingsPatch(codex);
+      controls.forEach(control => { control.disabled = true; });
+      status.textContent = "正在保存…";
+      const settings = await api.updateSettings({ codex });
+      if (current !== generation) return;
+      onSaved(settings, { codex });
+      if (context) {
+        context.model.value = settings.codex[key].model;
+        context.effort.value = settings.codex[key].reasoning_effort;
+        updateEfforts(context);
+      } else yoloCheckbox.checked = settings.codex.yolo_mode;
+      status.textContent = key === "chat" ? "已保存，应用于新建对话。" : key === "automation" ? "已保存，应用于下一次 Automation Run。" : "已保存，应用于后续消息、新 Run 和终端接力。";
+    } catch {
+      if (current === generation) status.textContent = "保存失败，请检查输入后重试。当前草稿已保留。";
+    } finally {
+      if (current === generation) controls.forEach(control => { control.disabled = false; });
+    }
+  }
+  for (const [key, context] of Object.entries(contexts)) context.saveButton?.addEventListener("click", () => savePart(key));
+  yoloSaveButton?.addEventListener("click", () => savePart("permissions"));
   function lockSave() {
     const current = generation;
     busy(true);

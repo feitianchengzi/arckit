@@ -53,6 +53,6 @@ Engineering 内置 Skills 管理以 arcorbit-scene-skills.md 为产品源，scen
 
 ## Chat 项目文件工作区
 
-`arckit/interaction/chat-workspace/interaction.md` 定义文件树、常见操作、相对路径引用与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义独立受限文件 IPC、项目身份、Monaco 生命周期与冲突保护。沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。文件功能原型尚待同步，生产兑现待验证。
+`arckit/interaction/chat-workspace/interaction.md` 定义文件树、常见操作、相对路径引用、实时目录反馈、文件/祖先 Git 状态与中央文件 Tab；`arckit/tech/arcorbit/project-workbench-solution.md` 定义共享 canonical workspace 身份、独立受限文件观察、缓存失效与分页原子对账、既有 Git 观察器复用、Monaco 生命周期和冲突保护。沿用现有视觉 Tokens 和明暗主题，不改变 Release 的过滤策略。交互原型及生产目录观察、缓存对账已完成真实 Electron 验收，证据见 `arckit/cases/evidence/CASE-20261010-002/file-tree-live-production/`；文件与祖先 Git 状态投影仍待实现和验收。
 
 统一待办对话：产品规则 `spec/agentic-software-development/arcorbit-planned-workspaces.md` → `interaction/chat-workspace/interaction.md` → `arcorbit/desktop-execution-solution.md`；原生任务及账号隔离继续由 `project-workbench-solution.md` 承接。

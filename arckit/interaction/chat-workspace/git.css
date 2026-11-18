@@ -1,6 +1,10 @@
-.git-group-head { display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
-.git-group-head .session-project { flex:1 1 130px; width:auto; min-width:0; white-space:normal; overflow-wrap:anywhere; }
-.git-summary { flex:0 1 auto; max-width:100%; min-height:36px; font-size:13px; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+.git-group-head { display:flex; flex-wrap:nowrap; align-items:center; gap:4px; min-width:0; overflow:hidden; }
+.git-group-head .session-project { flex:1 1 auto; width:auto; min-width:0; overflow:hidden; white-space:nowrap; }
+.git-group-head .session-project-disclosure,.git-group-head .session-project small { flex:0 0 auto; }
+.git-group-head .session-project strong { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.git-summary { display:inline-flex; flex:0 0 auto; align-items:center; gap:6px; min-height:36px; font-size:12px; white-space:nowrap; text-align:left; }
+.git-status-group { display:inline-flex; align-items:baseline; gap:2px; font-variant-numeric:tabular-nums; }
+.git-status-icon { min-width:1em; text-align:center; font-weight:650; }
 .git-summary.muted { color:var(--semantic-muted); }
 .chat-git-detail { flex:1; min-height:0; overflow:auto; padding:12px; overflow-wrap:anywhere; }
 .chat-git-detail header,.git-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }

@@ -1,12 +1,14 @@
 # Interaction Feature Matrix
 
+当前采用的一体式核心入口为 `chat-workspace/default.html`。下列其他旧入口保留各领域历史覆盖；其分散 Chat/Work/Auto 导航不覆盖本轮新原型。其他事实域未随本次原型更新。
+
 | Page | Status | Core task | Projected states |
 |---|---|---|---|
 | `login/` | ✅ | 启动时恢复 Workshop 会话；未登录时通过不可绕过的验证码门禁建立当前用户项目来源 | 会话恢复、未登录入口、验证码已发送、登录失败 |
 | `setup-readiness/` | ✅ | 先校验全局受信资源，在无默认选择和无凭证管理的边界内恢复 Codex standalone 安装/更新与官方认证，再以可见项目写入摘要引导 skills 安装 | 全局检查、Codex 缺失/安装/更新、两级认证选择、官方登录与 status 复核、外部安装/活动任务阻断、项目安装计划、managed-stale 清理、执行中、项目已准备、升级迁移、阻塞恢复 |
 | `platform-workspace/` | ✅ | 通过四组主导航连接个人协作、产品全生命周期和组织能力，并让 Organization Project Detail 与 Feedback 承载各自真实处理行为 | Personal/Product/Product Lifecycle/Organization 导航、Workset 多选、组织概览、项目连接缺口、Feedback 主工作台与窄窗口收敛、转待办与仅重试关联、有限范围与部分失败 |
 | `today-workspace/` | 🟡 | 复用真实主导航，以项目栏、需要你处理/项目配置和来源操作台承载多项目执行前置与明确人工责任 | 当前查看范围内成员列表、局部选择不回写顶部、点击初始化及失败重试、多项目并行配置、目录/Setup/本机 participation、Chat 权限、Automation 明确人工决定与执行恢复分离、Work 内容纠偏 Sheet 与服务器确认、编辑失败保留草稿/选择/阅读上下文、Work 评审/验收、验收问题原位直显与进展、跨对象部分成功、即时确认后移出、来源未知 |
-| `chat-workspace/` | ✅ | 原 Chat 完整页面整合 Agent 原生待办能力：仅会话列表与待办双向关联能力，会话创建时间倒序、待办列表及筛选保留在 Work，当前项目整理/创建/读写/执行，统一能力/Skill 与文件/待办引用 | 保留项目分组、历史、Model/Level、大小调整、账户、权限与恢复；新增来源/对应关系、/ 与 @、草稿标签、原生回执、版本冲突、占用、失权、失败重试、停止、暗色与窄窗；verification.json + verification-native.json 仅证明本地原型；同一待办 Chat/Auto 连续消息、补充送达、暂停接管与显式恢复 |
+| `chat-workspace/` | ✅ 正式原型 | Chat/Work 同一身份与就地 Auto；Idea 至反馈生命周期、项目页产品集维护、待办、组织治理、内置 Skills、分区设置 | 三栏、首次发送建工作、无 Chat 待办、摘要纠正、后台推进、排队、暂停回执、失败/等待恢复、冲突、只读/成员权限、验收/归档、文件/Git；详见 coverage.md，原型不证明生产兑现 |
 | `idea-workspace/` | ✅ | 探索和讨论产品创意，比较问题、用户、证据与风险，并在确认后预览正式项目转换 | 探索中、讨论中、已确认、团队观点、开始项目预览 |
 | `release-workspace/` | ✅ | 已有工作区的终端、Git、源码、任务与共享 Agent | 多项目范围、真实执行、冲突、过期写入、缺少工具、恢复 |
 | `operations-workspace/` | ✅ | 组织对外市场动作、渠道内容和效果信号，并把发现回流到产品生命周期 | 待发布、进行中、已复盘、示意信号、Idea/Work/Feedback 回流 |
@@ -29,10 +31,12 @@ Release 本地交付工作台：产品源为 arckit/spec/agentic-software-develo
 
 - 本机外观：CONVENTIONS.md → _shared/appearance.js 与 project-workbench/account-settings.js；共享设置消费者加载统一主题模拟。颜色来源为 visual/themes/light.yaml、dark.yaml。生产接入与旧页面全部状态的暗色覆盖尚未验证。
 
-- Work 待办详情 → Chat 绑定会话 → 右栏会话列表/同源待办详情切换；原生 read/update 与 Work 同步共享业务事实。参见 `../chat-workspace/interaction.md`。
+- 新版：同一工作列表 → 中央 Chat / Auto → 右侧待办/文件/Git；直接待办可无 Chat，首次 Chat 必有工作。参见 `../chat-workspace/interaction.md`。
 
 - 全局创建待办：共享顶部与 Work 入口复用当前页模态；产品范围、默认待评审、取消/焦点、提交防重和失败保留输入。普通创建新增“沿用上次创建设置”，正文留空，恢复有效选项；原型使用本地成员/父待办/标签样本演示成功、取消、失败与范围回退，生产验收独立进行。
 
 普通创建 Automation 提示：`task-browser/interaction.md` 定义状态优先级、原因与开启指引，共享 `global-shell.js` 模拟动态合并提示；开启使用既有 success 语义，不表示任务已运行。
 
-Chat Git：项目分组摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表；正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。
+Chat Git：项目名称与紧凑 Git 符号计数组保持单行，空间不足时优先省略项目名称；摘要 → 同页右栏概览 → 文件／提交只读差异 → 返回会话列表。正式规则见 `../chat-workspace/interaction.md`，不导航 Release、不切换当前会话。原型验证与生产验收分开记录。
+
+设置局部操作：分类导航保留草稿；Chat、Automation、权限、任务源、代理各自保存，显式同步独立。权威策略见 `../chat-workspace/interaction.md`。

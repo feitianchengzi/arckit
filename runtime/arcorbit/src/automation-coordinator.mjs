@@ -36,6 +36,7 @@ export function createAutomationCoordinator(options) {
   let overviewCoordinator = null;
   let syncPromise = null;
   let dispatchPromise = null;
+  let readinessRecoveryPromise = null;
   let disposed = false;
   let managementQueue = Promise.resolve();
   let managementPending = 0;
@@ -90,14 +91,14 @@ export function createAutomationCoordinator(options) {
     return { store, automation, keys: [...keys] };
   }
 
-  async function captureQueryContext() {
-    const stateView = typeof runManager.captureDesktopStateView === "function"
+  async function captureQueryContext(providedView = null) {
+    const stateView = providedView || (typeof runManager.captureDesktopStateView === "function"
       ? await runManager.captureDesktopStateView()
       : {
           schema_version: "desktop-state-view/v1",
           revision: 0,
           state: await runManager.readDesktopStore()
-        };
+        });
     const projectedStore = sharedWorkSync.attachLocalProjection({
       ...stateView.state,
       automation: {
@@ -116,8 +117,8 @@ export function createAutomationCoordinator(options) {
     return { stateView, store: projectedStore, localProjects, runs };
   }
 
-  async function getSnapshot(filter = {}) {
-    const queryContext = await captureQueryContext();
+  async function getSnapshot(filter = {}, stateView = null) {
+    const queryContext = await captureQueryContext(stateView);
     const { store } = await ensureKnownLanes(queryContext.store);
     const [base, laneSnapshots] = await Promise.all([
       ensureOverview().getSnapshot(filter, queryContext),
@@ -183,6 +184,7 @@ export function createAutomationCoordinator(options) {
     if (managementPending) return null;
     if (dispatchPromise) return dispatchPromise;
     dispatchPromise = (async () => {
+      await reconcileReadinessRecoveries();
       const { automation } = await ensureKnownLanes();
       const globalRecovery = (automation.recovery_items || []).some((item) => item.freeze_scope === "global");
       if ((!automation.enabled && !Object.keys(automation.requested_tasks || {}).length) || automation.queue_paused || globalRecovery) return null;
@@ -227,6 +229,96 @@ export function createAutomationCoordinator(options) {
       mutator(automation, store);
       return store;
     });
+  }
+
+  async function reconcileReadinessRecoveries() {
+    if (readinessRecoveryPromise) return readinessRecoveryPromise;
+    readinessRecoveryPromise = (async () => {
+      const store = await runManager.readDesktopStore();
+      const automation = ensureExecutionCollections(store.automation || {});
+      const recoveries = (automation.recovery_items || []).filter((item) => item.type === "readiness_failed");
+      if (recoveries.length === 0) return false;
+
+      const localProjects = new Map((store.projects || []).map((project) => [String(project.id), project]));
+      const checks = new Map();
+      for (const recovery of recoveries) {
+        const workspaceKey = String(
+          recovery.workspace_key
+          || recovery.local_project_id
+          || automation.project_bindings?.[String(recovery.project_id || "")]
+          || ""
+        );
+        if (!workspaceKey || checks.has(workspaceKey)) continue;
+        const projectPath = String(localProjects.get(workspaceKey)?.path || "");
+        if (!projectPath) {
+          checks.set(workspaceKey, {
+            ready: false,
+            error: Object.assign(new Error("The readiness recovery has no local workspace path."), {
+              code: "PROJECT_PATH_MISSING",
+              stage: "preflight"
+            })
+          });
+          continue;
+        }
+        try {
+          await (options.setupReadinessPreflight || (async () => ({ ready: true })))(projectPath);
+          checks.set(workspaceKey, { ready: true, error: null });
+        } catch (error) {
+          checks.set(workspaceKey, { ready: false, error });
+        }
+      }
+
+      let changed = false;
+      await updateAutomation((next) => {
+        const activeExecutions = Object.values(next.active_executions || {});
+        next.recovery_items = (next.recovery_items || []).filter((recovery) => {
+          if (recovery.type !== "readiness_failed") return true;
+          const workspaceKey = String(
+            recovery.workspace_key
+            || recovery.local_project_id
+            || next.project_bindings?.[String(recovery.project_id || "")]
+            || ""
+          );
+          const check = checks.get(workspaceKey);
+          if (!workspaceKey || !check) return true;
+
+          const task = next.snapshot?.tasks?.find((item) => String(item.id) === String(recovery.task_id));
+          const hasActiveExecution = activeExecutions.some((execution) => (
+            String(execution.workspace_key || execution.local_project_id || "") === workspaceKey
+            || String(execution.task_id || "") === String(recovery.task_id)
+          ));
+          if (check.ready && task?.state === "pending" && !hasActiveExecution) {
+            changed = true;
+            return false;
+          }
+
+          if (recovery.freeze_scope !== "lane"
+            || String(recovery.workspace_key || "") !== workspaceKey
+            || String(recovery.local_project_id || "") !== workspaceKey) {
+            recovery.freeze_scope = "lane";
+            recovery.workspace_key = workspaceKey;
+            recovery.local_project_id = workspaceKey;
+            changed = true;
+          }
+          if (!check.ready) {
+            const causeCode = String(check.error?.code || "SETUP_NOT_READY");
+            const causeStage = String(check.error?.stage || "preflight");
+            if (recovery.cause_code !== causeCode || recovery.cause_stage !== causeStage) {
+              recovery.cause_code = causeCode;
+              recovery.cause_stage = causeStage;
+              changed = true;
+            }
+          }
+          return true;
+        });
+      });
+      return changed;
+    })();
+    try {
+      return await readinessRecoveryPromise;
+    } finally {
+      readinessRecoveryPromise = null;
+    }
   }
 
   async function enqueueTask(taskId) {
@@ -1589,7 +1681,7 @@ function createLaneAutomationCoordinator({
         || automation.queue_paused
         || automation.active_task
         || automation.attention_items.length > 0
-        || automation.recovery_items.some((item) => item.freeze_scope === "global")
+        || automation.recovery_items.length > 0
         || !["healthy", "degraded"].includes(automation.snapshot.source_status)) {
         return null;
       }
@@ -1636,7 +1728,8 @@ function createLaneAutomationCoordinator({
             task: candidate,
             message: error.message,
             actions: ["retry_sync"],
-            freezeScope: "global"
+            freezeScope: "lane",
+            cause: error
           });
           return null;
         }
@@ -1707,7 +1800,8 @@ function createLaneAutomationCoordinator({
             task: candidate,
             message: error.message,
             actions: ["retry_sync"],
-            freezeScope: "global"
+            freezeScope: "lane",
+            cause: error
           });
           return null;
         }
@@ -1716,7 +1810,8 @@ function createLaneAutomationCoordinator({
           task: candidate,
           message: error.message,
           actions: ["retry_sync"],
-          freezeScope: "global"
+          freezeScope: "lane",
+          cause: error
         });
         return null;
       }
@@ -1970,16 +2065,17 @@ function createLaneAutomationCoordinator({
     }
     const closeoutFailed = active.execution_checkpoint?.phase === 'closeout'
       || ["closeout_starting", "closeout_running"].includes(active.phase);
-    const recoveryType = closeoutFailed ? 'closeout_failed' : 'runtime_incomplete';
     const message = disposition.reason || `Runtime finished with status ${event.status}.`;
+    const classifiedRecovery = classifyRuntimeRecovery({ message, closeoutFailed });
+    const recoveryType = classifiedRecovery.type;
     const current = await readStore();
     if (current.automation.recovery_items.some((item) => item.task_id === active.task_id
       && item.type === recoveryType && item.message === message)) return 'failed';
     await addRecovery({
       type: recoveryType, task: active,
       message,
-      responsibility: disposition.responsibility,
-      actions: [closeoutFailed ? "retry_closeout" : "retry_start", "mark_blocked"]
+      responsibility: classifiedRecovery.responsibility || disposition.responsibility,
+      actions: classifiedRecovery.actions
     });
     return "failed";
   }
@@ -2572,7 +2668,7 @@ function createLaneAutomationCoordinator({
     }
   }
 
-  async function addRecovery({ type, task, message, actions, freezeScope = "lane", replaceRecoveryIds = [], responsibility = "runtime" }) {
+  async function addRecovery({ type, task, message, actions, freezeScope = "lane", replaceRecoveryIds = [], responsibility = "runtime", cause = null }) {
     await patchAutomation((automation) => {
       const taskId = task?.task_id || task?.id || "unknown";
       const active = automation.active_task;
@@ -2596,6 +2692,9 @@ function createLaneAutomationCoordinator({
         run_id: task?.run_id || "",
         feedback_id: active?.feedback_id || "",
         message,
+        cause_code: String(cause?.code || ""),
+        cause_stage: String(cause?.stage || ""),
+        readiness_status: String(cause?.readiness_status || ""),
         freeze_scope: freezeScope,
         responsibility,
         actions: availableActions,
@@ -3105,6 +3204,26 @@ function recoveryActionsForItem(item, active) {
   }
   actions.splice(Math.max(0, actions.indexOf("mark_blocked")), 0, "feedback_continue");
   return actions;
+}
+
+function classifyRuntimeRecovery({ message, closeoutFailed }) {
+  if (closeoutFailed) return { type: "closeout_failed", actions: ["retry_closeout", "mark_blocked"], responsibility: "" };
+  const text = String(message || "");
+  if (/Unable to (?:inspect|repair) persisted Codex thread/i.test(text)) {
+    return {
+      type: "thread_history_repair_failed",
+      actions: ["mark_blocked"],
+      responsibility: "operator"
+    };
+  }
+  if (/Codex Agent output was interrupted by ArcOrbit|Invalid 'input\[\d+\]\.content\[\d+\]\.text': string too long/i.test(text)) {
+    return {
+      type: "thread_history_repair_required",
+      actions: ["retry_start", "mark_blocked"],
+      responsibility: "runtime"
+    };
+  }
+  return { type: "runtime_incomplete", actions: ["retry_start", "mark_blocked"], responsibility: "" };
 }
 
 function caseBindingRecoveryActions() {

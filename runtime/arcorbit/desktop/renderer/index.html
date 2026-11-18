@@ -211,7 +211,7 @@
 
             <div class="chat-workspace">
               <main class="chat-main">
-                <header class="chat-header"><div class="chat-header-copy"><p id="chatWorkspaceLabel" class="eyebrow">选择本地工作区</p><h2 id="chatTitle">新对话</h2><p id="chatStatusText">发送第一条消息后创建持久会话和 Codex thread。</p></div><div class="chat-header-controls"><label class="chat-workspace-picker chat-header-workspace-picker"><span id="chatWorkspacePickerLabel">新对话属于</span><select id="chatProjectSelect" aria-label="Chat 工作区"></select></label><div class="chat-header-actions"><button id="chatSessionsToggle" class="secondary-button" type="button" aria-controls="chatSessionsPanel" aria-expanded="false">会话</button><button id="renameChatButton" class="text-button" type="button">重命名</button><button id="deleteChatButton" class="text-button danger" type="button">删除</button></div></div></header>
+                <header class="chat-header"><div class="chat-header-copy"><h2 id="chatTitle">新对话</h2></div><div class="chat-header-actions"><button id="chatSessionsToggle" class="secondary-button" type="button" aria-controls="chatSessionsPanel" aria-expanded="false">会话</button><div class="chat-header-project"><div id="chatWorkspaceLabel" class="chat-project-fixed" hidden><svg class="chat-project-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2.5 4.5h5l1.5 2h6.5v7.5h-13z"></path><path d="M2.5 6.5h13"></path></svg><span id="chatWorkspaceFixedLabel" class="chat-project-label">Product Workspace</span></div><button id="chatProjectMenuButton" class="chat-project-menu-button" type="button" aria-label="选择项目" aria-haspopup="listbox" aria-controls="chatProjectMenu" aria-expanded="false"><svg class="chat-project-icon" viewBox="0 0 18 18" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2.5 4.5h5l1.5 2h6.5v7.5h-13z"></path><path d="M2.5 6.5h13"></path></svg><span id="chatProjectMenuLabel" class="chat-project-label">Product Workspace</span><span class="chat-project-chevron" aria-hidden="true">⌄</span></button><div id="chatProjectMenu" class="chat-project-menu-popover" role="listbox" aria-label="新会话所属项目" hidden></div></div><div class="chat-session-menu"><button id="chatSessionMenuButton" class="text-button chat-session-menu-button" type="button" aria-label="会话操作" aria-haspopup="menu" aria-controls="chatSessionMenu" aria-expanded="false">•••</button><div id="chatSessionMenu" class="chat-session-menu-popover" role="menu" hidden><button id="renameChatButton" type="button" role="menuitem">重命名</button><button id="deleteChatButton" class="danger" type="button" role="menuitem">删除会话</button></div></div></div></header>
                 <div id="chatErrorHost"></div>
                 <div id="chatTranscript" class="conversation-surface chat-transcript" aria-live="polite" aria-label="Chat 消息"></div>
                 <button id="chatJumpLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
@@ -219,6 +219,7 @@
               </main>
               <aside id="chatSessionsPanel" class="chat-sidebar" aria-label="会话"><div id="chatSidebarResize" class="chat-sidebar-resize" role="separator" tabindex="0" aria-label="调整右侧面板宽度" aria-orientation="vertical"></div>
                 <div class="chat-sidebar-head"><div class="chat-sidebar-tabs" role="group" aria-label="右侧面板"><button id="chatSidebarSessions" class="text-button" type="button" aria-pressed="true">会话列表</button><button id="chatSidebarTask" class="text-button" type="button" aria-pressed="false">待办详情</button><button id="chatSidebarFiles" class="text-button" type="button" aria-pressed="false">文件</button></div><button id="chatSessionsClose" class="text-button" type="button" aria-label="关闭右侧面板">关闭</button></div>
+                <div id="chatTaskIdentity" class="chat-native-identity" hidden></div>
                 <div id="chatTaskInspector" class="workspace-pane-scroll task-inspector chat-task-inspector" aria-label="当前会话待办详情" hidden></div>
                 <section id="chatGitPanel" class="chat-git-panel" aria-label="工作区 Git 详情" hidden></section>
                 <div id="chatSessionList" class="chat-session-list" aria-label="对话列表"></div>
@@ -341,13 +342,14 @@
     <div id="settingsOverlay" class="modal-overlay hidden">
       <section id="settingsPanel" class="settings-panel" aria-labelledby="settingsTitle">
         <div class="settings-header">
-          <div class="settings-title-copy"><div class="login-brand" aria-hidden="true"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div><p id="settingsEyebrow" class="eyebrow">DESKTOP SETTINGS</p><h2 id="settingsTitle">账户与 Runtime</h2><p id="settingsLead" class="settings-lead">管理 Workshop 账户、任务源与本地 Runtime。</p></div>
+          <div class="settings-title-copy"><div class="login-brand" aria-hidden="true"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div><p id="settingsEyebrow" class="eyebrow">DESKTOP SETTINGS</p><h2 id="settingsTitle">设置</h2><p id="settingsLead" class="settings-lead">管理 Workshop 账户、任务源与本地 Runtime。</p></div>
           <button id="closeSettingsButton" class="icon-button" type="button" aria-label="关闭设置">×</button>
         </div>
-        <div class="settings-sections">
-          <section class="appearance-settings-section"><h3>外观</h3><label class="field"><span>主题</span><select id="appearanceTheme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><p class="settings-lead">立即生效，仅保存在此设备。</p><p id="appearanceFeedback" role="status" aria-live="polite"></p></section>
-          <section class="codex-settings-section workbench-only"><h3>工作空间</h3><div class="pw-settings-actions"><button id="workbenchSyncSettings" class="secondary-button" type="button">同步项目与事情</button><button id="workbenchFeedbackSettings" class="secondary-button" type="button">产品反馈</button></div></section>
-          <section class="account-settings-section">
+        <div class="settings-body"><nav class="settings-nav" aria-label="设置分类"><button type="button" data-settings-tab="account" aria-controls="settings-account">账户</button><button type="button" data-settings-tab="appearance" aria-controls="settings-appearance">外观</button><button type="button" data-settings-tab="runtime" aria-controls="settings-runtime">Codex</button><button type="button" data-settings-tab="source" aria-controls="settings-source">任务源</button><button type="button" data-settings-tab="network" aria-controls="settings-network">网络与代理</button><button type="button" data-settings-tab="workspace" aria-controls="settings-workspace">同步与反馈</button><button type="button" data-settings-tab="diagnostics" aria-controls="settings-diagnostics">运行诊断</button></nav><div class="settings-sections">
+          <section id="settings-diagnostics" data-settings-page="diagnostics"><div id="stallDiagnostics" class="codex-settings-section"></div></section>
+          <section id="settings-appearance" data-settings-page="appearance" class="appearance-settings-section"><h3>外观</h3><label class="field"><span>主题</span><select id="appearanceTheme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><p class="settings-lead">立即生效，仅保存在此设备。</p><p id="appearanceFeedback" role="status" aria-live="polite"></p></section>
+          <section id="settings-workspace" data-settings-page="workspace" class="codex-settings-section"><h3>同步与反馈</h3><p class="settings-note">主动同步当前账户的项目与事情。</p><div class="pw-settings-actions"><button id="workbenchSyncSettings" class="secondary-button" type="button">同步项目与事情</button><button id="workbenchFeedbackSettings" class="secondary-button" type="button">产品反馈</button></div><p id="settingsSyncFeedback" role="status" aria-live="polite"></p></section>
+          <section id="settings-account" data-settings-page="account" class="account-settings-section">
             <h3>Workshop 账户</h3>
             <div class="account-card">
               <div class="account-summary"><span id="authStatusPill" class="account-status logged-out">未登录</span><div><strong id="authIdentity">登录后同步你的项目和待办</strong><small id="authDescription">验证码和令牌仅由主进程处理。</small></div></div>
@@ -360,29 +362,31 @@
               <div id="authSessionPanel" class="auth-session hidden"><button id="logoutButton" class="secondary-button" type="button">退出登录</button></div>
               <p id="authFeedback" class="auth-feedback" aria-live="polite"></p>
             </div>
-            <details class="settings-advanced">
-              <summary>高级任务源设置</summary>
+            </section><section id="settings-source" data-settings-page="source"><h3>任务源</h3><p class="settings-note">连接与认证配置一起保存。保存后可在“同步与反馈”中主动同步。</p><div class="settings-advanced">
               <div class="settings-advanced-content"><label class="toggle-row"><input id="taskSourceEnabled" type="checkbox"><span><strong>启用任务源</strong><small>通过主进程同步当前用户项目与待办</small></span></label><label class="field"><span>服务根地址</span><input id="taskSourceBaseUrl" type="url" placeholder="https://api.feitianchengzi.com"></label><div class="field-grid"><label class="field"><span>服务名</span><input id="taskSourceServiceName" type="text" placeholder="workshop"></label><label class="field"><span>认证模式</span><select id="taskSourceAuthMode"><option value="nebula">Workshop 登录</option><option value="bearer">Bearer Token（调试）</option><option value="headers">用户请求头（调试）</option></select></label></div><div id="tokenAuthFields"><label class="field"><span>访问令牌</span><input id="taskSourceToken" type="password" placeholder="保留为空则不修改现有令牌"></label></div><div id="headerAuthFields" class="field-grid"><label class="field"><span>用户 ID</span><input id="taskSourceUserId" type="text"></label><label class="field"><span>用户名</span><input id="taskSourceUsername" type="text"></label><label class="field"><span>App ID</span><input id="taskSourceAppId" type="text"></label><label class="field"><span>Session ID</span><input id="taskSourceSessionId" type="text"></label></div></div>
-            </details>
+            </div><div class="settings-actions"><button id="saveTaskSourceButton" class="primary-button" type="button">保存任务源</button></div><p id="taskSourceSettingsFeedback" role="status" aria-live="polite"></p>
           </section>
-          <section class="codex-settings-section"><h3>Codex Runtime</h3>
+          <section id="settings-runtime" data-settings-page="runtime" class="codex-settings-section"><h3>Codex</h3><div class="settings-group"><h4>执行权限</h4>
             <label class="toggle-row"><input id="codexYoloMode" type="checkbox"><span><strong>YOLO 模式</strong><small>跳过命令审批并解除 Codex 沙箱限制。覆盖各处 Agent 调用，应用业务确认仍然有效。</small></span></label>
             <p class="settings-lead">默认关闭。保存后用于后续消息、新 Run 和终端接力；正在执行的调用保持原配置。</p>
+<div class="settings-actions"><button id="saveCodexPermissionsButton" class="primary-button" type="button">保存执行权限</button></div><p id="codexPermissionsFeedback" role="status" aria-live="polite"></p></div><div class="settings-group">
             <h4>Chat 默认值</h4><div class="field-grid">
               <label class="field"><span>Model</span><input id="codexChatModel" type="text" list="codexChatModelOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexChatModelOptions"></datalist></label>
               <label class="field"><span>Level（推理级别）</span><input id="codexChatEffort" type="text" list="codexChatEffortOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexChatEffortOptions"></datalist></label>
             </div>
+<div class="settings-actions"><button id="saveCodexChatButton" class="primary-button" type="button">保存 Chat 默认值</button></div><p id="codexChatFeedback" role="status" aria-live="polite"></p></div><div class="settings-group">
             <h4>Automation 默认值</h4><div class="field-grid">
               <label class="field"><span>Model</span><input id="codexAutomationModel" type="text" list="codexAutomationModelOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexAutomationModelOptions"></datalist></label>
               <label class="field"><span>Level（推理级别）</span><input id="codexAutomationEffort" type="text" list="codexAutomationEffortOptions" maxlength="200" autocomplete="off" aria-describedby="codexCatalogFeedback"><datalist id="codexAutomationEffortOptions"></datalist></label>
             </div>
+<div class="settings-actions"><button id="saveCodexAutomationButton" class="primary-button" type="button">保存 Automation 默认值</button></div><p id="codexAutomationFeedback" role="status" aria-live="polite"></p></div>
             <p class="settings-lead">两种场景分别默认为 gpt-6-astra / high。Chat 默认值用于新对话；当前对话可在输入框旁单独调整。Automation 默认值用于下一次 Run，正在运行的任务保持启动时配置。</p>
             <p id="codexCatalogFeedback" class="auth-feedback" role="status" aria-live="polite"></p>
-            <div class="settings-actions"><button id="refreshCodexModelsButton" class="secondary-button" type="button">刷新清单</button><button id="saveCodexSettingsButton" class="primary-button" type="button">保存 Codex 配置</button></div>
+            <div class="settings-actions"><button id="refreshCodexModelsButton" class="secondary-button" type="button">刷新清单</button></div>
             <p id="codexSettingsFeedback" class="auth-feedback" role="status" aria-live="polite"></p>
-            <label class="toggle-row"><input id="codexProxyEnabled" type="checkbox"><span><strong>使用代理</strong><small>仅注入新启动的 Codex app-server run</small></span></label><label class="field"><span>代理地址</span><input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890"></label></section>
+</section><section id="settings-network" data-settings-page="network"><h3>网络与代理</h3><label class="toggle-row"><input id="codexProxyEnabled" type="checkbox"><span><strong>使用代理</strong><small>仅注入新启动的 Codex app-server run</small></span></label><label class="field"><span>代理地址</span><input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890"></label><div class="settings-actions"><button id="saveProxySettingsButton" class="primary-button" type="button">保存代理</button></div><p id="proxySettingsFeedback" role="status" aria-live="polite"></p></section>
         </div>
-        <div class="settings-actions"><button id="saveSettingsButton" class="primary-button" type="button">保存并同步</button></div>
+        </div>
       </section>
     </div>
 

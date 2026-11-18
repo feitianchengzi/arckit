@@ -1,4 +1,5 @@
 import { createRunInputQueue, readRunInputs } from './run-input-queue.mjs';
+import { createRunArchiveIndex } from './desktop/run-archive-index.mjs';
 import { acquireTaskTurn } from './workbench/task-turn-lock.mjs';
 import { executionProgress } from "./kernel/execution-progress.mjs";
 import { createExecutionControl, requestExecutionStop } from "./kernel/execution-control.mjs";
@@ -67,14 +68,18 @@ export function createDesktopRunManager({
   const runsDir = join(dataDir, "runs");
   const runtimeBin = join(runtimeRoot, "bin/arcorbit.mjs");
   const activeRuns = new Map();
+  const archiveIndex = createRunArchiveIndex({ runsDir });
   const {
     readControlStore: readStore,
+    queryControlStore,
+    updateTaskSync,
     readStoreWithMessages,
     readChatSnapshotStore,
     readChatMetadata,
     captureStateView,
     updateControlStore: updateStore,
     updateChatMetadata,
+    updateChatSession,
     updateStoreWithMessages
   } = createDesktopStore({ dataDir, runsDir, storePath });
   const lifecycleTraces = createLifecycleTraceStore({ rootDir: join(dataDir, "lifecycle-traces") });
@@ -186,8 +191,7 @@ export function createDesktopRunManager({
   }
 
   async function listRuns(filter = {}) {
-    const store = await readStore();
-    const runs = filterRuns(store.runs, filter);
+    const runs = await queryControlStore(state => filterRuns(state.runs, filter));
     return Promise.all(runs.map(async (run) => ({
       ...run,
       activity: await loadRunActivity(run)
@@ -210,8 +214,7 @@ export function createDesktopRunManager({
   }
 
   async function getRun(runId) {
-    const store = await readStore();
-    const run = store.runs.find((item) => item.id === runId);
+    const run = await queryControlStore(state => state.runs.find((item) => item.id === runId));
     if (!run) return null;
     return {
       ...run,
@@ -286,17 +289,13 @@ export function createDesktopRunManager({
     const binding = await getTaskThreadBinding(session.project_id, session.task_id);
     const runs = new Map(store.runs.filter(r => r.project_id === session.project_id && String(r.task_id) === String(session.task_id)).map(r => [r.id, r]));
     // Run index is bounded; retain access to archived conversation history.
-    for (const dir of await readdir(runsDir, { withFileTypes: true }).catch(error => { if (error.code === 'ENOENT') return []; throw error; })) {
-      if (!dir.isDirectory() || runs.has(dir.name)) continue;
-      const file = join(runsDir, dir.name, 'activity.json');
-      let activity = conversationArchiveCache.get(file);
-      if (!activity) {
-        try { activity = JSON.parse(await readFile(file, 'utf8')); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
-        if (!['running','starting'].includes(activity.status)) conversationArchiveCache.set(file, activity);
-      }
-      const scoped = activity.session_id === session.id && activity.project_id === session.project_id;
-      const legacy = (!activity.project_id || activity.project_id === session.project_id) && binding?.threadId && activity.thread_id === binding.threadId && String(activity.task_id) === String(session.task_id);
-      if (scoped || legacy) runs.set(dir.name, { id: dir.name, activity, messages_file: join(runsDir, dir.name, 'messages.jsonl') });
+    for (const id of await archiveIndex.find(session, binding?.threadId)) {
+      if (runs.has(id)) continue;
+      const file = join(runsDir, id, 'activity.json');
+      let activity;
+      try { activity = JSON.parse(await readFile(file, 'utf8')); }
+      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      runs.set(id, { id, activity, messages_file: join(runsDir, id, 'messages.jsonl') });
     }
     const messages = [];
     for (const run of runs.values()) {
@@ -387,8 +386,7 @@ export function createDesktopRunManager({
   }
 
   async function listSessions(projectIdValue) {
-    const store = await readStore();
-    return store.sessions[projectIdValue] || [];
+    return queryControlStore(state => state.sessions[projectIdValue] || []);
   }
 
   async function createSession(projectIdValue, input = {}) {
@@ -498,17 +496,16 @@ export function createDesktopRunManager({
   }
 
   async function getSettings() {
-    const store = await readStore();
-    return publicSettings(store.settings);
+    return queryControlStore(state => publicSettings(state.settings));
   }
 
   async function listCodexModels() {
     try {
-      const store = await readStore();
+      const settings = await queryControlStore(state => state.settings);
       const executable = normalizeCodexExecutable(getCodexExecutable());
       return await queryModelCatalog({
         command: executable.command, cwd: runtimeCwd,
-        env: buildRuntimeEnv(prependRuntimePath({ ...process.env }, executable.pathEntries), store.settings)
+        env: buildRuntimeEnv(prependRuntimePath({ ...process.env }, executable.pathEntries), settings)
       });
     } catch {
       return { status: "unavailable", models: [], message: "暂时无法获取 Codex 清单，可手动输入 Model 和 Level，或稍后重试。" };
@@ -516,8 +513,7 @@ export function createDesktopRunManager({
   }
 
   async function getTaskSourceSettings() {
-    const store = await readStore();
-    return { ...store.settings.task_source };
+    return queryControlStore(state => state.settings.task_source);
   }
 
   async function replaceTaskSourceSettings(input = {}) {
@@ -1151,8 +1147,7 @@ export function createDesktopRunManager({
   }
 
   async function findRun(runId) {
-    const store = await readStore();
-    const run = store.runs.find((item) => item.id === runId);
+    const run = await queryControlStore(state => state.runs.find((item) => item.id === runId));
     if (!run) {
       throw new Error(`Unknown run: ${runId}`);
     }
@@ -1416,12 +1411,16 @@ export function createDesktopRunManager({
       return lifecycleTraces.finishTrace(context, input);
     },
     readDesktopStore: readStore,
+    queryDesktopStore: queryControlStore,
+    updateDesktopTaskSync: updateTaskSync,
+    warmConversationIndex: archiveIndex.refresh,
     readDesktopStoreWithMessages: readStoreWithMessages,
     readDesktopChatSnapshotStore: readChatSnapshotStore,
     readDesktopChatMetadata: readChatMetadata,
     captureDesktopStateView: captureStateView,
     updateDesktopStore: updateStore,
     updateDesktopChatMetadata: updateChatMetadata,
+    updateDesktopChatSession: updateChatSession,
     updateDesktopStoreWithMessages: updateStoreWithMessages
   };
 }
@@ -1445,6 +1444,7 @@ function filterRuns(runs, filter = {}) {
   const projectFilter = filter.projectId || filter.project_id || "";
   const sessionFilter = filter.sessionId || filter.session_id || "";
   return runs.filter((run) => {
+    if (filter.runId && run.id !== filter.runId) return false;
     if (projectFilter && run.project_id !== projectFilter) return false;
     if (sessionFilter && run.session_id !== sessionFilter) return false;
     return true;

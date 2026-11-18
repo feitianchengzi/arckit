@@ -48,7 +48,8 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
   }
   async function snapshot() {
     const scope = await authority();
-    const [work, runtime, store, local, db] = await Promise.all([workSync.getSnapshot(), automation.getSnapshot({}), runManager.readDesktopStore(), runManager.listProjects(), scenes.read(scope)]);
+    const view = runManager.captureDesktopStateView ? await runManager.captureDesktopStateView() : null;
+    const [work, runtime, store, local, db] = await Promise.all([workSync.getSnapshot({}, view), automation.getSnapshot({}, view), view?.state || runManager.readDesktopStore(), view && runManager.listProjectsFromStateView ? runManager.listProjectsFromStateView(view) : runManager.listProjects(), scenes.read(scope)]);
     const projects = (work.project_catalog?.length ? work.project_catalog : work.projects || []).map(project => ({ id:String(project.id), name:project.name, current_user_id:String(project.current_user_id || ''),
       local_project_id:store.automation.project_bindings?.[project.id] || '', participating:Boolean(store.automation.project_participation?.[project.id]), members:project.raw?.members || project.members || [],
       state:work.project_states?.[project.id]?.state || 'not_loaded' }));
@@ -60,7 +61,8 @@ export function createProjectWorkbench({ dataDir, runManager, workSync, platform
   }
   async function taskContext(taskId) {
     const scope = await authority();
-    const [work, store, db] = await Promise.all([workSync.getSnapshot(),runManager.readDesktopStore(),scenes.read(scope)]);
+    const view = runManager.captureDesktopStateView ? await runManager.captureDesktopStateView() : null;
+    const [work, store, db] = await Promise.all([workSync.getSnapshot({}, view),view?.state || runManager.readDesktopStore(),scenes.read(scope)]);
     const task = work.tasks.find(t=>String(t.id)===String(taskId));
     if (!task) throw new Error('事情不存在或当前账号无权访问，请同步后重试。');
     const localId = store.automation.project_bindings?.[task.project_id] || '';

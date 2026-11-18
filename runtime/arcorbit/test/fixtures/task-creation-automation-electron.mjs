@@ -12,7 +12,7 @@ process.env.ARCORBIT_CHAT_STREAM_PERFORMANCE_FIXTURE='1';
 app.setPath('userData',profile);app.disableHardwareAcceleration();app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  let preload=await readFile(join(here,'organization-center-preload.cjs'),'utf8');
- preload=preload.replace('const calls = [];','const calls = []; let createFails=false, refreshFails=false, createDelay=0, testAccount="7", hintReadFailure=false;');
+ preload=preload.replace('const calls = [];','const calls = []; let createFails=false, refreshFails=false, createDelay=0, testAccount="7", hintReadFailure=false, hintSetupDelay=0, hintSetupFailures=0, hintSetupStatus="ready";');
  preload=preload.replace('identity: "glare@example.test"','identity: `account-${testAccount}@example.test`');
  preload=preload.replace('contextBridge.exposeInMainWorld("arckitDesktop", {',`contextBridge.exposeInMainWorld("arckitDesktop", {
   setHintScenario:async value=>{
@@ -23,6 +23,7 @@ app.whenReady().then(async()=>{
    Object.assign(automation,{enabled:true,queue_paused:false,source_status:'healthy',errors:[],recovery_items:[],attention_items:[],active_executions:[],concurrency:{available:3}},value.automation||{});
    for(const listener of automationListeners)listener({type:'automation.changed',reason:'hint-scenario'});
   },
+  setHintSetupScenario:async value=>{hintSetupDelay=value.delay||0;hintSetupFailures=value.failures||0;hintSetupStatus=value.status||'ready';},
   releaseSnapshot:async()=>({projects:[],records:[]}),releaseDetail:async id=>({project:{id,name:'Fixture',path:'',status:'unbound'},tasks:[],records:[],scripts:{},capabilities:{}}),syncWork:async()=>({}),
   setCreateScenario:async value=>{createFails=!!value.fail;refreshFails=!!value.refreshFail;createDelay=value.delay||0;},
   creationCalls:async()=>calls.filter(c=>c[0]==='task.create'),
@@ -30,7 +31,7 @@ app.whenReady().then(async()=>{
   invalidateCreateOptions:async()=>{platform.members=platform.members.filter(m=>String(m.user_id)!=='7');platform.tasks=platform.tasks.filter(t=>t.id!=='W-11');platform.tags=platform.tags.filter(t=>String(t.id)!=='201');},
   projectWorkbenchSnapshot:async()=>({account_scope:'fixture',projects:platform.projects,tasks:platform.tasks,runtime:automation,global_runtime:automation,source_status:'healthy'}),
   projectWorkbenchDetail:async()=>({}),onProjectWorkbenchEvent:()=>{},`);
- preload=preload.replace('checkSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} })', 'checkSetupReadiness: async input => {calls.push(["hintSetupCheck",input]);return {status:"ready"};}');
+ preload=preload.replace('checkSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} })', 'checkSetupReadiness: async input => {calls.push(["hintSetupCheck",input]);if(hintSetupDelay)await new Promise(r=>setTimeout(r,hintSetupDelay));if(hintSetupFailures>0){hintSetupFailures-=1;throw Error("setup unavailable");}return {status:hintSetupStatus};}');
  preload=preload.replace('platformSnapshot: async (input) => {','platformSnapshot: async (input) => { if(hintReadFailure)throw Error("hint refresh unavailable"); if(refreshFails && input?.sections?.length===1 && input.sections[0]==="tasks")throw Error("refresh unavailable");');
  preload=preload.replace('if (command === "task.create") {','if (command === "task.create") { await new Promise(r=>setTimeout(r,createDelay)); if(createFails)throw Error("create rejected");');
  await mkdir(out,{recursive:true});await writeFile(join(base,'preload.cjs'),preload);
@@ -68,6 +69,14 @@ app.whenReady().then(async()=>{
   assert.equal(await js(`arckitDesktop.getTestCalls().then(calls=>calls.some(([name,input])=>name==='hintSetupCheck'&&input.projectId==='local-11'))`),true);
   checks.push('真实表单七状态×三执行人组合，两个旧提示移除且仅保留合并区');
   await set('state','pending');await set('executor_id','7');
+  await js(`arckitDesktop.setHintSetupScenario({delay:700})`);
+  await js(`arckitDesktop.emitTestAutomationEvent({type:'automation.changed'})`);await pause();assert.match(await hint(),/Automation 已开启/);await pause();await pause();await pause();assert.match(await hint(),/Automation 已开启/);
+  await js(`arckitDesktop.emitTestWorkSyncEvent({type:'work.changed',task_id:'background'})`);await pause();assert.match(await hint(),/Automation 已开启/);await pause();await pause();await pause();assert.match(await hint(),/Automation 已开启/);
+  await scenario({project:{local_project_id:'local-11-next',local_project_path:'/repo/arcorbit-next'}});assert.match(await hint(),/Automation 待确认/);assert.equal(await js(`arckitDesktop.getTestCalls().then(calls=>calls.some(([name,input])=>name==='hintSetupCheck'&&input.projectId==='local-11-next'))`),true);await pause();await pause();assert.match(await hint(),/Automation 已开启/);
+  await js(`arckitDesktop.setHintSetupScenario({delay:0,failures:1})`);await js(`arckitDesktop.emitTestAutomationEvent({type:'automation.changed'})`);await pause();await pause();assert.match(await hint(),/Automation 待确认/);
+  await js(`arckitDesktop.setHintSetupScenario({delay:0})`);await js(`arckitDesktop.emitTestWorkSyncEvent({type:'work.changed',task_id:'retry'})`);await pause();await pause();assert.match(await hint(),/Automation 已开启/);
+  const setupChecksBeforeClose=await js(`arckitDesktop.getTestCalls().then(calls=>calls.filter(([name])=>name==='hintSetupCheck').length)`);await close();await open();await pause();assert.equal((await js(`arckitDesktop.getTestCalls().then(calls=>calls.filter(([name])=>name==='hintSetupCheck').length)`))>setupChecksBeforeClose,true);await set('content','后台变化不能覆盖正文');await set('state','pending');await set('executor_id','7');
+  checks.push('同一身份的 Automation/Work Sync 后台复核不闪烁；身份变化重新检查，失败可恢复，关闭后不复用缓存');
   for(const [config,expected] of [
    [{readFailure:true},/待确认/],
    [{workspace:{current_user_id:''}},/待确认/],

@@ -1,0 +1,106 @@
+(() => {
+  const e = (x) =>
+    String(x ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c],
+    );
+  const paths = {
+    plus: "M9 3v12M3 9h12",
+    arrow: "M3 9h12M10 4l5 5-5 5",
+    menu: "M3 4h12M3 9h12M3 14h12",
+    close: "M4 4l10 10M14 4L4 14",
+    send: "M9 15V3M4 8l5-5 5 5",
+    orbit: "M14 4a6 6 0 1 0 1 8M2 13L16 5",
+    pause: "M6 4v10M12 4v10",
+    play: "M5 3l10 6-10 6z",
+    file: "M4 2h7l3 3v11H4zM10 2v4h4M6 9h6M6 12h4",
+    check: "M3 9l4 4 8-8",
+    panel: "M2 3h14v12H2zM11 3v12",
+  };
+  const icon = (k) =>
+    `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="${paths[k] || paths.file}"/></svg>`;
+  const b = (a, label, cls = "", attrs = "") =>
+    `<button type="button" data-act="${a}" class="${cls}" ${attrs}>${label}</button>`;
+  const names = {
+    dock: "A · 并肩工作",
+    focus: "B · 轻量会话",
+    inline: "C · 对话内工作单",
+  };
+  function controls(t) {
+    if (!t) return "";
+    if (t.mode === "auto") return b("pause", icon("pause") + " 暂停并讨论");
+    if (t.mode === "pausing") return b("none", "等待停止回执", "", "disabled");
+    if (t.mode === "decision") return b("decide", "处理选择", "primary");
+    if (t.mode === "done") return b("inspect", "检查成果", "primary");
+    if (t.mode === "accepted") return b("inspect", "查看成果");
+    return b(
+      "auto",
+      icon("play") + (t.mode === "paused" ? " 继续 Auto" : " 交给 Auto"),
+      "primary",
+    );
+  }
+  function summary(t, compact = false) {
+    return `<div class="summary-head row between"><div><strong>工作 #${t.id}</strong><small>与当前对话为同一个待办</small></div>${b("edit", icon("file") + " 编辑", "small")}</div><div class="row wrap"><span class="pill">${e(t.state)}</span>${b("assign", e(t.owner) + " · 负责人", "quiet small")}</div><section class="section"><h3>当前目标</h3><p>${e(t.goal)}</p><small>有效信息 · 第 ${t.summaryVersion} 次整理</small></section><section class="section"><h3>已明确的约束</h3>${t.constraints.length ? t.constraints.map((c) => `<p>${e(c.text)}<br>${b("source", c.kind + " · 查看来源", "receipt", `data-source="${e(c.source)}"`)}</p>`).join("") : '<p class="empty">尚无明确约束，随协作补充。</p>'}</section>${compact ? "" : `<section class="section"><h3>尚未确定</h3>${t.questions.length ? `<ul>${t.questions.map((q) => `<li>${e(q)}</li>`).join("")}</ul>` : '<p class="empty">本轮没有开放问题</p>'}</section>`}<section class="section"><h3>完成标准</h3>${t.criteria.length ? `<ul>${t.criteria.map((c) => `<li>${e(c)}</li>`).join("")}</ul>` : '<p class="empty">探索中，可在目标明确后补充。</p>'}</section><section class="section"><h3>成果</h3>${t.artifacts.length ? b("inspect", icon("file") + " 导出体验样本", "artifact") : '<p class="empty">形成后会出现在这里，不必翻找消息。</p>'}</section>`;
+  }
+  function workcard(t) {
+    return `<article class="workcard" id="workcard"><div class="workcard-head row between"><div><strong>这件事的工作单</strong><br><small>持续更新 · #${t.id} · 不重复生成摘要消息</small></div>${b("details", icon("panel"), "quiet", 'aria-label="展开完整工作信息"')}</div><div class="workcard-body">${summary(t, true)}</div></article>`;
+  }
+  function transcript(t) {
+    if (!t)
+      return `<div class="empty-start"><small>拾光 / 新的工作</small><h1>从一个想法开始。</h1><p class="muted">直接聊，工作会随第一条消息建立。<br>有效信息会逐步整理在这件事里。</p><div class="suggestions">${b("sample", "试试：改善阅读记录导出体验", "small")}</div></div>`;
+    const msgs = t.messages
+      .map(
+        (m) =>
+          `<article class="message ${m.role}" id="${e(m.id)}"><div class="who">${m.role === "assistant" ? "ArcOrbit" : "你"}</div><div class="text">${e(m.text)}</div>${m.receipt ? b("details", icon("check") + " " + e(m.receipt), "receipt") : ""}${m.pending ? "<small>补充已接收 · 等待下一执行边界采用</small>" : ""}</article>`,
+      )
+      .join("");
+    return `${M.variant === "focus" ? `<div class="focus-strip"><span class="grow"><strong>${e(t.state)}</strong> · ${e(t.owner)}<br><small>${e(t.goal)}</small></span>${b("details", "工作详情", "small")}</div>` : ""}${msgs || `<div class="empty-start"><h2>这件事还没有人工对话</h2><p class="muted">目标和负责人已保留。可以直接交给 Auto，<br>也可以在下方输入，开始围绕它协作。</p></div>`}${M.variant === "inline" ? workcard(t) : ""}${t.mode === "decision" ? `<div class="decision"><small>Auto 已停在需要你判断的位置</small><h2>下载失败后，保留已选内容吗？</h2><p>建议保留选择并允许重试。本次无需增加历史记录页面。</p>${b("decide", "查看并确认方向", "primary")}</div>` : ""}${t.mode === "done" || t.mode === "accepted" ? `<button class="artifact" data-act="inspect"><span class="fileicon">${icon("file")}</span><span class="grow"><strong>导出体验 · 候选成果</strong><br><small>可交互样本、范围说明与检查记录</small></span>${icon("arrow")}</button>` : ""}${t.mode === "paused" ? '<div class="note">执行已停止。现在可以讨论和调整，发消息不会自动恢复 Auto。</div>' : ""}`;
+  }
+  function render() {
+    const s = M.s,
+      t = M.current();
+    document.documentElement.dataset.theme = s.theme;
+    const tasks = s.tasks.filter(
+      (t) =>
+        !t.archived &&
+        (s.filter === "all" ||
+          (s.filter === "auto" &&
+            ["auto", "pausing", "decision"].includes(t.mode)) ||
+          (s.filter === "mine" && t.owner === "我")) &&
+        `${t.title} ${t.id}`.includes(s.search),
+    );
+    return `<div class="lab"><a href="../../default.html">← 比较</a><span class="lab-label">独立交互样本</span>${Object.entries(
+      names,
+    )
+      .map(
+        ([k, v]) =>
+          `<a class="${k === M.variant ? "active" : ""}" href="../${k}/default.html">${v}</a>`,
+      )
+      .join(
+        "",
+      )}<span class="grow"></span>${b("tick", "推进样本", "small")}${b("lab", "场景", "small")}</div><div class="shell ${M.variant} ${s.nav ? "nav-open" : ""}"><aside class="sidebar"><div class="brand">${icon("orbit")}ArcOrbit</div><div class="project"><strong>拾光</strong><small>产品研发 · 3 位成员</small></div><div class="create">${b("new", icon("plus") + " 新对话", "primary")}${b("create", icon("file"), "", 'aria-label="直接创建待办" title="直接创建待办"')}</div><input class="search" aria-label="搜索工作" placeholder="搜索工作…" value="${e(s.search)}"><div class="filters">${[
+      ["all", "全部"],
+      ["mine", "我负责"],
+      ["auto", "Auto"],
+    ]
+      .map(([k, n]) =>
+        b(
+          "filter",
+          n,
+          s.filter === k ? "active quiet" : "quiet",
+          `data-filter="${k}"`,
+        ),
+      )
+      .join(
+        "",
+      )}</div><div class="worklist">${tasks.map((x) => `<button class="workrow ${s.selected === x.id ? "selected" : ""}" data-act="select" data-id="${x.id}"><strong title="${e(x.title)}">${e(x.title)}</strong><small><span>#${x.id} · ${e(x.owner)}</span><span>${x.mode === "manual" ? e(x.state) : M.status(x)}</span></small></button>`).join("") || '<p class="muted">没有匹配的工作</p>'}</div><div class="sidebar-foot"><div class="row">${b("runs", icon("play") + " 运行概况", "quiet grow")}${b("theme", s.theme === "light" ? "暗色" : "浅色", "quiet small")}</div><div class="row" style="margin:14px 8px 0"><span class="avatar">G</span><span>Glare</span><span class="grow"></span><small>本地原型</small></div></div></aside><main class="workspace"><header class="top">${b("nav", icon("menu"), "quiet mobile-nav", 'aria-label="工作列表"')}<div class="grow"><h1 class="title" title="${e(t?.title || "新对话")}">${e(t?.title || "新对话")}</h1><div class="meta">拾光 ${t ? " / #" + t.id + " · " + e(t.owner) + "负责" : " / 发送后自动建立待办"}</div></div><div class="row top-actions">${t ? `<span class="pill">${e(t.state)}</span>${b("details", icon("panel") + ' <span class="secondary-label">工作详情</span>', "quiet", 'aria-label="工作详情"')}` : ""}${b("runs", icon("play"), "quiet", 'aria-label="运行概况"')}</div></header>${s.offline ? '<div class="alert">离线样本 · 草稿仍保留，恢复后可重试提交。</div>' : ""}${s.recovered ? '<div class="alert">已恢复工作现场；运行中的工作已暂停。</div>' : ""}${t ? `<div class="controlbar"><span class="pill ${t.mode === "auto" ? "running" : ""}">${M.status(t)}</span><small class="grow">${t.mode === "auto" ? "可随时补充要求，或暂停后接管" : t.mode === "pausing" ? "等待停止回执后才能直接修改工作" : "对话、工作信息与执行共享同一个身份"}</small>${controls(t)}</div>` : ""}<div class="body"><section class="conversation"><div class="transcript" id="transcript">${transcript(t)}</div><div class="composer-wrap"><form data-form="message" class="composer"><textarea name="message" aria-label="协作输入" placeholder="${t?.mode === "auto" ? "补充要求，交给正在推进的 Auto…" : "表达想法、提出问题，或调整这件事…"}" ${t?.mode === "accepted" ? "disabled" : ""}>${e(t ? t.draft : s.newDraft)}</textarea><div class="composer-footer"><small class="grow">${t ? "#" + t.id + " · " + (t.mode === "auto" ? "补充给 Auto" : "人工协作") : "首条消息建立待办"} · Codex</small>${b("fill", "填入示例", "quiet small")}<button class="primary" aria-label="发送" ${t?.mode === "pausing" || t?.mode === "accepted" ? "disabled" : ""}>${icon("send")}</button></div></form><p class="composer-hint">${t?.mode === "accepted" ? "本轮已验收，可从列表发起新的工作。" : "Enter 发送 · Shift + Enter 换行 · 工作信息自动整理"}${s.error ? `<span class="error"> · ${e(s.error)}</span>` : ""}</p></div></section>${t && M.variant === "dock" ? `<aside class="summary ${s.drawer ? "is-open" : ""}"><div class="row between"><h2>待办详情</h2>${b("close-details", icon("close"), "quiet dock-close", 'aria-label="关闭工作详情"')}</div>${summary(t)}</aside>` : ""}${t && s.drawer && M.variant !== "dock" ? `<aside class="sheet" aria-label="工作详情"><div class="sheet-head row between"><h2>工作详情</h2>${b("close-details", icon("close"), "quiet", 'aria-label="关闭工作详情"')}</div>${summary(t)}<section class="section"><h3>工作记录</h3>${t.events.map((x) => `<p>${e(x)}</p>`).join("")}</section></aside>` : ""}</div></main></div>`;
+  }
+  window.V = { e, b, icon, names, summary, render };
+})();

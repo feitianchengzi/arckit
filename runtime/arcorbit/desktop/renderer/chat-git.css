@@ -1,7 +1,9 @@
-#chatView .chat-project-heading { display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
-#chatView .chat-project-heading .chat-project-group-head { flex:1 1 130px; width:auto; min-height:36px; }
-#chatView .chat-project-heading strong { white-space:normal; overflow-wrap:anywhere; }
-#chatView .chat-git-summary { flex:0 1 auto; min-width:0; max-width:100%; min-height:36px; white-space:normal; overflow-wrap:anywhere; text-align:left; font-size:13px; }
+#chatView .chat-project-heading { display:flex; flex-wrap:nowrap; align-items:center; gap:4px; min-width:0; overflow:hidden; }
+#chatView .chat-project-heading .chat-project-group-head { flex:1 1 auto; width:auto; min-width:0; min-height:36px; overflow:hidden; white-space:nowrap; }
+#chatView .chat-project-heading .chat-project-group-head strong { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#chatView .chat-git-summary { display:inline-flex; flex:0 0 auto; align-items:center; gap:6px; min-height:36px; white-space:nowrap; text-align:left; font-size:12px; }
+#chatView .chat-git-status-group { display:inline-flex; align-items:baseline; gap:2px; font-variant-numeric:tabular-nums; }
+#chatView .chat-git-status-icon { min-width:1em; text-align:center; font-weight:650; }
 #chatView .chat-git-summary.is-muted { color:var(--semantic-muted); }
 #chatView .chat-sidebar.is-git { grid-template-rows:auto minmax(0,1fr); }
 .chat-git-panel { min-width:0; min-height:0; overflow:auto; overflow-wrap:anywhere; }

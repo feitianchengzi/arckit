@@ -13,6 +13,7 @@ export function createConversationSurface({
   onApproval = null,
   deferOffscreenLayout = false,
   includeExecution = false,
+  initialMessageCount = Infinity,
   onExternalLink = null,
   clipboard = globalThis.navigator?.clipboard,
   performAction = (action) => action(),
@@ -31,6 +32,11 @@ export function createConversationSurface({
   const contextScrollStates = new Map();
   let renderedOrder = [];
   let renderedSignatures = new Map();
+  const visibleCounts = new Map();
+  let lastRenderInput = null;
+  let olderFramePending = false;
+  let earliestVisibleId = null;
+  let availableMessageCount = 0;
 
   const isNearBottom = () => element.scrollHeight - element.scrollTop - element.clientHeight < 72;
   const updateJumpButton = () => jumpButton.classList.toggle("hidden", followingLatest || isNearBottom());
@@ -85,6 +91,20 @@ export function createConversationSurface({
     if (!explicitSmoothScroll && !settlingLatest) followingLatest = isNearBottom();
     saveContextScrollState();
     updateJumpButton();
+    // Keep the first paint bounded. Earlier history is revealed as the reader
+    // reaches the top, preserving the visible message anchor while prepending.
+    if (!followingLatest && element.scrollTop < 200 && !olderFramePending
+      && (visibleCounts.get(activeContextId) || initialMessageCount) < availableMessageCount) {
+      olderFramePending = true;
+      const contextId = activeContextId;
+      requestFrame(() => {
+        olderFramePending = false;
+        if (suspended || contextId !== activeContextId || !lastRenderInput) return;
+        visibleCounts.set(contextId, (visibleCounts.get(contextId) || initialMessageCount) + initialMessageCount);
+        earliestVisibleId = null;
+        render(lastRenderInput);
+      });
+    }
   };
   const handleUserScrollIntent = () => {
     if (suspended) return;
@@ -153,6 +173,7 @@ export function createConversationSurface({
     explicitSmoothScroll = false;
     renderedOrder = [];
     renderedSignatures = new Map();
+    earliestVisibleId = null;
     const restored = contextScrollStates.get(activeContextId) || null;
     followingLatest = restored?.followingLatest ?? true;
     return { changed: true, restored };
@@ -161,7 +182,17 @@ export function createConversationSurface({
   function render({ contextId, messages = [], emptyHtml = "" } = {}) {
     if (suspended) { deferredRender = {contextId, messages, emptyHtml}; return; }
     const context = activateContext(contextId);
-    const visibleMessages = messages.filter(m => isConversationSurfaceMessageVisible(m) || (includeExecution && Boolean(m.content)));
+    lastRenderInput = { contextId, messages, emptyHtml };
+    const allMessages = messages.filter(m => isConversationSurfaceMessageVisible(m) || (includeExecution && Boolean(m.content)));
+    availableMessageCount = allMessages.length;
+    let count = visibleCounts.get(activeContextId) || initialMessageCount;
+    if (!followingLatest && earliestVisibleId) {
+      const anchorIndex = allMessages.findIndex(m => m.id === earliestVisibleId);
+      if (anchorIndex >= 0) count = Math.max(count, allMessages.length - anchorIndex);
+    }
+    visibleCounts.set(activeContextId, count);
+    const visibleMessages = allMessages.slice(Math.max(0, allMessages.length - count));
+    earliestVisibleId = visibleMessages[0]?.id || null;
     const entries = visibleMessages.map((message, index) => {
       const id = String(message.id || `conversation-${index}`);
       const type = transcriptMessageType(message);

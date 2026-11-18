@@ -62,10 +62,12 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
 
   async function getSnapshot(input = {}) {
     const sections = normalizeSections(input.sections);
+    const stateView = runManager.captureDesktopStateView
+      ? await runManager.captureDesktopStateView() : null;
     const [store, automation, workProjection, organizationsResult, participatingProjectsResult] = await Promise.all([
-      runManager.readDesktopStore(),
-      automationCoordinator.getSnapshot({}),
-      workSync.getSnapshot(),
+      stateView?.state || runManager.readDesktopStore(),
+      automationCoordinator.getSnapshot({}, stateView),
+      workSync.getSnapshot({}, stateView),
       capture("organizations", () => platformSource.listOrganizations()),
       capture("projects", () => platformSource.listProjects())
     ]);
@@ -279,9 +281,11 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     const taskState = TASK_STATES.includes(String(input.state)) ? String(input.state) : "pending";
     const offset = Math.max(0, Math.trunc(Number(input.offset) || 0));
     const limit = Math.min(200, Math.max(1, Math.trunc(Number(input.limit) || 80)));
+    const stateView = runManager.captureDesktopStateView
+      ? await runManager.captureDesktopStateView() : null;
     const [store, workProjection] = await Promise.all([
-      runManager.readDesktopStore(),
-      workSync.getSnapshot()
+      stateView?.state || runManager.readDesktopStore(),
+      workSync.getSnapshot({}, stateView)
     ]);
     const platform = store.platform;
     const worksetId = String(input.workset_id || platform.active_workset_id || "");
@@ -591,15 +595,15 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     let mutationStarted = false;
     try {
       const id = positiveMemberId(input.project_id);
-      const accountId = positiveMemberId(input.account_id);
-      const currentAccount = async () => String((await automationCoordinator.getSnapshot({})).user?.id || "");
+      const accountId = requiredText(input.account_id, "Account id", 200);
+      const currentAccount = async () => String((await automationCoordinator.getSnapshot({})).user?.id || "").trim();
       if (await currentAccount() !== accountId) throw memberActionError(401, "登录身份已变化，请重新打开成员选择。");
       const project = (await platformSource.listProjects()).find((item) => String(item.id) === id);
       if (!project) throw memberActionError(403, "当前账号无法管理此项目。");
       const organizationId = projectOrganizationId(project);
       if (!organizationId) throw memberActionError(400, "个人项目不支持从组织添加成员。");
       const members = await platformSource.listProjectMembers(id);
-      const caller = members.find((item) => String(item.user_id) === accountId);
+      const caller = actingProjectMember(members, accountId);
       if (!caller || !["owner", "admin"].includes(caller.role)) throw memberActionError(403, "只有项目 owner/admin 可以添加成员。");
       const candidates = await platformSource.listOrganizationMembers(organizationId);
       const sameOrg = candidates.filter((item) => String(item.organization_id) === organizationId);
@@ -1211,5 +1215,18 @@ function positiveMemberId(value) {
   const text = String(value ?? "");
   if (!/^[1-9][0-9]*$/.test(text) || !Number.isSafeInteger(Number(text))) throw memberActionError(400, "成员或项目标识无效。");
   return text;
+}
+
+function actingProjectMember(members, accountId) {
+  const relations = Array.isArray(members) ? members : [];
+  const current = relations.filter((member) => member?.is_me === true);
+  if (current.length === 1 && isPositiveMemberId(current[0]?.user_id)) return current[0];
+  if (current.length > 0 || !isPositiveMemberId(accountId)) return null;
+  return relations.find((member) => String(member?.user_id || "") === accountId) || null;
+}
+
+function isPositiveMemberId(value) {
+  const text = String(value ?? "");
+  return /^[1-9][0-9]*$/.test(text) && Number.isSafeInteger(Number(text));
 }
 function memberActionError(status, message) { return Object.assign(new Error(message), { status }); }

@@ -33,6 +33,22 @@
         "mode": "user-on-demand"
       },
       {
+        "path": "delivery/skills/arckit-appstore-assets",
+        "mode": "user-on-demand"
+      },
+      {
+        "path": "delivery/skills/arckit-appstore-connect",
+        "mode": "user-on-demand"
+      },
+      {
+        "path": "delivery/skills/arckit-appstore-submission",
+        "mode": "user-on-demand"
+      },
+      {
+        "path": "delivery/skills/arckit-appstore-testflight",
+        "mode": "user-on-demand"
+      },
+      {
         "path": "delivery/skills/arckit-git-branching",
         "mode": "user-on-demand"
       },

@@ -185,6 +185,84 @@ Lifecycle traces cover readiness, task claim, Agent turns, commands, ledger appl
 
 The Workbench shows the bound Codex thread, current Agent Loop result, token/cache totals, context pressure and compactions, command timing, ledger state, and Git closeout result.
 
+### Desktop stall diagnostics
+
+An independent Node worker watches main-process heartbeats (250 ms) and visible
+main-window renderer heartbeats (500 ms). A gap of at least 2 seconds writes an
+atomic, private JSON record under Electron `userData/diagnostics/stalls/`, even
+while the main event loop is blocked. Records contain observation/recovery times,
+maximum heartbeat gap, app/OS/runtime versions, and timestamped CPU/memory samples
+for up to six app processes. They do not contain chat text, file contents, command
+arguments, credentials, or an asserted root cause. Samples are taken every five
+seconds, plus a fresh sample explicitly requested after stable recovery. This is
+a hang detector, not a detector for every dropped frame.
+Sleep, page reload, hidden/minimized windows and whole-process suspension are
+excluded where observable. A crash can leave a record without a recovery time.
+
+Version 2 records additionally retain:
+
+- Main-thread V8 CPU sampling at 10 ms intervals, controlled from the watchdog via
+  `inspector.Session.connectToMainThread()` with no inspector socket or debugger
+  pauses. Thirty-second windows rotate in memory (two retained). Recovery retains
+  up to six hot call chains with function, sanitized source location and sampled
+  self time, filtered to the approximate incident window. This is a bounded profile
+  summary, not a full `.cpuprofile`; native stacks and renderer JS are not captured.
+  Inspector failure is explicit, and samples lost to window rotation are visible
+  through coverage timestamps. A process crash before recovery may leave the
+  profile pending. Continuous sampling has overhead; the 10 ms interval bounds
+  sampling frequency but is not a guarantee of zero performance impact.
+- Up to 128 recent main-process operations, with up to 12 retained per report:
+  registered Desktop IPC handling and desktop-store file reads/writes and JSON
+  parsing/serialization. Names, start/end, status, elapsed time and available data
+  counts are recorded; no IPC arguments, file paths, payloads or errors are copied.
+  IPC wall time includes asynchronous waits and is not CPU self time. Uninstrumented
+  operations and work in other processes remain outside this trail.
+- Main-process RSS, JS heap used/total, external and ArrayBuffer bytes. ArrayBuffers
+  are a subset of external memory and must not be added to it. Main V8 GC entries
+  include actual event timestamps/durations/kinds and bounded recent detail; totals
+  between resource samples preserve counts/duration when the 64-event ring overflows.
+  Observer callbacks arrive after the main loop resumes, not during its blockage.
+- `first_responsive_at` (first observed healthy interval), `last_responsive_at`
+  (start of the final healthy interval), and `recovered_at` (stable recovery).
+  `metrics_after` comes from a new request after `recovered_at`, or is null with
+  an explicit unavailable status. Main and relayed renderer heartbeat maxima are
+  separate; main blockage can delay both and takes precedence in `source`.
+
+Retained v2 records are bounded with explicit omission counts for trimmed call
+chains, operations and GC details; v1 records remain readable. The watchdog keeps
+recording silently, with no prompt, reminder cooldown, or diagnostic task API.
+
+Settings → 运行诊断 shows this device's records for the last 24 hours, seven days,
+or all retained history, including count, maximum heartbeat interval and recent
+occurrence. History uses incremental display. Users select an existing authorized
+Chat workspace and click 分析卡顿 to open a new Chat and automatically send the
+analysis prompt containing the absolute log directory and fixed UTC
+start/end timestamps (or all retained records up to the click time). The Agent
+reads the files itself and filters by `started_at`. No record bodies are embedded,
+no logs are read while preparing the request, and no analysis copies are created.
+Subsequent Chat actions are entirely user-directed. Chat failures use existing retry behavior.
+
+The default prompt covers log evidence, business-level causes, architecture and
+core technical choices, then prioritized optimization and verification. Its default
+authorization is analysis only, without code changes or todo creation. Settings →
+运行诊断 → 查看和编辑分析 Prompt displays the editable template. `{日志目录}` and
+`{时间范围}` are required literal placeholders filled at analysis time. Save keeps
+the template on this device in `diagnostics/stall-analysis-prompt.json`; reset
+removes that override and follows the bundled default. Unsaved edits disable
+analysis until saved or reset. Invalid/failed saves retain the draft and prior
+persisted template. Clearing diagnostic records does not remove this preference.
+
+
+Analysis never deletes source records. Manual range cleanup confirms deletion of
+records whose content tokens still match the displayed view; changed,
+new and actively collected records remain. Incomplete crash leftovers are removable. The worker serializes cleanup with writes.
+Records are pruned at startup and every minute: seven-day retention and a 20 MiB
+budget, oldest records first; active incident writes are retained. Old analysis
+copies from previous versions continue to expire under their existing seven-day /
+20 MiB budget, but no new copies or analysis directory are created. Limits apply
+to recognized valid diagnostic files; unreadable files are reported, not silently
+discarded. The Agent reads whatever matching logs remain at analysis time.
+
 ## Governed installer packages
 
 The repository workflow `.github/workflows/arcorbit-package.yml` is manually dispatched. The operator chooses an existing immutable `tf/vx.x.x-bN`, `beta/vx.x.x-rcN`, or `appstore/vx.x.x` tag, one installer target (or all), the signing gate, an exact ArcForge provider release, and its SHA-256. The workflow validates the selected tag commit, package version, active `release/*` baseline, and higher release lines. It never creates or moves a branch or tag.

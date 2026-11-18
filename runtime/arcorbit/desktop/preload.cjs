@@ -28,7 +28,21 @@ function httpStatus(value) {
 
 const invokeFeedbackV2 = (channel, input) => ipcRenderer.invoke(channel, input).then(unwrapFeedbackV2Ipc);
 
+// Runs in the renderer event loop, independently of the application UI boot path.
+window.addEventListener('DOMContentLoaded', () => {
+  const beat = () => ipcRenderer.send('arckit:stall-heartbeat', document.visibilityState === 'visible');
+  beat();
+  const timer = setInterval(beat, 500);
+  document.addEventListener('visibilitychange', beat);
+  window.addEventListener('pagehide', () => clearInterval(timer), { once: true });
+});
+
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  stallOverview: range => ipcRenderer.invoke('arckit:stall-overview', range),
+  stallPrompt: () => ipcRenderer.invoke('arckit:stall-prompt'),
+  saveStallPrompt: template => ipcRenderer.invoke('arckit:stall-prompt-save', template),
+  stallAnalysis: range => ipcRenderer.invoke('arckit:stall-analysis', range),
+  clearStalls: tokens => ipcRenderer.invoke('arckit:stall-clear', tokens),
   initialAppearance: ipcRenderer.sendSync("arckit:appearance-initial"),
   getAppearance: () => ipcRenderer.invoke("arckit:appearance-get"),
   setAppearance: preference => ipcRenderer.invoke("arckit:appearance-set", preference),
@@ -89,6 +103,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   chatNativeCatalog: input => ipcRenderer.invoke("arckit:chat-native-catalog", input),
   chatFiles: (action, input) => ipcRenderer.invoke("arckit:chat-files", action, input),
+  onChatFilesEvent: listener => { const handler = (_event, value) => listener(value); ipcRenderer.on('arckit:chat-files-event', handler); return () => ipcRenderer.removeListener('arckit:chat-files-event', handler); },
   chatGit: (action, input) => ipcRenderer.invoke('arckit:chat-git', action, input),
   onChatGitEvent: listener => { const handler = (_event, value) => listener(value); ipcRenderer.on('arckit:chat-git-event', handler); return () => ipcRenderer.removeListener('arckit:chat-git-event', handler); },
   chatNativeOpen: input => ipcRenderer.invoke("arckit:chat-native-open", input),

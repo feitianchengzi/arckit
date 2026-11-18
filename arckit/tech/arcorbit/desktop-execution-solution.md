@@ -4,6 +4,14 @@
 
 Desktop Execution Plane 负责承载自由 Chat 与受监督待办执行共用的 Codex transport、持久 thread、消息投影和安全控制。Automation 把 Work Sync 发布的本地待办状态绑定到可恢复的执行会话，并把 Runtime 过程投影为可审查的 transcript、耗时与 Token 用量；Chat 在独立 session 中直接运行自由 Codex turn。共享 transport 不判断 Case 语义，不以固定 Token 总量或总轮次终止研发事项；Runtime 的停止与续接仍由 handoff、状态进展、人工决策和安全控制决定。
 
+### 会话与归档的有界读取
+
+高频 Chat 消息提交只复制当前 session metadata 与消息数组，沿用 Desktop Store 串行提交队列。消息分区可使用 `desktop-session-message-index/v1`：`base_file` 指向既有 `desktop-session-messages/v1` 基底，`session_files` 将 session id 映射到完整会话覆盖文件。覆盖文件、索引依次写入，control pointer 最后原子提交；成功后才发布内存 revision 并清理被替换的覆盖文件。失败保留旧 control 与内存状态。读取时按会话覆盖基底；通用跨会话 mutation 可以合并成单一基底，并在提交后清理旧索引及覆盖。旧读取器遇到不支持的消息 schema 报错，不将未知分区当空消息处理。创建、删除等低频全局 mutation 保留兼容路径。
+
+Automation 历史读取以目标 run/session 为边界。按 run id 打开历史时先在运行索引中筛选，再读取目标 activity；任务会话只加载归属匹配的归档正文。`runs/conversation-index.json` 是可重建的归属索引，仅保存 project/session/task/thread 与文件大小、修改及变更时间指纹。旧 activity 的解析在 Node worker thread 完成，启动预热与查询共用 single-flight；索引重开后只重新解析指纹变化的文件，损坏索引可以重建。相同进程的刷新结果最多缓存一秒，目录变化提前触发刷新；正在运行的 run 仍从 live state 投影。首次旧数据建索引有一次性读取成本，不宣称首次查询完全不读取历史。
+
+Workbench 对话首次挂载最近 80 条可见消息，向上滚动到已加载区顶部时再扩展 80 条；全部消息仍可达，不按窗口大小裁剪持久历史。阅读位置按消息 id 和偏移恢复，新消息到达不移走正在阅读的历史起点；切换会话保留已加载范围及阅读锚点。屏外布局延迟使用现有消息组件，不改变消息顺序、权限、内容或状态语义。
+
 ## 待办执行会话
 
 Automation Store 为活动任务与最近完成项保存 `session_id`。Coordinator 在 Work Sync 的本地 Task Projection 发布 `in_progress` 后、首次 Runtime 启动前创建专属 session，并写入：
@@ -220,6 +228,12 @@ Automation Store 以本地项目身份和远端项目/任务组合身份为键�
 
 每次成功 ledger 写回后、下一 gap 前，Coordinator 读取最新请求的 `inputTokens / modelContextWindow`。达到 80% 且上一个 Agent turn 后尚未压缩时，调用同一 thread 的 `thread/compact/start`，等待压缩完成并保存 checkpoint，再继续 fresh-state loop。累计 Token 只用于观测，不触发压缩或停止。
 
+Automation 的 schema-bound Agent 输出具有独立于上下文 Token 占用的字符健康边界。结构化结果最多累计 1 MiB，其他 Agent 正文最多累计 8 MiB，任意连续尾部空白达到 64 KiB 时视为异常生成。adapter 在 `item/agentMessage/delta` 和 `item/completed` 两条路径持续计算累计字符与尾部空白；触发边界时立即向当前 thread/turn 发送 `turn/interrupt`，返回带观测值、阈值和修复要求的 typed error。该熔断不依赖 app-server 是否开放 `max_output_tokens`，也不等待 80% context compaction 门槛。
+
+进入持久 Automation thread 的新 turn 前，adapter 通过 `thread/read` 检查单个历史字符串和尾部空白。发现超过 8 MiB 或 64 KiB 连续尾部空白的首个 Turn 时，在 `turn/start` 前调用 `thread/revert(beforeTurnId)`，删除该 Turn 及其后续失败重试，再次读取验证健康；thread id、workspace 文件和 task binding 保持不变。预检或回退失败时进入 `thread_history_repair_failed`，只允许人工阻塞处置，不执行确定性盲重试。Responses 返回的 `input[n].content[m].text string too long` 被分类为 `codex_history_item_too_large`，保留 input/content index、实际长度和最大长度。
+
+Run event 只保存最长 256,000 字符的文本预览；`item/completed` 不得以完整正文覆盖流式截断结果。截断事件同时保留原长度和截断标记，运行投影记录 `agent_output_guard` 或 `thread_history_repaired` warning，不在 activity、messages 或日志中复制超长原文。合法 schema-bound 结果继续通过独立结构化 Runtime result 保存解析语义。
+
 ## 命令单飞与等待
 
 Codex adapter 对需要批准的 command 以规范化 `cwd + command` 建立进程内指纹。`cmake --build` 的并发度参数不参与指纹，因此同一 build tree 与 target 的 `-j4`、`-j2` 或 `--parallel` 仍视为同一活动构建。指纹从批准开始保持到对应 command item 完成或 turn 结束；相同指纹仍在执行时，后续请求被拒绝并产生 `duplicate_command` 软异常，不启动第二个进程。
@@ -373,6 +387,8 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 
 绑定活动任务与持久 `thread_id` 的 Runtime 恢复项同时提供 `feedback_continue`。Coordinator 要求非空用户原文，校验 recovery、active task、task session 和 thread 归属一致，再用该原文作为新 Run 的唯一 task 内容 resume 同一 thread；新 Run 关联来源 recovery、失败 Run、result 与 activity refs。Run 成功建立后，原文以 `role=user`、`kind=recovery_feedback` 写入同一 Desktop session，恢复项才移除；启动失败时恢复项和 recovery phase 保留。Workbench 合并 session 用户消息与所有同 session Run 投影，因此反馈在提交后立即作为“你”的消息出现在当前待办对话，而不创建新对话或覆盖 canonical Case facts。
 
+输出熔断或底层 text-too-long 失败投影为 `thread_history_repair_required`；其同线程重试在新推理请求前执行上述预检和回退，因此不是对相同 payload 的原样重放。若预检、回退或回退后验证失败，恢复项改为 `thread_history_repair_failed` 并移除普通 retry/feedback action，避免同一确定性故障循环消耗 Run。
+
 ## 验收口径
 
 - 新建自由 Chat 在首条非空消息前不产生空 session；首条消息只创建一个 `kind=chat` session、一个持久 thread 和一个可见用户消息。
@@ -428,6 +444,8 @@ Automation 启动恢复以持久 `active_executions`、Work Sync 本地任务状
 - 未登录或认证失效的启动路径仍先读取本地 canonical Case；closed Case 显示为等待远端收尾，不显示 Runtime 仍在执行。
 - closeout completed checkpoint 只能由同一 thread 的结构化 success/no-op 结果形成；认证恢复后只重试远端完成写回，不重复 Git closeout。
 - 最新请求上下文占用达到 80% 时，Runtime 在 gap 间压缩同一 thread 并保存 checkpoint；压缩不创建新 thread。
+- 异常结构化输出在 1 MiB、其他 Agent 输出在 8 MiB、连续尾部空白在 64 KiB 边界触发同 turn 中断；运行事件和 completed message 均不会持久化超过 256,000 字符的文本副本。
+- 持久 Automation thread 在 `turn/start` 前发现不健康历史时回退首个异常 Turn 并复用原 thread id；回退后验证失败不会继续提供普通重试。
 
 ## 执行结果与 Case 完成边界
 

@@ -4,7 +4,8 @@ app.setPath('userData',fs.mkdtempSync(path.join(os.tmpdir(),'chat-layout-')));ap
 app.whenReady().then(async()=>{
  const w=new BrowserWindow({width:1500,height:1000,show:false,webPreferences:{sandbox:true,contextIsolation:true}});
  const run=s=>w.webContents.executeJavaScript(s),wait=()=>new Promise(r=>setTimeout(r,90)),checks=[];
- const shot=async name=>{fs.mkdirSync(path.join(__dirname,'previews'),{recursive:true});fs.writeFileSync(path.join(__dirname,'previews',name+'.png'),(await w.webContents.capturePage()).toPNG())};
+ const output=process.env.ARCORBIT_TEST_OUTPUT||fs.mkdtempSync(path.join(os.tmpdir(),'chat-layout-evidence-'));fs.mkdirSync(output,{recursive:true});
+ const shot=async name=>{fs.mkdirSync(path.join(output,'previews'),{recursive:true});fs.writeFileSync(path.join(output,'previews',name+'.png'),(await w.webContents.capturePage()).toPNG())};
  try{
   await w.loadFile(path.join(__dirname,'default.html'),{query:{autoplay:'off'}});
   for(const [width,height] of [[1500,1000],[1500,800],[1024,800],[820,800],[760,800],[390,800],[390,640]]){
@@ -19,18 +20,19 @@ app.whenReady().then(async()=>{
    assert.ok(Math.abs(geometry.height-Math.min(640,geometry.available))<2,JSON.stringify(geometry));
    assert.ok(geometry.listHeight>=200&&geometry.listBottom<=geometry.footerTop&&geometry.footerBottom<=geometry.bottom,JSON.stringify(geometry));
    assert.ok(Math.abs(geometry.anchor-geometry.bottom-8)<2&&geometry.top>=12,JSON.stringify(geometry));
-   assert.equal(geometry.count,6);
+   assert.equal(geometry.count,3);
    if(height===1000)assert.ok(geometry.scroll<=geometry.client,'All initial entries fit at full height');
    await shot('layout-'+width+'-'+height);
    // Scroll to every candidate and verify it is actually visible and hit-testable.
    const reachable=await run(`(()=>{const list=document.querySelector('#native-options');return [...list.querySelectorAll('button')].every(b=>{b.scrollIntoView({block:'nearest'});const r=b.getBoundingClientRect(),l=list.getBoundingClientRect(),hit=document.elementFromPoint(r.left+20,r.top+r.height/2);return r.top>=l.top-1&&r.bottom<=l.bottom+1&&b.contains(hit)})})()`);
-   assert.ok(reachable,'Every capability/reference can be reached at '+width+'x'+height);
-   await run('document.querySelector("[data-native-pick=T202]").click()');
-   assert.ok(await run('ChatNative.context().refs.some(r=>r.id==="T202")'));
-   await run('document.querySelector("[data-native-action=remove][data-id=T202]").click()');
+   assert.ok(reachable,'Every capability can be reached at '+width+'x'+height);
+   assert.equal(await run('document.querySelectorAll("[data-native-pick=file-chat],[data-native-pick=T201],[data-native-pick=T202]").length'),0);
+   await run('document.querySelector("[data-native-pick=diagnose]").click()');
+   assert.equal(await run('ChatNative.context().capability.id'),'diagnose');
+   await run('document.querySelector("[data-native-action=remove][data-id=capability]").click()');
    checks.push({width,height,topbar:width>760?'horizontal':'compact',menuHeight:geometry.height,listHeight:geometry.listHeight,allEntriesReachable:true});
   }
   const report={ok:true,checks,boundary:'Electron browser-local prototype; native WebKit host not executed.'};
-  fs.writeFileSync(path.join(__dirname,'verification-layout.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));app.exit(0);
+  fs.writeFileSync(path.join(output,'verification-layout.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));app.exit(0);
  }catch(e){console.error(e);await shot('layout-failure');app.exit(1)}
 });
