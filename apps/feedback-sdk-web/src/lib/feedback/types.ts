@@ -17,6 +17,8 @@ export interface FeedbackItem {
   etaText: string
   status: FeedbackStatus
   timeline: TimelineNode[]
+  /** Agent 分析结论；缺失表示尚未分类（待分析）。 */
+  requestType?: string
 }
 
 export interface AIUnderstanding {

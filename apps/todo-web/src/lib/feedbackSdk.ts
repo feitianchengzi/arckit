@@ -20,6 +20,8 @@ interface FeedbackOptions {
   feedbackV2Enabled: true
   feedbackV2AuthMode: 'apiKey'
   theme: FeedbackTheme
+  /** C 档单框能力位：true 走单框+机器整理，false/缺省回落手填三问 */
+  directBox: true
 }
 interface FeedbackFrame {
   overlay: HTMLDivElement
@@ -214,7 +216,7 @@ export async function configureFeedbackSdk(theme: FeedbackTheme = 'system') {
   const options: FeedbackOptions = {
     apiKey: FEEDBACK_API_KEY, projectId: FEEDBACK_PROJECT_ID, customUserId,
     gatewayUrl: new URL(FEEDBACK_GATEWAY_URL, window.location.href).href.replace(/\/$/, ''),
-    feedbackV2Enabled: true, feedbackV2AuthMode: 'apiKey', theme: currentTheme,
+    feedbackV2Enabled: true, feedbackV2AuthMode: 'apiKey', theme: currentTheme, directBox: true,
   }
   if (frame && frame.options.customUserId !== customUserId) destroyFrame()
   const target = frame ?? createFrame(options, tokenUserId)

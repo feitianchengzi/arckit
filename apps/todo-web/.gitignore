@@ -28,6 +28,10 @@ yarn-error.log*
 .env*.local
 .env.production
 
+# 本地构建的 Feedback SDK 同源副本（由 apps/feedback-sdk-web 构建拷入）
+/public/sdk
+/public/sdk-v3
+
 # vercel
 .vercel
 

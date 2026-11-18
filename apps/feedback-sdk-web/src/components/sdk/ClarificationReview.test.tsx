@@ -56,3 +56,14 @@ describe('feature review form', () => {
     expect(screen.getByRole('button', { name: '确认以上信息，准备提交反馈' })).toBeDisabled()
   })
 })
+
+describe('switch to manual entry（核对优先的逃生口）', () => {
+  it('renders 改为直接填写 only when the host provides the switch and calls back', () => {
+    const onSwitch = vi.fn()
+    const { rerender } = render(<ClarificationReview value={core} confirmed={false} onChange={vi.fn()} onConfirm={vi.fn()} onSwitchToManual={onSwitch} />)
+    fireEvent.click(screen.getByRole('button', { name: '改为直接填写' }))
+    expect(onSwitch).toHaveBeenCalledOnce()
+    rerender(<ClarificationReview value={core} confirmed={false} onChange={vi.fn()} onConfirm={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: '改为直接填写' })).toBeNull()
+  })
+})
