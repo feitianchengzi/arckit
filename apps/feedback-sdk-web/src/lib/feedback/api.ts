@@ -375,6 +375,19 @@ export function feedbackToItem(feedback: FeedbackRecord, options?: { useCustomer
 		etaText: pickEtaText(feedback, status, useCustomerWorkflow),
 		status,
 		timeline: buildTimeline(status, feedback, useCustomerWorkflow),
+		requestType: parseRequestType(feedback.data),
+  }
+}
+
+/** Only Agent-classified values are valid; anything else stays 待分析. */
+function parseRequestType(data: string | undefined): string | undefined {
+  if (!data) return undefined
+  try {
+    const parsed = JSON.parse(data) as { structured?: { request_type?: unknown } }
+    const value = parsed?.structured?.request_type
+    return typeof value === 'string' && ['bug', 'feature', 'question', 'other'].includes(value) ? value : undefined
+  } catch {
+    return undefined
   }
 }
 

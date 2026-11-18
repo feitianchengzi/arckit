@@ -7,10 +7,11 @@ interface Props {
   pending?: boolean
   onChange: (value: AgentStructuredSummary) => void
   onConfirm: () => void
+  onSwitchToManual?: () => void
   mode?: 'create' | 'append'
 }
 
-export function ClarificationReview({ value, confirmed, pending = false, onChange, onConfirm, mode = 'create' }: Props) {
+export function ClarificationReview({ value, confirmed, pending = false, onChange, onConfirm, onSwitchToManual, mode = 'create' }: Props) {
   const missing = missingClarificationFields(value)
   const update = (field: ClarificationField, text: string) => onChange({ ...value, [field]: text, unknown_fields: value.unknown_fields?.filter((key) => key !== field) })
   return <section aria-label="核对结构化反馈" className="sdk-collection space-y-3">
@@ -22,7 +23,10 @@ export function ClarificationReview({ value, confirmed, pending = false, onChang
       {field !== 'request_type' && !coreClarificationFields(value).includes(field) && !value[field]?.trim() && <label className="flex gap-2 text-xs"><input type="checkbox" disabled={pending} checked={value.unknown_fields?.includes(field) || false} onChange={(e) => onChange({ ...value, unknown_fields: e.target.checked ? [...(value.unknown_fields || []), field] : value.unknown_fields?.filter((key) => key !== field) })} />暂时无法提供，保留为待确认</label>}
     </div>)}
     {missing.length > 0 && <p role="status" className="text-xs text-foreground-secondary">还需补充或标记待确认：{missing.map((key) => clarificationFields.find(([field]) => field === key)?.[1]).join('、')}</p>}
-    <button type="button" disabled={confirmed || pending || missing.length > 0 || !value.phenomenon.trim() || !value.expect.trim()} onClick={onConfirm} className="rounded bg-primary px-3 py-2 text-sm text-white disabled:opacity-50">{pending ? '正在记录...' : confirmed ? '已确认，修改后需重新确认' : mode === 'append' ? '确认并追加到当前反馈' : '确认以上信息，准备提交反馈'}</button>
+    <div className="flex gap-3">
+      <button type="button" disabled={confirmed || pending || missing.length > 0 || !value.phenomenon.trim() || !value.expect.trim()} onClick={onConfirm} className="rounded bg-primary px-3 py-2 text-sm text-white disabled:opacity-50">{pending ? '正在记录...' : confirmed ? '已确认，修改后需重新确认' : mode === 'append' ? '确认并追加到当前反馈' : '确认以上信息，准备提交反馈'}</button>
+      {onSwitchToManual && <button type="button" disabled={pending} onClick={onSwitchToManual} className="rounded border border-divider px-3 py-2 text-sm">改为直接填写</button>}
+    </div>
     {confirmed && <p role="status" className="text-xs text-success">{mode === 'append' ? '已确认并记录到当前反馈。' : '已由你确认。点击下方提交按钮后才会创建反馈卡片。'}</p>}
   </section>
 }

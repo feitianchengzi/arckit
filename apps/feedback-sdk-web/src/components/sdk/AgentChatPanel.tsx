@@ -1,6 +1,6 @@
 import { MessageContent } from './MessageContent'
 import { createPortal } from 'react-dom'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react'
 import { sendAgentMessage, getAgentCapabilities, getAgentConversationMessages, sendStandaloneAgentMessage, getStandaloneAgentConversations, getStandaloneAgentConversationsPage, getStandaloneAgentMessages, getStandaloneAgentMessagesPage, getAgentConversations, type AgentSource, type AgentMessage, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { MediaComposer } from './MediaComposer'
 import { FeedbackMessageAttachment } from './FeedbackMessageAttachment'
@@ -41,7 +41,11 @@ function messageSources(message: AgentMessage): AgentSource[] {
   } catch { return [] }
 }
 
-export function AgentChatPanel({ feedbackId, standalone = false, initialMessage, onNeedCollect, onConversationReady, children, hasUnsubmittedSummary = false, submittedConversationId, submitting = false, onMyFeedback, onDirectFeedback, draftScope = '', structuredDraft, questionDraft, formOpen = false }: AgentChatPanelProps) {
+export interface AgentChatPanelHandle {
+  send: (content: string, attachments?: FeedbackV2Attachment[], clientMessageId?: string) => Promise<void>
+}
+
+export const AgentChatPanel = forwardRef<AgentChatPanelHandle, AgentChatPanelProps>(function AgentChatPanel({ feedbackId, standalone = false, initialMessage, onNeedCollect, onConversationReady, children, hasUnsubmittedSummary = false, submittedConversationId, submitting = false, onMyFeedback, onDirectFeedback, draftScope = '', structuredDraft, questionDraft, formOpen = false }, ref) {
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [messagePage, setMessagePage] = useState(1)
@@ -140,6 +144,7 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
       }
     } finally { sendingRef.current = false; setSending(false) }
   }, [feedbackId, standalone, draftScope])
+  useImperativeHandle(ref, () => ({ send }), [send])
 
   const load = useCallback(async (requestedId?: string) => {
     const version = ++generation.current
@@ -293,4 +298,4 @@ export function AgentChatPanel({ feedbackId, standalone = false, initialMessage,
     </div>
     <MediaComposer hidden={formOpen} key={`${standalone}:${feedbackId || ''}:${composerEpoch}`} onSend={send} draftScope={draftScope} draftConversationId={conversationId} onDraftChange={(dirty: boolean) => { composerDirty.current = dirty }} disabled={sending || loading || submitting || Boolean(pendingTransition) || linkedIds.current.has(conversationId)} imageDisabledReason={imageUnderstanding ? '' : '当前 Agent 暂不支持多模态，图片不会发送给 AI 识别，请使用文字描述问题。'} />
   </section>
-}
+})

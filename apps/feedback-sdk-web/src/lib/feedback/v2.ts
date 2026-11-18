@@ -248,6 +248,8 @@ export interface FeedbackListQuery {
   pageSize?: number
   query?: string
   status?: string
+  /** Agent 分类筛选，服务端过滤；'none' 为尚未分类（待分析）。 */
+  requestType?: string
   dateFrom?: string
   dateTo?: string
   dateField?: 'created' | 'updated'
@@ -261,6 +263,7 @@ export async function fetchFeedbackItemsV2(params?: FeedbackListQuery): Promise<
   })
   if (params?.query?.trim()) query.set('q', params.query.trim())
   if (params?.status) query.set('status', params.status)
+  if (params?.requestType) query.set('request_type', params.requestType)
   if (params?.dateFrom) query.set('date_from', params.dateFrom)
   if (params?.dateTo) query.set('date_to', params.dateTo)
   if (params?.dateField) query.set('date_field', params.dateField)

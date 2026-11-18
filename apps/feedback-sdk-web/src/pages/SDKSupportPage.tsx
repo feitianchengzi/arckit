@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ManualFeedbackForm } from '@/components/sdk/ManualFeedbackForm'
+import { DirectFeedbackBox } from '@/components/sdk/DirectFeedbackBox'
+import { AgentChatPanel, type AgentChatPanelHandle } from '@/components/sdk/AgentChatPanel'
 import { SubmittedFeedbackInfo } from '@/components/sdk/SubmittedFeedbackInfo'
-import { AgentChatPanel } from '@/components/sdk/AgentChatPanel'
 import { ClarificationReview } from '@/components/sdk/ClarificationReview'
 import { FeedbackConversationPanel } from '@/components/sdk/FeedbackConversationPanel'
 import { FeedbackLifecyclePanel } from '@/components/sdk/FeedbackLifecyclePanel'
 import { fetchFeedbackItemsV2, fetchFeedbackNotificationsV2, submitFeedbackV2, type AgentStructuredSummary, type FeedbackListQuery } from '@/lib/feedback/v2'
 import type { FeedbackItem } from '@/lib/feedback/types'
 import { clarificationFields, formatStructuredFeedback, missingClarificationFields } from '@/lib/feedback/structured'
-import { feedbackDateRange, reviewSummary, newClientRequestId } from '@/domain/feedback'
+import { typeLabel, feedbackDateRange, reviewSummary, newClientRequestId } from '@/domain/feedback'
 import { useFeedbackRealtime } from '@/lib/feedback/realtime'
 import { FEEDBACK_SDK_CONFIGURED_EVENT, getFeedbackSDKConfig, isFeedbackSDKV2NotificationsEnabled, notifyFeedbackSDKUnreadCount } from '@/lib/sdk'
 
@@ -39,6 +40,14 @@ export function supportIdentityKey() {
     }
   }
   return JSON.stringify([config.gatewayUrl || '', config.feedbackV2AuthMode || '', identity])
+}
+
+const TYPE_BADGE_CLASS: Record<string, string> = {
+  feature: 'bg-primary-light text-primary',
+  bug: 'bg-error-light text-error',
+  question: 'bg-warning-light text-warning',
+  other: 'bg-surface-hover text-foreground-secondary',
+  none: 'bg-surface-hover text-foreground-secondary border border-dashed border-border',
 }
 
 export function SDKSupportPage() {
@@ -83,6 +92,32 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
   const [manualConversationId, setManualConversationId] = useState(() => { try { return sessionStorage.getItem(`feedback-manual-conversation:${scopeKey}`) || '' } catch { return '' } })
   const openManual = () => { setManualConversationId(conversationId); setManualOpen(true); try { sessionStorage.setItem(`feedback-manual-conversation:${scopeKey}`, conversationId) } catch { /* Optional draft restoration. */ } }
   const [created, setCreated] = useState<{ id: number; shortId: string; conversationId?: string }>()
+  /** Direct feedback form state: created closes everything; manual overrides review; analysis yields review. */
+  const formMode: 'none' | 'review' | 'manual' = created ? 'none' : manualOpen ? 'manual' : structured ? 'review' : 'none'
+  /** Direct feedback entry: pre-filled review wins over a blank manual form when analysis exists. */
+  const openDirectFeedback = () => { if (formMode !== 'none') return; openManual() }
+  const agentRef = useRef<AgentChatPanelHandle>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeError, setAnalyzeError] = useState('')
+  const handleAnalyze = async (text: string) => {
+    setAnalyzing(true); setAnalyzeError('')
+    try {
+      await agentRef.current?.send(text)
+      // Structured analysis wins the direct-feedback slot; drafts stay in sessionStorage for return trips.
+      setManualOpen(false)
+    }
+    catch (e) { setAnalyzeError(e instanceof Error ? e.message : '整理失败，请稍后重试，或改用手填。') }
+    finally { if (alive.current) setAnalyzing(false) }
+  }
+  /** Runtime downgrade from the single box to the field form (model unavailable), independent of the D5 flag. */
+  const [directBoxDowngraded, setDirectBoxDowngraded] = useState(false)
+  const handleDirectCreated = (result: { id: number; shortId: string }) => {
+    setManualOpen(false)
+    setCreated({ ...result, conversationId: manualConversationId || undefined })
+    setRevision((v) => v + 1)
+    changeView('feedback', String(result.id))
+  }
+
   const edits = useRef<Partial<AgentStructuredSummary>>({})
   const creatingRef = useRef(false)
   const [items, setItems] = useState<FeedbackItem[]>([])
@@ -91,6 +126,7 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [dateField, setDateField] = useState<'created' | 'updated'>('created')
@@ -124,7 +160,7 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
     if (view !== 'feedback') return
     let canceled = false
     let params: FeedbackListQuery
-    try { params = { ...feedbackDateRange(dateFrom, dateTo), query: search, status, dateField, pageSize: 20 } }
+    try { params = { ...feedbackDateRange(dateFrom, dateTo), query: search, status, requestType: typeFilter || undefined, dateField, pageSize: 20 } }
     catch (e) { setListError(e instanceof Error ? e.message : '日期错误'); return }
     setLoading(true); setListError('')
     // Reload all visible pages on a realtime event so additions never shift a later page into a gap.
@@ -134,7 +170,7 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
       setItems([...byId.values()]); setTotal(pages[0]?.total || 0)
     }).catch((e) => { if (!canceled) setListError(e.message || '加载反馈失败') }).finally(() => { if (!canceled) setLoading(false) })
     return () => { canceled = true }
-  }, [view, page, search, status, dateFrom, dateTo, dateField, revision, configRevision])
+  }, [view, page, search, status, dateFrom, dateTo, dateField, revision, configRevision, typeFilter])
 
   const changeView = (next: 'chat' | 'feedback', id?: string) => {
     window.dispatchEvent(new Event('feedback-sdk:pause-media'))
@@ -168,9 +204,11 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
     <div className="sdk-workarea">
       {/* Keep the consulting component mounted between tabs so switching to feedback does not lose an in-progress draft. */}
       <section hidden={view !== 'chat'} aria-label="智能客服咨询" className="sdk-chat-view">
-        <AgentChatPanel standalone formOpen={manualOpen} draftScope={scopeKey} structuredDraft={structured} questionDraft={question} onDirectFeedback={openManual} onNeedCollect={onNeedCollect} onConversationReady={onConversationReady} hasUnsubmittedSummary={Boolean(structured && !created)} submittedConversationId={created?.conversationId} submitting={creating || manualOpen} onMyFeedback={() => changeView('feedback')}>
-        {manualOpen && <ManualFeedbackForm key={manualConversationId} scopeKey={scopeKey} conversationId={manualConversationId || undefined} onCancel={() => setManualOpen(false)} onPendingChange={setCreating} onCreated={(result) => { setManualOpen(false); setCreated({ ...result, conversationId: manualConversationId || undefined }); setRevision((v) => v + 1); changeView('feedback', String(result.id)) }} />}
-        {!manualOpen && structured && !created && <><ClarificationReview value={structured} confirmed={confirmed} pending={creating} onChange={(next) => {
+        <AgentChatPanel ref={agentRef} standalone formOpen={formMode === 'manual'} draftScope={scopeKey} structuredDraft={structured} questionDraft={question} onDirectFeedback={openDirectFeedback} onNeedCollect={onNeedCollect} onConversationReady={onConversationReady} hasUnsubmittedSummary={formMode === 'review'} submittedConversationId={created?.conversationId} submitting={creating || formMode === 'manual'} onMyFeedback={() => changeView('feedback')}>
+        {formMode === 'manual' && (config.directBox && !directBoxDowngraded
+          ? <DirectFeedbackBox key={manualConversationId} scopeKey={scopeKey} conversationId={manualConversationId || undefined} analyzing={analyzing} analyzeError={analyzeError} onRequestAnalyze={(text) => void handleAnalyze(text)} onFallback={() => { setAnalyzeError(''); setDirectBoxDowngraded(true) }} onPendingChange={setCreating} onCreated={handleDirectCreated} />
+          : <ManualFeedbackForm key={manualConversationId} scopeKey={scopeKey} conversationId={manualConversationId || undefined} onCancel={() => setManualOpen(false)} onPendingChange={setCreating} onCreated={handleDirectCreated} />)}
+        {formMode === 'review' && structured && <><ClarificationReview value={structured} confirmed={confirmed} pending={creating} onSwitchToManual={() => setManualOpen(true)} onChange={(next) => {
           const changes = { ...edits.current }
           for (const [key] of clarificationFields) if (key !== 'request_type' && next[key] !== structured[key]) changes[key] = next[key]
           if (JSON.stringify(next.unknown_fields) !== JSON.stringify(structured.unknown_fields)) changes.unknown_fields = next.unknown_fields
@@ -180,7 +218,7 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
           <button type="button" className="sdk-button primary my-3" disabled={!confirmed || creating || missingClarificationFields(structured).length > 0} onClick={() => void create()}>{creating ? '正在提交…' : '确认并创建反馈卡片'}</button>
           {createError && <p role="alert" className="text-xs text-error">{createError}</p>}
         </>}
-        {!manualOpen && !created && <button type="button" className="sdk-button my-3" onClick={openManual}>仍未解决 / 直接反馈</button>}
+        {formMode !== 'manual' && !created && <button type="button" className="sdk-button my-3" onClick={openDirectFeedback}>仍未解决 / 直接反馈</button>}
         {created && <div className="sdk-notice"><strong>反馈 {created.shortId} 已提交</strong><p>{created.conversationId ? '原咨询及媒体已关联，可在我的反馈中查看后续回复。' : '可在我的反馈中查看后续回复。'}</p><button type="button" className="sdk-button mt-3" onClick={() => changeView('feedback', String(created.id))}>查看卡片全生命周期 →</button></div>}
         </AgentChatPanel>
       </section>
@@ -190,9 +228,9 @@ function SDKSupportSession({ scopeKey }: { scopeKey: string }) {
           <nav className="sdk-detail-tabs" aria-label="反馈详情">{([['conversation', '沟通记录'], ['events', '卡片流转'], ['conclusions', '处理结论']] as const).map(([key, label]) => <button type="button" key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>)}</nav>
           <div hidden={tab !== 'conversation'}><FeedbackConversationPanel feedbackId={selectedId} refreshKey={revision} onNotificationsRead={(id, count) => { setUnread((n) => { const next = Math.max(0, n - count); notifyFeedbackSDKUnreadCount(next); return next }); setUnreadIds((old) => { const next = new Set(old); next.delete(id); return next }) }} /></div>
           {tab !== 'conversation' && <FeedbackLifecyclePanel key={`${selectedId}:${tab}`} feedbackId={selectedId} mode={tab} refreshKey={revision} onChanged={() => setRevision((r) => r + 1)} />}
-        </> : <><div className="sdk-list-heading"><h2>我的反馈</h2><p>查看处理进展，与团队继续沟通。</p></div><div className="sdk-filters"><div className="sdk-search"><span aria-hidden="true">⌕</span><input aria-label="搜索反馈问题" className="sdk-input" placeholder="搜索问题、编号或沟通内容" value={query} onChange={(e) => setQuery(e.target.value)} /></div><select aria-label="反馈状态" className="sdk-input" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}><option value="">全部状态</option>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><details className="sdk-date-filters"><summary>日期筛选<span aria-hidden="true">⌄</span></summary><div className="sdk-date-fields"><select aria-label="日期类型" className="sdk-input" value={dateField} onChange={(e) => { setDateField(e.target.value as 'created' | 'updated'); setPage(1) }}><option value="created">按提交时间</option><option value="updated">按最近沟通</option></select><label>开始日期<input type="date" className="sdk-input" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} /></label><label>结束日期<input type="date" className="sdk-input" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} /></label><button type="button" className="sdk-button" onClick={() => { setQuery(''); setSearch(''); setDateFrom(''); setDateTo(''); setStatus(''); setPage(1) }}>重置</button></div></details></div>
+        </> : <><div className="sdk-list-heading"><h2>我的反馈</h2><p>查看处理进展，与团队继续沟通。</p></div><div className="sdk-filters"><div className="sdk-search"><span aria-hidden="true">⌕</span><input aria-label="搜索反馈问题" className="sdk-input" placeholder="搜索问题、编号或沟通内容" value={query} onChange={(e) => setQuery(e.target.value)} /></div><select aria-label="反馈状态" className="sdk-input" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}><option value="">全部状态</option>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select aria-label="反馈类型" className="sdk-input" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }}><option value="">全部类型</option><option value="feature">需求</option><option value="bug">Bug</option><option value="question">问题</option><option value="other">一般反馈</option><option value="none">待分析</option></select><details className="sdk-date-filters"><summary>日期筛选<span aria-hidden="true">⌄</span></summary><div className="sdk-date-fields"><select aria-label="日期类型" className="sdk-input" value={dateField} onChange={(e) => { setDateField(e.target.value as 'created' | 'updated'); setPage(1) }}><option value="created">按提交时间</option><option value="updated">按最近沟通</option></select><label>开始日期<input type="date" className="sdk-input" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} /></label><label>结束日期<input type="date" className="sdk-input" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} /></label><button type="button" className="sdk-button" onClick={() => { setQuery(''); setSearch(''); setDateFrom(''); setDateTo(''); setStatus(''); setTypeFilter(''); setPage(1) }}>重置</button></div></details></div>
           {listError && <p role="alert" className="my-3 text-sm text-error">{listError}<button type="button" className="ml-3 text-primary" onClick={() => setRevision((r) => r + 1)}>重试</button></p>}
-          <small className="sdk-list-count">{total} 条反馈 · 按{dateField === 'created' ? '提交时间' : '最近沟通'}筛选</small><div className="sdk-feedback-list">{items.map((item) => <button type="button" className="sdk-feedback-item" key={item.id} onClick={() => changeView('feedback', item.id)}><div className="flex justify-between gap-3"><small>#{item.id}{unreadIds.has(item.id) && <span className="sdk-unread-dot" aria-label="有未读回复" />}</small><span className={`sdk-status ${item.status}`}>{labels[item.status]}</span></div><h3>{item.title}</h3><p>{item.summary}</p><div className="sdk-card-footer"><small>提交 {item.createdAt}</small><small>{unreadIds.has(item.id) ? '团队有新回复' : '查看详情'} →</small></div></button>)}</div>
+          <small className="sdk-list-count">{total} 条反馈 · 按{dateField === 'created' ? '提交时间' : '最近沟通'}筛选</small><div className="sdk-feedback-list">{items.map((item) => <button type="button" className="sdk-feedback-item" key={item.id} onClick={() => changeView('feedback', item.id)}><div className="flex justify-between gap-3"><small>#{item.id}{unreadIds.has(item.id) && <span className="sdk-unread-dot" aria-label="有未读回复" />}<span className={`ml-2 text-xs rounded px-1.5 py-0.5 ${TYPE_BADGE_CLASS[item.requestType || "none"]}`}>{typeLabel(item.requestType)}</span></small><span className={`sdk-status ${item.status}`}>{labels[item.status]}</span></div><h3>{item.title}</h3><p>{item.summary}</p><div className="sdk-card-footer"><small>提交 {item.createdAt}</small><small>{unreadIds.has(item.id) ? '团队有新回复' : '查看详情'} →</small></div></button>)}</div>
           {!loading && !items.length && !listError && <p className="sdk-empty">没有匹配的反馈。你可以调整筛选，或先向智能客服说明问题。</p>}
           {loading && <p role="status">正在加载反馈…</p>}{items.length < total && <button type="button" className="sdk-button" disabled={loading} onClick={() => setPage((p) => p + 1)}>加载更多反馈</button>}
         </>}
