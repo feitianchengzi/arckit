@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>直接反馈体验优化 · 三档方案对比</title>
+<style>
+:root{
+  --bg:#f5f6f8;--panel:#fff;--text:#202735;--muted:#7b8494;--line:#e8ebf0;
+  --accent:#5364df;--soft:#eef0ff;--green:#16836c;--orange:#a17425;--purple:#7c4dcc;
+  --shadow:0 16px 50px #2027350b;
+}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;background:var(--bg);color:var(--text)}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer;color:inherit;border:0;background:none}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,a:focus-visible{outline:3px solid #a6afff;outline-offset:2px}
+input,textarea,select{border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);padding:10px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+h1,h2,h3,p{margin:0}
+small,.muted{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);border-radius:9px;padding:9px 15px;background:var(--panel);white-space:nowrap}
+.btn:hover{border-color:#b9c1ef;background:var(--soft)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{background:#4051ca;color:#fff}
+.btn.ghost{border-color:transparent;color:var(--accent);background:none;padding:9px 5px}
+.btn.ghost:hover{background:var(--soft)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.hidden{display:none!important}
+.toast{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);background:#26334c;color:#fff;border-radius:9px;padding:12px 23px;z-index:60;box-shadow:0 10px 35px #0002;max-width:90vw}
+
+/* ---------- 宿主示例 ---------- */
+.host-nav{height:56px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:space-between;padding:0 28px}
+.host-brand{font-weight:750;font-size:16px;display:flex;align-items:center;gap:9px}
+.host-brand .logo{width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:13px}
+.host-links{display:flex;gap:22px;color:var(--muted);font-size:13px}
+.host-body{max-width:1180px;margin:0 auto;padding:26px 28px 120px}
+.host-title{font-size:24px;letter-spacing:-.5px;margin-bottom:4px}
+.host-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:20px 0}
+.host-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font-size:12px;color:var(--muted)}
+.host-card strong{display:block;font-size:24px;color:var(--text);margin-top:5px}
+.host-caption{font-size:12px;color:var(--muted);margin-top:14px}
+
+/* ---------- 方案切换与改动清单 ---------- */
+.plan-bar{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-top:8px;box-shadow:var(--shadow)}
+.plan-bar h2{font-size:15px;margin-bottom:3px}
+.plan-bar>p{font-size:12px;color:var(--muted);margin-bottom:13px}
+.plan-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.plan-tab{border:1px solid var(--line);border-radius:10px;padding:9px 15px;background:var(--panel);text-align:left;min-width:210px}
+.plan-tab b{display:block;font-size:13px}
+.plan-tab small{font-size:11px}
+.plan-tab.active{border-color:var(--accent);background:var(--soft);box-shadow:0 0 0 1px var(--accent)}
+.plan-tab.active b{color:var(--accent)}
+.anno-list{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px}
+.anno-item{font-size:12px;color:#4a5568;background:#fbfbfd;border:1px solid var(--line);border-radius:9px;padding:9px 11px 9px 34px;position:relative}
+.anno-item .n{position:absolute;left:9px;top:9px;width:17px;height:17px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;display:grid;place-items:center;font-weight:700}
+.anno-item b{color:var(--text)}
+.demo-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:13px;padding-top:13px;border-top:1px dashed var(--line)}
+.demo-row .cap{font-size:12px;font-weight:650;color:var(--text)}
+.demo-row .sub{font-size:11px;color:var(--muted);margin-right:2px}
+.demo-row button{border:1px solid var(--line);border-radius:999px;padding:7px 15px;font-size:12px;background:var(--panel)}
+.demo-row button:hover{border-color:var(--accent);color:var(--accent);background:var(--soft)}
+.demo-row button.hot{border-color:#d6c7f6;background:#f6f1ff;color:var(--purple);font-weight:650}
+.demo-row button.hot:hover{background:#efe6ff;color:var(--purple)}
+.demo-target{margin-left:auto;font-size:11px;color:var(--accent);background:var(--soft);border-radius:999px;padding:5px 12px}
+.big-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:7px;padding:5px 11px}
+.big-badge.feature{background:#f1ebfd;color:var(--purple)}
+.big-badge.bug{background:#fff0e6;color:#b35c1e}
+.brk-note{background:#fdf2f4;border:1px solid #f3cdd4;border-radius:9px;padding:10px 13px;font-size:12px;color:#a04555;margin-bottom:13px;line-height:1.65}
+.brk-note b{color:#8c2f42}
+.anno{position:relative}
+.anno .n{position:absolute;left:-11px;top:-7px;width:16px;height:16px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;display:grid;place-items:center;font-weight:700;box-shadow:0 0 0 2px var(--panel)}
+
+/* ---------- SDK widget ---------- */
+.launcher{position:fixed;right:26px;bottom:26px;z-index:40;background:var(--accent);color:#fff;border-radius:999px;padding:13px 21px;font-weight:650;box-shadow:0 12px 34px #5364df55;font-size:14px}
+.launcher:hover{background:#4051ca}
+.widget{position:fixed;right:26px;top:70px;bottom:96px;width:520px;max-width:calc(100vw - 32px);background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 30px 90px #101c3d33;z-index:50;display:flex;flex-direction:column;overflow:hidden}
+.widget.wide{width:760px}
+.widget-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.widget-brand{display:flex;gap:10px;align-items:center}
+.widget-brand .logo{width:34px;height:34px;border-radius:11px;background:var(--soft);color:var(--accent);display:grid;place-items:center;font-size:17px}
+.widget-brand small{display:block;font-size:11px}
+.widget-tabs{display:flex;gap:4px;padding:8px 14px 0;border-bottom:1px solid var(--line)}
+.widget-tabs button{padding:10px 15px;color:var(--muted);border-bottom:2px solid transparent;font-size:13px}
+.widget-tabs button.active{color:var(--accent);border-color:var(--accent);font-weight:650}
+.widget-body{flex:1;overflow:auto;padding:18px 20px;scroll-behavior:smooth}
+.widget-foot{border-top:1px solid var(--line);padding:9px 18px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+
+/* 欢迎与消息 */
+.welcome{text-align:center;padding:34px 10px 8px}
+.welcome .spark{background:var(--soft);color:var(--accent);width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:26px;margin:0 auto 14px}
+.welcome h2{font-size:19px;margin-bottom:7px}
+.welcome p{color:var(--muted);font-size:13px}
+.knowledge{display:inline-flex;gap:7px;align-items:center;font-size:11px;color:var(--muted);background:#f6f7fa;border-radius:999px;padding:6px 13px;margin-top:13px}
+.knowledge i{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block}
+.suggestions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+.suggestions button{font-size:12px;border:1px solid var(--line);border-radius:20px;padding:7px 14px;background:var(--panel)}
+.suggestions button:hover{border-color:var(--accent);color:var(--accent)}
+.message{display:flex;gap:11px;margin-bottom:20px;align-items:flex-start}
+.message.mine{flex-direction:row-reverse}
+.avatar{width:32px;height:32px;border-radius:10px;background:var(--soft);color:var(--accent);display:grid;place-items:center;font-size:12px;flex-shrink:0}
+.message.mine .avatar{background:#e7edf2;color:#637180}
+.message-main{max-width:86%}
+.by{font-size:11px;color:var(--muted);margin-bottom:6px}
+.mine .by{text-align:right}
+.bubble{padding:12px 15px;background:#f5f6f9;border-radius:0 10px 10px 10px;line-height:1.75;font-size:13px;overflow-wrap:anywhere}
+.mine .bubble{background:#eff1ff;border-radius:10px 0 10px 10px}
+.source{margin-top:9px;border-left:3px solid var(--line);padding:4px 0 4px 10px;font-size:11px;color:var(--muted);background:#fafbfd;border-radius:0 6px 6px 0;white-space:pre-wrap}
+.pending-note{background:#f5f7ff;border:1px dashed #c3caf5;border-radius:9px;padding:10px 13px;font-size:12px;color:#5965a0;margin:2px 0 18px 43px}
+.actions{display:flex;gap:9px;margin:4px 0 18px 43px;flex-wrap:wrap}
+.actions .btn{font-size:13px}
+.end-note{background:#f0f7f4;border:1px solid #cfe8df;color:#2f6b5b;border-radius:9px;padding:12px 15px;font-size:12px;margin-bottom:16px}
+.composer{border-top:1px solid var(--line);padding:13px 20px;background:var(--panel)}
+.composer textarea{width:100%;resize:none;border:0;padding:4px 0;min-height:46px;max-height:130px;font-size:13px;background:transparent}
+.composer .tools{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted)}
+.composer .send{background:var(--accent);color:#fff;border-radius:8px;padding:6px 14px;font-size:13px}
+
+/* ---------- 表单：通用 ---------- */
+.card{border:1px solid var(--line);border-radius:12px;padding:16px 17px;background:var(--panel);margin-bottom:16px}
+.card h3{font-size:14px;margin-bottom:3px}
+.card .sub{font-size:11px;color:var(--muted);margin-bottom:11px}
+.field{margin-bottom:13px;position:relative}
+.field .label-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px}
+.field label{font-size:12px;font-weight:600}
+.field label .req{color:#c25b5b;margin-left:2px}
+.field textarea{width:100%;resize:vertical;min-height:56px;font-size:13px;line-height:1.6}
+.field .hint{font-size:11px;color:var(--muted);margin-top:4px}
+.field .skip{font-size:11px;color:var(--muted);display:flex;gap:5px;align-items:center;white-space:nowrap;font-weight:400}
+.field .skip input{width:auto;padding:0;margin:0}
+.field.skipped textarea{background:#f7f8fa;color:var(--muted)}
+.check{display:flex;gap:9px;align-items:flex-start;font-size:12px;margin:13px 0}
+.check input{width:auto;margin-top:3px}
+.form-error{color:#b14b4b;font-size:12px;margin-bottom:9px}
+.form-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px}
+.uploads{font-size:12px;color:var(--muted);margin-top:8px}
+.chiprow{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:13px}
+.chiprow button{font-size:11px;border:1px solid var(--line);border-radius:14px;padding:4px 11px;background:#fafbfe;color:var(--muted)}
+.chiprow button:hover{border-color:var(--accent);color:var(--accent)}
+
+/* 预填核对 / Agent 分析提示 */
+.agent-tag{display:flex;gap:8px;align-items:flex-start;background:var(--soft);border-radius:9px;padding:10px 13px;font-size:12px;color:#4453b8;margin-bottom:13px;line-height:1.65}
+.agent-tag b{color:var(--accent)}
+.gap-note{background:#fffaf0;border:1px solid #f0dfb8;border-radius:9px;padding:10px 13px;font-size:12px;color:#8a6d2f;margin-bottom:13px;line-height:1.65}
+.progress{font-size:11px;color:var(--muted);margin-bottom:11px;display:flex;align-items:center;gap:8px}
+.progress .bar{flex:1;height:5px;border-radius:99px;background:#eef0f5;overflow:hidden}
+.progress .bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .3s}
+
+/* 单框（C档） */
+.single-box textarea{width:100%;min-height:130px;font-size:13.5px;line-height:1.7;resize:vertical}
+.analyzing{display:flex;gap:9px;align-items:center;font-size:12px;color:var(--accent);background:var(--soft);border-radius:9px;padding:11px 13px;margin-bottom:13px}
+.analyzing .spin{width:14px;height:14px;border:2px solid #c3caf5;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.degrade{font-size:11px;color:var(--muted);border-top:1px dashed var(--line);margin-top:13px;padding-top:10px;line-height:1.6}
+
+/* ---------- 我的反馈 ---------- */
+.list-head h2{font-size:18px}
+.list-head p{font-size:12px;color:var(--muted);margin-top:3px}
+.filters{display:flex;gap:8px;margin:14px 0 10px;flex-wrap:wrap}
+.filters input{flex:1;min-width:150px;padding:8px 11px;font-size:12px}
+.filters select{padding:8px 10px;font-size:12px}
+.fb-item{width:100%;text-align:left;padding:15px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:10px}
+.fb-item:hover{border-color:#b9c1ef}
+.fb-item .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px}
+.fb-item h3{font-size:13.5px;margin-bottom:5px}
+.fb-item p{font-size:12px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fb-item .foot{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:9px}
+.status{font-size:11px;padding:3px 8px;border-radius:5px;background:#fff3e2;color:var(--orange)}
+.status.green{background:#e8f6f0;color:var(--green)}
+.status.blue{background:var(--soft);color:var(--accent)}
+.type-badge{font-size:11px;padding:3px 9px;border-radius:5px;font-weight:600}
+.type-bug{background:#fff0e6;color:#b35c1e}
+.type-feature{background:#f1ebfd;color:var(--purple)}
+.type-general{background:#f0f1f4;color:#707b8c}
+.empty{text-align:center;padding:50px 16px;color:var(--muted);font-size:13px}
+
+/* 提交成功 */
+.done-card{border:1px solid #cfe8df;background:#f4fbf8;border-radius:12px;padding:17px;margin-bottom:16px}
+.done-card h3{font-size:14.5px;color:#146b58;margin-bottom:5px}
+.done-card p{font-size:12px;color:#4f6a62;line-height:1.7}
+
+@media(max-width:900px){
+  .host-links{display:none}
+  .widget{right:8px;left:8px;width:auto;top:64px;bottom:88px}
+  .widget.wide{width:auto}
+  .plan-tab{min-width:0;flex:1}
+}
+</style>
+</head>
+<body>
+
+<header class="host-nav">
+  <div class="host-brand"><span class="logo">◈</span>云协作 <small style="font-weight:400;color:#8993a4">外部业务系统 · 示例宿主</small></div>
+  <nav class="host-links"><span>工作台</span><span>项目</span><span>数据报表</span><span>林沐</span></nav>
+</header>
+
+<main class="host-body">
+  <h1 class="host-title">直接反馈体验优化 · 三档方案对比</h1>
+  <p class="muted">迭代【3】20261117 · 打开右下角面板体验交互；先在下方选择方案档位，再走「提问 → 仍未解决 → 表单 → 提交」全流程。</p>
+
+  <!-- 方案切换 -->
+  <section class="plan-bar">
+    <h2>选择方案档位</h2>
+    <p>三档共用同一宿主与对话剧本，差异集中在「仍未解决 / 直接反馈」表单形态与「我的反馈」类型展示。</p>
+    <div class="plan-tabs">
+      <button class="plan-tab active" id="plan-a" onclick="setPlan('a')">
+        <b>A · 当前版本（现状还原）</b>
+        <small>三术语框全必填 · 与对话脱节 · 无类型徽标</small>
+      </button>
+      <button class="plan-tab" id="plan-b" onclick="setPlan('b')">
+        <b>B · P0 优化（文案与衔接）</b>
+        <small>预填核对优先 · 用户语言 · 不确定可降级</small>
+      </button>
+      <button class="plan-tab" id="plan-c" onclick="setPlan('c')">
+        <b>C · P2 单框 + 机器结构化</b>
+        <small>一段话提交 · Agent 整理后按类型核对</small>
+      </button>
+    </div>
+    <div class="demo-row">
+      <span class="cap">一键演示</span>
+      <span class="sub">自动走到当前档位的关键帧：</span>
+      <button class="hot" onclick="demo('feature')">▶ 功能建议怎么提交</button>
+      <button onclick="demo('bug')">▶ 问题反馈链路</button>
+      <button onclick="demo('qa')">▶ 已解答（不建卡）</button>
+      <span class="demo-target" id="demo-target"></span>
+    </div>
+    <div class="anno-list" id="anno-list"></div>
+  </section>
+
+  <p class="host-caption">交互原型：宿主、对话与分析结果均为本地模拟，不连接后端或真实模型。日期基准 2026-11-17。</p>
+</main>
+
+<button class="launcher" id="launcher" onclick="openWidget()">✧ 帮助与反馈</button>
+
+<section class="widget" id="widget" aria-label="帮助与反馈面板">
+  <header class="widget-head">
+    <div class="widget-brand">
+      <span class="logo">✧</span>
+      <div><strong>云协作 · 帮助与反馈</strong><small>产品答疑 · 问题反馈 · 进展跟踪</small></div>
+    </div>
+    <div class="row" style="gap:6px">
+      <button class="btn" style="padding:6px 10px;font-size:12px" onclick="toggleWidth()" title="切换面板宽度">↔</button>
+      <button class="btn" style="padding:6px 11px;font-size:13px" onclick="closeWidget()" title="收起">×</button>
+    </div>
+  </header>
+  <nav class="widget-tabs" aria-label="服务入口">
+    <button id="nav-chat" class="active" onclick="switchView('chat')">智能客服</button>
+    <button id="nav-feedback" onclick="switchView('feedback')">我的反馈</button>
+  </nav>
+  <div class="widget-body" id="content"></div>
+  <div id="composer-root"></div>
+  <footer class="widget-foot"><span>帮助与反馈 · 交互原型</span><span id="foot-plan">方案 A</span></footer>
+</section>
+
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script>
+/* =========================================================
+   状态
+   ========================================================= */
+const PLAN = { a:'A · 当前版本', b:'B · P0 优化', c:'C · P2 单框+结构化' }
+let plan = 'a'            // 当前方案档位
+let view = 'chat'         // chat | feedback
+let messages = []         // 对话消息 {who:'我'|'客服', text, source}
+let scene = ''            // '' | 'bug' | 'feature' | 'qa'
+let structured = null     // Agent 分析草稿
+let mode = ''             // '' | 'manual'(手填) | 'single'(单框) | 'review'(核对) | 'done'
+let singleText = ''       // C档单框草稿
+let analyzing = false
+let created = null        // 建卡结果
+let form = {}             // 表单字段值
+let skipped = {}          // 「不确定」勾选
+let confirmed = false
+let formError = ''
+
+// 我的反馈示例列表（B/C 档带类型徽标）
+let items = [
+  { id:'FB-1031', type:'bug', title:'月度报表导出提示 403', summary:'管理员账号在单个项目导出报表失败，已提供截图及环境。', date:'2026-11-16', status:'处理中', statusClass:'' },
+  { id:'FB-1024', type:'feature', title:'支持跨项目批量导出', summary:'每周手动导出多个项目，期望减少重复操作。', date:'2026-11-12', status:'评估中', statusClass:'blue' },
+  { id:'FB-1016', type:'general', title:'深色模式表格对比度不足', summary:'夜间查看辅助文字较困难。', date:'2026-11-05', status:'已交付', statusClass:'green' },
+]
+let typeFilter = ''
+
+/* =========================================================
+   各方案的改动清单（宿主侧展示）
+   ========================================================= */
+const ANNOS = {
+  a: [
+    ['1','<b>三术语框</b>：「问题位置/实际现象/期望结果」无引导，用户不知道填什么。'],
+    ['2','<b>全必填</b>：三框都非空才能提交，没有「不确定」的降级路径。'],
+    ['3','<b>与对话脱节</b>：客服已分析出的信息被丢弃，点「仍未解决」进入空白表单。'],
+    ['4','<b>需求被归为「其他」</b>：说明文案「不会自动判定为故障或需求」，分类信息丢失。'],
+    ['5','<b>列表无类型</b>：我的反馈没有 Bug / 需求徽标，也没有类型筛选。'],
+  ],
+  b: [
+    ['1','<b>预填核对优先</b>：对话已分析时，进入的是已填好的核对表单，可编辑，而非空白表单。'],
+    ['2','<b>用户语言</b>：label 改为「在哪里遇到的 / 你看到了什么 / 你本来想做什么」，每框带示例引导。'],
+    ['3','<b>必填放宽</b>：只有「你看到了什么」必填，另两框可勾「不确定，由团队补充」。'],
+    ['4','<b>说明改写</b>：去掉内部话术，改为「描述你遇到的情况，处理团队会跟进」。'],
+    ['5','<b>类型徽标 + 筛选</b>：我的反馈展示 Bug / 需求 / 一般反馈徽标并可筛选。'],
+  ],
+  c: [
+    ['1','<b>单框优先</b>：「发生了什么？像跟同事口头描述一样写就行」，降低结构化填写门槛。'],
+    ['2','<b>机器整理</b>：点击后由 Agent 整理为结构化信息，弹出预填核对表单（复用主路径）。'],
+    ['3','<b>按类型切换字段组</b>：分析为问题 → 定位字段组；分析为需求 → 需求分析字段组（类型由 Agent 判定，不询问客户）。'],
+    ['4','<b>降级保障</b>：模型不可用时回落到 B 档手填表单，直接反馈不被阻断。'],
+    ['5','<b>原样提交（B1）可选</b>：不整理直接提交，标注「待团队分析」，结构化留给处理团队补齐。'],
+  ],
+}
+
+/* =========================================================
+   Agent 分析剧本（本地模拟）
+   ========================================================= */
+const SCRIPTS = {
+  bug: {
+    user: '导出报表提示没有权限',
+    reply: '已定位到「数据报表 → 月度导出」的权限问题：当前账号是项目成员，导出需要管理员授予「报表导出」权限。若持续出现 403，请提供项目名称与截图，我会继续排查。',
+    source: 'docs/reports.md · 导出权限说明 · 12-28 行',
+    structured: {
+      request_type: 'bug',
+      position: '数据报表 → 月度导出',
+      phenomenon: '点击「导出报表」后页面提示 403，文件未下载',
+      expect: '以管理员权限正常下载月度报表文件',
+      reproduction_steps: '进入数据报表页 → 选择月份 → 点击右上角导出',
+      environment: 'Web 2.9.0 / Chrome 130 / macOS',
+      impact: '阻断月度汇报，仅管理员账号受影响',
+    },
+    guide: '已根据刚才的对话整理了问题信息，请核对后创建反馈卡片；如事实有误，可直接编辑。',
+  },
+  feature: {
+    user: '我想提出一个功能建议',
+    reply: '收到。你提到希望每周自动汇总多个项目的数据并发送给团队——这属于新增能力的建议。我整理了需求信息供团队分析，补充场景与目标用户后即可提交。',
+    source: '',
+    structured: {
+      request_type: 'feature',
+      position: '数据报表',
+      phenomenon: '每周需要手动逐个项目导出报表，再人工合并发送给团队',
+      expect: '支持跨项目批量导出，或按周自动发送数据摘要',
+      target_users: '项目负责人、需要周报的管理层',
+      reproduction_steps: '使用场景：每周五下午整理周报时',
+      business_goal: '减少重复操作，保证团队数据同步及时',
+      pain_points: '目前靠人工导出 5+ 个项目再合并，耗时约 40 分钟且易漏项',
+      current_workflow: '逐项目导出 CSV → 合并到表格 → 邮件发送',
+      expected_benefit: '每周节省约 30 分钟，数据口径统一',
+    },
+    guide: '识别为功能需求，已整理需求分析信息，请核对后提交；受理与排期由团队评估。',
+  },
+  qa: {
+    user: '如何导出月度报表？',
+    reply: '你可以进入「数据报表」，选择月份与项目，再点击右上角「导出报表」。\n项目成员需要具备报表导出权限；若提示 403，请补充截图和受影响的项目。',
+    source: 'docs/reports.md · 导出说明 · 40-52 行',
+    structured: null,
+    guide: '',
+  },
+}
+
+// 手填表单的字段定义（B 档用户语言；A 档还原现状）
+const MANUAL_FIELDS = {
+  a: [
+    { key:'position',    label:'问题位置', placeholder:'', required:true },
+    { key:'phenomenon',  label:'实际现象', placeholder:'', required:true },
+    { key:'expect',      label:'期望结果', placeholder:'', required:true },
+  ],
+  b: [
+    { key:'position',   label:'在哪里遇到的？', placeholder:'例如：项目列表页，点导出按钮时', required:false, anno:2 },
+    { key:'phenomenon', label:'你看到了什么？', placeholder:'例如：页面提示 403，下载失败',   required:true,  anno:2 },
+    { key:'expect',     label:'你本来想做什么？', placeholder:'例如：正常导出月度报表',        required:false, anno:2 },
+  ],
+}
+
+// C 档核对表单的字段组（按 Agent 分析类型切换）
+const REVIEW_FIELDS = {
+  bug: [
+    { key:'position',           label:'在哪里遇到的？' },
+    { key:'phenomenon',         label:'你看到了什么？' },
+    { key:'expect',             label:'你本来想做什么？' },
+    { key:'reproduction_steps', label:'怎么操作的？（复现步骤）' },
+    { key:'environment',        label:'环境 / 版本' },
+    { key:'impact',             label:'影响范围' },
+  ],
+  feature: [
+    { key:'position',           label:'涉及哪个功能？' },
+    { key:'phenomenon',         label:'现在是怎么做的？（现状）' },
+    { key:'expect',             label:'希望系统提供什么？' },
+    { key:'target_users',       label:'谁会用到？（目标用户）' },
+    { key:'business_goal',      label:'为什么需要？（业务目标）' },
+    { key:'pain_points',        label:'当前痛点' },
+    { key:'current_workflow',   label:'当前流程与替代办法' },
+    { key:'expected_benefit',   label:'预期收益' },
+  ],
+}
+
+/* =========================================================
+   渲染
+   ========================================================= */
+const $ = (id) => document.getElementById(id)
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+
+function render() {
+  $('foot-plan').textContent = '方案 ' + PLAN[plan]
+  $('anno-list').innerHTML = ANNOS[plan].map(([n, html]) => `<div class="anno-item"><span class="n">${n}</span>${html}</div>`).join('')
+  for (const p of ['a','b','c']) $('plan-' + p).classList.toggle('active', plan === p)
+  $('nav-chat').classList.toggle('active', view === 'chat')
+  $('nav-feedback').classList.toggle('active', view === 'feedback')
+  if (view === 'chat') renderChat(); else renderFeedback()
+}
+
+function setPlan(p) {
+  if (p === plan) return
+  plan = p
+  // 切换档位重置流程，避免上一档的表单状态串档
+  resetFlow()
+  render()
+  toast('已切换到方案 ' + PLAN[p] + '，流程已重置')
+}
+
+function resetFlow() {
+  messages = []; scene = ''; structured = null; mode = ''
+  singleText = ''; analyzing = false; created = null
+  form = {}; skipped = {}; confirmed = false; formError = ''
+}
+
+function openWidget(){ $('widget').classList.remove('hidden'); }
+function closeWidget(){ $('widget').classList.add('hidden'); }
+function toggleWidth(){ $('widget').classList.toggle('wide'); }
+function switchView(v){ view = v; render(); }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.add('hidden'),2600) }
+
+/* ---------- 智能客服 ---------- */
+function renderChat() {
+  const c = $('content'); const cr = $('composer-root')
+  let html = ''
+
+  if (!messages.length && !mode) {
+    html += `<div class="welcome">
+      <div class="spark">✧</div>
+      <h2>你好，有什么可以帮你？</h2>
+      <p>可以问产品怎么用，也可以直接提交问题与建议。</p>
+      <span class="knowledge"><i></i>基于当前产品代码仓库与使用文档答疑</span>
+      <div class="suggestions">
+        <button onclick="ask('qa')">如何导出月度报表？ ↗</button>
+        <button onclick="ask('bug')">导出报表提示没有权限 ↗</button>
+        <button onclick="ask('feature')">我想提出一个功能建议 ↗</button>
+      </div>
+    </div>`
+  }
+
+  html += messages.map(m => `
+    <div class="message ${m.who === '我' ? 'mine' : ''}">
+      <div class="avatar">${m.who === '我' ? '我' : '✧'}</div>
+      <div class="message-main">
+        <div class="by">${m.who === '我' ? '我' : '智能客服'}</div>
+        <div class="bubble">${esc(m.text).replace(/\n/g,'<br>')}</div>
+        ${m.source ? `<div class="source">依据：${esc(m.source)}</div>` : ''}
+      </div>
+    </div>`).join('')
+
+  // 分析引导条（feature 场景带醒目的「需求」徽标）
+  if (structured && !created && mode !== 'single' && mode !== 'done' && mode !== 'review') {
+    const isF = structured.request_type === 'feature'
+    html += `<div class="pending-note">${isF ? '<span class="big-badge feature" style="margin-right:7px;vertical-align:middle">需求 · 功能建议</span>' : '<span class="big-badge bug" style="margin-right:7px;vertical-align:middle">问题</span>'}✦ ${esc(SCRIPTS[scene]?.guide || '已整理信息，请核对后提交。')}</div>`
+  }
+
+  // 对话后的分支按钮
+  if (structured && !created && mode === '') {
+    html += `<div class="actions">
+      <button class="btn" onclick="resolveAnswer()">已解答，谢谢</button>
+      <button class="btn primary" onclick="stillUnresolved()">仍未解决，提交反馈</button>
+    </div>`
+  }
+  if (scene === 'qa' && !created && mode === '') {
+    html += `<div class="actions">
+      <button class="btn" onclick="resolveAnswer()">已解答，谢谢</button>
+      <button class="btn" onclick="stillUnresolved()">仍未解决，提交反馈</button>
+    </div>`
+  }
+  if (mode === 'answered') {
+    html += `<div class="end-note">本次答疑已结束，未创建反馈卡片。你也可以继续提问。</div>
+      <div class="actions"><button class="btn" onclick="resetFlow();render()">开始新咨询</button></div>`
+  }
+
+  // 表单区
+  if (mode === 'manual')  html += manualFormHTML()
+  if (mode === 'single')  html += singleFormHTML()
+  if (mode === 'review')  html += reviewFormHTML()
+  if (mode === 'done')    html += doneHTML()
+
+  c.innerHTML = html
+
+  // 输入区
+  if (mode === '' || mode === 'answered') {
+    cr.innerHTML = `<div class="composer">
+      <textarea id="input" placeholder="输入你的问题或建议…" readonly></textarea>
+      <div class="tools"><span>Enter 换行 · 演示环境点击建议条体验</span><button class="send" onclick="toast('演示原型：请点击上方建议条体验完整流程')">发送</button></div>
+    </div>`
+  } else cr.innerHTML = ''
+  c.scrollTop = c.scrollHeight
+}
+
+function ask(kind) {
+  if (mode) return
+  scene = kind
+  const s = SCRIPTS[kind]
+  messages.push({ who:'我', text:s.user })
+  render()
+  setTimeout(() => {
+    messages.push({ who:'客服', text:s.reply, source:s.source })
+    if (s.structured) structured = { ...s.structured }
+    render()
+  }, 450)
+}
+
+function resolveAnswer(){ mode = 'answered'; render() }
+
+/* 一键演示：自动走到当前档位的关键帧，让需求/问题链路一眼可见 */
+const DEMO_SAMPLES = {
+  feature: '我希望支持跨项目批量导出，每周手动导出多个项目再合并太麻烦了',
+  bug: '我在项目列表页点导出，页面提示 403，文件没有下载',
+}
+const DEMO_TARGETS = {
+  a: { feature: 'A 档：空白三框 · 需求被归为「一般反馈」', bug: 'A 档：空白三术语框 · 全必填', qa: 'A 档：已解答 / 仍未解决分支' },
+  b: { feature: 'B 档：需求字段组 · 预填核对', bug: 'B 档：预填核对 → 手填降级', qa: 'B 档：已解答 / 仍未解决分支' },
+  c: { feature: 'C 档：单框 → 整理 → 需求字段组核对', bug: 'C 档：单框 → 整理 → 问题字段组', qa: 'C 档：已解答 / 仍未解决分支' },
+}
+function demo(kind) {
+  resetFlow()
+  switchView('chat')
+  $('demo-target').textContent = DEMO_TARGETS[plan][kind]
+  ask(kind)
+  setTimeout(() => {
+    if (kind === 'qa') { toast('点「已解答」结束答疑，或「仍未解决」进入表单'); return }
+    stillUnresolved()
+    if (plan === 'c') {
+      setTimeout(() => {
+        if (mode !== 'single') return
+        singleText = DEMO_SAMPLES[kind]
+        render()
+        analyzeSingle()
+        setTimeout(() => toast(kind === 'feature' ? '已到达：需求字段组核对（类型由分析判定）' : '已到达：问题字段组核对'), 1100)
+      }, 350)
+    } else {
+      toast(kind === 'feature'
+        ? (plan === 'a' ? '已到达：现状空白表单——需求类型在这里丢失' : '已到达：需求字段组预填核对')
+        : (plan === 'a' ? '已到达：现状三术语框（全必填）' : '已到达：预填核对表单'))
+    }
+  }, 700)
+}
+
+/* 「仍未解决」入口：三档分流 */
+function stillUnresolved() {
+  formError = ''; confirmed = false
+  if (plan === 'a') {
+    // A：无论是否已分析，一律进入空白术语表单（还原现状断点）
+    mode = 'manual'; form = {}; skipped = {}
+  } else if (plan === 'b') {
+    if (structured) {
+      // B：预填核对优先
+      mode = 'review'; form = { ...structured }; skipped = {}
+    } else {
+      mode = 'manual'; form = {}; skipped = {}
+    }
+  } else {
+    // C：单框优先
+    mode = 'single'; singleText = ''
+  }
+  render()
+}
+
+/* ---------- 表单：A / B 手填 ---------- */
+function manualFormHTML() {
+  const fields = MANUAL_FIELDS[plan === 'a' ? 'a' : 'b']
+  const isA = plan === 'a'
+  const desc = isA
+    ? '无需等待客服回答。请描述实际情况，提交后由处理团队分析；不会自动判定为故障或需求。'
+    : '描述你遇到的情况即可，处理团队会跟进；不确定的内容可以留给我们补充。'
+  let gapNote = isA ? '' : `
+    <div class="gap-note">客服对话中的内容不会自动带入本表单，可点「返回继续咨询」回到对话核对；无对话时直接填写即可。</div>`
+  if (isA && structured?.request_type === 'feature') {
+    gapNote = `<div class="brk-note"><b>现状断点：</b>对话已识别为「功能需求」，但本表单会把它提交为「一般反馈」——需求类型在此丢失。这正是 P0/P2 要修复的对象。</div>`
+  } else if (!isA && structured?.request_type === 'feature') {
+    gapNote = `<div class="gap-note">对话已识别为<b>功能需求</b>；改为直接填写后提交，卡片先标「待团队分析」，由处理团队归类。推荐返回核对表单保留需求字段组。</div>`
+  }
+  const chipRow = isA ? '' : `
+    <div class="chiprow">
+      <button type="button" onclick="quickFill('导出失败','点击导出报表后提示 403，文件没有下载','正常下载月度报表')">导出失败</button>
+      <button type="button" onclick="quickFill('项目列表页','打开项目列表一直转圈，刷新也没用','正常显示项目列表')">页面打不开</button>
+      <button type="button" onclick="quickFill('任务详情','任务详情页的负责人名字显示成 undefined','正确显示负责人姓名')">显示错乱</button>
+    </div>`
+
+  const fieldHTML = fields.map(f => {
+    const val = form[f.key] || ''
+    const isSkipped = !!skipped[f.key]
+    return `
+    <div class="field ${isSkipped ? 'skipped' : ''}">
+      <div class="label-row">
+        <label>${f.label}${f.required ? '<span class="req">*</span>' : ''}</label>
+        ${!f.required ? `<label class="skip"><input type="checkbox" ${isSkipped?'checked':''} ${plan==='a'?'disabled':''} onchange="toggleSkip('${f.key}',this.checked)"> 不确定，由团队补充</label>` : ''}
+      </div>
+      <textarea placeholder="${esc(f.placeholder)}" ${isSkipped?'disabled':''} oninput="setField('${f.key}',this.value)">${esc(val)}</textarea>
+      ${f.placeholder && !isA ? `<div class="hint">${f.required ? '必填 · ' : '可留空 · '}用一两句话描述即可</div>` : ''}
+    </div>`
+  }).join('')
+
+  return `
+  <section class="card">
+    <div class="row"><h3>直接反馈</h3><small>${isA ? '客户填写事实 · 团队待分析' : '跳过分析，直接填写'}</small></div>
+    <p class="sub">${desc}</p>
+    ${gapNote}
+    ${chipRow}
+    ${fieldHTML}
+    <div class="uploads">📎 添加说明图片（可选）</div>
+    <label class="check"><input type="checkbox" ${confirmed?'checked':''} onchange="setConfirmed(this.checked)"> 我已核对以上事实，确认提交给处理团队</label>
+    ${formError ? `<div class="form-error">${esc(formError)}</div>` : ''}
+    <div class="form-actions">
+      <button class="btn" onclick="backToChat()">返回继续咨询</button>
+      <button class="btn primary" onclick="submitManual()">确认提交反馈</button>
+    </div>
+    ${!isA ? `<div class="degrade">降级说明：模型不可用时本表单始终可填写、可提交；「不确定」项以「待确认」写入卡片，由团队后续澄清。</div>` : `<div class="degrade">现状说明：三框全部必填；对话中客服已整理的信息不会带入本表单。</div>`}
+  </section>`
+}
+
+function quickFill(pos, phen, exp) {
+  form.position = pos; form.phenomenon = phen; form.expect = exp
+  skipped = {}; confirmed = false; formError = ''
+  render()
+}
+
+/* inline handler 不能直接写 form/confirmed 等全局词法绑定：
+   textarea.form 会遮蔽同名全局变量（浏览器与 jsdom 同样报错），统一走函数。 */
+function setField(key, value) { form[key] = value }
+function setSingle(value) { singleText = value }
+function setConfirmed(on) { confirmed = on; render() }
+function setTypeFilter(value) { typeFilter = value; render() }
+
+function toggleSkip(key, on) {
+  skipped[key] = on
+  if (on) form[key] = ''
+  confirmed = false
+  render()
+}
+
+function backToChat() { mode = ''; render() }
+
+function submitManual() {
+  const fields = MANUAL_FIELDS[plan === 'a' ? 'a' : 'b']
+  const missing = fields.filter(f => f.required && !(form[f.key] || '').trim() && !skipped[f.key])
+  if (plan === 'a') {
+    const anyEmpty = fields.filter(f => !(form[f.key] || '').trim())
+    if (anyEmpty.length) { formError = '请补齐：' + anyEmpty.map(f=>f.label).join('、'); render(); return }
+  } else if (missing.length) { formError = '请填写：' + missing.map(f=>f.label).join('、'); render(); return }
+  if (!confirmed) { formError = '请勾选确认后再提交。'; render(); return }
+  formError = ''
+  createCard(plan === 'a' ? '一般反馈' : '待团队分析')
+}
+
+/* ---------- 表单：C 单框 ---------- */
+function singleFormHTML() {
+  if (analyzing) {
+    return `<section class="card">
+      <h3>整理中</h3>
+      <div class="analyzing"><span class="spin"></span>正在把你的描述整理成处理团队需要的信息…</div>
+    </section>`
+  }
+  return `
+  <section class="card single-box">
+    <div class="row"><h3>直接反馈</h3><small>一句话描述 · 机器帮你整理</small></div>
+    <p class="sub">用你自己的话写就行，不用管格式；提交前我会整理成结构化信息供你核对。</p>
+    <div class="field">
+      <div class="label-row"><label>发生了什么？<span class="req">*</span></label></div>
+      <textarea placeholder="例如：我在项目列表页点导出，页面提示 403，本来应该直接下载文件…" oninput="setSingle(this.value)">${esc(singleText)}</textarea>
+    </div>
+    <div class="uploads">📎 添加说明图片（可选）</div>
+    ${formError ? `<div class="form-error">${esc(formError)}</div>` : ''}
+    <div class="form-actions">
+      <button class="btn" onclick="backToChat()">返回继续咨询</button>
+      <button class="btn primary" onclick="analyzeSingle()">整理为结构化信息（推荐）</button>
+      <button class="btn ghost" onclick="submitRaw()">直接原样提交</button>
+    </div>
+    <div class="degrade">模型不可用时：整理功能不可用，自动回落到手填表单（B 档形态），直接反馈不被阻断。「直接原样提交」始终可用，卡片标注「待团队分析」。</div>
+  </section>`
+}
+
+function analyzeSingle() {
+  if (!singleText.trim()) { formError = '请先描述你遇到的情况。'; render(); return }
+  formError = ''; analyzing = true; render()
+  setTimeout(() => {
+    analyzing = false
+    // 本地模拟：根据文本关键词判定类型（生产由 Agent 分析）
+    const isFeature = /建议|希望|需求|想要|能否|应该支持|增加|新增/.test(singleText)
+    const base = isFeature ? SCRIPTS.feature.structured : SCRIPTS.structured_bug()
+    structured = { ...base }
+    if (isFeature && !structured.pain_points) structured.pain_points = singleText
+    if (!isFeature && !structured.phenomenon) structured.phenomenon = singleText
+    form = { ...structured }
+    skipped = {}; confirmed = false
+    mode = 'review'
+    render()
+  }, 900)
+}
+// 问题场景的默认结构化底稿
+SCRIPTS.structured_bug = () => ({
+  request_type:'bug',
+  position:'数据报表 → 月度导出',
+  phenomenon:'点击「导出报表」后页面提示 403，文件未下载',
+  expect:'以管理员权限正常下载月度报表文件',
+  reproduction_steps:'进入数据报表页 → 选择月份 → 点击右上角导出',
+  environment:'Web 2.9.0 / Chrome 130 / macOS',
+  impact:'阻断月度汇报，仅管理员账号受影响',
+})
+
+function submitRaw() {
+  if (!singleText.trim()) { formError = '请先描述你遇到的情况。'; render(); return }
+  formError = ''; confirmed = true
+  createCard('待团队分析')
+}
+
+/* ---------- 表单：核对（B 预填 / C 整理结果） ---------- */
+function reviewFormHTML() {
+  const isFeature = structured?.request_type === 'feature'
+  const fields = isFeature ? REVIEW_FIELDS.feature : REVIEW_FIELDS.bug
+  const filled = fields.filter(f => (form[f.key] || '').trim()).length
+  const pct = Math.round(filled / fields.length * 100)
+  const fromChat = plan === 'b'
+  const head = fromChat
+    ? `<div class="agent-tag">✦ <div><b>已根据刚才的对话预填</b>，请核对事实；如与实际不符，直接编辑，或点下方「改为直接填写」回到手填表单。</div></div>`
+    : `<div class="agent-tag">✦ <div><b>Agent 分析：${isFeature ? '功能需求（新增能力）' : '现有功能异常'}</b>。类型由分析判定，无需你选择；如事实有误，请在咨询中补充，客服会重新分析。</div></div>`
+
+  const fieldHTML = fields.map(f => {
+    const val = form[f.key] || ''
+    const isSkipped = !!skipped[f.key]
+    const optional = !['phenomenon','expect','position'].includes(f.key)
+    return `
+    <div class="field ${isSkipped ? 'skipped' : ''}">
+      <div class="label-row">
+        <label>${f.label}${optional ? '' : '<span class="req">*</span>'}</label>
+        ${optional ? `<label class="skip"><input type="checkbox" ${isSkipped?'checked':''} onchange="toggleSkip('${f.key}',this.checked)"> 暂时无法提供</label>` : ''}
+      </div>
+      <textarea ${isSkipped?'disabled':''} oninput="setField('${f.key}',this.value)">${esc(val)}</textarea>
+    </div>`
+  }).join('')
+
+  return `
+  <section class="card">
+    <div class="row"><h3>${fromChat ? '核对问题信息' : '核对整理结果'}</h3><span class="big-badge ${isFeature ? 'feature' : 'bug'}">${isFeature ? '需求 · 功能建议' : '问题 · 现有功能异常'}</span></div>
+    <div class="progress"><span>已填写 ${filled}/${fields.length}</span><span class="bar"><i style="width:${pct}%"></i></span></div>
+    ${head}
+    ${fieldHTML}
+    <label class="check"><input type="checkbox" ${confirmed?'checked':''} onchange="setConfirmed(this.checked)"> 我已核对以上事实，确认提交给处理团队</label>
+    ${formError ? `<div class="form-error">${esc(formError)}</div>` : ''}
+    <div class="form-actions">
+      ${fromChat ? `<button class="btn" onclick="mode='manual';form={};skipped={};render()">改为直接填写</button>` : `<button class="btn" onclick="mode='single';render()">返回修改描述</button>`}
+      <button class="btn primary" onclick="submitReview()">确认并创建反馈卡片</button>
+    </div>
+    <div class="degrade">确认仅代表信息核对；受理、优先级与排期由内部团队决定。提交失败时草稿保留，可重试。</div>
+  </section>`
+}
+
+function submitReview() {
+  const isFeature = structured?.request_type === 'feature'
+  const fields = isFeature ? REVIEW_FIELDS.feature : REVIEW_FIELDS.bug
+  const missing = fields.filter(f => ['position','phenomenon','expect'].includes(f.key) && !(form[f.key] || '').trim())
+  if (missing.length) { formError = '请补齐：' + missing.map(f=>f.label).join('、'); render(); return }
+  if (!confirmed) { formError = '请勾选确认后再提交。'; render(); return }
+  formError = ''
+  createCard(isFeature ? '需求' : 'Bug')
+}
+
+/* ---------- 建卡 ---------- */
+function createCard(typeLabel) {
+  const id = 'FB-' + String(1032 + items.length)
+  const title = (form.phenomenon || singleText || '直接反馈').slice(0, 24)
+  const type = typeLabel === '需求' ? 'feature' : typeLabel === 'Bug' ? 'bug' : 'general'
+  items.unshift({
+    id, type, title,
+    summary: form.phenomenon || singleText || '',
+    date: '2026-11-17', status: '待受理', statusClass: 'blue',
+  })
+  created = { id, typeLabel }
+  mode = 'done'
+  render()
+}
+
+function doneHTML() {
+  const t = created.typeLabel === '需求' ? 'feature' : created.typeLabel === 'Bug' ? 'bug' : 'general'
+  const badge = plan === 'a' ? '' : `<span class="type-badge ${t === 'feature' ? 'type-feature' : t === 'bug' ? 'type-bug' : 'type-general'}" style="margin-left:8px;vertical-align:middle">${esc(created.typeLabel)}</span>`
+  return `<div class="done-card">
+    <h3>反馈 ${created.id} 已提交${badge}</h3>
+    <p>${plan === 'a'
+      ? '可在「我的反馈」查看后续回复。当前版本列表不展示类型。'
+      : `类型「${esc(created.typeLabel)}」已记录${plan === 'c' ? '（由 Agent 分析判定）' : ''}，可在「我的反馈」按类型筛选查看。`}</p>
+    <div class="form-actions" style="margin-top:12px">
+      <button class="btn primary" onclick="switchView('feedback')">查看我的反馈 →</button>
+      <button class="btn" onclick="resetFlow();render()">开始新咨询</button>
+    </div>
+  </div>`
+}
+
+/* ---------- 我的反馈 ---------- */
+function renderFeedback() {
+  const c = $('content'); const cr = $('composer-root'); cr.innerHTML = ''
+  const withType = plan !== 'a'
+  const list = withType && typeFilter ? items.filter(i => i.type === typeFilter) : items
+  const badge = (t) => {
+    if (!withType) return ''
+    const map = { bug:['type-bug','Bug'], feature:['type-feature','需求'], general:['type-general','一般反馈'] }
+    const [cls, text] = map[t]
+    return `<span class="type-badge ${cls}">${text}</span>`
+  }
+
+  c.innerHTML = `
+    <div class="list-head">
+      <h2>我的反馈</h2>
+      <p>查看处理进展，与团队继续沟通。</p>
+    </div>
+    <div class="filters">
+      <input placeholder="搜索问题、编号或沟通内容" aria-label="搜索">
+      <select aria-label="状态"><option>全部状态</option><option>待受理</option><option>评估中</option><option>处理中</option><option>已交付</option></select>
+      ${withType ? `<select aria-label="类型" onchange="setTypeFilter(this.value)">
+        <option value="" ${!typeFilter?'selected':''}>全部类型</option>
+        <option value="bug" ${typeFilter==='bug'?'selected':''}>Bug</option>
+        <option value="feature" ${typeFilter==='feature'?'selected':''}>需求</option>
+        <option value="general" ${typeFilter==='general'?'selected':''}>一般反馈</option>
+      </select>` : `<select disabled><option>（当前版本无类型筛选）</option></select>`}
+    </div>
+    ${withType ? `<div class="gap-note" style="margin-bottom:12px">P1 改动：类型徽标与筛选来自提交时已写入的 <code>structured.request_type</code>，列表 UI 消费即可；管理端同步增加类型分流。</div>` : `<div class="gap-note" style="margin-bottom:12px">现状：列表只有状态与时间筛选，不展示 Bug / 需求类型（P1 待补）。</div>`}
+    ${list.length ? list.map(i => `
+      <button class="fb-item" onclick="toast('演示原型：详情页沿用现有结构，类型徽标同步展示在标题行')">
+        <div class="top"><span style="font-size:11px;color:var(--muted)">#${i.id}</span>
+          <span style="display:flex;gap:6px;align-items:center">${badge(i.type)}<span class="status ${i.statusClass}">${i.status}</span></span></div>
+        <h3>${esc(i.title)}</h3>
+        <p>${esc(i.summary)}</p>
+        <div class="foot"><span>提交 ${i.date}</span><span>查看详情 →</span></div>
+      </button>`).join('')
+      : `<div class="empty">没有匹配的反馈。</div>`}
+  `
+}
+
+/* =========================================================
+   启动
+   ========================================================= */
+render()
+</script>
+</body>
+</html>
