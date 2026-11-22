@@ -4,10 +4,27 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"todo/models"
+
+	"gorm.io/gorm/schema"
 )
+
+func TestAgentTurnOpenHandsColumnMatchesGORMNaming(t *testing.T) {
+	parsed, err := schema.Parse(&models.AgentTurn{}, &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	field := parsed.LookUpField("OpenHandsConversationID")
+	if field == nil {
+		t.Fatal("OpenHandsConversationID field is missing from AgentTurn schema")
+	}
+	if field.DBName != agentTurnOpenHandsConversationColumn {
+		t.Fatalf("OpenHands conversation column = %q, raw SQL uses %q", field.DBName, agentTurnOpenHandsConversationColumn)
+	}
+}
 
 func TestAgentTurnPersistsInterruptionAndRejectsLateCompletion(t *testing.T) {
 	db := openFeedbackWorkflowPostgres(t)

@@ -27,6 +27,10 @@ const (
 	agentTurnInterrupted  = "interrupted"
 	agentTurnCompleted    = "completed"
 	agentTurnFailed       = "failed"
+
+	// GORM splits the OpenHands initialism into open_hands. Keep raw SQL and
+	// map-based updates aligned with the model's actual PostgreSQL column.
+	agentTurnOpenHandsConversationColumn = "open_hands_conversation_id"
 )
 
 var errAgentTurnInterrupted = errors.New("agent turn interrupted")
@@ -135,8 +139,8 @@ func (t *agentTurnReceipt) BindOpenHands(conversationID string) (bool, error) {
 		return false, nil
 	}
 	if err := t.DB.Model(&models.AgentTurn{}).Where("id = ?", t.Record.ID).Updates(map[string]interface{}{
-		"openhands_conversation_id": conversationID,
-		"state":                     clause.Expr{SQL: "CASE WHEN state = ? THEN ? ELSE state END", Vars: []interface{}{agentTurnAccepted, agentTurnRunning}},
+		agentTurnOpenHandsConversationColumn: conversationID,
+		"state":                              clause.Expr{SQL: "CASE WHEN state = ? THEN ? ELSE state END", Vars: []interface{}{agentTurnAccepted, agentTurnRunning}},
 	}).Error; err != nil {
 		return false, err
 	}
@@ -164,8 +168,8 @@ func (t *agentTurnReceipt) LatestOpenHandsConversationID(localConversationID str
 		return ""
 	}
 	var previous models.AgentTurn
-	err := t.DB.Select("openhands_conversation_id").
-		Where("project_id = ? AND custom_user_id = ? AND conversation_id = ? AND openhands_conversation_id <> ''", t.Record.ProjectID, t.Record.CustomUserID, localConversationID).
+	err := t.DB.Select(agentTurnOpenHandsConversationColumn).
+		Where("project_id = ? AND custom_user_id = ? AND conversation_id = ? AND "+agentTurnOpenHandsConversationColumn+" <> ''", t.Record.ProjectID, t.Record.CustomUserID, localConversationID).
 		Order("updated_at DESC").First(&previous).Error
 	if err != nil {
 		return ""
