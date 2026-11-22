@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PaaS 数据驱动 · 外部集成</title>
+<style>
+:root{
+  --bg:#f4f5f7;--panel:#fff;--text:#1f2733;--muted:#7b8494;--line:#e6e9ef;
+  --accent:#0e7a6f;--soft:#e8f5f2;--navy:#182338;--navy2:#223049;
+  --green:#16836c;--orange:#a17425;--red:#b5495b;--purple:#7c4dcc;--blue:#3d6bd8;
+  --shadow:0 14px 44px #1f273310;
+}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;background:var(--bg);color:var(--text)}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer;color:inherit;border:0;background:none}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #8fd4c9;outline-offset:2px}
+input,select,textarea{border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);padding:9px 11px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+h1,h2,h3,p{margin:0}
+.muted{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:9px;padding:8px 14px;background:var(--panel);white-space:nowrap;font-size:13px}
+.btn:hover{border-color:#9fd3cb;background:var(--soft)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{background:#0b665d}
+.btn.ghost{border-color:transparent;color:var(--accent);background:none;padding:8px 5px}
+.hidden{display:none!important}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#182338;color:#fff;border-radius:9px;padding:12px 23px;z-index:90;box-shadow:0 10px 35px #0002;max-width:80vw;font-size:13px}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+
+/* top */
+.top{background:var(--panel);border-bottom:1px solid var(--line);padding:15px 26px 12px}
+.top h1{font-size:18px;letter-spacing:-.3px}
+.top .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.demo-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.demo-row .cap{font-size:12px;font-weight:650}
+.demo-row button{border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:12px;background:var(--panel)}
+.demo-row button:hover{border-color:var(--accent);color:var(--accent);background:var(--soft)}
+.demo-row button.hot{border-color:#8fd4c9;background:#effaf8;color:var(--accent);font-weight:650}
+.demo-row .cnt{font-size:11.5px;background:var(--navy);color:#cfe8e3;border-radius:999px;padding:5px 13px;font-weight:650}
+
+/* layout */
+.wrap{display:grid;grid-template-columns:225px 1fr;gap:16px;max-width:1240px;margin:16px auto;padding:0 20px 60px;align-items:start}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+
+/* nav */
+.nav{background:var(--navy);border-radius:14px;color:#dbe3f0;overflow:hidden;box-shadow:var(--shadow)}
+.nav .brand{padding:16px 17px 13px;border-bottom:1px solid #2c3a55}
+.nav .brand b{font-size:14px;color:#fff;display:block}
+.nav .brand small{font-size:11px;color:#8fa0bd}
+.nav .brand .badge{display:inline-block;margin-top:8px;font-size:10.5px;background:#0e7a6f;color:#eafffb;border-radius:999px;padding:3px 10px;font-weight:700}
+.nav a{display:flex;justify-content:space-between;align-items:center;padding:12px 17px;color:#aebbd2;text-decoration:none;font-size:13px;cursor:pointer;border-left:3px solid transparent}
+.nav a:hover{background:#1e2b42;color:#fff}
+.nav a.on{background:var(--navy2);color:#fff;border-left-color:#3ecfbb;font-weight:650}
+.nav a .n{font-size:10.5px;background:#2c3a55;border-radius:999px;padding:1px 8px}
+.nav .foot{padding:13px 17px;font-size:10.5px;color:#77879f;border-top:1px solid #2c3a55;line-height:1.6}
+
+/* main cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
+.card-h{padding:13px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card-h b{font-size:14px}
+.card-h small{font-size:11.5px;color:var(--muted)}
+.card-b{padding:16px 18px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12px;font-weight:600;margin-bottom:5px}
+.field .hint{font-size:11px;color:var(--muted);margin-top:4px}
+.field input{width:100%}
+
+.evt-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px}
+.evt-check{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:12px;cursor:pointer;background:#fbfcfd}
+.evt-check:hover{border-color:#9fd3cb}
+.evt-check.on{border-color:var(--accent);background:var(--soft)}
+.evt-check input{width:auto;margin-top:3px}
+.evt-check b{display:block;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--text)}
+.evt-check small{font-size:11px;color:var(--muted)}
+
+.semantics{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.sem{font-size:11px;border-radius:999px;padding:4px 11px;background:#f1f4f9;color:#5a6474;border:1px solid var(--line)}
+.sem.ok{background:#e7f6f0;color:var(--green);border-color:#cfe8df}
+
+/* event log */
+.log{display:flex;flex-direction:column;gap:9px}
+.ev-item{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);animation:in .3s}
+@keyframes in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.ev-item.fail{border-color:#f0c9d0}
+.ev-head{display:flex;gap:10px;align-items:center;padding:10px 13px;cursor:pointer;flex-wrap:wrap}
+.ev-head .type{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;color:var(--blue);background:#eef3fd;border-radius:6px;padding:3px 9px}
+.ev-item.fail .type{color:var(--red);background:#fdf0f2}
+.ev-head .id{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted)}
+.ev-head .st{margin-left:auto;font-size:11px;font-weight:700;border-radius:6px;padding:3px 9px;background:#e7f6f0;color:var(--green)}
+.ev-head .st.bad{background:#fdf0f2;color:var(--red)}
+.ev-head .st.retry{background:#fff3e2;color:var(--orange)}
+.ev-head .time{font-size:11px;color:var(--muted)}
+.ev-head .chev{font-size:11px;color:var(--muted)}
+.ev-body{display:none;border-top:1px dashed var(--line);padding:11px 13px;background:#fafbfd}
+.ev-item.open .ev-body{display:block}
+.ev-body pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.7;color:#33405a}
+.hdr-line{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#5a6474;background:#f1f4f9;border-radius:7px;padding:7px 10px;margin-bottom:9px;overflow-wrap:anywhere}
+.empty-log{padding:34px;text-align:center;color:var(--muted);font-size:12.5px}
+
+/* api console */
+.api-row{display:grid;grid-template-columns:1fr auto auto;gap:9px;align-items:center}
+@media(max-width:700px){.api-row{grid-template-columns:1fr}}
+.scopes{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+.sc{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:6px 14px;background:var(--panel)}
+.sc.on{border-color:var(--accent);background:var(--soft);color:var(--accent);font-weight:650}
+.resp{margin-top:13px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.resp .rh{display:flex;gap:10px;align-items:center;padding:9px 13px;background:#f6f7fa;font-size:12px;font-weight:650;border-bottom:1px solid var(--line)}
+.resp .code200{color:var(--green)}.resp .code403{color:var(--red)}
+.resp pre{margin:0;padding:13px;white-space:pre-wrap;overflow-wrap:anywhere;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.7;background:#fbfbfd;max-height:330px;overflow:auto}
+.scope-note{font-size:11.5px;color:var(--muted);background:#fbfcfd;border:1px dashed var(--line);border-radius:8px;padding:8px 11px;margin-top:10px}
+
+/* BI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px}
+.kpi{border:1px solid var(--line);border-radius:11px;padding:13px 15px;background:var(--panel)}
+.kpi .k{font-size:11px;color:var(--muted)}
+.kpi .v{font-size:27px;font-weight:750;letter-spacing:-1px;margin-top:3px}
+.kpi .d{font-size:10.5px;color:var(--accent);margin-top:2px}
+.funnel{margin-top:16px;display:flex;flex-direction:column;gap:9px}
+.fn-row{display:grid;grid-template-columns:170px 1fr 46px;gap:10px;align-items:center;font-size:12px}
+.fn-row .lbl{color:#4a5568}
+.fn-row .track{height:16px;border-radius:99px;background:#eef0f5;overflow:hidden}
+.fn-row .track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#3ecfbb,#0e7a6f);transition:width .5s}
+.fn-row .num{text-align:right;font-weight:700;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.bi-note{margin-top:14px;font-size:11.5px;color:#5a6474;background:#f4fbf8;border:1px solid #cfe8df;border-radius:8px;padding:9px 12px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>PaaS 数据驱动 · 外部集成</h1>
+  <p class="sub">模式B · 不使用平台 UI —— 外部系统通过 Webhook 事件订阅、API 读写与 Agent 能力调用完成自己的数据驱动。事件契约与模式A 交互原语一一对应；本稿为本地模拟，不发出真实请求。</p>
+  <div class="demo-row">
+    <span class="cap">一键演示</span>
+    <button class="hot" onclick="demoStream()">▶ 模拟模式A 全链路推流</button>
+    <button class="hot" onclick="demoRetry()">▶ 演示投递失败重试</button>
+    <button onclick="resetAll()">↺ 重置</button>
+    <span class="cnt" id="evCount">已接收事件 0</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- nav -->
+  <nav class="nav">
+    <div class="brand">
+      <b>Acme 数据平台</b>
+      <small>外部工作台 · 示例宿主</small>
+      <span class="badge">未登录 Arckit · PaaS 消费方</span>
+    </div>
+    <a id="nav-sub" class="on" onclick="go('sub')"> 订阅配置 <span class="n">Webhook</span></a>
+    <a id="nav-log" onclick="go('log')"> 事件日志 <span class="n" id="navLogN">0</span></a>
+    <a id="nav-api" onclick="go('api')"> API 调试台 <span class="n">L1</span></a>
+    <a id="nav-bi" onclick="go('bi')"> BI 看板 <span class="n">聚合</span></a>
+    <div class="foot">平台核心资产以三层契约对外：<br>L1 数据面 · L2 事件面 · L3 能力面<br>事件源 = 模式A 站内交互原语</div>
+  </nav>
+
+  <main>
+    <!-- ===== subscribe ===== -->
+    <section id="page-sub">
+      <div class="card">
+        <div class="card-h"><b>Webhook 订阅配置</b><small>L2 事件面 · 实现列后续 P1，本稿冻结契约</small></div>
+        <div class="card-b">
+          <div class="grid2">
+            <div class="field">
+              <label>端点 URL</label>
+              <input id="whUrl" value="https://acme.example.com/hooks/arckit" />
+              <div class="hint">外部接收地址；平台按订阅事件类型投递 JSON 信封</div>
+            </div>
+            <div class="field">
+              <label>签名密钥（HMAC-SHA256 · X-Arckit-Signature）</label>
+              <input id="whSecret" class="code" value="whsec_••••••••••••3f9a" readonly />
+              <div class="hint"><button class="btn ghost" style="padding:2px 4px" onclick="toast('已重新生成密钥（演示）')">重新生成</button> 密钥仅创建时完整展示</div>
+            </div>
+          </div>
+          <div class="field">
+            <label>订阅事件类型（契约清单 = 共享 README §7）</label>
+            <div class="evt-checks" id="evtChecks"></div>
+          </div>
+          <div class="semantics">
+            <span class="sem ok">至少一次投递</span>
+            <span class="sem ok">event_id 幂等键</span>
+            <span class="sem ok">指数退避重试（5 次）</span>
+            <span class="sem ok">HMAC 签名校验</span>
+            <span class="sem ok">失败入死信可查询</span>
+            <span class="sem">payload 内含卡片上下文与讨论结构摘要</span>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:9px">
+            <button class="btn primary" onclick="saveSub()">保存订阅</button>
+            <button class="btn" onclick="go('log')">查看事件日志 →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><b>与模式A 的对应关系</b><small>事件契约单点定义，两模式不互相引用正文</small></div>
+        <div class="card-b" style="padding-top:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead><tr style="text-align:left;color:var(--muted);font-size:11.5px">
+              <th style="padding:7px 8px;border-bottom:1px solid var(--line)">事件</th>
+              <th style="padding:7px 8px;border-bottom:1px solid var(--line)">模式A 触发交互</th>
+              <th style="padding:7px 8px;border-bottom:1px solid var(--line)">外部典型用途</th>
+            </tr></thead>
+            <tbody id="mapTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== event log ===== -->
+    <section id="page-log" class="hidden">
+      <div class="card">
+        <div class="card-h"><b>Webhook 事件日志</b><small>点条目展开 payload · 签名头 · 投递尝试</small></div>
+        <div class="card-b">
+          <div class="log" id="logList"><div class="empty-log">暂无事件。点顶部「▶ 模拟模式A 全链路推流」接收六类契约事件。</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== api ===== -->
+    <section id="page-api" class="hidden">
+      <div class="card">
+        <div class="card-h"><b>API 调试台</b><small>L1 数据面 · apikey scope 三档（read / write / discussion）</small></div>
+        <div class="card-b">
+          <div class="api-row">
+            <select id="apiEp">
+              <option value="context">GET /workshop/v2/user/tasks/456/context</option>
+              <option value="digest">GET /workshop/v2/user/tasks/456/discussions?view=digest</option>
+              <option value="full">GET /workshop/v2/user/tasks/456/discussions?view=full</option>
+              <option value="create">POST /workshop/v2/user/tasks</option>
+              <option value="del">DELETE /workshop/v2/user/tasks/456</option>
+            </select>
+            <input id="apiKey" class="code" style="width:190px" value="ak_live_2f9…c1" readonly />
+            <button class="btn primary" onclick="sendApi()">发送</button>
+          </div>
+          <div class="scopes">
+            <span class="muted" style="font-size:12px;align-self:center">scope：</span>
+            <button class="sc on" data-sc="read" onclick="setScope('read')">read</button>
+            <button class="sc" data-sc="write" onclick="setScope('write')">write</button>
+            <button class="sc" data-sc="discussion" onclick="setScope('discussion')">discussion</button>
+          </div>
+          <div class="scope-note">约束：讨论全文需 <b>discussion</b> scope（默认不发）；<b>write</b> 可建卡/回写但不可删任务、不可代受理决定；删除类能力不对 apikey 开放。</div>
+          <div class="resp hidden" id="apiResp">
+            <div class="rh"><span id="apiStatus" class="code200">200 OK</span><span id="apiEpLabel" class="muted" style="font-weight:400"></span></div>
+            <pre id="apiBody"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== bi ===== -->
+    <section id="page-bi" class="hidden">
+      <div class="card">
+        <div class="card-h"><b>外部 BI 看板</b><small>消费 Webhook 事件聚合 · 不依赖平台 UI</small></div>
+        <div class="card-b">
+          <div class="kpis" id="kpis"></div>
+          <div class="funnel" id="funnel"></div>
+          <div class="bi-note">数据来源：本页收到的事件流（本地模拟）。外部系统可将同一事件落入自有数仓，完成「不用这个平台也能跑」的数据驱动——平台只提供契约，不锁定消费方式。</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script>
+/* ================= contract ================= */
+const EVENTS = [
+  {type:'card.squeezed', use:'外部工单同步、积压监控', map:'反馈「进入挤压区」'},
+  {type:'discussion.opinion_added', use:'通知群、讨论看板', map:'讨论发言（人/Agent）'},
+  {type:'discussion.decided', use:'需求池准入、排期系统', map:'「标记决策结论」'},
+  {type:'task.decomposed', use:'外部任务树对齐', map:'Agent 自动拆解'},
+  {type:'agent.question_raised', use:'外部 @ 责任人、值班告警', map:'Agent 主动提问'},
+  {type:'task.state_changed', use:'BI 漏斗、SLA 统计', map:'状态选择器流转'}
+];
+
+const payloads = {
+  'card.squeezed':()=>({
+    card:{task_id:456,title:'导出报表缺少权限说明',squeeze_state:'讨论中'},
+    source_feedback:{id:'FB-102'},
+    context:{project_name:'云协作',git_url:'git@acme.com/yanzuo/export-service.git'},
+    discussion_digest:{topics:1,opinions:2,decision:null}
+  }),
+  'discussion.opinion_added':()=>({
+    card:{task_id:456,title:'导出报表缺少权限说明'},
+    opinion:{role:'agent',author:'Agent · 预分析',summary:'权限中间件改动触达 3 个调用方，仅补提示文案改动面为 1 个文件。'},
+    discussion_digest:{topics:1,opinions:3,decision:null}
+  }),
+  'discussion.decided':()=>({
+    card:{task_id:456,title:'导出报表缺少权限说明',squeeze_state:'已通过'},
+    decision:{verdict:'本迭代先补权限提示文案，权限模型下迭代评估',rationale:'客户连续反馈，改动面可控',decided_by:{type:'user',id:'u_201'}},
+    context:{project_name:'云协作',git_url:'git@acme.com/yanzuo/export-service.git'},
+    discussion_digest:{topics:1,opinions:3,decision:'本迭代先补权限提示文案'}
+  }),
+  'task.decomposed':()=>({
+    card:{task_id:456,zone:'待评审'},
+    subtasks:[
+      {title:'补充导出权限提示文案（export-service）',state:'草稿 · 待人确认'},
+      {title:'梳理 export:report 权限开通路径',state:'草稿 · 待人确认'},
+      {title:'补一条 403 场景的回归用例',state:'草稿 · 待人确认'}
+    ],
+    actor:{type:'agent',id:'automation'}
+  }),
+  'agent.question_raised':()=>({
+    card:{task_id:456,zone:'进行中'},
+    question:'修复需要改权限中间件，影响 3 个调用方：是只补提示文案，还是本迭代一并调整权限模型？',
+    blocked_on:'权限范围确认',
+    notify:['站内','agent_question 通知偏好']
+  }),
+  'task.state_changed':()=>({
+    card:{task_id:456},
+    from:'pending_review',to:'pending',
+    actor:{type:'system',id:'automation-coordinator'}
+  })
+};
+
+/* ================= state ================= */
+let subEvents = new Set(EVENTS.map(e=>e.type));
+let log = [];
+let scope = 'read';
+let seq = 0;
+let timer = [];
+
+const $=id=>document.getElementById(id);
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.add('hidden'),2600);}
+function now(){const d=new Date();return d.toTimeString().slice(0,8);}
+
+/* ================= nav ================= */
+function go(p){
+  ['sub','log','api','bi'].forEach(x=>{
+    $('page-'+x).classList.toggle('hidden',x!==p);
+    $('nav-'+x).classList.toggle('on',x===p);
+  });
+}
+
+/* ================= subscribe ================= */
+function renderChecks(){
+  $('evtChecks').innerHTML=EVENTS.map(e=>`
+    <label class="evt-check ${subEvents.has(e.type)?'on':''}" onclick="toggleEvt('${e.type}',event)">
+      <input type="checkbox" ${subEvents.has(e.type)?'checked':''} readonly />
+      <span><b>${e.type}</b><small>${e.map} → ${e.use}</small></span>
+    </label>`).join('');
+  $('mapTable').innerHTML=EVENTS.map(e=>`
+    <tr>
+      <td class="code" style="padding:8px;border-bottom:1px solid var(--line);color:var(--blue)">${e.type}</td>
+      <td style="padding:8px;border-bottom:1px solid var(--line)">${e.map}</td>
+      <td style="padding:8px;border-bottom:1px solid var(--line);color:var(--muted)">${e.use}</td>
+    </tr>`).join('');
+}
+function toggleEvt(t,ev){
+  ev.preventDefault();
+  subEvents.has(t)?subEvents.delete(t):subEvents.add(t);
+  renderChecks();
+}
+function saveSub(){
+  if(!$('whUrl').value.trim()){toast('端点 URL 必填');return;}
+  if(!subEvents.size){toast('至少订阅一类事件');return;}
+  toast(`订阅已保存：${subEvents.size} 类事件 → ${$('whUrl').value}`);
+}
+
+/* ================= log ================= */
+function sig(id){return 'sha256='+id.slice(0,10).split('').map(c=>c.charCodeAt(0).toString(16)).join('').slice(0,40);}
+function pushEv(type,status){
+  if(!subEvents.has(type)) return null;
+  seq++;
+  const id='evt_'+type.split('.').join('_')+'_'+String(seq).padStart(3,'0');
+  const item={
+    id,type,time:now(),status:status||'200 OK',attempt:status&&status.startsWith('5')?1:1,
+    payload:(typeof payloads[type]==='function')?payloads[type]():{},
+    headers:{
+      'content-type':'application/json',
+      'x-arckit-event':type,
+      'x-arckit-event-id':id,
+      'x-arckit-signature':'sha256='+sig(id),
+      'x-arckit-attempt':'1'
+    }
+  };
+  log.unshift(item);
+  renderLog(); renderNavCount(); renderBI();
+  return item;
+}
+function renderNavCount(){$('navLogN').textContent=log.length;$('evCount').textContent='已接收事件 '+log.length;}
+function renderLog(){
+  const el=$('logList');
+  if(!log.length){el.innerHTML='<div class="empty-log">暂无事件。点顶部「▶ 模拟模式A 全链路推流」接收六类契约事件。</div>';return;}
+  el.innerHTML=log.map((it,i)=>{
+    const bad=it.status.startsWith('5');
+    const stCls=bad?'st bad':(it.status==='retry'?'st retry':'st');
+    const stTxt=bad?('500 · attempt '+it.attempt+' · 将退避重试'):(it.status==='retry'?'重试中…':(it.status+' · attempt '+it.attempt));
+    return `<div class="ev-item ${bad?'fail':''}" id="ev${i}">
+      <div class="ev-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="type">${it.type}</span>
+        <span class="id">${it.id}</span>
+        <span class="time">${it.time}</span>
+        <span class="${stCls}">${stTxt}</span>
+        <span class="chev">▾ 展开 payload</span>
+      </div>
+      <div class="ev-body">
+        <div class="hdr-line">POST ${esc($('whUrl').value)}<br>${Object.entries(it.headers).map(([k,v])=>k+': '+v).join('<br>')}</div>
+        <pre>${esc(JSON.stringify(it.payload,null,2))}</pre>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ================= api ================= */
+function setScope(s){
+  scope=s;
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('on',b.dataset.sc===s));
+}
+function sendApi(){
+  const ep=$('apiEp').value;
+  const label=$('apiEp').selectedOptions[0].textContent;
+  let status=200, body={};
+  const ctx={
+    task_id:456,title:'导出报表缺少权限说明',zone:'挤压区',
+    context:{project_name:'云协作',git_url:'git@acme.com/yanzuo/export-service.git',source_feedback_id:'FB-102',assignee:null,priority:'高'},
+    discussion_digest:{state:'已通过',topics:1,opinions:3,decision:'本迭代先补权限提示文案，权限模型下迭代评估'}
+  };
+  if(ep==='context'){ body=ctx; }
+  else if(ep==='digest'){ body={task_id:456,view:'digest',discussion:ctx.discussion_digest,note:'结构摘要，不含全文'}; }
+  else if(ep==='full'){
+    if(scope!=='discussion'){status=403;body={error:'requires_scope',need:'discussion',message:'讨论全文需 discussion scope（默认不发）'};}
+    else body={task_id:456,view:'full',opinions:[
+      {role:'human',author:'张三',text:'客户已连续两次反馈，建议本迭代内至少把权限提示补上。'},
+      {role:'agent',author:'Agent',text:'权限中间件改动触达 3 个调用方；仅补提示文案改动面为 1 个文件。'}
+    ],thread_source:'feedback:FB-102'};
+  }
+  else if(ep==='create'){
+    if(!['write','discussion'].includes(scope)){status=403;body={error:'requires_scope',need:'write',message:'建卡需 write scope'};}
+    else body={created:true,task_id:601,zone:'挤压区',note:'外部可建卡进挤压区，不可代做受理决定'};
+  }
+  else if(ep==='del'){
+    status=403;body={error:'capability_not_exposed',message:'删除能力不对 apikey 开放（scope 收敛约束）'};
+  }
+  const r=$('apiResp'); r.classList.remove('hidden');
+  $('apiStatus').textContent=status+' '+(status===200?'OK':'Forbidden');
+  $('apiStatus').className=status===200?'code200':'code403';
+  $('apiEpLabel').textContent=label+'  ·  scope='+scope;
+  $('apiBody').textContent=JSON.stringify(body,null,2);
+}
+
+/* ================= bi ================= */
+function cnt(t){return log.filter(x=>x.type===t).length;}
+function renderBI(){
+  const k=[
+    {k:'卡片进入挤压区',v:cnt('card.squeezed'),d:'card.squeezed'},
+    {k:'讨论观点（人+Agent）',v:cnt('discussion.opinion_added'),d:'discussion.opinion_added'},
+    {k:'决策通过',v:cnt('discussion.decided'),d:'discussion.decided'},
+    {k:'Agent 拆解子任务',v:cnt('task.decomposed'),d:'task.decomposed'},
+    {k:'Agent 主动提问',v:cnt('agent.question_raised'),d:'agent.question_raised'},
+    {k:'状态跃迁',v:cnt('task.state_changed'),d:'task.state_changed'}
+  ];
+  $('kpis').innerHTML=k.map(x=>`<div class="kpi"><div class="k">${x.k}</div><div class="v">${x.v}</div><div class="d code">${x.d}</div></div>`).join('');
+  const max=Math.max(1,...k.map(x=>x.v));
+  $('funnel').innerHTML=k.map(x=>`
+    <div class="fn-row">
+      <span class="lbl">${x.k}</span>
+      <span class="track"><i style="width:${Math.round(x.v/max*100)}%"></i></span>
+      <span class="num">${x.v}</span>
+    </div>`).join('');
+}
+
+/* ================= demos ================= */
+function clearTimers(){timer.forEach(t=>clearTimeout(t));timer=[];}
+function demoStream(){
+  clearTimers(); go('log');
+  const seqTypes=EVENTS.map(e=>e.type).filter(t=>subEvents.has(t));
+  if(!seqTypes.length){toast('先在订阅配置中勾选事件');return;}
+  log=[];renderLog();renderNavCount();renderBI();
+  seqTypes.forEach((t,i)=>{
+    timer.push(setTimeout(()=>{
+      pushEv(t,'200 OK');
+      if(i===seqTypes.length-1) toast('推流完成：六类契约事件已按序到达，切「BI 看板」查看聚合');
+    },i*550));
+  });
+}
+function demoRetry(){
+  go('log');
+  const t='task.state_changed';
+  if(!subEvents.has(t)){toast('请先订阅 task.state_changed');return;}
+  const item=pushEv(t,'500 Server Error');
+  if(!item){toast('请先订阅 task.state_changed');return;}
+  renderLog();
+  timer.push(setTimeout(()=>{
+    item.status='retry';item.attempt=2;renderLog();
+    toast('投递失败 → 指数退避，第 2 次尝试中…');
+  },900));
+  timer.push(setTimeout(()=>{
+    item.status='200 OK';item.attempt=3;
+    item.headers['x-arckit-attempt']='3';
+    renderLog();renderBI();
+    toast('重试成功：200 OK · attempt 3（event_id 幂等，外部可安全去重）');
+  },1900));
+}
+function resetAll(){
+  clearTimers();
+  log=[];seq=0;scope='read';subEvents=new Set(EVENTS.map(e=>e.type));
+  setScope('read');renderChecks();renderLog();renderNavCount();renderBI();
+  $('apiResp').classList.add('hidden');
+  go('sub');toast('已重置');
+}
+
+/* init */
+renderChecks();renderLog();renderNavCount();renderBI();
+</script>
+</body>
+</html>

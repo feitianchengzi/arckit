@@ -1,0 +1,1692 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArcOrbit · Work 挤压区与卡片讨论（设计稿）</title>
+<style>
+:root {
+  --colors-ink-950: #0D1119;
+  --colors-ink-900: #121722;
+  --colors-ink-800: #1D2431;
+  --colors-ink-700: #313A49;
+  --colors-ink-600: #465267;
+  --colors-ink-500: #566174;
+  --colors-ink-400: #596579;
+  --colors-ink-300: #B6BDC8;
+  --colors-ink-200: #D7DCE4;
+  --colors-ink-150: #E4E7EC;
+  --colors-ink-100: #ECEFF3;
+  --colors-ink-75: #F2F4F7;
+  --colors-ink-50: #F7F8FA;
+  --colors-paper: #FFFFFF;
+  --colors-accent-strong: #9B572D;
+  --colors-accent-base: #F4B77D;
+  --colors-accent-hover: #EFAC6B;
+  --colors-accent-soft: #FFF4E9;
+  --colors-accent-faint: #FFFAF5;
+  --colors-accent-pressed: #E6A15F;
+  --colors-accent-on: #332C26;
+  --colors-info-base: #1D60B5;
+  --colors-info-soft: #E8F2FF;
+  --colors-accepted-base: #096B62;
+  --colors-accepted-soft: #DFF7F2;
+  --colors-success-base: #196C47;
+  --colors-success-soft: #E4F6ED;
+  --colors-warning-strong: #A45A14;
+  --colors-warning-base: #975411;
+  --colors-warning-soft: #FFF0D8;
+  --colors-danger-base: #B93240;
+  --colors-danger-soft: #FDE9EA;
+  --typography-family-interface: -apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif;
+  --typography-family-mono: SFMono-Regular, Consolas, monospace;
+  --typography-display-size: 28px;
+  --typography-title-size: 20px;
+  --typography-heading-size: 16px;
+  --typography-body-size: 14px;
+  --typography-conversation-size: 15px;
+  --typography-label-size: 13px;
+  --typography-caption-size: 12px;
+  --typography-micro-size: 11px;
+  --layout-sidebar-width: 228px;
+  --layout-commandbar-height: 54px;
+  --layout-control-height: 36px;
+  --layout-compact-control-height: 32px;
+  --layout-compact-row-height: 40px;
+  --layout-row-height: 44px;
+  --corner-radius-small: 6px;
+  --corner-radius-medium: 10px;
+  --corner-radius-large: 16px;
+  --shadows-small: 0 1px 2px rgba(22,28,38,.06), 0 4px 12px rgba(22,28,38,.05);
+  --shadows-large: 0 24px 80px rgba(13,17,25,.25), 0 4px 16px rgba(13,17,25,.12);
+  --animation-normal-duration-ms: 160ms;
+  --animation-normal-easing: cubic-bezier(.2,.8,.2,1);
+  --semantic-canvas: #FFFFFF;
+  --semantic-sidebar: #F7F8FA;
+  --semantic-chrome: #F7F8FA;
+  --semantic-elevated: #FFFFFF;
+  --semantic-text: #121722;
+  --semantic-muted: #465267;
+  --semantic-nav-text: #465267;
+  --semantic-nav-selected-text: #121722;
+  --semantic-nav-selected: #FFF4E9;
+  --semantic-divider: #E4E7EC;
+  --semantic-control-border: #7A8492;
+  --semantic-focus: #9B572D;
+  --semantic-disabled-text: #566174;
+  --semantic-disabled-bg: #ECEFF3;
+  --semantic-scrim: rgba(13,17,25,.24);
+  --focus-width: 2px;
+  --focus-offset: 2px;
+}
+:root {
+  --ink-950: var(--colors-ink-950);
+  --ink-900: var(--colors-ink-900);
+  --ink-800: var(--colors-ink-800);
+  --ink-700: var(--colors-ink-700);
+  --ink-600: var(--colors-ink-600);
+  --ink-500: var(--colors-ink-500);
+  --ink-400: var(--colors-ink-400);
+  --ink-300: var(--colors-ink-300);
+  --ink-200: var(--colors-ink-200);
+  --ink-150: var(--colors-ink-150);
+  --ink-100: var(--colors-ink-100);
+  --ink-75: var(--colors-ink-75);
+  --ink-50: var(--colors-ink-50);
+  --paper: var(--colors-paper);
+  --teal-600: var(--colors-accepted-base);
+  --teal-100: var(--colors-accepted-soft);
+  --green-600: var(--colors-success-base);
+  --green-100: var(--colors-success-soft);
+  --amber-700: var(--colors-warning-strong);
+  --amber-600: var(--colors-warning-base);
+  --amber-100: var(--colors-warning-soft);
+  --red-600: var(--colors-danger-base);
+  --red-100: var(--colors-danger-soft);
+  --blue-600: var(--colors-info-base);
+  --blue-100: var(--colors-info-soft);
+  --type-display: var(--typography-display-size);
+  --type-title: var(--typography-title-size);
+  --type-heading: var(--typography-heading-size);
+  --type-conversation: var(--typography-conversation-size);
+  --type-body: var(--typography-body-size);
+  --type-label: var(--typography-label-size);
+  --type-caption: var(--typography-caption-size);
+  --type-micro: var(--typography-micro-size);
+  --sidebar-width: var(--layout-sidebar-width);
+  --commandbar-height: var(--layout-commandbar-height);
+  --radius-sm: var(--corner-radius-small);
+  --radius-md: var(--corner-radius-medium);
+  --radius-lg: var(--corner-radius-large);
+  --shadow-sm: var(--shadows-small);
+  --shadow-lg: var(--shadows-large);
+  --ease: var(--animation-normal-duration-ms) var(--animation-normal-easing);
+  color: var(--ink-900);
+  background: var(--ink-950);
+  font-family: var(--typography-family-interface);
+  font-synthesis: none;
+}
+* { box-sizing: border-box; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+html, body { width: 100%; height: 100%; min-width: 1100px; min-height: 720px; margin: 0; overflow: hidden; }
+body { font-size: var(--type-body); line-height: 1.55; color: var(--semantic-text); background: var(--semantic-canvas); }
+.hidden { display: none !important; }
+.muted-copy { color: var(--ink-500); font-size: var(--type-caption); }
+.icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.ui-icon { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.eyebrow { margin: 0 0 7px; color: var(--ink-500); font-size: var(--type-caption); font-weight: 850; letter-spacing: .13em; }
+.desktop-app { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); width: 100vw; height: 100vh; background: var(--ink-75); }
+.sidebar { display: flex; flex-direction: column; min-height: 0; padding: 13px 10px 10px; color: var(--semantic-nav-text); background: var(--semantic-sidebar); border-right: 1px solid var(--semantic-divider); }
+.sidebar-brand { display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 7px; color: var(--semantic-text); }
+.sidebar-brand strong { font-size: var(--type-body); }
+.sidebar-brand strong span { color: var(--colors-accent-strong); }
+.sidebar-orbit-mark { width: 26px; height: 26px; fill: none; stroke: var(--colors-accent-strong); stroke-width: 1.6; }
+.sidebar-orbit-mark .orbit-core { fill: var(--colors-accent-base); stroke: none; }
+.sidebar-orbit-mark .orbit-satellite { fill: var(--colors-accent-strong); stroke: none; }
+.primary-nav { min-height: 0; overflow: auto; scrollbar-width: thin; }
+.nav-label { margin: 14px 9px 5px; color: var(--semantic-muted); font-size: var(--type-micro); font-weight: 850; letter-spacing: .13em; }
+.nav-item { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; height: 34px; padding: 0 9px; border: 0; border-radius: var(--radius-sm); color: var(--semantic-nav-text); background: transparent; text-align: left; font-size: var(--type-body); font-family: inherit; cursor: pointer; }
+.nav-item:hover { background: var(--colors-ink-100); color: var(--semantic-text); }
+.nav-item.is-active { background: var(--semantic-nav-selected); color: var(--semantic-nav-selected-text); box-shadow: inset 2px 0 var(--colors-accent-base); }
+.nav-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.nav-item em { display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; color: var(--colors-accent-strong); background: var(--colors-accent-soft); font-size: var(--type-micro); font-style: normal; }
+.nav-item-status { display: inline-flex; align-items: center; gap: 4px; }
+.nav-experiment-badge { display: inline-flex; align-items: center; min-height: 19px; padding: 0 5px; border: 1px solid rgba(151, 84, 17, .35); border-radius: 5px; color: var(--colors-warning-strong); background: var(--colors-warning-soft); font-size: 10px; line-height: 17px; font-weight: 650; white-space: nowrap; }
+.nav-experiment-notice { margin: 8px 9px 0; color: var(--ink-500); font-size: var(--type-micro); line-height: 1.5; }
+.sidebar-footer { display: grid; gap: 4px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--semantic-divider); }
+.profile-button { display: grid; grid-template-columns: 28px 1fr; grid-template-rows: auto auto; column-gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 7px; color: var(--semantic-nav-text); background: transparent; text-align: left; font-family: inherit; cursor: pointer; }
+.profile-button:hover { background: var(--colors-ink-100); }
+.profile-button > span { grid-row: 1 / 3; align-self: center; }
+.profile-button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption); }
+.profile-button small { color: var(--semantic-muted); font-size: var(--type-micro); }
+.account-avatar { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: var(--semantic-muted); background: var(--colors-ink-100); font-size: var(--type-caption); font-weight: 850; }
+.app-stage { display: grid; grid-template-rows: var(--commandbar-height) minmax(0, 1fr); min-width: 0; min-height: 0; }
+.commandbar { z-index: 5; display: flex; align-items: center; justify-content: space-between; height: var(--commandbar-height); padding: 0 18px 0 22px; border-bottom: 1px solid var(--ink-150); background: var(--semantic-canvas); }
+.breadcrumbs { display: flex; align-items: center; gap: 7px; color: var(--ink-500); font-size: var(--type-body); }
+.breadcrumbs strong { color: var(--ink-900); }
+.breadcrumbs span::before { content: "/"; margin-right: 7px; color: var(--ink-300); }
+.commandbar-actions { display: flex; align-items: center; gap: 8px; }
+.product-set-cluster { display: flex; align-items: stretch; height: 33px; overflow: hidden; border: 1px solid var(--ink-150); border-radius: 8px; background: var(--semantic-canvas); box-shadow: 0 1px 2px rgba(22, 28, 38, .04); }
+.workset-control, .product-scope-control { display: flex; align-items: center; gap: 5px; padding: 0 8px; color: var(--ink-500); font-size: var(--type-micro); font-weight: 750; white-space: nowrap; }
+.product-scope-control { border-left: 1px solid var(--ink-150); background: var(--ink-50); }
+.workset-control select, .product-scope-control select { max-width: 126px; border: 0; outline: 0; color: var(--ink-800); background: transparent; font-size: var(--type-caption); font-weight: 750; font-family: inherit; }
+.product-set-manage { padding: 0 9px; border: 0; border-left: 1px solid var(--ink-150); color: var(--colors-accent-strong); background: var(--semantic-canvas); font-size: var(--type-caption); font-weight: 800; font-family: inherit; cursor: pointer; }
+.icon-button { display: grid; place-items: center; width: 31px; height: 31px; padding: 0; border: 1px solid var(--ink-150); border-radius: 7px; color: var(--ink-600); background: var(--semantic-canvas); cursor: pointer; }
+.icon-button:hover { border-color: var(--ink-300); color: var(--ink-900); background: var(--ink-50); }
+.sync-state { display: flex; align-items: center; gap: 6px; height: 31px; padding: 0 9px; border: 1px solid var(--ink-150); border-radius: 7px; color: var(--ink-600); background: var(--semantic-canvas); font-size: var(--type-caption); }
+.sync-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--colors-success-base); box-shadow: 0 0 0 3px rgba(72, 200, 135, .11); }
+.product-feedback-trigger { display: flex; align-items: center; gap: 6px; height: 31px; padding: 0 10px; border: 1px solid var(--ink-150); border-radius: 7px; color: var(--ink-700); background: var(--semantic-canvas); font-size: var(--type-caption); font-family: inherit; cursor: pointer; }
+.product-feedback-trigger:hover { border-color: var(--colors-accent-hover); color: var(--colors-accent-strong); background: var(--colors-accent-faint); }
+.view-host { min-width: 0; min-height: 0; overflow: hidden; }
+.app-view { display: none; width: 100%; height: 100%; overflow: auto; background: var(--ink-75); }
+.app-view.is-active { display: block; }
+.page { width: 100%; max-width: 1440px; min-height: 100%; margin: 0 auto; padding: 28px 32px 44px; }
+.platform-page { max-width: 1380px; }
+.page-heading h1 { margin: 0 0 7px; font-size: var(--type-title); line-height: 1.15; letter-spacing: -.03em; }
+.page-heading p:last-child { margin: 0; color: var(--ink-500); }
+.primary-button, .secondary-button, .text-button { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: 7px; font-size: var(--type-label); font-weight: 750; font-family: inherit; cursor: pointer; transition: transform var(--ease), background var(--ease), border-color var(--ease); }
+.primary-button { border: 1px solid transparent; color: var(--colors-accent-on); background: var(--colors-accent-base); box-shadow: none; }
+.primary-button:hover { background: var(--colors-accent-hover); }
+.secondary-button { border: 1px solid var(--semantic-control-border); color: var(--ink-700); background: var(--semantic-canvas); }
+.secondary-button:hover { border-color: var(--ink-300); background: var(--ink-50); }
+.text-button { padding: 0 5px; border: 0; color: var(--semantic-text); background: transparent; }
+.text-button:hover { background: var(--colors-ink-100); }
+button:disabled { opacity: 1; background: var(--semantic-disabled-bg); color: var(--semantic-disabled-text); box-shadow: none; cursor: not-allowed; }
+input, textarea, select { accent-color: var(--colors-accent-strong); font-family: inherit; }
+::placeholder { color: var(--semantic-muted); opacity: 1; }
+:is(button, input, textarea, select, summary, a[href]):focus-visible { outline: var(--focus-width) solid var(--semantic-focus); outline-offset: var(--focus-offset); }
+.status-pill, .health-badge { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border: 1px solid var(--ink-150); border-radius: 999px; color: var(--ink-600); background: var(--ink-50); font-size: var(--type-caption); font-weight: 800; white-space: nowrap; }
+.status-pill.pending_review { color: var(--ink-600); background: var(--ink-100); }
+.status-pill.pending { color: var(--amber-700); background: var(--amber-100); }
+.status-pill.in_progress { color: var(--colors-accent-strong); background: var(--colors-accent-soft); }
+.status-pill.completed { color: var(--green-600); background: var(--green-100); }
+.status-pill.accepted { color: var(--teal-600); background: var(--teal-100); }
+.status-pill.cancelled { color: var(--red-600); background: var(--red-100); }
+.status-pill.blocked { border-color: var(--amber-600); color: var(--amber-700); background: var(--amber-100); }
+.status-pill.muted { color: var(--ink-500); }
+.status-pill.disc-open { color: var(--amber-700); background: var(--amber-100); }
+.status-pill.disc-pending { color: var(--colors-accent-strong); background: var(--colors-accent-soft); border-color: var(--colors-accent-hover); }
+.status-pill.disc-passed { color: var(--teal-600); background: var(--teal-100); }
+.status-pill.disc-shelved { color: var(--ink-500); background: var(--ink-100); }
+.status-pill.disc-question { color: var(--blue-600); background: var(--blue-100); }
+.status-pill.high { color: var(--green-600); background: var(--green-100); }
+.status-pill.medium { color: var(--amber-700); background: var(--amber-100); }
+.primary-workspace-page { display: grid; grid-template-rows: 44px minmax(0, 1fr); gap: 12px; height: 100%; min-height: 0; padding: 16px 24px 20px; }
+.primary-control-rail { position: relative; z-index: 20; display: flex; align-items: center; gap: 8px; min-width: 0; height: 44px; margin: 0; padding: 5px 7px; overflow: visible; white-space: nowrap; }
+.control-rail-identity { flex: 0 0 auto; padding: 0 6px; color: var(--ink-900); font-size: var(--type-label); }
+.work-state-filters { display: grid; grid-template-columns: repeat(8, minmax(84px, 1fr)); flex: 1 1 auto; min-width: 0; gap: 6px; }
+.work-state-filter { position: relative; display: grid; grid-template-columns: 15px minmax(0, 1fr); align-items: center; gap: 5px; min-height: 32px; padding: 0 8px; border: 1px solid var(--ink-150); border-radius: 7px; color: var(--ink-600); background: var(--ink-50); font-size: var(--type-caption); text-align: left; font-family: inherit; cursor: pointer; }
+.work-state-filter:hover { border-color: var(--semantic-control-border); color: var(--ink-900); }
+.work-state-filter.is-active { border-color: var(--colors-accent-hover); color: var(--colors-accent-strong); background: var(--colors-accent-faint); box-shadow: inset 2px 0 var(--colors-accent-base); }
+.work-state-filter.zone-filter.is-active { border-color: var(--colors-accent-base); color: var(--colors-accent-strong); background: var(--colors-accent-soft); }
+.work-state-filter strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-state-filter em { position: absolute; top: -6px; right: -5px; z-index: 1; min-width: 17px; padding: 1px 5px; border: 1px solid var(--paper); border-radius: 9px; color: var(--colors-accent-strong); background: var(--colors-accent-soft); font-size: var(--type-micro); font-style: normal; line-height: 16px; text-align: center; }
+.work-state-compact { display: none; }
+.platform-filter { flex: 0 1 230px; width: auto; min-width: 150px; height: 34px; padding: 0 11px; border: 1px solid var(--ink-200); border-radius: 7px; background: var(--semantic-canvas); font-family: inherit; font-size: var(--type-caption); }
+.work-filter-menu { position: relative; flex: 0 0 132px; min-width: 132px; }
+.work-filter-menu summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; padding: 0 9px; border: 1px solid var(--ink-200); border-radius: 6px; color: var(--ink-500); background: var(--ink-50); font-size: var(--type-micro); font-weight: 750; cursor: pointer; list-style: none; }
+.work-filter-menu summary::-webkit-details-marker { display: none; }
+.work-filter-menu summary::after { content: "▾"; color: var(--ink-400); }
+.work-filter-menu summary strong { min-width: 0; overflow: hidden; color: var(--ink-800); font-size: var(--type-micro); text-overflow: ellipsis; white-space: nowrap; }
+.work-filter-popover { position: absolute; z-index: 30; top: calc(100% + 5px); left: 0; display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; width: min(620px, calc(100vw - 64px)); padding: 14px; border: 1px solid var(--ink-200); border-radius: 8px; background: var(--semantic-canvas); box-shadow: var(--shadow-lg); }
+.work-filter-menu:not([open]) .work-filter-popover { display: none; }
+.work-filter-groups h3 { margin: 0 0 6px; color: var(--ink-500); font-size: var(--type-micro); text-transform: uppercase; letter-spacing: .05em; }
+.work-filter-empty { padding: 4px 0; color: var(--ink-600); font-size: var(--type-micro); line-height: 1.6; }
+.control-rail-more { position: relative; flex: 0 0 auto; }
+.control-rail-more > summary { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 10px; border: 1px solid var(--ink-200); border-radius: 7px; color: var(--ink-700); background: var(--semantic-canvas); font-size: var(--type-label); font-weight: 750; cursor: pointer; list-style: none; }
+.control-rail-more > summary::-webkit-details-marker { display: none; }
+.control-rail-more > div { position: absolute; z-index: 35; top: calc(100% + 5px); right: 0; display: grid; gap: 6px; min-width: 165px; padding: 7px; border: 1px solid var(--ink-200); border-radius: 8px; background: var(--semantic-canvas); box-shadow: var(--shadow-lg); }
+.control-rail-more:not([open]) > div { display: none; }
+.panel-card, .inspector-card { border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: var(--semantic-canvas); overflow: hidden; }
+.section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 11px 15px; border-bottom: 1px solid var(--ink-150); }
+.section-title-row > div:first-child { display: flex; align-items: center; gap: 10px; }
+.section-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; color: var(--colors-accent-strong); background: var(--colors-accent-soft); font-size: var(--type-label); font-weight: 800; }
+.section-title-row h2 { margin: 0; font-size: var(--type-body); }
+.section-title-row h3 { margin: 0; font-size: var(--type-body); }
+.section-title-row p { margin: 2px 0 0; color: var(--ink-500); font-size: var(--type-caption); }
+.platform-work-layout { --work-inspector-width: 440px; display: grid; grid-template-columns: minmax(420px, 1fr) 12px minmax(0, var(--work-inspector-width)); gap: 0; align-items: stretch; min-width: 0; min-height: 0; overflow: hidden; }
+.platform-work-layout > .panel-card, .platform-work-inspector { display: flex; flex-direction: column; height: 100%; min-height: 0; margin-bottom: 0; overflow: hidden; }
+.work-inspector-separator { position: relative; z-index: 2; width: 12px; min-width: 12px; cursor: col-resize; outline: 0; }
+.work-inspector-separator::before { content: ""; position: absolute; inset: 0 5px; background: var(--ink-150); }
+.workspace-pane-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.platform-work-inspector > .workspace-pane-scroll { padding: 12px; }
+.work-list-panel > .section-title-row, .platform-work-inspector > .section-title-row, .feedback-list-panel > .section-title-row, .feedback-inspector > .section-title-row { flex: 0 0 auto; }
+.work-list-panel .section-title-row p { max-width: min(520px, 42vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.platform-work-inspector { border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: var(--semantic-canvas); box-shadow: var(--shadow-sm); }
+.work-inspector-section { padding: 12px; border: 1px solid var(--ink-150); border-radius: 8px; background: var(--semantic-canvas); }
+.work-inspector-section + .work-inspector-section { margin-top: 10px; }
+.work-inspector-identity { background: var(--ink-50); }
+.work-inspector-identity-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.work-inspector-identity-row h2, .work-inspector-section-heading h3 { margin: 0; }
+.work-inspector-identity-copy { min-width: 0; }
+.work-inspector-identity-product { margin: 3px 0 0; color: var(--ink-600); font-size: var(--type-label); }
+.work-inspector-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.work-inspector-section-heading { display: flex; align-items: center; min-height: 24px; margin-bottom: 8px; }
+.work-inspector-section-heading h3 { color: var(--ink-800); font-size: var(--type-label); letter-spacing: .01em; }
+.work-inspector-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.fact-row { min-width: 0; margin: 0; padding: 8px 9px; border: 0; border-radius: 7px; background: var(--ink-50); }
+.fact-row.is-wide { grid-column: 1 / -1; }
+.fact-row small { display: block; color: var(--ink-500); font-size: var(--type-micro); }
+.fact-row strong { display: block; margin-top: 2px; overflow-wrap: anywhere; font-size: var(--type-label); font-weight: 650; }
+.fact-row strong button { padding: 0; border: 0; color: var(--colors-accent-strong); background: transparent; font: inherit; text-decoration: underline; text-decoration-style: dotted; cursor: pointer; }
+.task-markdown-detail { margin: 0; padding: 10px; border: 1px solid var(--ink-150); border-radius: 7px; color: var(--ink-700); background: var(--ink-50); font-size: var(--type-label); line-height: 1.55; overflow-wrap: anywhere; }
+.task-markdown-detail p { margin: 0 0 7px; }
+.task-markdown-detail p:last-child { margin-bottom: 0; }
+.task-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.platform-work-state-actions { margin-top: 10px; }
+.data-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.data-table th, .data-table td { height: 42px; padding: 0 12px; border-bottom: 1px solid var(--ink-150); overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-label); }
+.data-table th { height: 34px; color: var(--ink-500); background: var(--ink-50); font-size: var(--type-micro); font-weight: 850; letter-spacing: .05em; }
+.data-table tr:last-child td { border-bottom: 0; }
+.data-table tbody tr { cursor: pointer; }
+.data-table tbody tr:hover { background: var(--ink-50); }
+.data-table tbody tr.selected { color: var(--semantic-text); background: var(--colors-accent-soft); box-shadow: inset 2px 0 var(--colors-accent-base); border-color: transparent; }
+.platform-work-table td { height: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-title-cell { font-weight: 700; }
+.queue-number { color: var(--ink-400); font-family: var(--typography-family-mono); }
+.empty-state { display: grid; place-items: center; min-height: 120px; padding: 20px; color: var(--ink-500); text-align: center; }
+.empty-state.compact { min-height: 72px; padding: 12px; }
+.empty-panel { display: grid; place-items: center; min-height: 160px; padding: 20px; color: var(--ink-500); text-align: center; }
+.empty-panel strong { color: var(--ink-700); font-size: var(--type-heading); }
+.empty-panel p { margin: 6px 0 0; font-size: var(--type-caption); }
+.task-comment-timeline { display: grid; gap: 7px; max-height: 300px; overflow-y: auto; }
+.task-comment-item { padding: 8px; border: 1px solid var(--ink-150); border-radius: 7px; background: var(--ink-50); }
+.task-comment-item header { display: flex; justify-content: space-between; gap: 8px; color: var(--ink-500); font-size: var(--type-micro); }
+.task-comment-item p { margin: 5px 0 0; color: var(--ink-800); font-size: var(--type-caption); white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-comment-item.issue { border-left: 3px solid var(--colors-accent-base); background: var(--colors-accent-faint); }
+.task-comment-item.opinion-agent { border-left: 3px solid var(--blue-600); }
+.task-comment-item.decision { border-left: 3px solid var(--teal-600); background: var(--colors-accepted-soft); }
+.task-comment-item.system { border-left: 3px solid var(--ink-300); background: var(--ink-100); }
+.role-tag { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 800; }
+.role-tag.agent { color: var(--blue-600); background: var(--blue-100); }
+.role-tag.human { color: var(--colors-accent-strong); background: var(--colors-accent-soft); }
+.task-comment-composer { display: grid; gap: 6px; margin-top: 10px; color: var(--ink-600); font-size: var(--type-caption); }
+.task-comment-composer textarea { min-height: 64px; resize: vertical; padding: 8px 10px; border: 1px solid var(--semantic-control-border); border-radius: 8px; background: var(--semantic-elevated); color: var(--semantic-text); font-size: var(--type-body); font-family: inherit; }
+.task-comment-composer-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.task-comment-composer-actions small { color: var(--ink-400); font-size: var(--type-micro); }
+.decision-form { display: grid; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--colors-accent-hover); border-radius: 8px; background: var(--colors-accent-faint); }
+.decision-form label { display: grid; gap: 4px; color: var(--ink-600); font-size: var(--type-micro); font-weight: 800; }
+.decision-form input, .decision-form textarea { padding: 8px 10px; border: 1px solid var(--semantic-control-border); border-radius: 8px; background: var(--semantic-elevated); color: var(--semantic-text); font-size: var(--type-body); font-family: inherit; }
+.decision-form textarea { min-height: 56px; resize: vertical; }
+.decision-form .form-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.decision-form .form-foot small { color: var(--amber-700); font-size: var(--type-micro); }
+.draft-confirm-panel { display: grid; gap: 10px; margin-top: 10px; padding: 12px 14px; border: 1px solid #ead0a8; border-left: 3px solid var(--amber-600); border-radius: 9px; background: var(--amber-100); }
+.draft-confirm-header { display: flex; justify-content: space-between; align-items: center; }
+.draft-confirm-title { color: var(--ink-700); font-size: var(--type-caption); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.draft-confirm-label { color: var(--ink-500); font-size: var(--type-micro); }
+.draft-confirm-text { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-800); font-size: var(--type-caption); line-height: 1.55; }
+.draft-confirm-actions { display: flex; gap: 7px; }
+.subtask-tree { display: grid; gap: 6px; margin-top: 10px; }
+.subtask-row { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--ink-150); border-radius: 7px; background: var(--ink-50); font-size: var(--type-caption); }
+.attention-strip { display: flex; align-items: center; gap: 13px; min-height: 54px; margin-bottom: 10px; padding: 11px 14px; border: 1px solid var(--semantic-divider); border-left: 3px solid var(--amber-600); border-radius: var(--radius-md); background: var(--amber-100); box-shadow: var(--shadow-sm); }
+.attention-strip.danger { border-left-color: var(--red-600); background: var(--red-100); }
+.attention-strip > span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: var(--amber-700); background: var(--colors-paper); font-weight: 850; flex: 0 0 auto; }
+.attention-copy { flex: 1; min-width: 0; }
+.attention-copy strong { display: block; font-size: var(--type-body); }
+.attention-copy p { margin: 2px 0 0; color: var(--amber-700); font-size: var(--type-label); }
+.attention-actions { display: flex; gap: 7px; align-items: center; flex: 0 0 auto; }
+.attention-actions input { width: 200px; height: 32px; padding: 0 9px; border: 1px solid var(--semantic-control-border); border-radius: 7px; background: var(--semantic-elevated); color: var(--semantic-text); font-size: var(--type-caption); font-family: inherit; }
+.exec-context { margin-top: 10px; border: 1px solid var(--ink-150); border-radius: 8px; background: var(--ink-50); overflow: hidden; }
+.exec-context > summary { padding: 10px 12px; cursor: pointer; font-size: var(--type-label); font-weight: 750; list-style: none; }
+.exec-context > summary::-webkit-details-marker { display: none; }
+.exec-context > summary::after { content: " ▾"; color: var(--ink-400); }
+.exec-context[open] > summary::after { content: " ▴"; }
+.exec-context-body { padding: 0 12px 12px; }
+.exec-context-body .fact-row { margin-bottom: 7px; background: var(--semantic-canvas); }
+.exec-injection-note { margin-top: 7px; padding: 8px 10px; border-left: 3px solid var(--colors-info-base); border-radius: 0 6px 6px 0; background: var(--blue-100); color: var(--ink-700); font-size: var(--type-micro); line-height: 1.55; }
+.feedback-page { min-width: 0; }
+.feedback-toolbar .control-rail-search { display: flex; flex: 1 1 420px; min-width: 220px; align-items: center; gap: 6px; }
+.feedback-toolbar .control-rail-search input { flex: 1; height: 34px; padding: 0 11px; border: 1px solid var(--ink-200); border-radius: 7px; background: var(--semantic-canvas); font-family: inherit; font-size: var(--type-caption); }
+.feedback-toolbar .control-rail-select { display: flex; flex: 0 0 150px; align-items: center; gap: 6px; }
+.feedback-toolbar .control-rail-select select { width: 100%; height: 34px; padding: 0 9px; border: 1px solid var(--ink-200); border-radius: 7px; color: var(--ink-800); background: var(--semantic-canvas); font-size: var(--type-caption); font-family: inherit; }
+.feedback-more-menu { position: relative; flex: 0 0 auto; }
+.feedback-more-menu > summary { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 10px; border: 1px solid var(--ink-200); border-radius: 7px; color: var(--ink-700); background: var(--semantic-canvas); font-size: var(--type-label); font-weight: 750; cursor: pointer; list-style: none; }
+.feedback-more-menu > summary::-webkit-details-marker { display: none; }
+.feedback-secondary-controls { position: absolute; z-index: 35; top: calc(100% + 5px); right: 0; display: grid; gap: 7px; min-width: 170px; padding: 7px; border: 1px solid var(--ink-200); border-radius: 8px; background: var(--semantic-canvas); box-shadow: var(--shadow-lg); }
+.feedback-more-menu:not([open]) > .feedback-secondary-controls { display: none; }
+.feedback-secondary-controls select { height: 30px; border: 1px solid var(--ink-200); border-radius: 6px; background: var(--semantic-canvas); font-family: inherit; font-size: var(--type-caption); }
+.feedback-workbench-layout { display: grid; grid-template-columns: minmax(300px, .72fr) minmax(440px, 1.28fr); gap: 16px; align-items: stretch; min-width: 0; min-height: 0; overflow: hidden; }
+.feedback-list-panel, .feedback-inspector { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; margin-bottom: 0; overflow: hidden; }
+.feedback-list-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; min-height: 40px; padding: 7px 14px; border: 0; border-bottom: 1px solid var(--ink-150); border-left: 3px solid transparent; border-radius: 0; color: var(--ink-700); background: var(--semantic-canvas); text-align: left; cursor: pointer; font-family: inherit; }
+.feedback-list-item:hover { background: var(--ink-50); }
+.feedback-list-item.is-active { color: var(--semantic-text); background: var(--colors-accent-soft); border-left-color: var(--colors-accent-base); box-shadow: inset 2px 0 var(--colors-accent-base); }
+.feedback-list-copy { display: flex; align-items: center; min-width: 0; gap: 8px; overflow: hidden; white-space: nowrap; }
+.feedback-list-copy strong { min-width: 0; overflow: hidden; color: var(--ink-900); font-size: var(--type-label); text-overflow: ellipsis; white-space: nowrap; }
+.feedback-list-copy small { flex: 0 0 auto; overflow: hidden; color: var(--ink-500); font-size: var(--type-micro); text-overflow: ellipsis; white-space: nowrap; }
+.feedback-list-meta { display: flex; align-items: center; justify-content: flex-end; gap: 7px; white-space: nowrap; }
+.feedback-list-meta time { color: var(--ink-400); font-size: var(--type-micro); }
+.feedback-priority { color: var(--ink-400); font-size: var(--type-micro); font-style: normal; font-weight: 800; }
+.feedback-priority.has-priority { color: var(--red-600); }
+.feedback-inspector { padding: 0; }
+.feedback-inspector-body { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.feedback-inspector-scroll { height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.feedback-inspector-scroll > * { margin-inline: 18px; }
+.feedback-inspector-scroll > .feedback-inspector-header { margin-top: 18px; }
+.feedback-inspector-scroll > :last-child { margin-bottom: 18px; }
+.feedback-inspector-header { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--ink-150); }
+.feedback-inspector-header h2 { margin: 2px 0 5px; color: var(--ink-900); font-size: var(--type-heading); }
+.feedback-inspector-header p { margin: 0; color: var(--ink-500); font-size: var(--type-caption); }
+.feedback-processing-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 14px 0; }
+.feedback-processing-actions label { display: grid; gap: 4px; width: 110px; color: var(--ink-600); font-size: var(--type-micro); font-weight: 800; }
+.feedback-processing-actions select { height: 34px; padding: 0 9px; border: 1px solid var(--ink-200); border-radius: 7px; color: var(--ink-800); background: var(--semantic-canvas); font-size: var(--type-caption); font-family: inherit; }
+.feedback-processing-actions button { min-height: 34px; }
+.feedback-content-card { margin-bottom: 14px; padding: 14px; border: 1px solid var(--ink-150); border-radius: 9px; background: var(--ink-50); }
+.feedback-content-card h3 { margin: 0 0 8px; color: var(--ink-700); font-size: var(--type-caption); text-transform: uppercase; letter-spacing: .04em; }
+.feedback-content-card p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-900); font-size: var(--type-body); line-height: 1.65; }
+.feedback-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-bottom: 14px; }
+.ai-triage-panel { margin-block: 0 14px; border: 1px solid var(--ink-150); border-radius: 9px; background: var(--paper); overflow: hidden; }
+.ai-triage-panel > summary { list-style: none; cursor: pointer; }
+.ai-triage-panel > summary::-webkit-details-marker { display: none; }
+.ai-triage-panel > summary::after { content: " ▾"; color: var(--ink-400); font-size: var(--type-caption); font-weight: 800; }
+.ai-triage-panel[open] > summary::after { content: " ▴"; }
+.ai-triage-panel .section-title-row { min-height: 48px; border-bottom: 0; }
+.ai-triage-panel .section-title-row h3 { margin: 0; color: var(--ink-900); }
+.ai-triage-panel .section-title-row p { margin: 3px 0 0; color: var(--ink-500); font-size: var(--type-micro); }
+.ai-triage-body { display: grid; gap: 10px; padding: 0 15px 14px; }
+.fact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.score-meter { height: 5px; margin-top: 6px; border-radius: 3px; background: var(--ink-100); overflow: hidden; }
+.score-meter > div { height: 100%; border-radius: 3px; background: var(--colors-accent-strong); }
+.insight-callout { padding: 9px 11px; border-left: 3px solid var(--colors-info-base); border-radius: 0 7px 7px 0; background: var(--blue-100); }
+.insight-callout small { display: block; margin-bottom: 4px; color: var(--blue-600); font-size: var(--type-micro); font-weight: 800; }
+.insight-callout p { margin: 0; color: var(--ink-800); font-size: var(--type-caption); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.card-actions { display: flex; gap: 7px; }
+.feedback-conversation { display: grid; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--ink-150); }
+.feedback-message-list { display: grid; gap: 8px; max-height: 320px; overflow-y: auto; }
+.feedback-message { max-width: 88%; padding: 10px 12px; border: 1px solid var(--ink-150); border-radius: 10px; background: var(--semantic-canvas); }
+.feedback-message.developer { justify-self: end; border-color: var(--colors-accent-soft); background: var(--colors-accent-faint); }
+.feedback-message.system { max-width: 100%; background: var(--ink-50); }
+.feedback-message header { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-500); font-size: var(--type-micro); }
+.feedback-message p { margin: 7px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-800); font-size: var(--type-label); line-height: 1.55; }
+.feedback-reply-composer { display: grid; gap: 8px; }
+.feedback-reply-composer textarea { min-height: 72px; resize: vertical; padding: 8px 10px; border: 1px solid var(--semantic-control-border); border-radius: 8px; background: var(--semantic-elevated); color: var(--semantic-text); font-size: var(--type-body); font-family: inherit; }
+.feedback-reply-actions { display: flex; align-items: center; gap: 10px; }
+.feedback-reply-actions .primary-button { margin-left: auto; }
+.feedback-reply-file-hint { color: var(--ink-400); font-size: var(--type-micro); }
+.review-slide { position: fixed; inset: 0; z-index: 40; display: none; background: var(--semantic-scrim); }
+.review-slide.on { display: block; }
+.review-slide-panel { position: absolute; top: 0; right: 0; display: flex; flex-direction: column; width: min(640px, 94vw); height: 100%; background: var(--semantic-elevated); border-left: 1px solid var(--semantic-divider); box-shadow: var(--shadows-large); }
+.review-slide-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 22px 14px; border-bottom: 1px solid var(--ink-150); background: linear-gradient(180deg, var(--colors-accent-faint), transparent); }
+.review-slide-head h2 { margin: 0; font-size: var(--type-heading); letter-spacing: -.01em; }
+.review-slide-head p { margin: 4px 0 0; color: var(--ink-500); font-size: var(--type-caption); max-width: 48ch; }
+.review-slide-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px 26px; }
+.review-slide-body .task-comment-item { margin-bottom: 8px; }
+.disc-section { margin-top: 16px; }
+.disc-section:first-child { margin-top: 0; }
+.disc-section-title { display: flex; align-items: center; gap: 10px; margin: 0 0 9px; color: var(--ink-500); font-size: var(--type-micro); font-weight: 850; text-transform: uppercase; letter-spacing: .06em; }
+.disc-section-title::after { content: ""; flex: 1; height: 1px; background: var(--ink-150); }
+.disc-thread { display: grid; gap: 12px; }
+.disc-msg { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+.disc-msg .avatar { width: 28px; height: 28px; font-size: 12px; }
+.disc-msg-body { padding: 9px 12px; border: 1px solid var(--ink-150); border-radius: 10px; background: var(--ink-50); }
+.disc-msg.agent .disc-msg-body { border-color: #c7dbff; background: var(--blue-100); }
+.disc-msg-head { display: flex; align-items: center; gap: 8px; color: var(--ink-500); font-size: var(--type-micro); }
+.disc-msg-head strong { color: var(--ink-800); font-size: var(--type-caption); font-weight: 800; }
+.disc-msg-head time { margin-left: auto; color: var(--ink-400); }
+.disc-msg-body p { margin: 4px 0 0; color: var(--ink-800); font-size: var(--type-caption); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.avatar { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 850; flex: 0 0 auto; }
+.av-0 { background: var(--colors-accent-base); }
+.av-1 { background: var(--teal-600); }
+.av-2 { background: var(--blue-600); }
+.av-3 { background: var(--green-600); }
+.av-4 { background: var(--amber-600); }
+.avatar.is-agent { background: var(--colors-ink-700); }
+.disc-events { display: grid; gap: 6px; }
+.disc-events .task-comment-item { margin-bottom: 0; }
+.vote-stats-card p { color: var(--ink-800); font-weight: 800; }
+.slide-note { margin-top: 12px; padding: 9px 11px; border-left: 3px solid var(--colors-info-base); border-radius: 0 6px 6px 0; background: var(--blue-100); color: var(--ink-700); font-size: var(--type-micro); line-height: 1.55; }
+.toast { position: fixed; right: 20px; bottom: 20px; z-index: 1200; max-width: 360px; padding: 11px 14px; border: 1px solid var(--semantic-divider); border-radius: 8px; color: var(--semantic-text); background: var(--semantic-elevated); box-shadow: var(--shadow-lg); font-size: var(--type-label); }
+.review-path { position: fixed; left: 16px; bottom: 16px; z-index: 50; width: 320px; border: 1px solid var(--semantic-divider); border-radius: 10px; background: var(--semantic-elevated); box-shadow: var(--shadow-lg); font-size: var(--type-caption); }
+.review-path > summary { padding: 10px 14px; cursor: pointer; font-weight: 800; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+.review-path > summary::-webkit-details-marker { display: none; }
+.review-path > summary::after { content: "▴"; color: var(--ink-400); }
+.review-path:not([open]) > summary::after { content: "▾"; }
+.review-path-body { padding: 0 14px 14px; display: grid; gap: 10px; max-height: 60vh; overflow-y: auto; }
+.review-path-body ol { margin: 0; padding-left: 18px; display: grid; gap: 5px; color: var(--ink-600); line-height: 1.5; }
+.review-path-controls { display: grid; gap: 7px; padding-top: 8px; border-top: 1px solid var(--ink-150); }
+.review-path-controls label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-600); font-weight: 700; }
+.review-path-controls select { height: 30px; border: 1px solid var(--semantic-control-border); border-radius: 6px; background: var(--semantic-elevated); color: var(--semantic-text); font-family: inherit; }
+.review-path-controls .row { display: flex; gap: 7px; }
+.review-path-controls .row button { flex: 1; min-height: 30px; }
+.event-log { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--ink-150); }
+.event-log strong { color: var(--ink-500); font-size: var(--type-micro); text-transform: uppercase; letter-spacing: .05em; }
+.event-log ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; max-height: 120px; overflow-y: auto; }
+.event-log li { padding: 4px 7px; border-radius: 5px; background: var(--ink-50); color: var(--ink-600); font-family: var(--typography-family-mono); font-size: 10px; overflow-wrap: anywhere; }
+.event-log li:first-child { color: var(--colors-accent-strong); background: var(--colors-accent-faint); }
+.inline-guidance { display: grid; gap: 7px; margin-top: 10px; padding: 12px; border: 1px solid var(--semantic-divider); border-radius: var(--radius-md); background: var(--amber-100); }
+.inline-guidance.is-ready { border-color: var(--ink-150); background: var(--ink-50); }
+.inline-guidance p { margin: 0; color: var(--ink-600); font-size: var(--type-caption); }
+
+.decision-summary { border-left: 3px solid var(--colors-accent-base); }
+.decision-summary.no-decision { border-left-color: var(--ink-300); background: var(--semantic-canvas); }
+.decision-summary .work-inspector-section-heading { justify-content: space-between; }
+.decision-verdict { margin: 0; padding: 10px; border-radius: 7px; background: var(--colors-accepted-soft); color: var(--ink-900); font-size: var(--type-caption); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.decision-meta { display: block; margin-top: 6px; color: var(--ink-500); font-size: var(--type-micro); }
+.decision-issue { margin: 0 0 8px; color: var(--ink-700); font-size: var(--type-caption); line-height: 1.5; }
+.decision-issue strong { color: var(--ink-500); font-size: var(--type-micro); }
+.mini-timeline { display: grid; gap: 6px; }
+.mini-timeline .task-comment-item p { max-height: 3.4em; overflow: hidden; }
+.mini-count { display: block; margin-top: 7px; color: var(--ink-500); font-size: var(--type-micro); }
+.slide-composer { position: sticky; bottom: 0; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ink-150); background: var(--semantic-elevated); }
+
+.disc-undiscussed { color: var(--ink-500); background: var(--ink-100); border-color: var(--ink-200); }
+.risk-confirm-panel { display: grid; gap: 10px; margin-top: 10px; padding: 12px 14px; border: 1px solid #e8b4b4; border-left: 3px solid var(--red-600); border-radius: 9px; background: var(--red-100); }
+.risk-confirm-title { color: var(--red-600); }
+.risk-go { background: var(--red-600); border-color: var(--red-600); color: #fff; }
+.risk-go:hover { background: var(--red-700, #912018); border-color: var(--red-700, #912018); }
+.participant-bar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid var(--ink-150); border-radius: 12px; background: var(--ink-50); font-size: var(--type-caption); box-shadow: var(--shadow-sm); }
+.participant-bar > strong { color: var(--ink-500); font-size: var(--type-micro); text-transform: uppercase; letter-spacing: .05em; }
+.avatar-stack { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.participant-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border: 1px solid var(--ink-200); border-radius: 999px; background: var(--semantic-elevated); color: var(--ink-700); font-size: var(--type-micro); font-weight: 750; box-shadow: var(--shadow-sm); }
+.participant-chip.is-me { border-color: var(--colors-accent-base); background: var(--colors-accent-soft); color: var(--colors-accent-strong); }
+.participant-chip.empty { padding: 3px 10px; border-style: dashed; color: var(--ink-400); font-weight: 500; box-shadow: none; }
+.participant-count { color: var(--ink-500); font-size: var(--type-micro); }
+.participant-actions { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; }
+.member-add-btn { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border: 1px dashed var(--ink-300); border-radius: 999px; background: transparent; color: var(--ink-600); font-family: inherit; font-size: var(--type-micro); font-weight: 750; cursor: pointer; }
+.member-add-btn:hover { border-color: var(--colors-accent-base); color: var(--colors-accent-strong); background: var(--colors-accent-faint); }
+.participant-note { color: var(--ink-400); font-size: var(--type-micro); }
+.member-picker { position: absolute; top: calc(100% + 6px); right: 12px; z-index: 6; width: 278px; padding: 7px; border: 1px solid var(--semantic-divider); border-radius: 12px; background: var(--semantic-elevated); box-shadow: var(--shadow-lg); display: grid; gap: 2px; }
+.member-picker-head { padding: 5px 8px 7px; color: var(--ink-500); font-size: var(--type-micro); font-weight: 850; text-transform: uppercase; letter-spacing: .05em; }
+.member-option { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; font-family: inherit; text-align: left; cursor: pointer; }
+.member-option:hover:not(:disabled) { background: var(--colors-accent-faint); }
+.member-option:disabled { cursor: default; }
+.member-option-name { color: var(--ink-800); font-size: var(--type-caption); font-weight: 750; }
+.member-option-role { color: var(--ink-400); font-size: var(--type-micro); }
+.member-option-state { margin-left: auto; color: var(--colors-accent-strong); font-size: var(--type-micro); font-weight: 800; }
+.member-option:disabled .member-option-state { color: var(--ink-400); }
+.member-option:disabled .member-option-name { color: var(--ink-500); }
+.proposal-card { border: 1px solid var(--colors-accent-hover); border-left: 3px solid var(--colors-accent-base); border-radius: 10px; background: var(--colors-accent-faint); }
+.vote-count { margin-top: 6px; color: var(--ink-600); font-size: var(--type-micro); font-weight: 750; }
+.vote-bar { display: flex; height: 8px; margin-top: 8px; border-radius: 999px; background: var(--ink-100); overflow: hidden; }
+.vote-bar i { display: block; flex: 0 0 auto; height: 100%; background: var(--teal-600); }
+.vote-bar i.no { background: var(--red-600); opacity: .6; }
+.review-slide-body .task-comment-item.decision { border: 1px solid #9fd6bd; border-left: 3px solid var(--teal-600); border-radius: 10px; }
+.review-slide-body .task-comment-item.system { border-radius: 10px; }
+.review-slide-body .task-actions { margin-top: 9px; }
+</style>
+</head>
+<body>
+<svg class="icon-sprite" aria-hidden="true">
+<symbol id="icon-today" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></symbol>
+<symbol id="icon-chat" viewBox="0 0 24 24"><path d="M5 5.5h14v10H9l-4 3v-13Z"></path><path d="M8 9h8M8 12h5"></path></symbol>
+<symbol id="icon-idea" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"></path><path d="M8.5 15.5A7 7 0 1 1 15.5 15.5c-1 .7-1.5 1.4-1.5 2.5h-4c0-1.1-.5-1.8-1.5-2.5Z"></path></symbol>
+<symbol id="icon-work" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path><circle cx="7" cy="6" r="1"></circle><circle cx="7" cy="12" r="1"></circle><circle cx="7" cy="18" r="1"></circle></symbol>
+<symbol id="icon-automation" viewBox="0 0 24 24"><path d="M7 4h10l3 8-3 8H7l-3-8 3-8Z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+<symbol id="icon-release" viewBox="0 0 24 24"><path d="M12 20V5M7 10l5-5 5 5"></path><path d="M5 20h14"></path></symbol>
+<symbol id="icon-operations" viewBox="0 0 24 24"><path d="M4 18 9 13l4 3 7-9"></path><path d="M15 7h5v5"></path></symbol>
+<symbol id="icon-feedback" viewBox="0 0 24 24"><path d="M5 5h14v11H9l-4 3V5Z"></path><path d="M8 9h8M8 12h6"></path></symbol>
+<symbol id="icon-organization" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"></circle><circle cx="17" cy="9" r="2.5"></circle><path d="M3 20c.4-4 2.1-6 5-6s4.6 2 5 6M14 20c.2-2.7 1.3-4.2 3.4-4.2 2 0 3.2 1.4 3.6 4.2"></path></symbol>
+<symbol id="icon-engineering" viewBox="0 0 24 24"><path d="m8 6-4 6 4 6M16 6l4 6-4 6M14 4l-4 16"></path></symbol>
+<symbol id="icon-sync" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"></path><path d="M6.2 8A7 7 0 0 1 18.8 7M17.8 16A7 7 0 0 1 5.2 17"></path></symbol>
+<symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4-1.4"></path></symbol>
+<symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+</svg>
+
+<div class="desktop-app">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <svg class="sidebar-orbit-mark" viewBox="0 0 36 36" aria-hidden="true"><path d="M25.5 8.5a12 12 0 1 0 3.8 14.8"/><ellipse cx="18" cy="18" rx="17" ry="6.5" transform="rotate(-35 18 18)"/><circle class="orbit-core" cx="18" cy="18" r="3"/><circle class="orbit-satellite" cx="27" cy="10" r="2.5"/></svg>
+      <strong>Arc<span>Orbit</span></strong>
+    </div>
+    <nav class="primary-nav" id="primaryNav" aria-label="主导航">
+      <p class="nav-label">PERSONAL</p>
+      <button class="nav-item nav-experimental" data-page="today" type="button" title="Today：实验功能，开发探索中，暂不建议使用"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span><em id="attentionNavCount">1</em></span></button>
+      <button class="nav-item" data-page="chat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chat"></use></svg><strong>Chat</strong><em>Codex</em></button>
+      <button class="nav-item nav-experimental" data-page="project-workbench" type="button" title="Thing：实验功能，开发探索中，暂不建议使用"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Thing</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
+      <p class="nav-label">PRODUCT</p>
+      <button class="nav-item nav-experimental" data-page="product" type="button" title="Product：实验功能，开发探索中，暂不建议使用"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Product</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
+      <p class="nav-label">PRODUCT LIFECYCLE</p>
+      <button class="nav-item nav-experimental" data-page="idea" type="button" title="Idea：实验功能，开发探索中，暂不建议使用"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
+      <button class="nav-item is-active" data-page="work" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Work</strong><em id="workNavCount">0</em></button>
+      <button class="nav-item" data-page="command" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-automation"></use></svg><strong>Automation</strong><em id="automationNavCount">0</em></button>
+      <button class="nav-item nav-experimental" data-page="release" type="button" title="Release：实验功能，开发探索中，暂不建议使用"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
+      <button class="nav-item nav-experimental" data-page="operations" type="button" title="Operations：实验功能，开发探索中，暂不建议使用"><svg class="ui-icon" aria-hidden="true"><use href="#icon-operations"></use></svg><strong>Operations</strong><span class="nav-item-status"><span class="nav-experiment-badge">实验中</span></span></button>
+      <button class="nav-item" data-page="feedback" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-feedback"></use></svg><strong>Feedback</strong><em id="feedbackQueueNavCount">0</em></button>
+      <p class="nav-label">ORGANIZATION</p>
+      <button class="nav-item" data-page="organization" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-organization"></use></svg><strong>Organization</strong><em>0</em></button>
+      <button class="nav-item" data-page="engineering" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-engineering"></use></svg><strong>Engineering</strong></button>
+    </nav>
+    <p class="nav-experiment-notice">标有「实验中」的功能仍在开发探索，暂不建议使用。</p>
+    <div class="sidebar-footer">
+      <button class="profile-button" type="button"><span class="account-avatar">W</span><strong>Workshop 账户</strong><small>王珂 · 已登录</small></button>
+    </div>
+  </aside>
+
+  <main class="app-stage">
+    <header class="commandbar">
+      <div class="breadcrumbs"><strong id="scopeTitle">云协作 · 导出权限</strong><span id="pageTitle">Work</span></div>
+      <div class="commandbar-actions">
+        <div class="product-set-cluster">
+          <label class="workset-control"><span>产品集</span><select aria-label="当前产品集"><option>核心产品</option></select></label>
+          <label class="product-scope-control"><span>查看</span><select aria-label="产品观察范围"><option>全部项目</option><option>云协作 · 导出权限</option></select></label>
+          <button class="product-set-manage" type="button">管理</button>
+        </div>
+        <button class="icon-button" type="button" title="创建待办" aria-label="创建待办"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button>
+        <span class="sync-state"><i aria-hidden="true"></i><span>同步正常</span></span>
+        <button class="product-feedback-trigger" type="button" title="给 ArcOrbit 提反馈"><svg class="ui-icon" aria-hidden="true"><use href="#icon-feedback"></use></svg><strong>产品反馈</strong></button>
+        <button class="icon-button" type="button" title="设置" aria-label="设置"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></button>
+      </div>
+    </header>
+
+    <div class="view-host">
+      <section id="workView" class="app-view is-active" data-page-view="work">
+        <div class="page platform-page primary-workspace-page work-primary-workspace">
+          <section class="panel-card primary-control-rail work-control-rail" aria-label="Work 页面控制轨">
+            <strong class="control-rail-identity">Work</strong>
+            <div id="workStateFilters" class="work-state-filters" aria-label="待办状态筛选"></div>
+            <label class="work-state-compact"><span class="sr-only">当前状态</span><select id="workStateSelect" aria-label="当前待办状态"></select></label>
+            <input id="platformWorkFilter" class="platform-filter" type="search" placeholder="搜索标题与内容" aria-label="搜索待办">
+            <details class="work-filter-menu unified-work-filter">
+              <summary><span>筛选</span><strong id="workFilterSummary">全部</strong></summary>
+              <div class="work-filter-popover work-filter-groups">
+                <section><h3>创建人</h3><div class="work-filter-empty">林晓 · 王珂</div></section>
+                <section><h3>执行人</h3><div class="work-filter-empty">王珂 · 李远 · 陈默</div></section>
+                <section><h3>标签</h3><div class="work-filter-empty">反馈 · 导出</div></section>
+                <section><h3>优先级</h3><div class="work-filter-empty">P0 · P1 · 普通</div></section>
+              </div>
+            </details>
+            <details class="control-rail-more">
+              <summary aria-label="更多 Work 操作">更多</summary>
+              <div>
+                <button class="secondary-button" type="button">打开任务引用</button>
+                <button class="secondary-button" type="button">重置筛选</button>
+                <button class="secondary-button" type="button">管理标签</button>
+              </div>
+            </details>
+            <button id="createTaskButton" class="primary-button" type="button">创建待办</button>
+          </section>
+          <div id="platformWorkLayout" class="platform-work-layout">
+            <section class="panel-card work-list-panel">
+              <div class="section-title-row">
+                <div><span class="section-icon">≡</span><div><h2>待办列表</h2><p id="workStateSummary"></p></div></div>
+              </div>
+              <div id="platformWorkTable" class="workspace-pane-scroll"></div>
+            </section>
+            <div id="workInspectorSeparator" class="work-inspector-separator" role="separator" aria-label="调整待办详情宽度" aria-orientation="vertical"></div>
+            <aside class="inspector-card task-inspector platform-work-inspector">
+              <div class="section-title-row">
+                <div><span class="section-icon">◇</span><div><h2>待办详情</h2><p>当前选择与完整协作上下文</p></div></div>
+              </div>
+              <div id="platformWorkInspector" class="workspace-pane-scroll"></div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="feedbackView" class="app-view" data-page-view="feedback">
+        <div class="page platform-page feedback-page primary-workspace-page">
+          <section class="panel-card primary-control-rail feedback-toolbar" aria-label="Feedback 页面控制轨">
+            <strong class="control-rail-identity">Feedback</strong>
+            <label class="control-rail-search"><span class="sr-only">搜索</span><input id="feedbackSearchInput" type="search" placeholder="搜索内容、用户或项目"></label>
+            <label class="control-rail-select"><span class="sr-only">处理状态</span><select id="feedbackStateFilter">
+              <option value="all">全部状态</option>
+              <option value="pending">待处理</option>
+              <option value="accepted">已确认</option>
+              <option value="in_progress">开发中</option>
+              <option value="completed">已完成</option>
+              <option value="converted">已转待办</option>
+              <option value="ignored">已忽略</option>
+            </select></label>
+            <details class="feedback-more-menu">
+              <summary aria-label="更多 Feedback 操作">更多</summary>
+              <div class="feedback-secondary-controls">
+                <label><span class="sr-only">排序</span><select><option>最新反馈</option><option>最早反馈</option><option>优先级</option></select></label>
+                <button class="secondary-button" type="button">刷新</button>
+              </div>
+            </details>
+          </section>
+          <div class="feedback-workbench-layout">
+            <section class="panel-card feedback-list-panel" aria-label="反馈列表">
+              <div class="section-title-row">
+                <div><span class="section-icon">◌</span><div><h2>反馈列表</h2><p>选择反馈后在右侧查看和处理</p></div></div>
+                <span id="feedbackListSummary" class="status-pill muted">0 条</span>
+              </div>
+              <div id="ordinaryFeedbackTable" class="feedback-list workspace-pane-scroll"></div>
+            </section>
+            <aside class="inspector-card feedback-inspector" aria-label="反馈详情">
+              <div class="section-title-row">
+                <div><span class="section-icon">◇</span><div><h2>反馈详情</h2><p>原文、处理状态与沟通记录</p></div></div>
+              </div>
+              <div id="feedbackInspector" class="feedback-inspector-body"></div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="stubView" class="app-view" data-page-view="stub">
+        <div class="page">
+          <div class="empty-panel" style="margin-top:80px">
+            <strong id="stubTitle">该页面不在本设计稿范围</strong>
+            <p>本稿聚焦 Work 挤压区与 Feedback 链路；点击侧栏 Work / Feedback 继续评审。</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="reviewSlide" class="review-slide" aria-hidden="true">
+  <div class="review-slide-panel" role="dialog" aria-modal="true" aria-labelledby="slideTitle">
+    <div class="review-slide-head">
+      <div><h2 id="slideTitle">沟通空间</h2><p id="slideSubtitle">过程性行为：议题 / 观点 / 结论；结论回写为待办处理依据</p></div>
+      <button class="secondary-button" data-slide-close type="button">关闭</button>
+    </div>
+    <div id="slideBody" class="review-slide-body"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<details id="reviewPath" class="review-path">
+  <summary>评审路径</summary>
+  <div class="review-path-body">
+    <ol>
+      <li>Work 页控制轨：首位「挤压区」chip + 七态 chips；挤压区是面板状态段，不进七态计数。</li>
+      <li>反馈进入的待办默认未开启讨论：详情只有「开启讨论」入口，无讨论状态区域（徽标「未讨论」）。</li>
+      <li>点「开启讨论」→ 进入沟通空间，Agent 常驻并自动给出初步分析；参与者栏默认显示参与成员头像，点「＋ 添加成员」从项目成员选择器中点选（计入投票分母）。</li>
+      <li>成员起草结论草案 → 多人需超过半数赞成（Agent 不计入分母）→ 显性「通过结论」；单人参与者提交即通过。</li>
+      <li>通过后：结论回写 task.decision、卡片离开挤压区、拆解草稿出现，Agent 异步生成过程摘要（不阻塞流转）。</li>
+      <li>详情状态流转：进入待办 → 开始执行；未开启讨论的任务直接执行会弹「未经讨论决策」风险确认。</li>
+      <li>「模拟 Agent 提问」→ 详情 attention 提问条；回复后关闭。</li>
+      <li>执行上下文只读 task.decision 一行；讨论全文、观点与过程摘要均不注入。</li>
+      <li>Feedback 页 FB-105「进入挤压区」→ 回到 Work 新卡片，形成完整链路。</li>
+    </ol>
+    <div class="review-path-controls">
+      <label>发言身份
+        <select id="roleSelect"><option value="member">王珂（成员 · 可决策）</option><option value="member2">林晓（成员 · 可决策）</option><option value="agent">Agent（仅观点）</option></select>
+      </label>
+      <div class="row">
+        <button id="simulateQuestion" class="secondary-button" type="button">模拟 Agent 提问</button>
+        <button id="resetDraft" class="secondary-button" type="button">重置演示</button>
+      </div>
+      <div class="event-log"><strong>事件（出站 project_events 契约）</strong><ul id="eventLog"></ul></div>
+    </div>
+  </div>
+</details>
+
+<script>
+const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
+const STATE_LABELS = { pending_review: "待评审", pending: "待处理", in_progress: "进行中", completed: "已完成", accepted: "已验收", cancelled: "已取消", blocked: "已阻塞" };
+const STATE_ICONS = { pending_review: "○", pending: "●", in_progress: "◌", completed: "✓", accepted: "◆", cancelled: "×", blocked: "!" };
+const FEEDBACK_STATE_LABELS = { pending: "待处理", accepted: "已确认", in_progress: "开发中", completed: "已完成", converted: "已转待办", ignored: "已忽略" };
+const DISC_LABELS = { undiscussed: "未讨论", open: "讨论中", pending: "待决策", passed: "已通过", shelved: "已搁置", question: "提问中" };
+const ZONE_BADGES = ["undiscussed", "open", "pending"];
+const PROJECT = "云协作 · 导出权限";
+const GIT_URL = "git@acme.com:acme/collab-export.git";
+const PROJECT_MEMBERS = [
+  { name: "王珂", role: "前端" },
+  { name: "林晓", role: "产品" },
+  { name: "陈默", role: "后端" },
+  { name: "李远", role: "测试" }
+];
+
+const SEED_TASKS = [
+  { id: "T-1041", content: "导出报表缺少权限说明", project_name: PROJECT, git_url: GIT_URL, state: "pending_review", priority: 100, executor: "王珂", creator: "林晓", tags: "反馈 · 导出", father_id: "无", created_at: "11-18 10:12", updated_at: "11-19 09:40", fb: "FB-102" },
+  { id: "T-1042", content: "移动端导出失败提示不清", project_name: PROJECT, git_url: GIT_URL, state: "pending_review", priority: 40, executor: "李远", creator: "林晓", tags: "反馈 · 移动端", father_id: "无", created_at: "11-18 15:02", updated_at: "11-19 10:11", fb: "FB-104" },
+  { id: "T-1038", content: "导出任务失败后自动重试", project_name: PROJECT, git_url: GIT_URL, state: "in_progress", priority: 60, executor: "王珂", creator: "王珂", tags: "自动化", father_id: "无", created_at: "11-17 09:30", updated_at: "11-19 11:20", fb: null },
+  { id: "T-1045", content: "导出中心支持 CSV 与 XLSX", project_name: PROJECT, git_url: GIT_URL, state: "pending_review", priority: 20, executor: "李远", creator: "林晓", tags: "导出", father_id: "无", created_at: "11-19 09:05", updated_at: "11-19 12:02", fb: null, decision: { text: "本迭代先做 CSV，XLSX 排入下迭代。", by: "林晓", at: "11-19 10:02" } },
+  { id: "T-1039", content: "导出记录增加筛选条件", project_name: PROJECT, git_url: GIT_URL, state: "pending", priority: 50, executor: "王珂", creator: "林晓", tags: "反馈", father_id: "无", created_at: "11-17 14:41", updated_at: "11-18 18:00", fb: "FB-108" },
+  { id: "T-1036", content: "权限校验服务性能优化", project_name: PROJECT, git_url: GIT_URL, state: "in_progress", priority: 70, executor: "陈默", creator: "王珂", tags: "性能", father_id: "无", created_at: "11-16 11:00", updated_at: "11-19 08:30", fb: null },
+  { id: "T-1030", content: "导出任务列表分页", project_name: PROJECT, git_url: GIT_URL, state: "completed", priority: 30, executor: "陈默", creator: "林晓", tags: "导出", father_id: "无", created_at: "11-14 16:20", updated_at: "11-18 17:12", fb: null },
+  { id: "T-1028", content: "导出模板管理", project_name: PROJECT, git_url: GIT_URL, state: "accepted", priority: 10, executor: "李远", creator: "林晓", tags: "导出", father_id: "无", created_at: "11-12 10:00", updated_at: "11-17 15:45", fb: null },
+  { id: "T-1022", content: "旧版导出接口下线", project_name: PROJECT, git_url: GIT_URL, state: "cancelled", priority: 0, executor: "王珂", creator: "王珂", tags: "清理", father_id: "无", created_at: "11-10 09:15", updated_at: "11-16 10:05", fb: null },
+  { id: "T-1033", content: "导出文件过期清理策略", project_name: PROJECT, git_url: GIT_URL, state: "blocked", priority: 80, executor: "陈默", creator: "林晓", tags: "运维", father_id: "无", created_at: "11-15 13:33", updated_at: "11-19 09:58", fb: null }
+];
+
+function seedDisc(extra) {
+  return Object.assign({ opened: false, issue: null, entries: [], participants: [], proposal: null, votes: {}, conclusion: null, summary: null, question: null, shelved: false, draft: false, subtasks: null, events: [] }, extra || {});
+}
+
+const SEED_DISCUSSIONS = {
+  "T-1041": seedDisc(),
+  "T-1042": seedDisc(),
+  "T-1038": seedDisc({
+    opened: true,
+    issue: "导出任务失败后是否自动重试？",
+    entries: [
+      { role: "human", author: "王珂", text: "偶发网络抖动导致失败，希望自动重试一次。", at: "11-17 10:02" },
+      { role: "agent", author: "Agent", text: "已实现一次指数退避重试；正在验证与超时阈值的交互。", at: "11-19 11:05" }
+    ],
+    participants: ["王珂", "陈默"],
+    question: "导出超时阈值按项目配置还是全局默认？"
+  }),
+  "T-1045": seedDisc({
+    opened: true,
+    issue: "导出格式优先级：先 CSV 还是先 XLSX？",
+    entries: [
+      { role: "agent", author: "Agent", text: "建议本迭代先交付 CSV，XLSX 放下迭代，避免阻塞权限说明改造。", at: "11-19 09:40" }
+    ],
+    participants: ["林晓", "李远"],
+    proposal: { text: "本迭代先做 CSV，XLSX 排入下迭代。", by: "林晓", at: "11-19 10:02" },
+    votes: { "林晓": "yes", "李远": "yes" },
+    conclusion: { text: "本迭代先做 CSV，XLSX 排入下迭代。", by: "林晓", at: "11-19 10:02" },
+    summary: "团队确认本迭代聚焦 CSV 导出，XLSX 与权限改造解耦排期，风险已知。",
+    subtasks: [
+      { id: "T-1045-1", content: "导出接口增加 format=csv 参数" },
+      { id: "T-1045-2", content: "前端导出入口默认 CSV 并标注限制" }
+    ],
+    events: [{ kind: "task.decomposed", text: "task.decomposed · 拆解为 2 个子任务", at: "11-19 10:03" }]
+  }),
+  "T-1039": seedDisc(),
+  "T-1036": seedDisc(),
+  "T-1030": seedDisc(),
+  "T-1028": seedDisc(),
+  "T-1022": seedDisc(),
+  "T-1033": seedDisc()
+};
+
+const SEED_FEEDBACKS = [
+  { id: "FB-102", short_id: "FB-102", title: "导出报表缺少权限说明", content: "导出的报表里看不到自己有哪些数据权限，导出后才发现缺列，希望导出前就说明。", project_name: PROJECT, state: "converted", priority: "P1", user: "u_2084", phone: "138****2084", email: "lin@example.com", linked_task_id: "T-1041", created_at: "11-18 09:20", messages: [
+    { sender: "customer", text: "导出的报表里看不到自己有哪些数据权限。", at: "11-18 09:20" },
+    { sender: "developer", text: "已转为待办并在挤压区讨论，结论后进入待办。", at: "11-18 14:10" }
+  ] },
+  { id: "FB-104", short_id: "FB-104", title: "移动端导出失败提示不清", content: "App 上导出失败只提示一个错误码，不知道该重试还是找管理员。", project_name: PROJECT, state: "converted", priority: "P2", user: "u_1902", phone: "139****1902", email: "zhao@example.com", linked_task_id: "T-1042", created_at: "11-18 14:55", messages: [
+    { sender: "customer", text: "App 上导出失败只提示一个错误码。", at: "11-18 14:55" }
+  ] },
+  { id: "FB-105", short_id: "FB-105", title: "希望支持定时导出", content: "运营同学希望每周一自动导出上周数据并发到邮箱，现在只能手动导。", project_name: PROJECT, state: "pending", priority: "P2", user: "u_3311", phone: "137****3311", email: "ops@example.com", linked_task_id: null, created_at: "11-19 08:47", messages: [
+    { sender: "customer", text: "希望每周一自动导出上周数据并发到邮箱。", at: "11-19 08:47" },
+    { sender: "system", text: "AI 分诊完成，等待人工处理。", at: "11-19 08:48" }
+  ] },
+  { id: "FB-108", short_id: "FB-108", title: "导出记录希望能筛选", content: "导出记录一多了就找不到，希望能按时间和状态筛选。", project_name: PROJECT, state: "converted", priority: "P3", user: "u_1180", phone: "136****1180", email: "chen@example.com", linked_task_id: "T-1039", created_at: "11-17 14:30", messages: [
+    { sender: "customer", text: "导出记录一多了就找不到。", at: "11-17 14:30" }
+  ] },
+  { id: "FB-110", short_id: "FB-110", title: "导出模板命名规则", content: "导出文件名里希望带上日期和筛选条件，不然分不清是哪次导出的。", project_name: PROJECT, state: "accepted", priority: "P3", user: "u_1077", phone: "135****1077", email: "sun@example.com", linked_task_id: null, created_at: "11-16 10:12", messages: [
+    { sender: "customer", text: "导出文件名里希望带上日期和筛选条件。", at: "11-16 10:12" },
+    { sender: "developer", text: "已确认纳入导出模板改造。", at: "11-16 15:40" }
+  ] }
+];
+
+const state = { page: "work", chip: "zone", taskId: "T-1041", feedbackId: "FB-105", role: "member", user: "王珂", filter: "", proposalOpen: false, riskTarget: null, memberPicker: false };
+let tasks = JSON.parse(JSON.stringify(SEED_TASKS));
+let discussions = JSON.parse(JSON.stringify(SEED_DISCUSSIONS));
+let feedbacks = JSON.parse(JSON.stringify(SEED_FEEDBACKS));
+let events = [];
+let toastTimer = null;
+
+function avatarHtml(name, extra) {
+  const text = String(name == null ? "" : name);
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) % 997;
+  return '<span class="avatar av-' + (hash % 5) + (extra || "") + '" aria-hidden="true">' + esc(text.slice(0, 1)) + "</span>";
+}
+
+function esc(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+function taskById(id) { return tasks.find((t) => t.id === id) || null; }
+function discOf(id) { return discussions[id] || null; }
+function formatPriority(value) {
+  const n = Number(value || 0);
+  if (n >= 100) return "P0";
+  if (n > 0 && n <= 100) return "P" + Math.max(0, 100 - n);
+  return "普通";
+}
+function badgeOf(task) {
+  const d = discOf(task.id);
+  if (!d || !d.opened) return task.state === "pending_review" ? "undiscussed" : null;
+  if (d.question) return "question";
+  if (d.conclusion) return "passed";
+  if (d.shelved) return "shelved";
+  if (d.proposal || d.entries.length) return "pending";
+  return "open";
+}
+function inZone(task) { return ZONE_BADGES.includes(badgeOf(task)); }
+function nowStamp() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return "11-19 " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+function toast(message) {
+  const el = document.getElementById("toast");
+  el.textContent = message;
+  el.classList.remove("hidden");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), 2600);
+}
+function pushEvent(kind, note) {
+  events.unshift(kind + (note ? " · " + note : ""));
+  if (events.length > 30) events.pop();
+  const log = document.getElementById("eventLog");
+  log.innerHTML = events.map((e) => "<li>" + esc(e) + "</li>").join("");
+}
+function zoneTasks() { return tasks.filter(inZone); }
+function chipTasks(chip) {
+  if (chip === "zone") return zoneTasks();
+  return tasks.filter((t) => t.state === chip && !inZone(t));
+}
+function chipCount(chip) { return chipTasks(chip).length; }
+
+function renderNav() {
+  const zone = zoneTasks().length;
+  const fbPending = feedbacks.filter((f) => f.state === "pending").length;
+  document.getElementById("attentionNavCount").textContent = String(zone);
+  document.getElementById("workNavCount").textContent = String(tasks.filter((t) => ["pending_review", "pending", "in_progress"].includes(t.state)).length);
+  document.getElementById("automationNavCount").textContent = String(tasks.filter((t) => t.state === "in_progress").length);
+  document.getElementById("feedbackQueueNavCount").textContent = String(fbPending);
+}
+
+function renderChips() {
+  const wrap = document.getElementById("workStateFilters");
+  const zone = zoneTasks();
+  let html = '<button class="work-state-filter zone-filter' + (state.chip === "zone" ? " is-active" : "") + '" data-work-state="zone" type="button" data-test="zone-chip"><em data-test="zone-badge">' + zone.length + "</em><strong>挤压区</strong></button>";
+  for (const key of TASK_STATES) {
+    html += '<button class="work-state-filter' + (state.chip === key ? " is-active" : "") + '" data-work-state="' + key + '" type="button"><em>' + chipCount(key) + "</em><strong>" + STATE_ICONS[key] + " " + esc(STATE_LABELS[key]) + "</strong></button>";
+  }
+  wrap.innerHTML = html;
+  const select = document.getElementById("workStateSelect");
+  select.innerHTML = '<option value="zone">挤压区（' + zone.length + "）</option>" + TASK_STATES.map((k) => '<option value="' + k + '"' + (state.chip === k ? " selected" : "") + ">" + STATE_ICONS[k] + " " + STATE_LABELS[k] + "（" + chipCount(k) + "）</option>").join("");
+}
+
+function visibleTasks() {
+  const q = state.filter.trim().toLowerCase();
+  return chipTasks(state.chip).filter((t) => {
+    if (!q) return true;
+    return (t.id + " " + t.content + " " + t.executor + " " + t.tags).toLowerCase().includes(q);
+  });
+}
+
+function renderWorkTable() {
+  const list = visibleTasks();
+  const summary = document.getElementById("workStateSummary");
+  const zone = zoneTasks().length;
+  summary.textContent = state.chip === "zone"
+    ? "挤压区 " + zone + " 条 · 面板状态段，不进七态计数"
+    : STATE_LABELS[state.chip] + " " + chipCount(state.chip) + " 条 · 挤压区 " + zone + " 条";
+  const host = document.getElementById("platformWorkTable");
+  if (!list.length) {
+    host.innerHTML = '<div class="empty-state compact">当前筛选下没有待办</div>';
+    return;
+  }
+  let html = '<table class="data-table platform-work-table"><colgroup><col style="width:78px"><col><col style="width:92px"><col style="width:86px"><col style="width:92px"></colgroup><thead><tr><th>编号</th><th>标题</th><th>状态</th><th>执行人</th><th>讨论</th></tr></thead><tbody>';
+  list.forEach((t, i) => {
+    const badge = badgeOf(t);
+    html += '<tr data-task-select="' + t.id + '" class="' + (state.taskId === t.id ? "selected" : "") + '" data-test="task-row">' +
+      '<td class="queue-number" data-test="task-id">' + esc(t.id) + "</td>" +
+      '<td class="task-title-cell" data-test="task-title">' + esc(t.content) + "</td>" +
+      '<td data-test="task-state">' + STATE_ICONS[t.state] + " " + STATE_LABELS[t.state] + "</td>" +
+      "<td>" + esc(t.executor) + "</td>" +
+      '<td data-test="task-badge">' + (badge ? '<span class="status-pill ' + badge + ' disc-' + badge + '" data-test="disc-badge"' + (discOf(t.id) && discOf(t.id).opened ? ' data-open-discussion="' + t.id + '" title="进入沟通空间"' : "") + ">" + DISC_LABELS[badge] + "</span>" : "—") + "</td>" +
+      "</tr>";
+  });
+  html += "</tbody></table>";
+  host.innerHTML = html;
+}
+
+function factRows(task) {
+  const d = discOf(task.id);
+  const rows = [
+    { label: "项目", value: task.project_name },
+    { label: "状态", value: STATE_ICONS[task.state] + " " + STATE_LABELS[task.state] },
+    { label: "优先级", value: formatPriority(task.priority) },
+    { label: "执行人", value: task.executor },
+    { label: "创建人", value: task.creator },
+    { label: "标签", value: task.tags || "—" },
+    { label: "父任务", value: task.father_id || "无" },
+    { label: "创建时间", value: task.created_at },
+    { label: "更新时间", value: task.updated_at },
+    { label: "仓库地址", value: '<a href="' + esc(task.git_url) + '" data-test="task-git-url" target="_blank" rel="noreferrer">' + esc(task.git_url) + "</a>", wide: true },
+    { label: "讨论中", value: d && d.entries.length ? d.entries.length + " 条观点" : "无" }
+  ];
+  if (task.fb) rows.push({ label: "反馈来源", value: '<button type="button" data-feedback-deep="' + esc(task.fb) + '" data-test="task-fb-link">' + esc(task.fb) + " · 打开反馈详情</button>", wide: true });
+  return '<div class="work-inspector-facts">' + rows.map((r) => '<div class="fact-row' + (r.wide ? " is-wide" : "") + '"><small>' + esc(r.label) + "</small><strong>" + r.value + "</strong></div>").join("") + "</div>";
+}
+
+function markdownDetail(task) {
+  const lines = [
+    "### 任务目标",
+    "针对「" + task.content + "」给出可验证的交付。",
+    "",
+    "### 完成标准",
+    "- 行为可在页面复现",
+    "- 回归用例通过",
+    "- 文档与同步状态更新"
+  ];
+  const body = lines.map((l) => l.startsWith("#") ? "<p><strong>" + esc(l.replace(/^#+ /, "")) + "</strong></p>" : l === "" ? "<br>" : "<p>" + esc(l) + "</p>").join("");
+  return '<div class="task-markdown-detail" data-test="task-detail">' + body + "</div>";
+}
+
+function renderDecisionSummary(task) {
+  const d = discOf(task.id);
+  if (!d) return "";
+  const badge = badgeOf(task);
+  if (!d.opened) {
+    const disabled = state.role === "agent" ? " disabled" : "";
+    return '<section class="work-inspector-section decision-summary no-decision" data-test="discussion-gate"><div class="work-inspector-section-heading"><h3>讨论</h3>' +
+      (badge ? '<span class="status-pill disc-' + badge + '" data-test="summary-badge">' + DISC_LABELS[badge] + "</span>" : "") +
+      '</div><p class="decision-issue" data-test="gate-hint">尚未开启讨论。开启后 Agent 将基于任务正文与项目理解给出初步分析，团队成员共同探讨，显性确认结论后作为状态流转依据。</p>' +
+      '<div class="task-actions"><button class="primary-button" data-work-action="start-discussion" data-test="start-discussion"' + disabled + ' type="button">开启讨论</button>' +
+      (state.role === "agent" ? '<small class="decision-meta">Agent 不能开启讨论，请切换为成员</small>' : "") +
+      "</div></section>";
+  }
+  const decision = task.decision || (d.conclusion ? { text: d.conclusion.text, by: d.conclusion.by, at: d.conclusion.at } : null);
+  let inner = "";
+  if (decision) {
+    inner = '<p class="decision-verdict" data-test="decision-summary-text">' + esc(decision.text) + "</p>" +
+      '<small class="decision-meta" data-test="decision-summary-meta">由 ' + esc(decision.by) + " 于 " + esc(decision.at) + " 经确认通过 · 已回写 task.decision，供后续处理与执行上下文引用" +
+      (d.subtasks && d.subtasks.length ? " · 子任务 " + d.subtasks.length + " 条" : "") + "</small>" +
+      (d.summary
+        ? '<small class="decision-meta" data-test="summary-detail">Agent 过程摘要：' + esc(d.summary) + "</small>"
+        : '<small class="decision-meta" data-test="summary-pending-detail">Agent 过程摘要生成中…（不阻塞流转）</small>');
+  } else {
+    const last = d.entries[d.entries.length - 1];
+    inner = '<p class="decision-issue" data-test="decision-summary-issue"><strong>议题</strong> ' + esc(d.issue || "暂无议题，先在沟通空间发言") + "</p>" +
+      (last ? '<div class="mini-timeline" data-test="mini-timeline"><article class="task-comment-item opinion-' + last.role + '"><header><span><span class="role-tag ' + last.role + '">' + (last.role === "agent" ? "Agent" : "成员") + "</span>" + esc(last.author) + '</span><time>' + esc(last.at) + '</time></header><p>' + esc(last.text) + "</p></article></div>" : "") +
+      '<span class="mini-count" data-test="mini-count">人类参与者 ' + d.participants.length + " 人 · " + d.entries.length + " 条观点 · 过程在沟通空间</span>";
+  }
+  const actions = [];
+  actions.push('<button class="' + (decision ? "secondary-button" : "primary-button") + '" data-work-action="open-discussion" data-test="open-discussion" type="button">进入沟通空间</button>');
+  actions.push('<button class="secondary-button" data-work-action="shelve" data-test="shelve" type="button">' + (d.shelved ? "取消搁置" : "搁置") + "</button>");
+  return '<section class="work-inspector-section decision-summary' + (decision ? "" : " no-decision") + '" data-test="decision-summary"><div class="work-inspector-section-heading"><h3>' + (decision ? "处理依据 · 结论" : "讨论状态（摘要）") + '</h3>' +
+    (badge ? '<span class="status-pill disc-' + badge + '" data-test="summary-badge">' + DISC_LABELS[badge] + "</span>" : "") +
+    '</div>' + inner + '<div class="task-actions" style="margin-top:10px">' + actions.join(" ") + "</div></section>";
+}
+
+function voteStats(d) {
+  const total = d.participants.length;
+  const yes = Object.keys(d.votes).filter((k) => d.votes[k] === "yes").length;
+  return { total: total, yes: yes, majority: total > 0 && yes > total / 2 };
+}
+
+function buildDiscussionBody(task, d) {
+  let html = "";
+  const total = d.participants.length;
+  const isMember = state.role === "member" && !!state.user;
+  const isParticipant = isMember && d.participants.includes(state.user);
+
+  html += '<div class="participant-bar" data-test="participant-bar"><strong>参与者</strong><div class="avatar-stack">' +
+    (total
+      ? d.participants.map((name) => '<span class="participant-chip' + (name === state.user ? " is-me" : "") + '" data-test="participant-chip" data-name="' + esc(name) + '">' + avatarHtml(name) + "<span>" + esc(name) + "</span></span>").join("")
+      : '<span class="participant-chip empty">暂无参与者</span>') +
+    '</div><span class="participant-count" data-test="participant-count">人类参与者 ' + total + " 人（投票分母，Agent 不计入）</span>";
+  if (isMember && !isParticipant) {
+    html += '<span class="participant-actions"><button class="secondary-button" data-work-action="join-discussion" data-test="join-discussion" type="button">加入讨论</button></span>';
+  } else if (isParticipant) {
+    html += '<span class="participant-actions"><button class="member-add-btn" data-member-toggle data-test="add-participant" type="button">＋ 添加成员</button></span>';
+  } else if (state.role === "agent") {
+    html += '<span class="participant-actions"><span class="participant-note" data-test="agent-participant-note">Agent 常驻讨论空间，不计入投票分母</span></span>';
+  }
+  if (state.memberPicker && isParticipant) {
+    html += '<div class="member-picker" data-test="member-picker"><div class="member-picker-head">选择项目成员（已加入本项目）</div>' +
+      PROJECT_MEMBERS.map((m) => {
+        const joined = d.participants.includes(m.name);
+        return '<button class="member-option" data-pick-member="' + esc(m.name) + '" data-test="member-option"' + (joined ? " disabled" : "") + ' type="button">' +
+          avatarHtml(m.name) + '<span class="member-option-name">' + esc(m.name) + '</span><span class="member-option-role">' + esc(m.role) + '</span>' +
+          '<span class="member-option-state">' + (joined ? "已参与" : "添加") + "</span></button>";
+      }).join("") + "</div>";
+  }
+  html += "</div>";
+
+  if (d.issue) {
+    html += '<section class="disc-section"><h3 class="disc-section-title">议题</h3><article class="task-comment-item issue" data-test="discussion-issue"><header><span>Agent 初步分析</span><time>' + esc(task.updated_at) + '</time></header><p>' + esc(d.issue) + "</p></article></section>";
+  }
+
+  html += '<section class="disc-section"><h3 class="disc-section-title">观点' + (d.entries.length ? " · " + d.entries.length + " 条" : "") + '</h3><div class="disc-thread">';
+  if (!d.entries.length) html += '<p class="decision-meta">暂无观点，先发言。</p>';
+  d.entries.forEach((entry) => {
+    html += '<article class="disc-msg ' + entry.role + '" data-test="discussion-entry">' + avatarHtml(entry.author, entry.role === "agent" ? " is-agent" : "") +
+      '<div class="disc-msg-body"><div class="disc-msg-head"><span class="role-tag ' + entry.role + '">' + (entry.role === "agent" ? "Agent" : "成员") + '</span><strong>' + esc(entry.author) + '</strong><time>' + esc(entry.at) + "</time></div><p>" + esc(entry.text) + "</p></div></article>";
+  });
+  html += "</div></section>";
+
+  if (d.question) {
+    html += '<section class="disc-section"><h3 class="disc-section-title">Agent 提问</h3><article class="task-comment-item issue" data-test="question-block"><header><span>需要你的决策</span><time>' + esc(task.updated_at) + '</time></header><p data-test="question-text">' + esc(d.question) + '</p><div class="task-comment-composer"><label for="questionReply">回复 Agent</label><textarea id="questionReply" data-test="question-input" placeholder="输入回复内容"></textarea><div class="task-comment-composer-actions"><small>回复后提问自动关闭</small><button class="secondary-button" data-question-reply="' + esc(task.id) + '" data-test="question-reply" type="button">提交回复</button></div></div></article></section>';
+  }
+
+  const hasConclusion = !!(task.decision || d.conclusion);
+  if (hasConclusion) {
+    const dec = task.decision || d.conclusion;
+    const stats = voteStats(d);
+    html += '<section class="disc-section"><h3 class="disc-section-title">结论与确认</h3>';
+    html += '<article class="task-comment-item decision" data-test="discussion-conclusion"><header><span>✓ 结论 · ' + esc(dec.by) + "</span><time>" + esc(dec.at) + '</time></header><p data-test="conclusion-text">' + esc(dec.text) + "</p></article>";
+    html += '<article class="task-comment-item system vote-stats-card" data-test="vote-stats"><header><span>确认统计</span></header><p data-test="vote-stats-text">赞成 ' + stats.yes + " / " + stats.total + " · 超过半数通过（Agent 不计入分母）</p></article>";
+    html += d.summary
+      ? '<article class="task-comment-item decision" data-test="summary-card"><header><span>Agent 过程摘要</span></header><p data-test="summary-text">' + esc(d.summary) + "</p></article>"
+      : '<article class="task-comment-item system" data-test="summary-pending"><header><span>Agent 过程摘要</span></header><p>生成中…（不阻塞状态流转）</p></article>';
+    html += "</section>";
+  } else if (d.proposal) {
+    const stats = voteStats(d);
+    const myVote = state.user ? d.votes[state.user] : null;
+    const no = Object.keys(d.votes).filter((k) => d.votes[k] === "no").length;
+    const yesPct = stats.total ? Math.round((stats.yes / stats.total) * 100) : 0;
+    const noPct = stats.total ? Math.round((no / stats.total) * 100) : 0;
+    html += '<section class="disc-section"><h3 class="disc-section-title">结论草案与投票</h3>';
+    html += '<article class="task-comment-item decision proposal-card" data-test="proposal-card"><header><span>草案 · ' + esc(d.proposal.by) + "</span><time>" + esc(d.proposal.at) + '</time></header><p data-test="proposal-text">' + esc(d.proposal.text) + '</p><p class="vote-count" data-test="vote-count">赞成 ' + stats.yes + " / " + stats.total + "（超过半数 = " + (Math.floor(stats.total / 2) + 1) + " 票）</p>" +
+      '<div class="vote-bar" aria-hidden="true"><i style="width:' + yesPct + '%"></i><i class="no" style="width:' + noPct + '%"></i></div></article>';
+    if (isParticipant) {
+      if (!myVote) {
+        html += '<div class="task-actions" data-test="vote-actions"><button class="primary-button" data-work-action="vote-yes" data-test="vote-yes" type="button">投赞成</button><button class="secondary-button" data-work-action="vote-no" data-test="vote-no" type="button">投反对</button></div>';
+      } else {
+        html += '<p class="decision-meta" data-test="my-vote">你已投' + (myVote === "yes" ? "赞成" : "反对") + "</p>";
+      }
+      if (stats.majority) {
+        html += '<div class="task-actions"><button class="primary-button" data-work-action="approve" data-test="approve-button" type="button">' + (stats.total === 1 ? "确认结论" : "通过结论") + "</button></div>";
+      } else {
+        html += '<p class="decision-meta" data-test="majority-hint">未超过半数，暂不能通过</p>';
+      }
+    } else if (state.role === "agent") {
+      html += '<p class="decision-meta" data-test="agent-no-decide">Agent 不能起草、投票或通过结论，仅能提观点</p>';
+    }
+    html += "</section>";
+  } else if (isParticipant && !d.shelved) {
+    html += '<div class="task-actions"><button class="primary-button" data-work-action="propose" data-test="propose-button" type="button">起草结论</button></div>';
+  } else if (state.role === "agent") {
+    html += '<p class="decision-meta" data-test="agent-no-decide">Agent 不能起草或通过结论，仅能提观点</p>';
+  }
+
+  if (state.proposalOpen && !hasConclusion) {
+    html += '<section class="disc-section"><h3 class="disc-section-title">起草结论草案</h3><div class="decision-form" data-test="proposal-form"><label>结论草案（提交后进入确认）<textarea id="proposalText" data-test="proposal-input" placeholder="写入结论草案"></textarea></label><div class="form-foot"><small>单人参与者提交即通过；多人需超过半数赞成后显性通过</small><span><button class="secondary-button" data-proposal-cancel type="button">取消</button> <button class="primary-button" data-work-action="proposal-submit" data-test="proposal-submit" type="button">提交草案</button></span></div></div></section>';
+  }
+
+  if (d.events.length) {
+    html += '<section class="disc-section"><h3 class="disc-section-title">系统事件</h3><div class="disc-events">';
+    d.events.forEach((ev) => { html += '<article class="task-comment-item system"><header><span>' + esc(ev.kind) + "</span><time>" + esc(ev.at) + '</time></header><p>' + esc(ev.text) + "</p></article>"; });
+    html += "</div></section>";
+  }
+
+  if (!hasConclusion && !d.shelved) {
+    html += '<div class="task-comment-composer"><label for="opinionInput">发言（当前身份：' + (state.role === "agent" ? "Agent · 仅观点" : esc(state.user || "成员") + (isParticipant ? " · 可参与确认" : " · 未加入讨论")) + '）</label><textarea id="opinionInput" data-test="opinion-input" placeholder="输入观点或议题"></textarea><div class="task-comment-composer-actions"><small data-test="role-hint">' + (state.role === "agent" ? "Agent 不能起草或通过结论" : "结论需超过半数参与者确认") + '</small><button class="secondary-button" id="sendOpinion" data-test="send-opinion" type="button">提交观点</button></div></div>';
+  }
+  return html;
+}
+
+function renderDraftConfirm(task) {
+  const d = discOf(task.id);
+  if (!d || !d.draft) return "";
+  const list = [
+    "1. 权限范围摘要（导出弹窗）",
+    "2. 缺权限申请入口",
+    "3. 回归：导出流程用例"
+  ];
+  return '<div class="draft-confirm-panel" data-test="draft-panel"><div class="draft-confirm-header"><span class="draft-confirm-title">拆解草稿</span><button class="secondary-button" data-work-action="enqueue" data-test="draft-enqueue" type="button">加入执行队列</button></div><p class="draft-confirm-label">建议子任务（' + list.length + '）</p><ul class="draft-confirm-text" data-test="draft-list">' + list.map((l) => "<li>" + esc(l) + "</li>").join("") + '</ul><div class="draft-confirm-actions"><button class="secondary-button" data-draft-confirm="discard" data-test="draft-discard" type="button">丢弃</button><button class="primary-button" data-draft-confirm="confirm" data-test="draft-confirm" type="button">确认拆解草稿</button></div></div>';
+}
+
+function execContext(task) {
+  const conclusion = task.decision ? task.decision.text : "（尚未形成结论）";
+  return '<details class="exec-context" data-test="exec-context"><summary>Agent 执行上下文</summary><div class="exec-context-body">' +
+    '<div class="fact-row"><small>任务正文</small><strong data-test="exec-content">' + esc(task.content) + "</strong></div>" +
+    '<div class="fact-row"><small>项目 / 仓库</small><strong data-test="exec-repo">' + esc(task.project_name) + " · " + esc(task.git_url) + "</strong></div>" +
+    '<div class="fact-row"><small>结论（仅一行 · task.decision）</small><strong data-test="exec-conclusion">' + esc(conclusion) + "</strong></div>" +
+    '<div class="exec-injection-note" data-test="exec-note">结论由沟通空间投票通过后回写 task.decision，执行上下文只读该字段；讨论全文、观点与 Agent 过程摘要均不注入（buildAutomationTask 现状即不读评论）。</div>' +
+    "</div></details>";
+}
+
+function renderAttention(task) {
+  const d = discOf(task.id);
+  if (!d || !d.question) return "";
+  return '<div class="attention-strip" data-test="question-strip"><span>?</span><div class="attention-copy"><strong data-test="question-strip-text">Agent 需要你的决策：' + esc(d.question) + '</strong><p>回复后提问关闭；结论仅成员可标记。</p></div><div class="attention-actions"><input id="attentionReply" data-test="attention-input" placeholder="输入回复"><button class="primary-button" data-question-reply="' + esc(task.id) + '" data-test="question-reply-strip" type="button">提交回复</button></div></div>';
+}
+
+function renderInspector() {
+  const host = document.getElementById("platformWorkInspector");
+  const task = taskById(state.taskId);
+  if (!task) {
+    host.innerHTML = '<div class="empty-panel"><strong>未选择待办</strong><p>从左侧列表选择一条待办查看讨论与上下文</p></div>';
+    return;
+  }
+  const badge = badgeOf(task);
+  const d = discOf(task.id);
+  let html = "";
+  html += renderAttention(task);
+  html += '<section class="work-inspector-section work-inspector-identity" data-test="inspector-identity"><div class="work-inspector-identity-row"><div class="work-inspector-identity-copy"><h2 data-test="inspector-title">' + esc(task.content) + '</h2><p class="work-inspector-identity-product">' + esc(task.project_name) + " · " + esc(task.id) + '</p><div class="work-inspector-badges"><span class="status-pill" data-test="inspector-state">' + STATE_ICONS[task.state] + " " + STATE_LABELS[task.state] + "</span>" +
+    (badge ? '<span class="status-pill disc-' + badge + '" data-test="inspector-badge">' + DISC_LABELS[badge] + "</span>" : "") +
+    '<span class="status-pill muted" data-test="inspector-priority">优先级 ' + formatPriority(task.priority) + "</span></div></div></div></section>";
+  html += '<section class="work-inspector-section"><div class="work-inspector-section-heading"><h3>上下文事实</h3></div>' + factRows(task) + "</section>";
+  html += '<section class="work-inspector-section"><div class="work-inspector-section-heading"><h3>任务详情</h3></div>' + markdownDetail(task) + "</section>";
+  html += renderDecisionSummary(task);
+  html += renderDraftConfirm(task);
+  if (d && d.subtasks && d.subtasks.length) {
+    html += '<section class="work-inspector-section"><div class="work-inspector-section-heading"><h3>子任务</h3></div><div class="subtask-tree" data-test="subtask-tree">' + d.subtasks.map((st) => '<div class="subtask-row"><span>' + esc(st.id) + "</span><span>" + esc(st.content) + "</span></div>").join("") + "</div></section>";
+  }
+  const stateActs = [];
+  if (task.state === "pending_review" || inZone(task)) stateActs.push('<button class="primary-button" data-work-action="enter-todo" data-test="enter-todo" type="button">进入待办</button>');
+  if (task.state === "pending_review" || task.state === "pending") stateActs.push('<button class="secondary-button" data-work-action="start-exec" data-test="start-exec" type="button">开始执行</button>');
+  if (task.state !== "blocked" && task.state !== "cancelled") stateActs.push('<button class="secondary-button" data-work-action="mark-blocked" data-test="mark-blocked" type="button">标记阻塞</button>');
+  if (stateActs.length) {
+    html += '<section class="work-inspector-section"><div class="work-inspector-section-heading"><h3>状态流转</h3></div><div class="task-actions" data-test="state-actions">' + stateActs.join(" ") + "</div>";
+    if (state.riskTarget) {
+      html += '<div class="risk-confirm-panel" data-test="risk-panel"><div class="draft-confirm-header"><span class="draft-confirm-title risk-title" data-test="risk-title">未经讨论决策</span></div><p class="draft-confirm-text" data-test="risk-text">该任务未开启讨论，直接进入执行缺少团队共识，可能与项目预期偏差。确定继续吗？</p><div class="draft-confirm-actions"><button class="secondary-button" data-work-action="risk-cancel" data-test="risk-cancel" type="button">返回</button><button class="primary-button risk-go" data-work-action="risk-confirm" data-test="risk-confirm" type="button">仍要执行</button></div></div>';
+    }
+    html += "</section>";
+  }
+  html += execContext(task);
+  host.innerHTML = html;
+}
+
+function renderWork() {
+  renderChips();
+  renderWorkTable();
+  renderInspector();
+  renderNav();
+  document.getElementById("platformWorkFilter").value = state.filter;
+  document.getElementById("workFilterSummary").textContent = state.chip === "zone" ? "挤压区" : STATE_LABELS[state.chip];
+  refreshSlide();
+}
+
+function renderFeedbackList() {
+  const q = (document.getElementById("feedbackSearchInput") || {}).value || "";
+  const st = (document.getElementById("feedbackStateFilter") || {}).value || "all";
+  const list = feedbacks.filter((f) => {
+    if (st !== "all" && f.state !== st) return false;
+    if (!q.trim()) return true;
+    return (f.id + " " + f.title + " " + f.content + " " + f.user).toLowerCase().includes(q.trim().toLowerCase());
+  });
+  document.getElementById("feedbackListSummary").textContent = list.length + " 条";
+  const host = document.getElementById("ordinaryFeedbackTable");
+  if (!list.length) {
+    host.innerHTML = '<div class="empty-state compact">没有匹配的反馈</div>';
+    return;
+  }
+  host.innerHTML = list.map((f) =>
+    '<button class="feedback-list-item' + (state.feedbackId === f.id ? " is-active" : "") + '" data-feedback-select="' + f.id + '" type="button" data-test="feedback-row">' +
+    '<span class="feedback-list-copy"><strong data-test="feedback-id">' + esc(f.short_id) + "</strong><small>" + esc(f.title) + "</small></span>" +
+    '<span class="feedback-list-meta"><i class="feedback-priority' + (f.priority === "P0" || f.priority === "P1" ? " has-priority" : "") + '">' + esc(f.priority) + '</i><span class="status-pill ' + f.state + '">' + FEEDBACK_STATE_LABELS[f.state] + "</span><time>" + esc(f.created_at) + "</time></span>" +
+    "</button>"
+  ).join("");
+}
+
+function renderFeedbackInspector() {
+  const host = document.getElementById("feedbackInspector");
+  const f = feedbacks.find((x) => x.id === state.feedbackId);
+  if (!f) {
+    host.innerHTML = '<div class="empty-panel"><strong>未选择反馈</strong><p>从左侧列表选择一条反馈</p></div>';
+    return;
+  }
+  const facts = [
+    { label: "来源用户", value: f.user },
+    { label: "手机号", value: f.phone },
+    { label: "邮箱", value: f.email },
+    { label: "项目", value: f.project_name },
+    { label: "优先级", value: f.priority },
+    { label: "关联待办", value: f.linked_task_id || "未关联" },
+    { label: "创建时间", value: f.created_at },
+    { label: "状态", value: FEEDBACK_STATE_LABELS[f.state] }
+  ];
+  let html = '<div class="feedback-inspector-scroll"><header class="feedback-inspector-header"><div><small>' + esc(f.short_id) + '</small><h2 data-test="feedback-title">' + esc(f.title) + '</h2><p>反馈详情 · 原文、处理与沟通</p></div><span class="status-pill ' + f.state + '" data-test="feedback-state">' + FEEDBACK_STATE_LABELS[f.state] + "</span></header>";
+  html += '<div class="feedback-processing-actions" data-test="feedback-actions"><button class="secondary-button" data-feedback-action="squeeze" data-test="fb-squeeze" type="button" title="将该反馈移入挤压区，与待办共享讨论面板">进入挤压区</button><button class="primary-button" data-feedback-action="convert" data-test="fb-convert" type="button">转为待办</button><button class="secondary-button" data-feedback-action="open-squeeze" data-test="fb-open-squeeze" type="button">查看挤压区卡片</button><button class="secondary-button" data-feedback-action="open-task" data-test="fb-open-task" type="button">打开关联待办</button><button class="secondary-button" data-feedback-action="ignore" data-test="fb-ignore" type="button">忽略</button><button class="secondary-button" data-feedback-action="refresh" data-test="fb-refresh" type="button">刷新</button></div>';
+  html += '<section class="feedback-content-card"><h3>反馈原文</h3><p data-test="feedback-content">' + esc(f.content) + "</p></section>";
+  html += '<div class="feedback-facts" data-test="feedback-facts">' + facts.map((r) => '<div class="fact-row"><small>' + esc(r.label) + '</small><strong>' + esc(r.value) + "</strong></div>").join("") + "</div>";
+  html += '<details class="ai-triage-panel"><summary><div class="section-title-row"><div><span class="section-icon">AI</span><div><h3>AI 分诊</h3><p>按反馈分诊契约产出，人工可改</p></div></div></div></summary><div class="ai-triage-body"><div class="fact-grid"><div class="fact-row"><small>主题</small><strong>导出 · 定时任务</strong></div><div class="fact-row"><small>建议优先级</small><strong>' + esc(f.priority) + '</strong></div><div class="fact-row is-wide"><small>建议归属</small><strong>' + esc(f.project_name) + '</strong></div></div><div class="insight-callout"><small>分诊建议</small><p>建议进入挤压区先与待办讨论，形成结论后再拆解为子任务。</p></div><div class="score-meter"><div style="width:78%"></div></div></div></details>';
+  html += '<section class="feedback-conversation"><h3 class="draft-confirm-title">沟通记录</h3><div class="feedback-message-list" data-test="feedback-messages">' + f.messages.map((m) => '<article class="feedback-message ' + (m.sender === "developer" ? "developer" : m.sender === "system" ? "system" : "") + '"><header><span>' + (m.sender === "developer" ? "开发方" : m.sender === "system" ? "系统" : "用户") + '</span><time>' + esc(m.at) + "</time></header><p>" + esc(m.text) + "</p></article>").join("") + '</div><div class="feedback-reply-composer"><textarea id="feedbackReplyText" data-test="feedback-reply-input" placeholder="回复用户"></textarea><div class="feedback-reply-actions"><small class="feedback-reply-file-hint">附件暂不支持</small><button class="primary-button" data-feedback-action="reply" data-test="fb-reply" type="button">发送回复</button></div></div></section></div>';
+  host.innerHTML = html;
+}
+
+function renderFeedback() {
+  renderFeedbackList();
+  renderFeedbackInspector();
+  renderNav();
+}
+
+function goPage(page) {
+  state.page = page;
+  document.querySelectorAll(".nav-item[data-page]").forEach((b) => b.classList.toggle("is-active", b.dataset.page === page));
+  const map = { work: "workView", feedback: "feedbackView" };
+  ["workView", "feedbackView", "stubView"].forEach((id) => document.getElementById(id).classList.remove("is-active"));
+  const titles = { work: ["云协作 · 导出权限", "Work"], feedback: ["云协作 · 导出权限", "Feedback"] };
+  if (map[page]) {
+    document.getElementById(map[page]).classList.add("is-active");
+    document.getElementById("pageTitle").textContent = titles[page][1];
+    document.getElementById("scopeTitle").textContent = titles[page][0];
+    if (page === "work") renderWork(); else renderFeedback();
+  } else {
+    document.getElementById("stubView").classList.add("is-active");
+    document.getElementById("stubTitle").textContent = page + " 不在本设计稿范围";
+    document.getElementById("pageTitle").textContent = page;
+  }
+}
+
+function selectChip(chip) {
+  state.chip = chip;
+  state.proposalOpen = false;
+  state.riskTarget = null;
+  state.memberPicker = false;
+  const list = chipTasks(chip);
+  const q = state.filter.trim().toLowerCase();
+  const filtered = list.filter((t) => !q || (t.id + " " + t.content).toLowerCase().includes(q));
+  if (filtered.length && !filtered.some((t) => t.id === state.taskId)) state.taskId = filtered[0].id;
+  renderWork();
+}
+
+function selectTask(id) {
+  state.taskId = id;
+  state.proposalOpen = false;
+  state.riskTarget = null;
+  state.memberPicker = false;
+  renderWork();
+}
+
+function setRole(value) {
+  if (value === "agent") {
+    state.role = "agent";
+    state.user = null;
+  } else if (value === "member2") {
+    state.role = "member";
+    state.user = "林晓";
+  } else {
+    state.role = "member";
+    state.user = "王珂";
+  }
+  state.proposalOpen = false;
+  state.memberPicker = false;
+  renderInspector();
+  refreshSlide();
+}
+
+function sendOpinion() {
+  const task = taskById(state.taskId);
+  const d = discOf(state.taskId);
+  const input = document.getElementById("opinionInput");
+  const text = (input && input.value.trim()) || "";
+  if (!task || !d || !text) { toast("请输入观点内容"); return; }
+  if (!d.opened) { toast("请先开启讨论"); return; }
+  d.entries.push({ role: state.role === "agent" ? "agent" : "human", author: state.role === "agent" ? "Agent" : (state.user || "成员"), text: text, at: nowStamp() });
+  if (!d.issue) d.issue = "（由发言生成的议题）";
+  task.updated_at = nowStamp();
+  pushEvent(state.role === "agent" ? "agent.opinion_added" : "member.opinion_added", task.id);
+  toast(state.role === "agent" ? "Agent 已提交观点（不能标记结论）" : "观点已提交");
+  renderWork();
+}
+
+function openDiscussion() {
+  const task = taskById(state.taskId);
+  const d = discOf(state.taskId);
+  if (!task || !d || d.opened) return;
+  if (state.role === "agent") { toast("Agent 不能开启讨论"); return; }
+  d.opened = true;
+  d.participants = [state.user || "王珂"];
+  d.issue = "Agent 初步分析：围绕「" + task.content + "」需要对齐目标场景与验收口径。";
+  d.entries.push({ role: "agent", author: "Agent", text: "初步分析（基于任务正文与项目「" + task.project_name + "」的理解）：1) 影响面：导出相关用户路径；2) 风险：缺提示会导致静默裁剪、信任受损；3) 建议先确认产品口径，再评估子任务拆解。", at: nowStamp() });
+  task.updated_at = nowStamp();
+  pushEvent("discussion.opened", task.id);
+  pushEvent("agent.preliminary_analysis", task.id);
+  toast("讨论已开启，Agent 已给出初步分析");
+  renderWork();
+  openSlide();
+}
+
+function addParticipant(name) {
+  const d = discOf(state.taskId);
+  if (!d) return;
+  if (!name || !PROJECT_MEMBERS.some((m) => m.name === name)) { toast("仅可选择已加入本项目的成员"); return; }
+  if (d.participants.includes(name)) { toast("该用户已在参与者中"); return; }
+  d.participants.push(name);
+  pushEvent("participant.added", state.taskId + " → " + name);
+  toast("已添加 " + name + "，计入投票分母（站内通知已发送）");
+  renderWork();
+}
+
+function joinDiscussion() {
+  const d = discOf(state.taskId);
+  if (!d || !state.user || d.participants.includes(state.user)) return;
+  d.participants.push(state.user);
+  pushEvent("participant.joined", state.taskId + " → " + state.user);
+  toast("已加入讨论，计入投票分母");
+  renderWork();
+}
+
+function submitProposal() {
+  const task = taskById(state.taskId);
+  const d = discOf(state.taskId);
+  const input = document.getElementById("proposalText");
+  const text = input && input.value.trim();
+  if (!task || !d) return;
+  if (state.role !== "member" || !state.user || !d.participants.includes(state.user)) { toast("仅参与者可起草结论"); return; }
+  if (!text) { toast("请填写结论草案"); return; }
+  d.proposal = { text: text, by: state.user, at: nowStamp() };
+  d.votes[state.user] = "yes";
+  state.proposalOpen = false;
+  pushEvent("proposal.created", task.id);
+  const stats = voteStats(d);
+  if (stats.total === 1) {
+    finalizeConclusion(task, d, "单人参与者，草案提交即通过");
+    return;
+  }
+  pushEvent("vote.cast", task.id + " · " + state.user + " 赞成（起草自动）");
+  if (stats.majority) toast("已过半，等待任一参与者显性通过");
+  else toast("草案已提交 " + stats.yes + "/" + stats.total + "，未超过半数");
+  renderWork();
+}
+
+function castVote(v) {
+  const task = taskById(state.taskId);
+  const d = discOf(state.taskId);
+  if (!task || !d || !d.proposal || d.conclusion) return;
+  if (state.role !== "member" || !state.user || !d.participants.includes(state.user)) { toast("仅参与者可投票"); return; }
+  if (d.votes[state.user]) { toast("你已投过票"); return; }
+  d.votes[state.user] = v;
+  pushEvent("vote.cast", task.id + " · " + state.user + " " + (v === "yes" ? "赞成" : "反对"));
+  const stats = voteStats(d);
+  if (stats.majority) toast("已过半，可显性通过");
+  else toast("已" + (v === "yes" ? "赞成" : "反对") + " " + stats.yes + "/" + stats.total + "，未超过半数");
+  renderWork();
+}
+
+function approveConclusion() {
+  const task = taskById(state.taskId);
+  const d = discOf(state.taskId);
+  if (!task || !d || !d.proposal || d.conclusion) return;
+  if (state.role !== "member" || !state.user || !d.participants.includes(state.user)) { toast("仅参与者可通过结论"); return; }
+  const stats = voteStats(d);
+  if (!stats.majority) { toast("未超过半数，不能通过"); return; }
+  finalizeConclusion(task, d, "赞成 " + stats.yes + "/" + stats.total + " 超过半数");
+  }
+
+function finalizeConclusion(task, d, reason) {
+  d.conclusion = { text: d.proposal.text, by: d.proposal.by, at: nowStamp() };
+  task.decision = { text: d.proposal.text, by: d.proposal.by, at: nowStamp() };
+  d.shelved = false;
+  d.draft = true;
+  state.proposalOpen = false;
+  task.updated_at = nowStamp();
+  pushEvent("discussion.approved", task.id + " · " + reason);
+  toast("结论已通过并回写 task.decision");
+  generateSummary(task.id);
+  renderWork();
+}
+
+function generateSummary(taskId) {
+  setTimeout(() => {
+    const task = taskById(taskId);
+    const d = discOf(taskId);
+    if (!task || !d || !d.conclusion || d.summary) return;
+    d.summary = "围绕「" + (d.issue || task.content) + "」经" + d.participants.length + "名参与者确认：" + d.conclusion.text + "；关键分歧已收敛，后续按拆解子任务推进。";
+    d.events.push({ kind: "discussion.summary_generated", text: "discussion.summary_generated · Agent 过程摘要已生成", at: nowStamp() });
+    pushEvent("discussion.summary_generated", taskId);
+    renderWork();
+  }, 800);
+}
+
+function applyStateChange(target, msg) {
+  const task = taskById(state.taskId);
+  if (!task) return;
+  task.state = target;
+  state.riskTarget = null;
+  if (target === "in_progress") state.chip = "in_progress";
+  if (target === "blocked") state.chip = "blocked";
+  pushEvent("task.state_changed", task.id + " → " + target);
+  toast(msg);
+  renderWork();
+}
+
+function enterTodo() {
+  const task = taskById(state.taskId);
+  if (!task) return;
+  if (task.state === "pending_review" || inZone(task)) {
+    task.state = "pending";
+    pushEvent("task.entered_pending", task.id);
+    state.chip = "pending";
+    toast("已进入待办：状态落「待处理」");
+  }
+  renderWork();
+}
+
+function startExec() {
+  const task = taskById(state.taskId);
+  const d = discOf(state.taskId);
+  if (!task) return;
+  if (!(task.state === "pending" || task.state === "pending_review")) { toast("当前状态无需开始执行"); return; }
+  if (d && !d.opened) {
+    state.riskTarget = "in_progress";
+    renderWork();
+    return;
+  }
+  applyStateChange("in_progress", "已开始执行：进入「进行中」");
+}
+
+function markBlocked() {
+  const task = taskById(state.taskId);
+  if (!task) return;
+  applyStateChange("blocked", "已标记阻塞");
+}
+
+function confirmDraft(action) {
+  const task = taskById(state.taskId);
+  const d = discOf(state.taskId);
+  if (!task || !d) return;
+  if (action === "discard") {
+    d.draft = false;
+    pushEvent("draft.discarded", task.id);
+    toast("草稿已丢弃");
+  } else {
+    d.draft = false;
+    d.subtasks = [
+      { id: task.id + "-1", content: "权限范围摘要（导出弹窗）" },
+      { id: task.id + "-2", content: "缺权限申请入口" },
+      { id: task.id + "-3", content: "回归：导出流程用例" }
+    ];
+    d.events.push({ kind: "task.decomposed", text: "task.decomposed · 拆解为 3 个子任务", at: nowStamp() });
+    pushEvent("task.decomposed", task.id);
+    toast("拆解完成：已生成 3 个子任务");
+  }
+  renderWork();
+}
+
+function replyQuestion(taskId) {
+  const task = taskById(taskId);
+  const d = discOf(taskId);
+  if (!task || !d || !d.question) return;
+  const inputs = [document.getElementById("questionReply"), document.getElementById("attentionReply")];
+  const text = inputs.map((i) => (i && i.value.trim()) || "").find(Boolean);
+  if (!text) { toast("请输入回复内容"); return; }
+  d.entries.push({ role: "human", author: "王珂", text: "回复提问：" + text, at: nowStamp() });
+  d.question = null;
+  task.updated_at = nowStamp();
+  pushEvent("agent.question_answered", task.id);
+  toast("已回复，提问关闭");
+  renderWork();
+}
+
+function simulateQuestion() {
+  const task = taskById(state.taskId) || zoneTasks()[0];
+  if (!task) return;
+  const d = discOf(task.id);
+  if (!d) return;
+  d.question = "导出超时阈值按项目配置还是全局默认？";
+  task.updated_at = nowStamp();
+  state.taskId = task.id;
+  pushEvent("agent.question_raised", task.id);
+  toast("已对 " + task.id + " 提出 Agent 提问");
+  if (state.page !== "work") goPage("work"); else renderWork();
+}
+
+function openSlide() {
+  const task = taskById(state.taskId);
+  const d = discOf(state.taskId);
+  const body = document.getElementById("slideBody");
+  if (!task || !d) {
+    body.innerHTML = '<div class="empty-state">暂无讨论</div>';
+  } else {
+    body.innerHTML = buildDiscussionBody(task, d) +
+      '<div class="slide-composer"><div class="slide-note" data-test="slide-note">沟通空间承载过程性行为；结论草案需超过半数人类参与者赞成后显性通过（Agent 不计入分母），通过后回写 task.decision；讨论全文与过程摘要不注入执行上下文。' +
+      (state.role === "agent" ? "<br>当前身份 Agent：仅能提观点，不参与投票。" : "") + "</div></div>";
+  }
+  document.getElementById("slideTitle").textContent = "沟通空间 · " + (task ? task.id : "");
+  document.getElementById("slideSubtitle").textContent = (task ? task.content : "") + " · 过程性行为：议题 / 观点 / 结论；结论通过后回写 task.decision";
+  const slide = document.getElementById("reviewSlide");
+  slide.classList.add("on");
+  slide.setAttribute("aria-hidden", "false");
+}
+
+function refreshSlide() {
+  const slide = document.getElementById("reviewSlide");
+  if (slide.classList.contains("on")) openSlide();
+}
+
+function closeSlide() {
+  state.memberPicker = false;
+  const slide = document.getElementById("reviewSlide");
+  slide.classList.remove("on");
+  slide.setAttribute("aria-hidden", "true");
+}
+
+function squeezeFeedback(fbId) {
+  const f = feedbacks.find((x) => x.id === fbId);
+  if (!f) return;
+  if (f.state === "converted" && f.linked_task_id) { toast("该反馈已转待办 " + f.linked_task_id); return; }
+  const id = "T-" + (1040 + tasks.length);
+  const task = { id: id, content: f.title, project_name: f.project_name, git_url: GIT_URL, state: "pending_review", priority: f.priority === "P0" ? 100 : f.priority === "P1" ? 100 : 50, executor: "王珂", creator: "林晓", tags: "反馈", father_id: "无", created_at: nowStamp(), updated_at: nowStamp(), fb: f.id };
+  tasks.unshift(task);
+  discussions[id] = seedDisc();
+  f.state = "converted";
+  f.linked_task_id = id;
+  f.messages.push({ sender: "system", text: "已移入挤压区，生成卡片 " + id + "。", at: nowStamp() });
+  pushEvent("card.squeezed", f.id + " → " + id);
+  state.taskId = id;
+  state.chip = "zone";
+  toast("已进入挤压区：" + id);
+  goPage("work");
+}
+
+function convertFeedback(fbId) {
+  const f = feedbacks.find((x) => x.id === fbId);
+  if (!f) return;
+  if (f.state === "converted") { toast("已转待办 " + (f.linked_task_id || "")); return; }
+  const id = "T-" + (1040 + tasks.length);
+  tasks.push({ id: id, content: f.title, project_name: f.project_name, git_url: GIT_URL, state: "pending", priority: 60, executor: "王珂", creator: "林晓", tags: "反馈", father_id: "无", created_at: nowStamp(), updated_at: nowStamp(), fb: f.id });
+  discussions[id] = seedDisc();
+  f.state = "converted";
+  f.linked_task_id = id;
+  pushEvent("task.created", f.id + " → " + id);
+  toast("已转待办 " + id);
+  renderFeedback();
+}
+
+function resetDemo() {
+  tasks = JSON.parse(JSON.stringify(SEED_TASKS));
+  discussions = JSON.parse(JSON.stringify(SEED_DISCUSSIONS));
+  feedbacks = JSON.parse(JSON.stringify(SEED_FEEDBACKS));
+  state.chip = "zone";
+  state.taskId = "T-1041";
+  state.feedbackId = "FB-105";
+  state.role = "member";
+  state.user = "王珂";
+  state.proposalOpen = false;
+  state.riskTarget = null;
+  state.memberPicker = false;
+  state.filter = "";
+  events = [];
+  document.getElementById("eventLog").innerHTML = "";
+  document.getElementById("roleSelect").value = "member";
+  toast("演示已重置");
+  goPage("work");
+}
+
+document.addEventListener("click", (e) => {
+  const nav = e.target.closest(".nav-item[data-page]");
+  if (nav) { goPage(nav.dataset.page); return; }
+  const chip = e.target.closest("[data-work-state]");
+  if (chip) { selectChip(chip.dataset.workState); return; }
+  const openDisc = e.target.closest("[data-open-discussion]");
+  if (openDisc) {
+    state.taskId = openDisc.dataset.openDiscussion;
+    state.proposalOpen = false;
+    state.riskTarget = null;
+    renderWork();
+    openSlide();
+    return;
+  }
+  const row = e.target.closest("[data-task-select]");
+  if (row) { selectTask(row.dataset.taskSelect); return; }
+  const fbRow = e.target.closest("[data-feedback-select]");
+  if (fbRow) { state.feedbackId = fbRow.dataset.feedbackSelect; renderFeedback(); return; }
+  const fbDeep = e.target.closest("[data-feedback-deep]");
+  if (fbDeep) { state.feedbackId = fbDeep.dataset.feedbackDeep; goPage("feedback"); return; }
+  const memberToggle = e.target.closest("[data-member-toggle]");
+  if (memberToggle) { state.memberPicker = !state.memberPicker; refreshSlide(); return; }
+  const pickMember = e.target.closest("[data-pick-member]");
+  if (pickMember) {
+    if (pickMember.disabled) return;
+    state.memberPicker = false;
+    addParticipant(pickMember.dataset.pickMember);
+    refreshSlide();
+    return;
+  }
+  const action = e.target.closest("[data-work-action]");
+  if (action) {
+    const a = action.dataset.workAction;
+    if (a === "start-discussion") openDiscussion();
+    else if (a === "enter-discussion" || a === "open-discussion" || a === "full-process" || a === "open-slide") openSlide();
+    else if (a === "enter-todo") enterTodo();
+    else if (a === "start-exec") startExec();
+    else if (a === "mark-blocked") markBlocked();
+    else if (a === "risk-confirm") applyStateChange(state.riskTarget || "in_progress", "已确认风险并进入执行");
+    else if (a === "risk-cancel") { state.riskTarget = null; renderWork(); }
+    else if (a === "join-discussion") joinDiscussion();
+    else if (a === "propose") { state.proposalOpen = true; refreshSlide(); }
+    else if (a === "proposal-submit") submitProposal();
+    else if (a === "vote-yes") castVote("yes");
+    else if (a === "vote-no") castVote("no");
+    else if (a === "approve") approveConclusion();
+    else if (a === "shelve") {
+      const d = discOf(state.taskId);
+      if (d) { d.shelved = !d.shelved; pushEvent("discussion." + (d.shelved ? "shelved" : "unshelved"), state.taskId); renderWork(); }
+    } else if (a === "enqueue") {
+      const d = discOf(state.taskId);
+      if (d) { d.draft = false; d.subtasks = [{ id: state.taskId + "-1", content: "权限范围摘要（导出弹窗）" }, { id: state.taskId + "-2", content: "缺权限申请入口" }, { id: state.taskId + "-3", content: "回归：导出流程用例" }]; d.events.push({ kind: "task.enqueued", text: "task.enqueued · 已加入执行队列", at: nowStamp() }); pushEvent("task.enqueued", state.taskId); toast("已加入执行队列"); renderWork(); }
+    }
+    return;
+  }
+  const dc = e.target.closest("[data-draft-confirm]");
+  if (dc) { confirmDraft(dc.dataset.draftConfirm); return; }
+  const dq = e.target.closest("[data-question-reply]");
+  if (dq) { replyQuestion(dq.dataset.questionReply); return; }
+  const fa = e.target.closest("[data-feedback-action]");
+  if (fa) {
+    const a = fa.dataset.feedbackAction;
+    if (a === "squeeze") squeezeFeedback(state.feedbackId);
+    else if (a === "convert") convertFeedback(state.feedbackId);
+    else if (a === "open-squeeze") {
+      const f = feedbacks.find((x) => x.id === state.feedbackId);
+      if (f && f.linked_task_id) { state.taskId = f.linked_task_id; state.chip = "zone"; goPage("work"); } else toast("该反馈尚无挤压区卡片");
+    } else if (a === "open-task") {
+      const f = feedbacks.find((x) => x.id === state.feedbackId);
+      if (f && f.linked_task_id) { state.taskId = f.linked_task_id; state.chip = chipOfTask(f.linked_task_id); goPage("work"); } else toast("该反馈尚未关联待办");
+    } else if (a === "ignore") {
+      const f = feedbacks.find((x) => x.id === state.feedbackId);
+      if (f) { f.state = "ignored"; pushEvent("feedback.ignored", f.id); toast("已忽略"); renderFeedback(); }
+    } else if (a === "refresh") { renderFeedback(); toast("已刷新"); }
+    else if (a === "reply") {
+      const f = feedbacks.find((x) => x.id === state.feedbackId);
+      const input = document.getElementById("feedbackReplyText");
+      const text = input && input.value.trim();
+      if (!f || !text) { toast("请输入回复内容"); return; }
+      f.messages.push({ sender: "developer", text: text, at: nowStamp() });
+      pushEvent("feedback.replied", f.id);
+      toast("回复已发送");
+      renderFeedback();
+    }
+    return;
+  }
+  if (e.target.closest("#sendOpinion")) { sendOpinion(); return; }
+  if (e.target.closest("[data-proposal-cancel]")) { state.proposalOpen = false; refreshSlide(); return; }
+  if (e.target.closest("[data-slide-close]") || e.target.id === "reviewSlide") { closeSlide(); return; }
+  if (e.target.closest("#simulateQuestion")) { simulateQuestion(); return; }
+  if (e.target.closest("#resetDraft")) { resetDemo(); return; }
+  if (e.target.closest("#createTaskButton")) { toast("创建待办：本稿不实现表单，聚焦挤压区链路"); return; }
+});
+
+function chipOfTask(id) {
+  const t = taskById(id);
+  if (!t) return "zone";
+  return inZone(t) ? "zone" : t.state;
+}
+
+document.addEventListener("change", (e) => {
+  if (e.target.id === "roleSelect") {
+    setRole(e.target.value);
+    toast(e.target.value === "agent" ? "已切换为 Agent：仅能提观点，不计入投票" : e.target.value === "member2" ? "已切换为林晓（成员 · 参与者）" : "已切换为王珂（成员 · 可参与确认）");
+    return;
+  }
+  if (e.target.id === "workStateSelect") { selectChip(e.target.value); return; }
+  if (e.target.id === "feedbackStateFilter" || e.target.id === "feedbackSearchInput") { renderFeedback(); return; }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id === "platformWorkFilter") { state.filter = e.target.value; renderWorkTable(); return; }
+  if (e.target.id === "feedbackSearchInput") { renderFeedbackList(); return; }
+});
+
+renderNav();
+renderWork();
+renderFeedback();
+pushEvent("design.loaded", "squeeze-flow 单文件设计稿");
+</script>
+</body>
+</html>
