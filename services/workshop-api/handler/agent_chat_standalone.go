@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -107,18 +107,17 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		return
 	}
 
-	turn, err := beginSupportTurn(db, fmt.Sprintf("%d/%s/standalone", scope.ProjectID, scope.CustomUserID), req)
+	turn, err := beginAgentTurn(db, scope.ProjectID, scope.CustomUserID, standaloneConversationFeedbackID, &req)
 	if err != nil {
 		c.JSON(409, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
 		return
 	}
-	defer turn.Rollback()
 	if turn.Replay != nil {
 		c.JSON(200, response.NewSuccessResponse(turn.Replay))
 		return
 	}
-	db = turn.DB
 	if err := validateAgentMedia(req.Content, req.Attachments, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID)); err != nil {
+		turn.Fail(err)
 		c.JSON(400, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
 		return
 	}
@@ -127,6 +126,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 	}
 	imageUrls, audioUnderstanding, err := prepareAgentMedia(c.Request.Context(), &req)
 	if err != nil {
+		turn.Fail(err)
 		c.JSON(503, response.NewErrorResponse(response.CodeInternalError, err.Error(), nil))
 		return
 	}
@@ -137,6 +137,7 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		conv, err = GetOrCreateStandaloneConversation(db, req.ConversationID, scope.ProjectID, scope.CustomUserID)
 	}
 	if err != nil {
+		turn.Fail(err)
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "创建对话失败: "+err.Error(), nil))
 		return
 	}
@@ -154,12 +155,19 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		customerMsg.Metadata = &attStr
 	}
 	if err := SaveMessage(db, customerMsg); err != nil {
+		turn.Fail(err)
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存消息失败: "+err.Error(), nil))
+		return
+	}
+	if err := turn.BindLocal(conv.ID, customerMsg.ID); err != nil {
+		turn.Fail(err)
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存 Agent Turn 失败", nil))
 		return
 	}
 
 	history, err := GetConversationHistory(db, conv.ID, 20)
 	if err != nil {
+		turn.Fail(err)
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "获取对话历史失败: "+err.Error(), nil))
 		return
 	}
@@ -167,7 +175,12 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 	if len(imageUrls) == 0 {
 		imageUrls = historicalAgentImages(history, feedbackAttachmentPrefix(scope.ProjectID, scope.CustomUserID))
 	}
-	agentResponse, err := processWithAgent(c, db, scope.ProjectID, standaloneConversationFeedbackID, req.Content, history, conv.ID, imageUrls)
+	agentResponse, err := processWithAgentTurn(c, db, scope.ProjectID, standaloneConversationFeedbackID, req.Content, history, conv.ID, imageUrls, turn)
+	if errors.Is(err, errAgentTurnInterrupted) {
+		_ = turn.MarkInterrupted()
+		c.JSON(http.StatusOK, response.NewSuccessResponse(interruptedAgentTurnResponse(turn.Record)))
+		return
+	}
 	if err != nil {
 		log.Printf("[agent-chat-standalone] processWithAgent 失败 project=%d user=%s: %v", scope.ProjectID, scope.CustomUserID, err)
 		agentResponse = newAgentUnavailableResponse(err)
@@ -198,13 +211,9 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 	persistClarificationMetadata(agentMsg, agentResponse.Clarification)
 	persistAgentSources(agentMsg, agentResponse.Sources)
 
-	if err := SaveMessage(db, agentMsg); err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
-		return
-	}
-
 	result := AgentMessageResponse{
-		MessageID:         agentMsg.ID,
+		TurnID:            req.ClientMessageID,
+		Status:            agentTurnCompleted,
 		CustomerMessageID: customerMsg.ID,
 		ConversationID:    conv.ID,
 		Content:           agentResponse.Content,
@@ -216,7 +225,32 @@ func runStandaloneAgentMessage(c *gin.Context, scope standaloneScope) {
 		Clarification:     agentResponse.Clarification,
 		Sources:           agentResponse.Sources,
 	}
-	if err := turn.Complete(result); err != nil {
+	tx := db.Begin()
+	if tx.Error != nil {
+		turn.Fail(tx.Error)
+		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "保存完整会话失败，请重试", nil))
+		return
+	}
+	if err := SaveMessage(tx, agentMsg); err != nil {
+		tx.Rollback()
+		turn.Fail(err)
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "保存Agent回复失败: "+err.Error(), nil))
+		return
+	}
+	result.MessageID = agentMsg.ID
+	if err := turn.Complete(tx, result); err != nil {
+		tx.Rollback()
+		if errors.Is(err, errAgentTurnInterrupted) {
+			_ = turn.MarkInterrupted()
+			c.JSON(http.StatusOK, response.NewSuccessResponse(interruptedAgentTurnResponse(turn.Record)))
+			return
+		}
+		turn.Fail(err)
+		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "保存完整会话失败，请重试", nil))
+		return
+	}
+	if err := tx.Commit().Error; err != nil {
+		turn.Fail(err)
 		c.JSON(500, response.NewErrorResponse(response.CodeInternalError, "保存完整会话失败，请重试", nil))
 		return
 	}

@@ -82,6 +82,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 
 			// 独立智能客服会话（不绑定反馈），供「反馈建议」页客服入口使用
 			apikeyGroup.POST("/agent-chats/messages", handler.StandaloneAgentMessageByAPIKey)
+			apikeyGroup.POST("/agent-turns/:turnId/interrupt", handler.InterruptAgentTurnByAPIKey)
 			apikeyGroup.GET("/agent-chats/conversations", handler.GetStandaloneConversationsByAPIKey)
 			apikeyGroup.GET("/agent-chats/conversations/:conversationId/messages", handler.GetStandaloneMessagesByAPIKey)
 			apikeyGroup.GET("/agent-chats/conversations/:conversationId/messages/:messageId/attachments/:attachmentIndex/access", handler.GetAgentMediaAccess)
@@ -284,6 +285,7 @@ func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
 	group.GET("/agent-chats/conversations/:conversationId/messages/:messageId/attachments/:attachmentIndex/access", handler.GetAgentMediaAccess)
 	// 独立智能客服会话（不绑定反馈），供「反馈建议」页客服入口使用
 	group.POST("/agent-chats/messages", handler.StandaloneAgentMessageFromSession)
+	group.POST("/agent-turns/:turnId/interrupt", handler.InterruptAgentTurnFromSession)
 	group.GET("/agent-chats/conversations", handler.GetStandaloneConversationsFromSession)
 	group.GET("/agent-chats/conversations/:conversationId/messages", handler.GetStandaloneMessagesFromSession)
 	// V2 实时通道：嵌入 SDK（session 模式）通过 subprotocol 携带 fbs_ token 连接，

@@ -523,6 +523,9 @@ export interface AgentStructuredSummary {
 }
 
 export interface AgentMessageResponse {
+  turn_id?: string
+  status?: 'completed' | 'interrupted'
+  interrupted?: boolean
   customer_message_id?: number
   sources?: AgentSource[]
   message_id: number
@@ -533,6 +536,11 @@ export interface AgentMessageResponse {
   need_collect?: boolean
   structured?: AgentStructuredSummary
   clarification?: { status: 'collecting' | 'ready'; summary: AgentStructuredSummary; missing_fields: string[]; questions: string[]; ready_to_confirm: boolean }
+}
+
+export interface AgentTurnStatus {
+  turn_id: string
+  state: 'accepted' | 'running' | 'interrupting' | 'interrupted' | 'completed' | 'failed'
 }
 
 /**
@@ -656,6 +664,20 @@ function standaloneScopeQuery(): string {
   if (currentV2AuthMode() !== 'apiKey') return ''
   const { projectId, customUserId } = directScopePayload()
   return `?${new URLSearchParams({ project_id: String(projectId), custom_user_id: customUserId }).toString()}`
+}
+
+/** Interrupt the current scoped Agent turn without exposing its provider id. */
+export async function interruptAgentTurn(turnId: string): Promise<AgentTurnStatus> {
+  const encoded = encodeURIComponent(turnId.trim())
+  if (!encoded) throw new Error('缺少有效的 Agent Turn ID')
+  const path = `/agent-turns/${encoded}/interrupt${standaloneScopeQuery()}`
+  const envelope = await requestJson<AgentTurnStatus>(path, path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  if (!envelope.data) throw new Error(feedbackUnavailable)
+  return envelope.data
 }
 
 /**

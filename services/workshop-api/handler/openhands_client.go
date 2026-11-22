@@ -385,10 +385,36 @@ func ohEnsureRunning(agent *OpenHandsAgent, conversationID string) {
 	}
 }
 
+// ohInterruptConversation performs a real provider-side interruption. The
+// pinned Agent Server exposes /interrupt, which cancels the in-flight LLM or
+// tool call and leaves the conversation resumable in the paused state.
+func ohInterruptConversation(agent *OpenHandsAgent, conversationID string) error {
+	if agent == nil || strings.TrimSpace(agent.URL) == "" || strings.TrimSpace(conversationID) == "" {
+		return fmt.Errorf("OpenHands 会话不可用")
+	}
+	status, data, err := ohRequest("POST", agent.URL+"/api/conversations/"+conversationID+"/interrupt", resolveOpenHandsSessionAPIKey(agent), map[string]interface{}{}, 0)
+	if err != nil {
+		return err
+	}
+	if status != http.StatusOK && status != http.StatusAccepted && status != http.StatusNoContent {
+		return fmt.Errorf("中止 OpenHands 会话失败: HTTP %d: %s", status, truncateStr(string(data), 300))
+	}
+	return nil
+}
+
 // ohWaitFinished 轮询会话直至执行结束
 func ohWaitFinished(agent *OpenHandsAgent, conversationID string, timeout time.Duration) error {
+	return ohWaitFinishedForTurn(agent, conversationID, timeout, nil)
+}
+
+func ohWaitFinishedForTurn(agent *OpenHandsAgent, conversationID string, timeout time.Duration, turn *agentTurnReceipt) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
+		if turn != nil && turn.ShouldInterrupt() {
+			_ = ohInterruptConversation(agent, conversationID)
+			_ = turn.MarkInterrupted()
+			return errAgentTurnInterrupted
+		}
 		status, data, err := ohRequest("GET", agent.URL+"/api/conversations/"+conversationID, resolveOpenHandsSessionAPIKey(agent), nil, 0)
 		if err == nil && status == http.StatusOK {
 			var resp struct {
@@ -406,7 +432,11 @@ func ohWaitFinished(agent *OpenHandsAgent, conversationID string, timeout time.D
 				}
 			}
 		}
-		time.Sleep(2 * time.Second)
+		if turn != nil {
+			time.Sleep(250 * time.Millisecond)
+		} else {
+			time.Sleep(2 * time.Second)
+		}
 	}
 	return fmt.Errorf("等待 OpenHands 执行超时（%s）", timeout)
 }
@@ -489,6 +519,10 @@ func ohFetchAgentReply(agent *OpenHandsAgent, conversationID string) (string, er
 // ohConversationID 为空时新建会话；非空时续发消息，会话失效则自动重建。
 // 返回 OpenHands 侧会话 ID 与 agent 最终回复。
 func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID string, imageUrls []string, workingDir string) (*OpenHandsSyncResult, error) {
+	return callOpenHandsAgentSyncForTurn(agent, query, ohConversationID, imageUrls, workingDir, nil)
+}
+
+func callOpenHandsAgentSyncForTurn(agent *OpenHandsAgent, query, ohConversationID string, imageUrls []string, workingDir string, turn *agentTurnReceipt) (*OpenHandsSyncResult, error) {
 	if strings.TrimSpace(workingDir) == "" {
 		return nil, fmt.Errorf("项目知识工作区暂不可用，请完成项目仓库同步后重试")
 	}
@@ -499,6 +533,17 @@ func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID strin
 
 	convID := ""
 	if strings.TrimSpace(ohConversationID) != "" {
+		if turn != nil {
+			stop, err := turn.BindOpenHands(ohConversationID)
+			if err != nil {
+				return nil, err
+			}
+			if stop {
+				_ = ohInterruptConversation(agent, ohConversationID)
+				_ = turn.MarkInterrupted()
+				return nil, errAgentTurnInterrupted
+			}
+		}
 		var sendErr error
 		if len(imageUrls) > 0 {
 			sendErr = ohSendMessageWithImages(agent, ohConversationID, query, imageUrls)
@@ -517,10 +562,21 @@ func callOpenHandsAgentSync(agent *OpenHandsAgent, query, ohConversationID strin
 			return nil, err
 		}
 		convID = id
+		if turn != nil {
+			stop, bindErr := turn.BindOpenHands(convID)
+			if bindErr != nil {
+				return nil, bindErr
+			}
+			if stop {
+				_ = ohInterruptConversation(agent, convID)
+				_ = turn.MarkInterrupted()
+				return nil, errAgentTurnInterrupted
+			}
+		}
 		ohEnsureRunning(agent, convID)
 	}
 
-	if err := ohWaitFinished(agent, convID, timeout); err != nil {
+	if err := ohWaitFinishedForTurn(agent, convID, timeout, turn); err != nil {
 		return nil, err
 	}
 

@@ -15,6 +15,9 @@ interface Props {
   placeholder?: string
   allowFiles?: boolean
   imageDisabledReason?: string
+  working?: boolean
+  stopping?: boolean
+  onStop?: () => void
 }
 
 interface SpeechResult { isFinal: boolean; readonly [index: number]: { transcript: string } }
@@ -33,7 +36,7 @@ function speechConstructor(): SpeechConstructor | undefined {
 }
 
 /** Owns capture and upload UI. The application decides whether a message consults Agent or appends a card. */
-export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftConversationId = '', hidden = false, disabled = false, placeholder = '输入你的问题...', allowFiles = false, imageDisabledReason = '' }: Props) {
+export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftConversationId = '', hidden = false, disabled = false, placeholder = '输入你的问题...', allowFiles = false, imageDisabledReason = '', working = false, stopping = false, onStop }: Props) {
   const initialDraft = useRef(readConsultationDraft(draftScope, draftConversationId)?.composer)
   const [text, setText] = useState(initialDraft.current?.text || '')
   const [media, setMedia] = useState<PendingMedia[]>(() => (initialDraft.current?.attachments || []).map((attachment, index) => ({ id: `restored-${index}`, file: new File([], attachment.file_name || '已上传图片', { type: attachment.mime_type || 'image/png' }), preview: '', attachment })))
@@ -174,13 +177,23 @@ export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftCon
     if (imageDisabledReason && media.some((m) => m.file.type.startsWith('image/') || m.attachment?.type === 'image')) { setError(imageDisabledReason); return }
     if (media.some((m) => !m.attachment)) { setError('请先重试或移除上传失败的附件'); return }
     sendingRef.current = true; setSending(true); setError('')
+    const content = text.trim()
+    const attachments = media.map((m) => m.attachment!)
+    const clientMessageId = requestId.current
+    if (onStop && mounted.current) {
+      setDraft('')
+      mediaRef.current.forEach((m) => URL.revokeObjectURL(m.preview))
+      updateMedia([])
+      requestId.current = newClientRequestId()
+    }
     try {
-      await onSend(text.trim(), media.map((m) => m.attachment!), requestId.current)
-      if (mounted.current) { setDraft(''); mediaRef.current.forEach((m) => URL.revokeObjectURL(m.preview)); updateMedia([]); requestId.current = newClientRequestId() }
+      await onSend(content, attachments, clientMessageId)
+      if (!onStop && mounted.current) { setDraft(''); mediaRef.current.forEach((m) => URL.revokeObjectURL(m.preview)); updateMedia([]); requestId.current = newClientRequestId() }
     } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : '发送失败，请重试') }
     finally { sendingRef.current = false; if (mounted.current) setSending(false) }
   }
-  const locked = disabled || sending
+  const agentWorking = Boolean(onStop && (working || sending))
+  const locked = disabled || (!onStop && sending)
   return <div hidden={hidden} className="sdk-composer">
     {recording && <div className="sdk-recording" role="status">● 正在语音转文字 {String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')} / 01:00 <button type="button" onClick={() => finishSpeech(true)}>取消</button><button type="button" onClick={() => stopSpeech()}>完成转写</button></div>}
     {media.length > 0 && <div className="sdk-media-previews">{media.map((entry) => <div key={entry.id} className="sdk-media-preview">
@@ -194,10 +207,10 @@ export function MediaComposer({ onSend, onDraftChange, draftScope = '', draftCon
       onPaste={(e) => { const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/')); if (files.length) { e.preventDefault(); addFiles(files) } }}
       onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (!locked) addFiles([...e.dataTransfer.files]) }} />
     <div className="sdk-composer-tools"><div className="flex items-center gap-3">
-      <label className="sdk-media-tool" aria-disabled={Boolean(imageDisabledReason) || locked || recording}><span aria-hidden="true">▧</span> 图片<input aria-label="添加图片" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={Boolean(imageDisabledReason) || locked || recording} onChange={(e) => { addFiles([...(e.target.files || [])]); e.target.value = '' }} /></label>
-      <button type="button" disabled={locked || recording} onClick={startSpeech} className="sdk-media-tool"><span aria-hidden="true">♩</span> 语音输入</button>
-      {allowFiles && <label className="cursor-pointer text-xs text-foreground-secondary">文件<input aria-label="添加文件" className="sr-only" type="file" disabled={locked} onChange={(e) => { addFiles([...(e.target.files || [])]); e.target.value = '' }} /></label>}
-    </div><div className="sdk-send-tools"><small>Enter 发送</small><button type="button" onClick={() => void send()} disabled={locked || uploading || recording} className="sdk-button primary">{sending ? '发送中…' : '发送'}<span aria-hidden="true"> ↑</span></button></div></div>
+      <label className="sdk-media-tool" aria-disabled={Boolean(imageDisabledReason) || locked || recording || agentWorking}><span aria-hidden="true">▧</span> 图片<input aria-label="添加图片" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple disabled={Boolean(imageDisabledReason) || locked || recording || agentWorking} onChange={(e) => { addFiles([...(e.target.files || [])]); e.target.value = '' }} /></label>
+      <button type="button" disabled={locked || recording || agentWorking} onClick={startSpeech} className="sdk-media-tool"><span aria-hidden="true">♩</span> 语音输入</button>
+      {allowFiles && <label className="cursor-pointer text-xs text-foreground-secondary">文件<input aria-label="添加文件" className="sr-only" type="file" disabled={locked || agentWorking} onChange={(e) => { addFiles([...(e.target.files || [])]); e.target.value = '' }} /></label>}
+    </div><div className="sdk-send-tools"><small>{agentWorking ? 'Agent 工作中' : 'Enter 发送'}</small><button type="button" onClick={agentWorking ? onStop : () => void send()} disabled={agentWorking ? stopping : locked || uploading || recording} aria-label={agentWorking ? stopping ? '正在停止生成' : '停止生成' : '发送'} className={`sdk-button primary ${agentWorking ? 'sdk-agent-stop' : ''}`}>{agentWorking ? <><span className={stopping ? 'sdk-agent-spinner' : 'sdk-stop-square'} aria-hidden="true" /><span className="sr-only">{stopping ? '正在停止生成' : '停止生成'}</span></> : <>发送<span aria-hidden="true"> ↑</span></>}</button></div></div>
     {error && <p role="alert" className="mt-2 text-xs text-error">{error}</p>}
     {imageDisabledReason && <p role="status" className="mt-2 text-xs text-foreground-secondary">{imageDisabledReason}</p>}
   </div>

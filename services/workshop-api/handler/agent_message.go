@@ -25,6 +25,9 @@ type AgentMessageRequest struct {
 
 // AgentMessageResponse Agent 消息响应
 type AgentMessageResponse struct {
+	TurnID            string        `json:"turn_id,omitempty"`
+	Status            string        `json:"status,omitempty"`
+	Interrupted       bool          `json:"interrupted,omitempty"`
 	CustomerMessageID uint          `json:"customer_message_id"`
 	Sources           []AgentSource `json:"sources,omitempty"`
 	MessageID         uint          `json:"message_id"`
@@ -261,10 +264,20 @@ func applyAgentMessageUnresolvedMetadata(msg *AgentMessageRecord, confidence flo
 // 本地仅做正向白名单命中（问候/感谢/能力咨询/提交引导等）直接回复；
 // 未命中白名单的消息一律放行 OpenHands/LLM，禁止负向启发式截胡。
 func processWithAgent(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, query string, history []AgentMessageRecord, conversationID string, imageUrls []string) (*AgentResponse, error) {
+	return processWithAgentTurn(c, db, projectID, feedbackID, query, history, conversationID, imageUrls, nil)
+}
+
+func processWithAgentTurn(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, query string, history []AgentMessageRecord, conversationID string, imageUrls []string, turn *agentTurnReceipt) (*AgentResponse, error) {
+	if turn != nil && turn.ShouldInterrupt() {
+		return nil, errAgentTurnInterrupted
+	}
 	// 本地白名单：命中才直接回复（毫秒级），返回 nil 表示放行 Agent
 	// 已进入澄清后必须处理本轮补充；不能把保存的草稿当作新请求匹配固定回复。
 	if len(imageUrls) == 0 && latestClarification(history) == nil {
 		if localResp, _ := classifyAndRespond(query); localResp != nil {
+			if turn != nil && turn.ShouldInterrupt() {
+				return nil, errAgentTurnInterrupted
+			}
 			return localResp, nil
 		}
 	}
@@ -290,7 +303,7 @@ func processWithAgent(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, q
 	// 按项目解析 OpenHands 工作区（RepoPath > clone 落点 > OH_WORKSPACE_DIR），
 	// 避免不同项目共用同一份代码副本。
 	workingDir := resolveProjectWorkspaceDir(db, projectID)
-	return callOpenHandsAgentForChat(c, agent, query, conversationID, history, imageUrls, workingDir)
+	return callOpenHandsAgentForChatTurn(c, agent, query, conversationID, history, imageUrls, workingDir, turn)
 }
 
 // callOpenHandsAgentForChat 调用 OpenHands Agent 进行对话（真实契约）。
@@ -298,12 +311,19 @@ func processWithAgent(c *gin.Context, db *gorm.DB, projectID, feedbackID uint, q
 // 用于跨请求复用同一 OpenHands 会话。会话过期时将历史上下文注入 query，
 // 确保 Agent 在新会话中仍能记住之前的对话内容。
 func callOpenHandsAgentForChat(c *gin.Context, agent *OpenHandsAgent, query, conversationID string, history []AgentMessageRecord, imageUrls []string, workingDir string) (*AgentResponse, error) {
+	return callOpenHandsAgentForChatTurn(c, agent, query, conversationID, history, imageUrls, workingDir, nil)
+}
+
+func callOpenHandsAgentForChatTurn(c *gin.Context, agent *OpenHandsAgent, query, conversationID string, history []AgentMessageRecord, imageUrls []string, workingDir string, turn *agentTurnReceipt) (*AgentResponse, error) {
 	ohConvID := getOpenHandsConversationID(history)
+	if ohConvID == "" && turn != nil {
+		ohConvID = turn.LatestOpenHandsConversationID(conversationID)
+	}
 
 	// 将历史对话注入到 query 中，确保即使 OpenHands 会话过期重建，Agent 仍拥有完整上下文
 	queryWithContext := buildQueryWithHistory(query, history, 20)
 	// 最外层注入 ArcOrbit 人设（身份/体验/严谨性），内层注入置信度自评要求（PRD F-03）。
-	result, err := callOpenHandsAgentSync(agent, buildArcOrbitAgentPrompt(buildAgentQueryWithConfidenceInstruction(queryWithContext)), ohConvID, imageUrls, workingDir)
+	result, err := callOpenHandsAgentSyncForTurn(agent, buildArcOrbitAgentPrompt(buildAgentQueryWithConfidenceInstruction(queryWithContext)), ohConvID, imageUrls, workingDir, turn)
 	if err != nil {
 		return nil, err
 	}

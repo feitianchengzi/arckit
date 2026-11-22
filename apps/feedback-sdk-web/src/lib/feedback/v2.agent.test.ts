@@ -16,7 +16,7 @@ vi.mock('@/lib/sdk/bridge', () => ({
   requestFeedbackSessionRefresh: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { sendAgentMessage, getAgentConversations, getAgentConversationMessages, submitFeedbackV2 } from '@/lib/feedback/v2'
+import { sendAgentMessage, interruptAgentTurn, getAgentConversations, getAgentConversationMessages, submitFeedbackV2 } from '@/lib/feedback/v2'
 
 function mockResponse(data: unknown) {
   fetchMock.mockResolvedValueOnce({
@@ -68,6 +68,31 @@ describe('Agent API 鉴权模式', () => {
     const { url, init } = lastCall()
     expect(url).toBe('https://gw.example/workshop/v2/apikey/feedbacks/123/agent-message')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ak_test_key')
+  })
+
+  it('session 模式：真实终止走当前 session 作用域且不暴露 OpenHands ID', async () => {
+    mockAuthMode = 'session'
+    mockConfig = { gatewayUrl: 'https://gw.example', feedbackSessionToken: 'fbs_session_token' }
+    mockResponse({ turn_id: 'turn-1', state: 'interrupted' })
+
+    await interruptAgentTurn('turn-1')
+
+    const { url, init } = lastCall()
+    expect(url).toBe('https://gw.example/workshop/v2/feedback/agent-turns/turn-1/interrupt')
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fbs_session_token')
+    expect(url).not.toContain('openhands')
+  })
+
+  it('apiKey 模式：真实终止显式携带项目和稳定客户作用域', async () => {
+    mockAuthMode = 'apiKey'
+    mockConfig = { gatewayUrl: 'https://gw.example', apiKey: 'ak_test_key', projectId: 7, customUserId: 'cust_7' }
+    mockResponse({ turn_id: 'turn/2', state: 'interrupted' })
+
+    await interruptAgentTurn('turn/2')
+
+    const url = new URL(lastCall().url)
+    expect(url.pathname).toBe('/workshop/v2/apikey/agent-turns/turn%2F2/interrupt')
+    expect(Object.fromEntries(url.searchParams)).toEqual({ project_id: '7', custom_user_id: 'cust_7' })
   })
 
   it('提交时只把已经收敛的宿主诊断上下文放入 metadata', async () => {

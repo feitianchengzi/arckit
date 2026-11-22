@@ -1,11 +1,12 @@
 import { MessageContent } from './MessageContent'
 import { createPortal } from 'react-dom'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { sendAgentMessage, getAgentCapabilities, getAgentConversationMessages, sendStandaloneAgentMessage, getStandaloneAgentConversations, getStandaloneAgentConversationsPage, getStandaloneAgentMessages, getStandaloneAgentMessagesPage, getAgentConversations, type AgentSource, type AgentMessage, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
+import { sendAgentMessage, interruptAgentTurn, getAgentCapabilities, getAgentConversationMessages, sendStandaloneAgentMessage, getStandaloneAgentConversations, getStandaloneAgentConversationsPage, getStandaloneAgentMessages, getStandaloneAgentMessagesPage, getAgentConversations, type AgentSource, type AgentMessage, type AgentStructuredSummary, type FeedbackV2Attachment } from '@/lib/feedback/v2'
 import { MediaComposer } from './MediaComposer'
 import { FeedbackMessageAttachment } from './FeedbackMessageAttachment'
 import { activeConsultation, setActiveConsultation, clearConsultationDraft, migrateConsultationDraft, readConsultationDraft, saveConsultationDraft } from '@/lib/feedback/drafts'
 import { t } from '@/i18n'
+import { newClientRequestId } from '@/domain/feedback'
 
 interface AgentChatPanelProps {
   feedbackId?: string
@@ -45,6 +46,14 @@ export interface AgentChatPanelHandle {
   send: (content: string, attachments?: FeedbackV2Attachment[], clientMessageId?: string) => Promise<void>
 }
 
+interface ActiveAgentTurn {
+  id: string
+  content: string
+  attachments: FeedbackV2Attachment[]
+  optimisticMessageId: number
+  status: 'running' | 'stopping'
+}
+
 export const AgentChatPanel = forwardRef<AgentChatPanelHandle, AgentChatPanelProps>(function AgentChatPanel({ feedbackId, standalone = false, initialMessage, onNeedCollect, onConversationReady, children, hasUnsubmittedSummary = false, submittedConversationId, submitting = false, onMyFeedback, onDirectFeedback, draftScope = '', structuredDraft, questionDraft, formOpen = false }, ref) {
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,6 +61,8 @@ export const AgentChatPanel = forwardRef<AgentChatPanelHandle, AgentChatPanelPro
   const [messageTotal, setMessageTotal] = useState(0)
   const [olderLoading, setOlderLoading] = useState(false)
   const [sending, setSending] = useState(false)
+  const [activeTurn, setActiveTurn] = useState<ActiveAgentTurn>()
+  const [interruptedTurn, setInterruptedTurn] = useState<Omit<ActiveAgentTurn, 'status'>>()
   const [error, setError] = useState('')
   const [conversationId, setConversationId] = useState('')
   const [composerEpoch, setComposerEpoch] = useState(0)
@@ -71,6 +82,8 @@ export const AgentChatPanel = forwardRef<AgentChatPanelHandle, AgentChatPanelPro
   const startNewRef = useRef(false)
   const generation = useRef(0)
   const sendingRef = useRef(false)
+  const activeTurnRef = useRef<ActiveAgentTurn>()
+  const interruptedTurnIds = useRef(new Set<string>())
   const submittingRef = useRef(submitting)
   submittingRef.current = submitting
   const containerRef = useRef<HTMLDivElement>(null)
@@ -119,12 +132,28 @@ export const AgentChatPanel = forwardRef<AgentChatPanelHandle, AgentChatPanelPro
     if (!content.trim() && !attachments.length) throw new Error(t('agent.error_empty'))
     const numericFeedbackId = Number(feedbackId)
     if (!standalone && (!Number.isFinite(numericFeedbackId) || numericFeedbackId <= 0)) throw new Error(t('agent.error_invalid_id'))
+    const turnId = clientMessageId?.trim() || newClientRequestId()
+    const optimisticMessageId = -Date.now()
+    const turn: ActiveAgentTurn = { id: turnId, content, attachments, optimisticMessageId, status: 'running' }
+    activeTurnRef.current = turn
+    setActiveTurn(turn); setInterruptedTurn(undefined)
     sendingRef.current = true; setSending(true); setError('')
     const version = generation.current
     setAnswered(false)
     saveConsultationDraft(draftScope, conversationRef.current, { answered: false })
+    setMessageTotal((total) => total + 1)
+    setMessages((current) => [...current, {
+      id: optimisticMessageId,
+      conversation_id: conversationRef.current,
+      feedback_id: numericFeedbackId || 0,
+      project_id: 0,
+      sender_type: 'customer',
+      content,
+      attachments,
+      created_at: new Date().toISOString(),
+    }])
     try {
-      const params = { content, attachments, clientMessageId, newConversation: startNewRef.current || undefined, conversationId: conversationRef.current || undefined }
+      const params = { content, attachments, clientMessageId: turnId, newConversation: startNewRef.current || undefined, conversationId: conversationRef.current || undefined }
       const response = standalone ? await sendStandaloneAgentMessage(params) : await sendAgentMessage({ ...params, feedbackId: numericFeedbackId })
       if (version !== generation.current) return
       startNewRef.current = false
@@ -134,8 +163,14 @@ export const AgentChatPanel = forwardRef<AgentChatPanelHandle, AgentChatPanelPro
         conversationRef.current = response.conversation_id; setConversationId(response.conversation_id)
         callbacks.current.onConversationReady?.(response.conversation_id)
       }
-      setMessageTotal((total) => total + 2)
-      setMessages((current) => [...current, { id: response.customer_message_id || -Date.now(), conversation_id: response.conversation_id, feedback_id: numericFeedbackId || 0, project_id: 0, sender_type: 'customer', content, attachments, created_at: new Date().toISOString() }, { id: response.message_id, conversation_id: response.conversation_id, feedback_id: numericFeedbackId || 0, project_id: 0, sender_type: 'agent', content: response.content, sources: response.sources, created_at: new Date().toISOString() }])
+      setMessages((current) => current.map((message) => message.id === optimisticMessageId ? { ...message, id: response.customer_message_id || optimisticMessageId, conversation_id: response.conversation_id } : message))
+      if (response.interrupted || response.status === 'interrupted' || interruptedTurnIds.current.has(turnId)) {
+        interruptedTurnIds.current.add(turnId)
+        setInterruptedTurn({ id: turnId, content, attachments, optimisticMessageId })
+        return
+      }
+      setMessageTotal((total) => total + 1)
+      setMessages((current) => [...current, { id: response.message_id, conversation_id: response.conversation_id, feedback_id: numericFeedbackId || 0, project_id: 0, sender_type: 'agent', content: response.content, sources: response.sources, created_at: new Date().toISOString() }])
       if (response.need_collect || response.clarification) callbacks.current.onNeedCollect?.({ question: content, structured: response.clarification?.summary || response.structured })
       if (attachments.length) {
         try {
@@ -143,9 +178,55 @@ export const AgentChatPanel = forwardRef<AgentChatPanelHandle, AgentChatPanelPro
           if (generation.current === version && persisted.length) setMessages(current => { const merged = new Map([...current, ...persisted].map(message => [`${message.sender_type}:${message.id}`, message])); return [...merged.values()].filter(message => message.id > 0).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) })
         } catch { /* Sending succeeded; a preview refresh failure must not cause a duplicate retry. */ }
       }
-    } finally { sendingRef.current = false; setSending(false) }
+    } catch (error) {
+      if (interruptedTurnIds.current.has(turnId)) {
+        setInterruptedTurn({ id: turnId, content, attachments, optimisticMessageId })
+        return
+      }
+      setMessages((current) => current.filter((message) => message.id !== optimisticMessageId))
+      setMessageTotal((total) => Math.max(0, total - 1))
+      throw error
+    } finally {
+      if (activeTurnRef.current?.id === turnId) {
+        activeTurnRef.current = undefined
+        setActiveTurn(undefined)
+        sendingRef.current = false
+        setSending(false)
+      }
+    }
   }, [feedbackId, standalone, draftScope])
   useImperativeHandle(ref, () => ({ send }), [send])
+
+  const stopActiveTurn = useCallback(async () => {
+    const turn = activeTurnRef.current
+    if (!turn || turn.status === 'stopping') return
+    const stopping = { ...turn, status: 'stopping' as const }
+    activeTurnRef.current = stopping; setActiveTurn(stopping); setError('')
+    try {
+      let result: Awaited<ReturnType<typeof interruptAgentTurn>> | undefined
+      let lastError: unknown
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try { result = await interruptAgentTurn(turn.id); break }
+        catch (error) {
+          lastError = error
+          if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)))
+        }
+      }
+      if (!result) throw lastError
+      if (result.state === 'interrupted' || result.state === 'interrupting') {
+        interruptedTurnIds.current.add(turn.id)
+        return
+      }
+      if (activeTurnRef.current?.id === turn.id) {
+        activeTurnRef.current = turn; setActiveTurn(turn)
+      }
+    } catch (error) {
+      if (activeTurnRef.current?.id === turn.id) {
+        activeTurnRef.current = turn; setActiveTurn(turn)
+      }
+      setError(error instanceof Error ? error.message : 'Agent 暂未停止，请重试。')
+    }
+  }, [])
 
   const load = useCallback(async (requestedId?: string) => {
     const version = ++generation.current
@@ -306,14 +387,15 @@ export const AgentChatPanel = forwardRef<AgentChatPanelHandle, AgentChatPanelPro
         <div className="sdk-message-main"><div className="sdk-message-by"><span>{message.sender_type === 'agent' ? t('agent.title') : message.sender_type === 'developer' ? t('conversation.sender.developer') : message.sender_type === 'system' ? t('conversation.sender.system') : t('conversation.sender.customer')}</span> · <time>{new Date(message.created_at).toLocaleString()}</time></div>
         <div className="sdk-message-body">{message.content && <MessageContent content={message.content} markdown={message.sender_type === 'agent'} />}{messageAttachments(message).map((attachment, index) => <FeedbackMessageAttachment key={`${attachment.object_key || attachment.id || index}`} feedbackId={Number(feedbackId) || 0} conversationId={conversationId} attachment={attachment} />)}{messageSources(message).length > 0 && <details className="mt-3 text-xs"><summary className="text-primary cursor-pointer">查看文档依据</summary>{messageSources(message).map((source, index) => <blockquote key={`${source.path}:${source.start_line}:${index}`} className="mt-2 border-l-2 border-divider pl-3"><strong>{source.path}:{source.start_line}{source.end_line !== source.start_line ? `–${source.end_line}` : ''}</strong><p className="whitespace-pre-wrap">{source.excerpt}</p></blockquote>)}</details>}</div></div>
       </article>)}
-      {!formOpen && sending && <p role="status" className="sdk-chat-pending">正在结合项目资料分析…</p>}
-      {!formOpen && standalone && messages.length > 0 && !linkedIds.current.has(conversationId) && <div className="inline-actions flex gap-3 my-3">
+      {!formOpen && sending && <p role="status" className="sdk-chat-pending"><span className="sdk-agent-spinner" aria-hidden="true" />{activeTurn?.status === 'stopping' ? '正在停止 Agent…' : 'Agent 正在结合项目资料分析…'}</p>}
+      {!formOpen && interruptedTurn && !sending && <div role="status" className="sdk-chat-interrupted"><span>已停止生成</span><button type="button" className="text-xs text-primary" onClick={() => { const previous = interruptedTurn; setInterruptedTurn(undefined); interruptedTurnIds.current.delete(previous.id); void send(previous.content, previous.attachments).catch((e) => setError(e instanceof Error ? e.message : t('agent.error_load'))) }}>重新生成</button></div>}
+      {!formOpen && standalone && messages.at(-1)?.sender_type === 'agent' && !linkedIds.current.has(conversationId) && <div className="inline-actions flex gap-3 my-3">
         <button type="button" disabled={sending || submitting} className="sdk-button" onClick={() => { setAnswered(true); saveConsultationDraft(draftScope, conversationId, { answered: true }) }}>已解答</button>
         <button type="button" disabled={sending || submitting} className="sdk-button" onClick={openDirectFeedback}>仍未解决，提交反馈</button>
       </div>}
       {!formOpen && answered && <p role="status" className="sdk-notice">本次答疑已结束，未创建反馈卡片。你也可以继续提问。</p>}
       {children}
     </div>
-    <MediaComposer hidden={formOpen} key={`${standalone}:${feedbackId || ''}:${composerEpoch}`} onSend={send} draftScope={draftScope} draftConversationId={conversationId} onDraftChange={(dirty: boolean) => { composerDirty.current = dirty }} disabled={sending || loading || submitting || Boolean(pendingTransition) || linkedIds.current.has(conversationId)} imageDisabledReason={imageUnderstanding ? '' : '当前 Agent 暂不支持多模态，图片不会发送给 AI 识别，请使用文字描述问题。'} />
+    <MediaComposer hidden={formOpen} key={`${standalone}:${feedbackId || ''}:${composerEpoch}`} onSend={send} onStop={() => void stopActiveTurn()} working={sending} stopping={activeTurn?.status === 'stopping'} draftScope={draftScope} draftConversationId={conversationId} onDraftChange={(dirty: boolean) => { composerDirty.current = dirty }} disabled={loading || submitting || Boolean(pendingTransition) || linkedIds.current.has(conversationId)} imageDisabledReason={imageUnderstanding ? '' : '当前 Agent 暂不支持多模态，图片不会发送给 AI 识别，请使用文字描述问题。'} />
   </section>
 })

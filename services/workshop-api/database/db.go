@@ -193,6 +193,7 @@ func Migrate(db *gorm.DB) error {
 		&models.FeedbackEmailDelivery{},
 		&models.FeedbackTaskLink{},
 		&models.SupportTurn{},
+		&models.AgentTurn{},
 		&models.FeedbackConclusion{},
 		&models.FeedbackConclusionResponse{},
 		&models.ProjectFeedbackAccessKey{},

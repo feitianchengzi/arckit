@@ -9,6 +9,7 @@ vi.mock('@/lib/feedback/v2', () => {
   return {
     getAgentCapabilities: vi.fn().mockResolvedValue({ image_understanding: false }),
     sendAgentMessage: vi.fn(),
+    interruptAgentTurn: vi.fn(),
     getAgentConversations: vi.fn().mockResolvedValue([]),
     getAgentConversationMessages: vi.fn().mockResolvedValue(fakeHistory()),
     // 独立客服会话（standalone）API：不绑定 feedback
@@ -18,6 +19,35 @@ vi.mock('@/lib/feedback/v2', () => {
     getStandaloneAgentMessagesPage: vi.fn(async (id: string) => { const messages = await standaloneMessages(id); return { messages, total: messages.length } }),
     // escalateFeedbackV2 不应再被引用；若仍被 import 会因不存在而失败测试。
   }
+})
+
+it('immediately echoes the customer message and truly interrupts the active Agent turn', async () => {
+  const api = await import('@/lib/feedback/v2')
+  vi.mocked(api.getStandaloneAgentConversations).mockResolvedValue([])
+  let finish!: (value: any) => void
+  vi.mocked(api.sendStandaloneAgentMessage).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+  vi.mocked(api.interruptAgentTurn).mockResolvedValue({ turn_id: 'placeholder', state: 'interrupted' })
+
+  render(<AgentChatPanel standalone />)
+  await waitFor(() => expect(screen.getByRole('button', { name: '发送' })).not.toBeDisabled())
+  const input = screen.getByPlaceholderText('输入你的问题...')
+  fireEvent.change(input, { target: { value: '分析当前前端架构' } })
+  fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+  expect(input).toHaveValue('')
+  expect(screen.getByText('分析当前前端架构')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /发送中/ })).toBeNull()
+  const stop = await screen.findByRole('button', { name: '停止生成' })
+  const turnId = vi.mocked(api.sendStandaloneAgentMessage).mock.calls[0][0].clientMessageId!
+  vi.mocked(api.interruptAgentTurn).mockResolvedValueOnce({ turn_id: turnId, state: 'interrupted' })
+  fireEvent.click(stop)
+  await waitFor(() => expect(api.interruptAgentTurn).toHaveBeenCalledWith(turnId))
+  expect(screen.getByRole('button', { name: '正在停止生成' })).toBeDisabled()
+
+  await act(async () => finish({ turn_id: turnId, status: 'interrupted', interrupted: true, customer_message_id: 91, message_id: 0, conversation_id: 'conv-stop', content: '', sender_type: 'agent', confidence: 0 }))
+  await waitFor(() => expect(screen.getByText('已停止生成')).toBeInTheDocument())
+  expect(screen.getByRole('button', { name: '重新生成' })).toBeInTheDocument()
+  expect(screen.queryByText('发送中…')).toBeNull()
 })
 
 describe('AgentChatPanel 转人工入口', () => {
